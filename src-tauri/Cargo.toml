@@ -1,0 +1,54 @@
+[package]
+name = "canvas"
+version = "0.1.0"
+description = "A high-performance canvas application for creative workflows"
+authors = ["Canvas Team"]
+repository = "https://github.com/canvas-team/canvas"
+homepage = "https://canvas.app"
+documentation = "https://docs.canvas.app"
+license = "MIT"
+readme = "README.md"
+categories = ["productivity", "graphics"]
+keywords = ["canvas", "drawing", "graphics", "productivity"]
+default-run = "canvas"
+edition = "2021"
+rust-version = "1.70"
+
+# Build configuration
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.0", features = [] }
+tauri-plugin-shell = "2.0"
+
+# Production optimizations
+[profile.release]
+opt-level = 3
+debug = false
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# Fast builds for development
+[profile.dev]
+opt-level = 1
+debug = true
+strip = false
+lto = false
+
+# Optimized build override for dependencies
+[profile.release.build-override]
+opt-level = 3
+debug = false
+
+# Package metadata for distribution
+[package.metadata]
+msrv = "1.70.0"  # Minimum Supported Rust Version
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

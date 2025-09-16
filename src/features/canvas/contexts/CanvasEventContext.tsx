@@ -1,0 +1,124 @@
+// features/canvas/contexts/CanvasEventContext.tsx
+import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
+import type Konva from 'konva';
+
+export type CanvasEventType =
+  | 'pointerdown'
+  | 'pointermove'
+  | 'pointerup'
+  | 'click'
+  | 'dblclick'
+  | 'contextmenu'
+  | 'wheel'
+  | 'keydown'
+  | 'keyup'
+  | 'dragstart'
+  | 'dragmove'
+  | 'dragend';
+
+export type CanvasEventHandler<T = any> = (evt: T) => boolean | void;
+
+export interface CanvasLayers {
+  background: Konva.Layer;
+  main: Konva.Layer;
+  preview: Konva.Layer;
+  overlay: Konva.Layer;
+}
+
+export interface CanvasEventContextValue {
+  // Stable refs for orchestration
+  stageRef: React.MutableRefObject<Konva.Stage | null>;
+  layersRef: React.MutableRefObject<CanvasLayers | null>;
+
+  // Register Konva stage & layers after setup
+  setStage(stage: Konva.Stage | null): void;
+  setLayers(layers: CanvasLayers | null): void;
+
+  // Lightweight event bus (for tools and cross-module comms)
+  on(type: CanvasEventType, handler: CanvasEventHandler): () => void;
+  off(type: CanvasEventType, handler: CanvasEventHandler): void;
+  emit<T = any>(type: CanvasEventType, evt: T): boolean;
+
+  // Tool-oriented helpers
+  setActiveTool(toolId: string): void;
+  getActiveTool(): string;
+}
+
+const CanvasEventContext = createContext<CanvasEventContextValue | null>(null);
+
+export function useCanvasEvents(): CanvasEventContextValue {
+  const ctx = useContext(CanvasEventContext);
+  if (!ctx) {
+    throw new Error('useCanvasEvents must be used within a CanvasEventProvider');
+  }
+  return ctx;
+}
+
+type HandlersMap = Map<CanvasEventType, Set<CanvasEventHandler>>;
+
+export const CanvasEventProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
+  const stageRef = useRef<Konva.Stage | null>(null);
+  const layersRef = useRef<CanvasLayers | null>(null);
+
+  const handlersRef = useRef<HandlersMap>(new Map());
+  const activeToolRef = useRef<string>('select');
+
+  const on = useCallback<CanvasEventContextValue['on']>((type, handler) => {
+    let set = handlersRef.current.get(type);
+    if (!set) {
+      set = new Set();
+      handlersRef.current.set(type, set);
+    }
+    set.add(handler);
+    return () => {
+      set?.delete(handler);
+    };
+  }, []);
+
+  const off = useCallback<CanvasEventContextValue['off']>((type, handler) => {
+    handlersRef.current.get(type)?.delete(handler);
+  }, []);
+
+  const emit = useCallback<CanvasEventContextValue['emit']>((type, evt) => {
+    const set = handlersRef.current.get(type);
+    if (!set || set.size === 0) return false;
+    let consumed = false;
+    for (const h of Array.from(set)) {
+      const res = h(evt);
+      if (res === true) consumed = true;
+    }
+    return consumed;
+  }, []);
+
+  const setStage = useCallback((stage: Konva.Stage | null) => {
+    stageRef.current = stage;
+  }, []);
+
+  const setLayers = useCallback((layers: CanvasLayers | null) => {
+    layersRef.current = layers;
+  }, []);
+
+  const setActiveTool = useCallback((toolId: string) => {
+    activeToolRef.current = toolId;
+  }, []);
+  const getActiveTool = useCallback(() => activeToolRef.current, []);
+
+  const value = useMemo<CanvasEventContextValue>(
+    () => ({
+      stageRef,
+      layersRef,
+      setStage,
+      setLayers,
+      on,
+      off,
+      emit,
+      setActiveTool,
+      getActiveTool,
+    }),
+    [on, off, emit, setStage, setLayers, setActiveTool, getActiveTool],
+  );
+
+  return <CanvasEventContext.Provider value={value}>{children}</CanvasEventContext.Provider>;
+};
+
+export default CanvasEventContext;

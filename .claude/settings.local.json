@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(xxd:*)",
+      "Bash(cargo tauri:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run lint)",
+      "mcp__sequential-thinking__sequentialthinking"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
