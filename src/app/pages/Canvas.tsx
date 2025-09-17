@@ -10,8 +10,10 @@ import { GridRenderer } from '@/features/canvas/components/GridRenderer';
 import CanvasToolbar from '@/features/canvas/toolbar/CanvasToolbar';
 import { setupRenderer } from '@/features/canvas/renderer';
 import { initializeConnectorService } from '@/features/canvas/services/ConnectorService';
-import { TransformerManager } from '@/features/canvas/managers/TransformerManager';
-import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '@/features/canvas/interactions/interaction/TransformCommit';
+// REMOVED: TransformerManager import - now handled by SelectionModule only
+// import { TransformerManager } from '@/features/canvas/managers/TransformerManager';
+// REMOVED: Transform commit imports - handled by SelectionModule
+// import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '@/features/canvas/interactions/interaction/TransformCommit';
 // Mount tool components end-to-end
 import TableTool from '@/features/canvas/components/tools/content/TableTool';
 import TextTool from '@/features/canvas/components/tools/content/TextTool';
@@ -100,7 +102,7 @@ export default function Canvas(): JSX.Element {
   const mindmapRendererRef = useRef<MindmapRenderer | null>(null);
   const rendererCleanupRef = useRef<(() => void) | null>(null);
   const connectorServiceCleanupRef = useRef<(() => void) | null>(null);
-  const transformerManagerRef = useRef<TransformerManager | null>(null);
+  // REMOVED: transformerManagerRef - now handled by SelectionModule only
   const spacingHUDRef = useRef<ReturnType<typeof createSpacingHUD> | null>(null);
   const stickyNoteModuleRef = useRef<any>(null);
 
@@ -155,45 +157,7 @@ export default function Canvas(): JSX.Element {
       });
       connectorServiceCleanupRef.current = () => connectorService.cleanup();
 
-      // FIXED: Enhanced TransformerManager with proper transform commits
-      transformerManagerRef.current = new TransformerManager(stage, {
-        overlayLayer: layerRefs.overlay,
-        onTransformStart: (nodes) => {
-          // Begin transform batch for history
-          beginTransformBatch({ getStore: () => useUnifiedCanvasStore.getState() as any });
-          useUnifiedCanvasStore.getState().selection?.beginTransform?.();
-        },
-        onTransform: (nodes) => {
-          // Live transform feedback - nodes are already being transformed by Konva
-          // No need to update store during transform, just refresh display
-        },
-        onTransformEnd: (nodes) => {
-          const store = useUnifiedCanvasStore.getState();
-          
-          try {
-            // FIXED: Commit each transformed node individually
-            nodes.forEach((node) => {
-              commitTransformForNode(node, { 
-                getStore: () => useUnifiedCanvasStore.getState() as any 
-              });
-            });
-            
-            // End transform batch
-            endTransformBatch({ getStore: () => useUnifiedCanvasStore.getState() as any });
-            store.selection?.endTransform?.();
-            
-            // Force transformer refresh
-            setTimeout(() => {
-              transformerManagerRef.current?.refresh();
-            }, 50);
-          } catch (error) {
-            console.error('[Canvas] Transform commit failed:', error);
-            // Fallback: end transform anyway
-            endTransformBatch({ getStore: () => useUnifiedCanvasStore.getState() as any });
-            store.selection?.endTransform?.();
-          }
-        },
-      });
+      // REMOVED: Duplicate TransformerManager creation - SelectionModule handles this now
     }
     
     // Spacing HUD setup
@@ -344,23 +308,7 @@ export default function Canvas(): JSX.Element {
     return () => { try { unsub(); } catch {} };
   }, []);
 
-  // Wire TransformerManager to selection changes
-  useEffect(() => {
-    if (!transformerManagerRef.current || !stageRef.current) return;
-
-    const unsub = useUnifiedCanvasStore.subscribe(
-      (s) => ({
-        selectedIds: Array.from(s.selectedElementIds || []),
-        selectionVersion: s.selectionVersion || 0,
-      }),
-      ({ selectedIds }) => {
-        transformerManagerRef.current?.attachToNodeIds(selectedIds);
-      },
-      { fireImmediately: true }
-    );
-
-    return () => { try { unsub(); } catch {} };
-  }, []);
+  // REMOVED: Wire TransformerManager to selection changes - now handled by SelectionModule
 
   // Keep MindmapRenderer in sync with store
   useEffect(() => {
