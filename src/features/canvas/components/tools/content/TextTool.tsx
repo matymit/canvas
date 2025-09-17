@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { measureText } from '../../../utils/text/TextMeasurement';
@@ -40,26 +40,147 @@ function createTextarea(left: number, top: number, fontSize: number, color: stri
 }
 
 export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId = 'text' }) => {
-  const selectedTool = useUnifiedCanvasStore((s: any) => s.selectedTool ?? s.ui?.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool);
-  const upsertElement = useUnifiedCanvasStore((s: any) => s.element?.upsert ?? s.elements?.addElement);
-  const withUndo = useUnifiedCanvasStore((s: any) => s.history?.withUndo);
-  const fillColor = useUnifiedCanvasStore((s: any) => s.fillColor ?? s.ui?.fillColor ?? '#111827');
+  // Store subscriptions with proper fallbacks
+  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool || 'select');
+  const fillColor = useUnifiedCanvasStore((state) => state.fillColor || '#111827');
+  
+  // Store methods with better error handling
+  const setSelectedTool = useUnifiedCanvasStore((state) => state.setSelectedTool);
+  const withUndo = useUnifiedCanvasStore((state) => state.withUndo || state.history?.withUndo);
+  
+  // Element management with fallbacks
+  const addElement = useUnifiedCanvasStore((state) => {
+    // Try multiple patterns to find the add/upsert method
+    return state.addElement || 
+           state.element?.upsert || 
+           state.elements?.addElement ||
+           state.upsertElement ||
+           ((el: any) => {
+             console.warn('[TextTool] No addElement method found in store');
+             return el.id;
+           });
+  });
+
   const fontSize = 18;
   const fontFamily = 'Inter, system-ui, sans-serif';
-
   const activeEditorRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    const existing = activeEditorRef.current;
+    if (existing) {
+      try {
+        existing.remove();
+      } catch (error) {
+        console.warn('[TextTool] Error removing textarea:', error);
+      }
+      activeEditorRef.current = null;
+    }
+  }, []);
+
+  // Commit text function
+  const commitText = useCallback((textarea: HTMLTextAreaElement, position: { x: number; y: number }, cancel = false) => {
+    const value = (textarea.value || '').trim();
+    
+    // Remove textarea
+    try {
+      textarea.remove();
+    } catch (error) {
+      console.warn('[TextTool] Error removing textarea on commit:', error);
+    }
+    
+    if (activeEditorRef.current === textarea) {
+      activeEditorRef.current = null;
+    }
+
+    if (!cancel && value.length > 0) {
+      const m = measureText({ text: value, fontFamily, fontSize });
+      const width = Math.max(1, Math.ceil(m.width));
+      const height = Math.round(fontSize * 1.2); // fixed single-line height
+
+      const textElement = {
+        id: crypto.randomUUID(),
+        type: 'text' as const,
+        x: position.x,
+        y: position.y,
+        width,
+        height,
+        text: value,
+        style: { 
+          fill: fillColor, 
+          fontFamily, 
+          fontSize 
+        },
+        bounds: { 
+          x: position.x, 
+          y: position.y, 
+          width, 
+          height 
+        },
+      };
+
+      const commitFn = () => {
+        try {
+          console.log('[TextTool] Creating text element:', textElement);
+          const elementId = addElement(textElement);
+          console.log('[TextTool] Text element created with ID:', elementId);
+        } catch (error) {
+          console.error('[TextTool] Error creating text element:', error);
+        }
+      };
+
+      if (withUndo) {
+        try {
+          withUndo('Insert text', commitFn);
+        } catch (error) {
+          console.warn('[TextTool] Error with undo wrapper, executing directly:', error);
+          commitFn();
+        }
+      } else {
+        commitFn();
+      }
+    }
+
+    // Switch back to select tool
+    if (setSelectedTool) {
+      try {
+        setSelectedTool('select');
+      } catch (error) {
+        console.warn('[TextTool] Error setting select tool:', error);
+      }
+    }
+  }, [fillColor, fontSize, fontFamily, addElement, withUndo, setSelectedTool]);
 
   useEffect(() => {
     const stage = stageRef.current;
     const active = isActive && (selectedTool === toolId);
-    if (!stage || !active) return;
+    
+    console.log('[TextTool] Effect:', { active, selectedTool, toolId, hasStage: !!stage });
+    
+    if (!stage || !active) {
+      cleanup();
+      return;
+    }
 
     const onStageClick = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      if (!isActive || activeEditorRef.current || selectedTool !== toolId) return;
+      console.log('[TextTool] Stage click:', { 
+        active, 
+        hasActiveEditor: !!activeEditorRef.current, 
+        selectedTool,
+        toolId 
+      });
+      
+      if (!active || activeEditorRef.current || selectedTool !== toolId) {
+        return;
+      }
 
       const pos = stage.getPointerPosition();
-      if (!pos) return;
+      if (!pos) {
+        console.warn('[TextTool] No pointer position available');
+        return;
+      }
+
+      console.log('[TextTool] Creating text editor at:', pos);
 
       const rect = stage.container().getBoundingClientRect();
       const left = rect.left + pos.x;
@@ -68,12 +189,20 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       const ta = createTextarea(left, top, fontSize, fillColor, fontFamily);
       document.body.appendChild(ta);
       activeEditorRef.current = ta;
-      ta.focus();
+      
+      // Focus with slight delay to ensure proper attachment
+      setTimeout(() => {
+        try {
+          ta.focus();
+        } catch (error) {
+          console.warn('[TextTool] Error focusing textarea:', error);
+        }
+      }, 10);
 
       const updateSize = () => {
         const text = ta.value || '';
-        const m = measureText({ text, fontFamily, fontSize });
-        ta.style.width = `${Math.max(1, Math.ceil(m.width))}px`;
+        const m = measureText({ text: text || 'W', fontFamily, fontSize }); // Use 'W' as minimum
+        ta.style.width = `${Math.max(4, Math.ceil(m.width))}px`;
         ta.style.height = `${Math.round(fontSize * 1.2)}px`;
       };
 
@@ -81,37 +210,11 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       ta.addEventListener('input', updateSize);
 
       const commit = (cancel = false) => {
-        const value = (ta.value || '').trim();
         ta.removeEventListener('input', updateSize);
-        try { ta.remove(); } catch {}
-        if (activeEditorRef.current === ta) activeEditorRef.current = null;
-
-        if (!cancel && value.length > 0) {
-          const m = measureText({ text: value, fontFamily, fontSize });
-          const width = Math.max(1, Math.ceil(m.width));
-          const height = Math.round(fontSize * 1.2); // fixed single-line height
-
-          const commitFn = () => {
-            upsertElement?.({
-              id: crypto.randomUUID(),
-              type: 'text',
-              x: pos.x,
-              y: pos.y,
-              width,
-              height,
-              text: value,
-              style: { fill: fillColor, fontFamily, fontSize },
-              bounds: { x: pos.x, y: pos.y, width, height },
-            } as any);
-          };
-
-          if (withUndo) withUndo('Insert text', commitFn); else commitFn();
-        }
-
-        setSelectedTool?.('select');
+        commitText(ta, pos, cancel);
       };
 
-      ta.addEventListener('keydown', (ke) => {
+      const handleKeyDown = (ke: KeyboardEvent) => {
         if (ke.key === 'Enter' && !ke.shiftKey) {
           ke.preventDefault();
           commit(false);
@@ -119,24 +222,28 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
           ke.preventDefault();
           commit(true);
         }
-      });
+      };
 
-      ta.addEventListener('blur', () => commit(false), { once: true });
+      const handleBlur = () => {
+        // Small delay to allow for other events to process
+        setTimeout(() => commit(false), 10);
+      };
+
+      ta.addEventListener('keydown', handleKeyDown);
+      ta.addEventListener('blur', handleBlur, { once: true });
 
       e.cancelBubble = true;
     };
 
+    console.log('[TextTool] Adding stage click listener');
     stage.on('click.texttool', onStageClick);
 
     return () => {
-      stage.off('click.texttool', onStageClick as any);
-      const existing = activeEditorRef.current;
-      if (existing) {
-        try { existing.remove(); } catch {}
-        activeEditorRef.current = null;
-      }
+      console.log('[TextTool] Cleaning up stage listener and active editor');
+      stage.off('click.texttool');
+      cleanup();
     };
-  }, [isActive, selectedTool, toolId, stageRef, fillColor, fontSize, fontFamily, upsertElement, setSelectedTool, withUndo]);
+  }, [isActive, selectedTool, toolId, stageRef, fillColor, fontSize, fontFamily, commitText, cleanup]);
 
   return null;
 };
