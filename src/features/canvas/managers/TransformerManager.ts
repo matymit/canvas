@@ -23,6 +23,7 @@ export interface TransformerManagerOptions extends TransformerCallbacks {
   anchorFill?: string;
   ignoreStroke?: boolean; // ignore element stroke width for bounds
   keepRatioKey?: 'Shift' | 'Alt' | 'Control' | null; // hold to keep ratio
+  lockAspectRatio?: boolean; // always lock aspect ratio
 }
 
 export class TransformerManager {
@@ -30,6 +31,7 @@ export class TransformerManager {
   private readonly opts: Required<Omit<TransformerManagerOptions, keyof TransformerCallbacks>> & TransformerCallbacks;
   private transformer: Konva.Transformer | null = null;
   private stage: Konva.Stage | null = null;
+  private keyboardCleanup: (() => void) | null = null;
 
   constructor(stage: Konva.Stage, options: TransformerManagerOptions) {
     this.stage = stage;
@@ -50,10 +52,12 @@ export class TransformerManager {
       anchorFill: '#E5E7EB',
       ignoreStroke: true,
       keepRatioKey: 'Shift',
+      lockAspectRatio: false, // Default: free resize
       overlayLayer: options.overlayLayer, // required
       onTransformStart: options.onTransformStart,
       onTransform: options.onTransform,
       onTransformEnd: options.onTransformEnd,
+      ...options // Override defaults with provided options
     };
 
     this.ensureTransformer();
@@ -61,6 +65,8 @@ export class TransformerManager {
 
   private ensureTransformer() {
     if (this.transformer) return;
+    
+    console.log('[TransformerManager] Creating new transformer');
     this.transformer = new Konva.Transformer({
       name: 'selection-transformer',
       padding: this.opts.padding,
@@ -73,16 +79,17 @@ export class TransformerManager {
       anchorFill: this.opts.anchorFill,
       ignoreStroke: this.opts.ignoreStroke,
       listening: true,
+      // FIXED: Set default aspect ratio behavior
+      keepRatio: this.opts.lockAspectRatio || false,
     });
 
-    // Visual settings for high-contrast handles
-    this.transformer!.keepRatio(false);
     this.overlay.add(this.transformer!);
     this.overlay.batchDraw();
 
     // Wire events to callbacks and snapping behavior
     this.transformer!.on('transformstart', () => {
       const nodes = this.transformer!.nodes();
+      console.log('[TransformerManager] Transform start for', nodes.length, 'nodes');
       this.opts.onTransformStart?.(nodes);
     });
 
@@ -112,26 +119,39 @@ export class TransformerManager {
       }
 
       const nodes = tr.nodes();
+      console.log('[TransformerManager] Transform end for', nodes.length, 'nodes');
       this.opts.onTransformEnd?.(nodes);
-      this.overlay.batchDraw();
+      
+      // FIXED: Clean overlay draw to prevent duplicate frames
+      setTimeout(() => {
+        this.overlay.batchDraw();
+      }, 10);
     });
 
-    // Keyboard listener for keepRatioKey if available
+    // FIXED: Enhanced keyboard listener for aspect ratio control
     if (this.stage && this.opts.keepRatioKey) {
       const container = this.stage.container();
       const down = (e: KeyboardEvent) => {
-        if (e.key === this.opts.keepRatioKey) this.transformer!.keepRatio(true);
+        if (e.key === this.opts.keepRatioKey && this.transformer) {
+          this.transformer.keepRatio(true);
+          console.log('[TransformerManager] Aspect ratio locked (key pressed)');
+        }
       };
       const up = (e: KeyboardEvent) => {
-        if (e.key === this.opts.keepRatioKey) this.transformer!.keepRatio(false);
+        if (e.key === this.opts.keepRatioKey && this.transformer) {
+          this.transformer.keepRatio(this.opts.lockAspectRatio || false);
+          console.log('[TransformerManager] Aspect ratio unlocked (key released)');
+        }
       };
-      container.addEventListener('keydown', down);
-      container.addEventListener('keyup', up);
+      
+      // Attach listeners to document for global capture
+      document.addEventListener('keydown', down, true);
+      document.addEventListener('keyup', up, true);
 
-      // Cleanup on destroy
-      (this.transformer as any).__keepRatioCleanup = () => {
-        container.removeEventListener('keydown', down);
-        container.removeEventListener('keyup', up);
+      // Store cleanup function
+      this.keyboardCleanup = () => {
+        document.removeEventListener('keydown', down, true);
+        document.removeEventListener('keyup', up, true);
       };
     }
   }
@@ -139,6 +159,8 @@ export class TransformerManager {
   attachToNodes(nodes: Konva.Node[]) {
     this.ensureTransformer();
     if (!this.transformer) return;
+
+    console.log('[TransformerManager] Attaching to', nodes.length, 'nodes');
 
     // Filter nodes that are still in stage
     const live = nodes.filter((n) => {
@@ -148,8 +170,20 @@ export class TransformerManager {
         return false;
       }
     });
-    this.transformer.nodes(live);
-    this.transformer.getLayer()?.batchDraw();
+    
+    // FIXED: Clear any existing nodes first to prevent frame duplication
+    this.transformer.nodes([]);
+    this.overlay.batchDraw();
+    
+    // Small delay before attaching to ensure clean state
+    setTimeout(() => {
+      if (this.transformer && live.length > 0) {
+        this.transformer.nodes(live);
+        this.transformer.visible(true);
+        this.overlay.batchDraw();
+        console.log('[TransformerManager] Successfully attached to', live.length, 'nodes');
+      }
+    }, 5);
   }
 
   attachToNodeIds(ids: string[]) {
@@ -164,7 +198,9 @@ export class TransformerManager {
 
   detach() {
     if (!this.transformer) return;
+    console.log('[TransformerManager] Detaching transformer');
     this.transformer.nodes([]);
+    this.transformer.visible(false);
     this.overlay.batchDraw();
   }
 
@@ -174,6 +210,7 @@ export class TransformerManager {
 
   refresh() {
     if (!this.transformer) return;
+    console.log('[TransformerManager] Refreshing transformer');
     this.transformer.forceUpdate();
     this.overlay.batchDraw();
   }
@@ -190,10 +227,23 @@ export class TransformerManager {
     this.overlay.batchDraw();
   }
 
+  // FIXED: Set aspect ratio locking dynamically
+  setKeepRatio(keepRatio: boolean) {
+    if (!this.transformer) return;
+    this.transformer.keepRatio(keepRatio);
+    console.log('[TransformerManager] Aspect ratio lock set to:', keepRatio);
+  }
+
   destroy() {
     if (!this.transformer) return;
-    const cleanup = (this.transformer as any).__keepRatioCleanup;
-    if (cleanup) cleanup();
+    console.log('[TransformerManager] Destroying transformer');
+    
+    // Clean up keyboard listeners
+    if (this.keyboardCleanup) {
+      this.keyboardCleanup();
+      this.keyboardCleanup = null;
+    }
+    
     this.transformer.destroy();
     this.transformer = null;
     this.overlay.batchDraw();
