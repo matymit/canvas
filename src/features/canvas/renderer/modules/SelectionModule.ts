@@ -14,6 +14,7 @@ export class SelectionModule implements RendererModule {
 
     // FIXED: Make module globally accessible for tool integration
     (window as any).selectionModule = this;
+    console.log('[SelectionModule] Module registered globally');
 
     // Create transformer manager on overlay layer
     this.transformerManager = new TransformerManager(ctx.stage, {
@@ -256,50 +257,86 @@ export class SelectionModule implements RendererModule {
 
   // FIXED: Public API for other modules to trigger selection with proper store integration
   selectElement(elementId: string) {
-    if (!this.storeCtx) return;
+    if (!this.storeCtx) {
+      console.error('[SelectionModule] No store context available for selection');
+      return;
+    }
     
     const store = this.storeCtx.store.getState();
     console.log('[SelectionModule] Selecting element via store:', elementId);
     
-    // Try different store selection methods
-    if (store.setSelection) {
-      store.setSelection([elementId]);
-    } else if (store.selection?.set) {
-      store.selection.set([elementId]);
-    } else if (store.selectedElementIds) {
-      // Handle Set-based selection
-      if (store.selectedElementIds instanceof Set) {
-        store.selectedElementIds.clear();
-        store.selectedElementIds.add(elementId);
-      } else if (Array.isArray(store.selectedElementIds)) {
-        store.selectedElementIds.length = 0;
-        store.selectedElementIds.push(elementId);
+    // Try different store selection methods with proper error handling
+    try {
+      if (store.setSelection) {
+        store.setSelection([elementId]);
+        console.log('[SelectionModule] Selection set via setSelection method');
+      } else if (store.selection?.set) {
+        store.selection.set([elementId]);
+        console.log('[SelectionModule] Selection set via selection.set method');
+      } else if (store.selectedElementIds) {
+        // Handle Set-based selection
+        if (store.selectedElementIds instanceof Set) {
+          store.selectedElementIds.clear();
+          store.selectedElementIds.add(elementId);
+          console.log('[SelectionModule] Selection set via Set manipulation');
+        } else if (Array.isArray(store.selectedElementIds)) {
+          store.selectedElementIds.length = 0;
+          store.selectedElementIds.push(elementId);
+          console.log('[SelectionModule] Selection set via Array manipulation');
+        }
+        // Trigger state update if using Zustand
+        this.storeCtx.store.setState?.({ selectedElementIds: store.selectedElementIds });
+      } else {
+        console.error('[SelectionModule] No valid selection method found in store');
       }
-      // Trigger state update if using Zustand
-      this.storeCtx.store.setState?.({ selectedElementIds: store.selectedElementIds });
+    } catch (error) {
+      console.error('[SelectionModule] Error during element selection:', error);
     }
   }
 
-  // FIXED: Auto-select element with proper timing
+  // FIXED: Enhanced auto-select element with better timing and error recovery
   autoSelectElement(elementId: string) {
     console.log('[SelectionModule] Auto-selecting element:', elementId);
     
     // Immediate selection attempt
     this.selectElement(elementId);
     
-    // Retry with increasing delays to handle rendering timing
-    const retryDelays = [50, 100, 200];
-    retryDelays.forEach((delay, index) => {
+    // Enhanced retry mechanism with exponential backoff for better reliability
+    let attempts = 0;
+    const maxAttempts = 5;
+    const baseDelay = 25; // Start with shorter delay
+    
+    const attemptSelection = () => {
+      attempts++;
+      const delay = baseDelay * Math.pow(1.5, attempts - 1); // Exponential backoff
+      
       setTimeout(() => {
+        // Check if element is now available
         const nodes = this.resolveElementsToNodes(new Set([elementId]));
-        if (nodes.length === 0 && index < retryDelays.length - 1) {
-          console.log(`[SelectionModule] Retry ${index + 1} - element not yet rendered, retrying...`);
+        
+        if (nodes.length > 0) {
+          console.log(`[SelectionModule] Element found on attempt ${attempts}, selection successful`);
+          // Force transformer update to ensure visibility
+          if (this.transformerManager) {
+            this.transformerManager.attachToNodes(nodes);
+            this.transformerManager.show();
+          }
+          return; // Success, stop retrying
+        }
+        
+        if (attempts < maxAttempts) {
+          console.log(`[SelectionModule] Attempt ${attempts} failed, retrying in ${delay}ms...`);
+          // Retry selection in store as element might not be rendered yet
           this.selectElement(elementId);
-        } else if (nodes.length > 0) {
-          console.log('[SelectionModule] Element found and selected successfully');
+          attemptSelection(); // Recursive retry
+        } else {
+          console.warn(`[SelectionModule] Auto-selection failed after ${maxAttempts} attempts for element:`, elementId);
         }
       }, delay);
-    });
+    };
+    
+    // Start the retry mechanism
+    attemptSelection();
   }
 
   // Public method to clear selection
