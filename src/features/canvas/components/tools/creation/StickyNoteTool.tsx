@@ -19,6 +19,11 @@ const DEFAULT_FILL = '#FFF59D'; // light yellow
 const DEFAULT_TEXT = '';
 const DEFAULT_FONT_SIZE = 16;
 
+// Get reference to StickyNoteModule for direct text editing trigger
+function getStickyNoteModule(): any {
+  return (window as any).stickyNoteModule;
+}
+
 const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   isActive,
   stageRef,
@@ -48,6 +53,26 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     s.withUndo || s.history?.withUndo
   );
 
+  // Track newly created elements for immediate text editing
+  const newlyCreatedRef = useRef<string | null>(null);
+
+  // Watch for element creation completion and trigger text editing
+  useEffect(() => {
+    if (!newlyCreatedRef.current) return;
+    
+    const elementId = newlyCreatedRef.current;
+    newlyCreatedRef.current = null;
+    
+    // Trigger immediate text editing after element is rendered
+    setTimeout(() => {
+      const stickyModule = getStickyNoteModule();
+      if (stickyModule?.triggerImmediateTextEdit) {
+        console.log('[StickyNoteTool] Triggering immediate text edit for:', elementId);
+        stickyModule.triggerImmediateTextEdit(elementId);
+      }
+    }, 150); // Allow time for renderer to create the visual element
+  }, []);
+
   // Tool activation effect
   useEffect(() => {
     const stage = stageRef.current;
@@ -67,7 +92,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         y: pos.y - height / 2,
         width,
         height,
-        text: text,
+        text: text, // Start with empty text for immediate editing
         style: {
           fill: actualFill,
           fontSize,
@@ -98,19 +123,21 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
       // Auto-select the created element for immediate transform handles
       if (setSelection) {
-        // Small delay to ensure element is rendered first
         setTimeout(() => {
           console.log('[StickyNoteTool] Auto-selecting element:', stickyElement.id);
           setSelection([stickyElement.id]);
         }, 50);
       }
+      
+      // FIXED: Mark for immediate text editing
+      newlyCreatedRef.current = stickyElement.id;
 
       // Auto-switch back to select tool for interaction
       setTimeout(() => {
         if (setSelectedTool) {
           setSelectedTool('select');
         }
-      }, 100);
+      }, 200); // Slightly longer delay to allow text editing to start
 
       if (e) e.cancelBubble = true;
     };
