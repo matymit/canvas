@@ -53,26 +53,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     s.withUndo || s.history?.withUndo
   );
 
-  // Track newly created elements for immediate text editing
-  const newlyCreatedRef = useRef<string | null>(null);
-
-  // Watch for element creation completion and trigger text editing
-  useEffect(() => {
-    if (!newlyCreatedRef.current) return;
-    
-    const elementId = newlyCreatedRef.current;
-    newlyCreatedRef.current = null;
-    
-    // Trigger immediate text editing after element is rendered
-    setTimeout(() => {
-      const stickyModule = getStickyNoteModule();
-      if (stickyModule?.triggerImmediateTextEdit) {
-        console.log('[StickyNoteTool] Triggering immediate text edit for:', elementId);
-        stickyModule.triggerImmediateTextEdit(elementId);
-      }
-    }, 150); // Allow time for renderer to create the visual element
-  }, []);
-
   // Tool activation effect
   useEffect(() => {
     const stage = stageRef.current;
@@ -121,23 +101,29 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         return;
       }
 
-      // Auto-select the created element for immediate transform handles
+      // FIXED: Immediate auto-selection for resize frame
       if (setSelection) {
         setTimeout(() => {
           console.log('[StickyNoteTool] Auto-selecting element:', stickyElement.id);
           setSelection([stickyElement.id]);
-        }, 50);
+        }, 50); // Quick selection first
       }
-      
-      // FIXED: Mark for immediate text editing
-      newlyCreatedRef.current = stickyElement.id;
 
-      // Auto-switch back to select tool for interaction
+      // FIXED: Immediate text editing with proper timing
+      setTimeout(() => {
+        const stickyModule = getStickyNoteModule();
+        if (stickyModule?.triggerImmediateTextEdit) {
+          console.log('[StickyNoteTool] Triggering immediate text edit for:', stickyElement.id);
+          stickyModule.triggerImmediateTextEdit(stickyElement.id);
+        }
+      }, 100); // Allow renderer to create element first
+
+      // FIXED: Switch to select tool after both selection and text editing are initiated
       setTimeout(() => {
         if (setSelectedTool) {
           setSelectedTool('select');
         }
-      }, 200); // Slightly longer delay to allow text editing to start
+      }, 150);
 
       if (e) e.cancelBubble = true;
     };
