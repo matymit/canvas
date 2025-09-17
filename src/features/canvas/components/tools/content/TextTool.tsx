@@ -40,26 +40,12 @@ function createTextarea(left: number, top: number, fontSize: number, color: stri
 }
 
 export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId = 'text' }) => {
-  // Store subscriptions with proper fallbacks
-  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool || 'select');
-  const fillColor = useUnifiedCanvasStore((state) => state.fillColor || '#111827');
-  
-  // Store methods with better error handling
+  // Store subscriptions
+  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool);
+  const fillColor = useUnifiedCanvasStore((state) => state.fillColor);
   const setSelectedTool = useUnifiedCanvasStore((state) => state.setSelectedTool);
-  const withUndo = useUnifiedCanvasStore((state) => state.withUndo || state.history?.withUndo);
-  
-  // Element management with fallbacks
-  const addElement = useUnifiedCanvasStore((state) => {
-    // Try multiple patterns to find the add/upsert method
-    return state.addElement || 
-           state.element?.upsert || 
-           state.elements?.addElement ||
-           state.upsertElement ||
-           ((el: any) => {
-             console.warn('[TextTool] No addElement method found in store');
-             return el.id;
-           });
-  });
+  const addElement = useUnifiedCanvasStore((state) => state.addElement);
+  const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
 
   const fontSize = 18;
   const fontFamily = 'Inter, system-ui, sans-serif';
@@ -95,8 +81,8 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
 
     if (!cancel && value.length > 0) {
       const m = measureText({ text: value, fontFamily, fontSize });
-      const width = Math.max(1, Math.ceil(m.width));
-      const height = Math.round(fontSize * 1.2); // fixed single-line height
+      const width = Math.max(10, Math.ceil(m.width + 8)); // Add padding
+      const height = Math.round(fontSize * 1.2);
 
       const textElement = {
         id: crypto.randomUUID(),
@@ -109,7 +95,10 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
         style: { 
           fill: fillColor, 
           fontFamily, 
-          fontSize 
+          fontSize,
+          fontStyle: 'normal',
+          fontWeight: 'normal',
+          textDecoration: '',
         },
         bounds: { 
           x: position.x, 
@@ -120,13 +109,10 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       };
 
       const commitFn = () => {
-        try {
-          console.log('[TextTool] Creating text element:', textElement);
-          const elementId = addElement(textElement);
-          console.log('[TextTool] Text element created with ID:', elementId);
-        } catch (error) {
-          console.error('[TextTool] Error creating text element:', error);
-        }
+        console.log('[TextTool] Creating text element:', textElement);
+        // Use pushHistory option to ensure history tracking
+        addElement(textElement, { pushHistory: true, select: true });
+        console.log('[TextTool] Text element created successfully');
       };
 
       if (withUndo) {
@@ -167,7 +153,8 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
         active, 
         hasActiveEditor: !!activeEditorRef.current, 
         selectedTool,
-        toolId 
+        toolId,
+        target: e.target.constructor.name
       });
       
       if (!active || activeEditorRef.current || selectedTool !== toolId) {
@@ -200,9 +187,9 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       }, 10);
 
       const updateSize = () => {
-        const text = ta.value || '';
-        const m = measureText({ text: text || 'W', fontFamily, fontSize }); // Use 'W' as minimum
-        ta.style.width = `${Math.max(4, Math.ceil(m.width))}px`;
+        const text = ta.value || 'W'; // Use 'W' as minimum for sizing
+        const m = measureText({ text, fontFamily, fontSize });
+        ta.style.width = `${Math.max(4, Math.ceil(m.width + 4))}px`;
         ta.style.height = `${Math.round(fontSize * 1.2)}px`;
       };
 
@@ -226,12 +213,14 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
 
       const handleBlur = () => {
         // Small delay to allow for other events to process
-        setTimeout(() => commit(false), 10);
+        setTimeout(() => commit(false), 50);
       };
 
       ta.addEventListener('keydown', handleKeyDown);
       ta.addEventListener('blur', handleBlur, { once: true });
 
+      // Prevent the click from bubbling up
+      e.evt.stopPropagation();
       e.cancelBubble = true;
     };
 
