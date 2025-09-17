@@ -5,10 +5,17 @@ import { setupRenderer } from '../renderer';
 import CanvasToolbar from '../toolbar/CanvasToolbar';
 import ZoomControls from './ZoomControls';
 
-// Tool imports
+// Tool imports - all major tools
 import StickyNoteTool from './tools/creation/StickyNoteTool';
 import ConnectorTool from './tools/creation/ConnectorTool';
-// Add other tool imports as needed
+import TextTool from './tools/content/TextTool';
+import ImageTool from './tools/content/ImageTool';
+import TableTool from './tools/content/TableTool';
+import MindmapTool from './tools/content/MindmapTool';
+import RectangleTool from './tools/shapes/RectangleTool';
+import CircleTool from './tools/shapes/CircleTool';
+import TriangleTool from './tools/shapes/TriangleTool';
+// Note: Drawing tools (pen, marker, highlighter, eraser) would be in ./tools/drawing/
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,7 +28,6 @@ const FigJamCanvas: React.FC = () => {
     overlay: Konva.Layer | null;
   }>({ background: null, main: null, highlighter: null, preview: null, overlay: null });
   const rendererDisposeRef = useRef<(() => void) | null>(null);
-  const toolsRef = useRef<{ [key: string]: React.ReactElement | null }>({});
 
   // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
@@ -125,6 +131,9 @@ const FigJamCanvas: React.FC = () => {
 
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      // Skip if not in select mode
+      if (selectedTool !== 'select') return;
+
       // If clicking on empty stage, clear selection
       if (e.target === stage) {
         clearSelection();
@@ -261,17 +270,28 @@ const FigJamCanvas: React.FC = () => {
         cursor = 'text';
         break;
       case 'sticky-note':
+      case 'sticky':
         cursor = 'crosshair';
         break;
       case 'rectangle':
       case 'ellipse':
+      case 'circle':
       case 'triangle':
       case 'line':
+        cursor = 'crosshair';
+        break;
       case 'connector':
+      case 'connector-line':
+      case 'connector-arrow':
+        cursor = 'crosshair';
+        break;
+      case 'image':
+      case 'table':
+      case 'mindmap':
         cursor = 'crosshair';
         break;
       default:
-        cursor = 'crosshair';
+        cursor = 'default';
     }
 
     containerRef.current.style.cursor = cursor;
@@ -288,29 +308,67 @@ const FigJamCanvas: React.FC = () => {
   const renderActiveTool = useCallback(() => {
     if (!stageRef.current) return null;
 
-    switch (selectedTool) {
-      case 'sticky-note':
-        return (
-          <StickyNoteTool
-            key="sticky-note-tool"
-            isActive={true}
-            stageRef={stageRef}
-          />
-        );
-      case 'connector':
-      case 'connector-line':
-      case 'connector-arrow':
-        return (
-          <ConnectorTool
-            key="connector-tool"
-            isActive={true}
-            stageRef={stageRef}
-            toolId={selectedTool}
-          />
-        );
-      // Add other tools as needed
-      default:
-        return null;
+    const stage = stageRef.current;
+    const toolProps = { isActive: true, stageRef };
+
+    // Normalize tool names (handle both old and new naming)
+    const normalizedTool = selectedTool.toLowerCase();
+
+    try {
+      switch (normalizedTool) {
+        // Content tools
+        case 'sticky-note':
+        case 'sticky':
+          return <StickyNoteTool key="sticky-tool" {...toolProps} />;
+
+        case 'text':
+          return <TextTool key="text-tool" {...toolProps} />;
+
+        case 'image':
+          return <ImageTool key="image-tool" {...toolProps} />;
+
+        case 'table':
+          return <TableTool key="table-tool" {...toolProps} />;
+
+        case 'mindmap':
+          return <MindmapTool key="mindmap-tool" {...toolProps} />;
+
+        // Shape tools
+        case 'rectangle':
+          return <RectangleTool key="rectangle-tool" {...toolProps} toolId={selectedTool} />;
+
+        case 'circle':
+        case 'ellipse':
+          return <CircleTool key="circle-tool" {...toolProps} toolId={selectedTool} />;
+
+        case 'triangle':
+          return <TriangleTool key="triangle-tool" {...toolProps} toolId={selectedTool} />;
+
+        // Connector tools
+        case 'connector':
+        case 'connector-line':
+        case 'connector-arrow':
+          return <ConnectorTool key="connector-tool" {...toolProps} toolId={selectedTool} />;
+
+        // Drawing tools would go here
+        // case 'pen':
+        //   return <PenTool key="pen-tool" {...toolProps} />;
+        // case 'marker':
+        //   return <MarkerTool key="marker-tool" {...toolProps} />;
+        // case 'highlighter':
+        //   return <HighlighterTool key="highlighter-tool" {...toolProps} />;
+        // case 'eraser':
+        //   return <EraserTool key="eraser-tool" {...toolProps} />;
+
+        // No tool component needed for select/pan
+        case 'select':
+        case 'pan':
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.error(`[FigJamCanvas] Error rendering tool '${selectedTool}':`, error);
+      return null;
     }
   }, [selectedTool]);
 
