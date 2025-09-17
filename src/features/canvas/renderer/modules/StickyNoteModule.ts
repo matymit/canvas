@@ -27,6 +27,9 @@ export class StickyNoteModule implements RendererModule {
     this.layers = ctx.layers.main;
     this.storeCtx = ctx;
     
+    // FIXED: Make module globally accessible for tool integration
+    (window as any).stickyNoteModule = this;
+    
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
       // Selector: extract sticky-note elements
@@ -82,6 +85,11 @@ export class StickyNoteModule implements RendererModule {
     if (this.layers) {
       this.layers.batchDraw();
     }
+    
+    // Clean up global reference
+    if ((window as any).stickyNoteModule === this) {
+      (window as any).stickyNoteModule = null;
+    }
   }
 
   private reconcile(stickyNotes: Map<Id, StickySnapshot>) {
@@ -126,7 +134,7 @@ export class StickyNoteModule implements RendererModule {
 
   private createStickyGroup(sticky: StickySnapshot): Konva.Group {
     const group = new Konva.Group({
-      id: sticky.id, // FIXED: Use native id() method instead of elementId attr
+      id: sticky.id,
       x: sticky.x,
       y: sticky.y,
       draggable: true,
@@ -206,10 +214,12 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private setupStickyInteractions(group: Konva.Group, elementId: string) {
-    // FIXED: Add click handler for selection
-    group.on('click', (e) => {
+    // FIXED: Proper click handler for selection with no event conflicts
+    group.on('click tap', (e) => {
       e.cancelBubble = true; // Prevent stage click
       if (!this.storeCtx) return;
+      
+      console.log('[StickyNoteModule] Click on sticky note:', elementId);
       
       const store = this.storeCtx.store.getState();
       const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
@@ -223,7 +233,7 @@ export class StickyNoteModule implements RendererModule {
       }
     });
 
-    // FIXED: Enhanced drag handling with proper store commits
+    // Drag handling with proper store commits
     let dragStartData: { x: number; y: number; storeX: number; storeY: number } | null = null;
     
     group.on('dragstart', () => {
@@ -275,8 +285,8 @@ export class StickyNoteModule implements RendererModule {
       dragStartData = null;
     });
 
-    // Double-click to edit text OR single click if newly created and empty
-    group.on('dblclick', (e) => {
+    // Double-click to edit text
+    group.on('dblclick dbltap', (e) => {
       e.cancelBubble = true;
       this.startTextEditing(group, elementId);
     });
@@ -314,7 +324,8 @@ export class StickyNoteModule implements RendererModule {
     // Get stage and text element for positioning
     const stage = group.getStage();
     const textNode = group.findOne('.sticky-text') as Konva.Text;
-    if (!stage || !textNode) return;
+    const bgNode = group.findOne('.sticky-bg') as Konva.Rect;
+    if (!stage || !textNode || !bgNode) return;
     
     const container = stage.container();
     const rect = container.getBoundingClientRect();
@@ -326,6 +337,7 @@ export class StickyNoteModule implements RendererModule {
       rect.top + textAbsPos.y,
       textNode.width(),
       textNode.height(),
+      bgNode.fill(),
       elementId
     );
     
@@ -336,7 +348,7 @@ export class StickyNoteModule implements RendererModule {
     textNode.getLayer()?.batchDraw();
   }
 
-  private createSeamlessEditor(pageX: number, pageY: number, width: number, height: number, elementId: string): HTMLTextAreaElement {
+  private createSeamlessEditor(pageX: number, pageY: number, width: number, height: number, bgColor: string, elementId: string): HTMLTextAreaElement {
     const editor = document.createElement('textarea');
     editor.setAttribute('data-sticky-editor', elementId);
     editor.setAttribute('data-testid', 'sticky-note-input');
@@ -348,16 +360,16 @@ export class StickyNoteModule implements RendererModule {
     
     editor.value = currentText;
     
-    // FIXED: Seamless integration styling like FigJam
+    // FIXED: Seamless integration styling with background color matching
     editor.style.cssText = `
-      position: absolute;
+      position: fixed;
       left: ${pageX}px;
       top: ${pageY}px;
       width: ${width}px;
       height: ${height}px;
       border: none;
       outline: none;
-      background: transparent;
+      background: ${bgColor || '#FEF08A'};
       z-index: 1000;
       font-family: Inter, system-ui, sans-serif;
       font-size: 14px;
@@ -369,20 +381,18 @@ export class StickyNoteModule implements RendererModule {
       overflow: hidden;
       white-space: pre-wrap;
       word-wrap: break-word;
+      border-radius: 8px;
     `;
     
     document.body.appendChild(editor);
     
     // FIXED: Immediate focus with visible caret
-    setTimeout(() => {
-      editor.focus();
-      // Position cursor at end for new notes, select all for existing text
-      if (currentText) {
-        editor.select();
-      } else {
-        editor.setSelectionRange(0, 0);
-      }
-    }, 0);
+    editor.focus();
+    if (currentText) {
+      editor.select();
+    } else {
+      editor.setSelectionRange(0, 0);
+    }
 
     const commit = () => {
       const newText = editor.value;
@@ -424,6 +434,18 @@ export class StickyNoteModule implements RendererModule {
     });
 
     editor.addEventListener('blur', commit, { once: true });
+    
+    // Click outside to commit
+    const clickOutside = (e: Event) => {
+      if (!editor.contains(e.target as Node)) {
+        commit();
+        document.removeEventListener('click', clickOutside, true);
+      }
+    };
+    
+    setTimeout(() => {
+      document.addEventListener('click', clickOutside, true);
+    }, 100);
     
     return editor;
   }
@@ -470,11 +492,12 @@ export class StickyNoteModule implements RendererModule {
     document.body.style.cursor = 'default';
   }
 
-  // FIXED: Public method for immediate text editing after creation
+  // Public method for immediate text editing after creation
   public triggerImmediateTextEdit(elementId: string) {
+    console.log('[StickyNoteModule] Triggering immediate text edit for:', elementId);
     // Small delay to ensure element is rendered
     setTimeout(() => {
       this.startTextEditingForElement(elementId);
-    }, 100);
+    }, 50);
   }
 }
