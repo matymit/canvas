@@ -1,26 +1,44 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import { setupRenderer } from '../renderer';
 import CanvasToolbar from '../toolbar/CanvasToolbar';
 import ZoomControls from './ZoomControls';
+
+// Tool imports
+import StickyNoteTool from './tools/creation/StickyNoteTool';
+import ConnectorTool from './tools/creation/ConnectorTool';
+// Add other tool imports as needed
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
   const layersRef = useRef<{
-    grid: Konva.Layer | null;
+    background: Konva.Layer | null;
     main: Konva.Layer | null;
+    highlighter: Konva.Layer | null;
+    preview: Konva.Layer | null;
     overlay: Konva.Layer | null;
-  }>({ grid: null, main: null, overlay: null });
+  }>({ background: null, main: null, highlighter: null, preview: null, overlay: null });
+  const rendererDisposeRef = useRef<(() => void) | null>(null);
+  const toolsRef = useRef<{ [key: string]: React.ReactElement | null }>({});
 
+  // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
   const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool);
-  const strokeColor = useUnifiedCanvasStore((state) => state.strokeColor);
-  const strokeWidth = useUnifiedCanvasStore((state) => state.strokeWidth);
-  const fillColor = useUnifiedCanvasStore((state) => state.fillColor);
+  const elements = useUnifiedCanvasStore((state) => state.elements);
+  const selectedElementIds = useUnifiedCanvasStore((state) => state.selectedElementIds);
+  
+  // Store methods
+  const setSelection = useUnifiedCanvasStore((state) => state.setSelection);
+  const addToSelection = useUnifiedCanvasStore((state) => state.addToSelection);
+  const clearSelection = useUnifiedCanvasStore((state) => state.clearSelection);
 
+  // Initialize stage and renderer system
   useEffect(() => {
     if (!containerRef.current) return;
+
+    console.log('[FigJamCanvas] Initializing stage and renderer system');
 
     // Create Konva stage
     const stage = new Konva.Stage({
@@ -32,18 +50,29 @@ const FigJamCanvas: React.FC = () => {
 
     stageRef.current = stage;
 
-    // Create layers
-    const gridLayer = new Konva.Layer();
-    const mainLayer = new Konva.Layer();
-    const overlayLayer = new Konva.Layer();
+    // Create the five-layer system
+    const backgroundLayer = new Konva.Layer({ listening: false }); // Grid, non-interactive
+    const mainLayer = new Konva.Layer({ listening: true }); // All committed elements
+    const highlighterLayer = new Konva.Layer({ listening: false }); // Highlighter strokes (behind main)
+    const previewLayer = new Konva.Layer({ listening: false }); // Tool previews, ephemeral
+    const overlayLayer = new Konva.Layer({ listening: true }); // Selection handles, guides
 
     layersRef.current = {
-      grid: gridLayer,
+      background: backgroundLayer,
       main: mainLayer,
+      highlighter: highlighterLayer,
+      preview: previewLayer,
       overlay: overlayLayer,
     };
 
-    // Add grid pattern using a single cached shape for performance
+    // Add layers to stage in correct order
+    stage.add(backgroundLayer);
+    stage.add(highlighterLayer); // Behind main for highlighter z-policy
+    stage.add(mainLayer);
+    stage.add(previewLayer);
+    stage.add(overlayLayer); // Always on top
+
+    // Setup grid on background layer
     const gridSize = 20;
     const dotRadius = 1;
     const dotColor = '#c0c0c0';
@@ -80,274 +109,142 @@ const FigJamCanvas: React.FC = () => {
       },
     });
 
-    gridLayer.add(gridShape);
+    backgroundLayer.add(gridShape);
+    backgroundLayer.batchDraw();
 
-    const updateGrid = () => {
-      if (!gridLayer) return;
-      gridLayer.batchDraw();
+    // Setup renderer system - this is the KEY integration
+    console.log('[FigJamCanvas] Setting up renderer modules');
+    const rendererDispose = setupRenderer(stage, {
+      background: backgroundLayer,
+      main: mainLayer,
+      highlighter: highlighterLayer,
+      preview: previewLayer,
+      overlay: overlayLayer,
+    });
+    rendererDisposeRef.current = rendererDispose;
+
+    // Selection handling - click empty space clears, click elements selects
+    const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      // If clicking on empty stage, clear selection
+      if (e.target === stage) {
+        clearSelection();
+        return;
+      }
+
+      // If clicking on an element, select it (renderer modules should set element IDs on nodes)
+      const clickedNode = e.target;
+      const elementId = clickedNode.getAttr('elementId') || clickedNode.id();
+      
+      if (elementId && elements.has(elementId)) {
+        if (e.evt.ctrlKey || e.evt.metaKey) {
+          // Toggle selection with Ctrl/Cmd
+          if (selectedElementIds.has(elementId)) {
+            const newSelection = new Set(selectedElementIds);
+            newSelection.delete(elementId);
+            setSelection(newSelection);
+          } else {
+            addToSelection(elementId);
+          }
+        } else {
+          // Single selection
+          setSelection([elementId]);
+        }
+      }
     };
-    stage.add(gridLayer);
-    stage.add(mainLayer);
-    stage.add(overlayLayer);
 
-    updateGrid();
+    stage.on('click', handleStageClick);
 
-    // Mouse wheel zoom
-    stage.on('wheel', (e) => {
+    // Mouse wheel zoom with viewport store integration
+    const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
-      const oldScale = stage.scaleX();
       const pointer = stage.getPointerPosition();
-
       if (!pointer) return;
 
-      const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
-      };
+      const deltaScale = e.evt.deltaY > 0 ? 0.9 : 1.1;
+      viewport.zoomAt(pointer.x, pointer.y, deltaScale);
+      
+      // Update stage to match viewport store
+      stage.scale({ x: viewport.scale, y: viewport.scale });
+      stage.position({ x: viewport.x, y: viewport.y });
+      
+      // Redraw grid
+      backgroundLayer.batchDraw();
+    };
 
-      const direction = e.evt.deltaY > 0 ? -1 : 1;
-      const newScale = direction > 0 ? oldScale * 1.1 : oldScale / 1.1;
+    stage.on('wheel', handleWheel);
 
-      stage.scale({ x: newScale, y: newScale });
-      viewport.setScale(newScale);
-
-      const newPos = {
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
-      };
-      stage.position(newPos);
-      viewport.setPan(newPos.x, newPos.y);
-
-      updateGrid();
-    });
-
-    // Drawing state management
-    let isDrawing = false;
+    // Pan handling when pan tool is active
     let isPanning = false;
-    let currentLine: Konva.Line | null = null;
-
-    const handleMouseDown = () => {
-      const pos = stage.getPointerPosition();
-      if (!pos) return;
-
-      const tool = selectedTool;
-
-      // Pan tool
-      if (tool === 'pan') {
+    const handleDragStart = () => {
+      if (selectedTool === 'pan') {
         isPanning = true;
         stage.draggable(true);
-        return;
-      }
-
-      stage.draggable(false);
-
-      const stagePos = {
-        x: (pos.x - stage.x()) / stage.scaleX(),
-        y: (pos.y - stage.y()) / stage.scaleY(),
-      };
-
-      // Drawing tools
-      if (tool === 'pen' || tool === 'marker' || tool === 'highlighter' || tool === 'eraser') {
-        isDrawing = true;
-
-        const strokeWidth = tool === 'pen' ? 2 : tool === 'marker' ? 6 : tool === 'highlighter' ? 12 : 20;
-        const opacity = tool === 'highlighter' ? 0.5 : 1;
-
-        currentLine = new Konva.Line({
-          points: [stagePos.x, stagePos.y],
-          stroke: tool === 'eraser' ? '#f5f5f5' : (strokeColor || '#000000'),
-          strokeWidth: strokeWidth,
-          lineCap: 'round',
-          lineJoin: 'round',
-          opacity: opacity,
-          globalCompositeOperation: tool === 'eraser' ? 'destination-out' : 'source-over',
-        });
-
-        mainLayer.add(currentLine);
-        return;
-      }
-
-      // Shape tools
-      switch (tool) {
-        case 'rectangle':
-          const rect = new Konva.Rect({
-            x: stagePos.x - 50,
-            y: stagePos.y - 30,
-            width: 100,
-            height: 60,
-            fill: fillColor || '#5865f2',
-            stroke: strokeColor || '#000000',
-            strokeWidth: strokeWidth || 2,
-            cornerRadius: 8,
-            draggable: true,
-          });
-          mainLayer.add(rect);
-          mainLayer.batchDraw();
-          break;
-
-        case 'ellipse':
-          const ellipse = new Konva.Ellipse({
-            x: stagePos.x,
-            y: stagePos.y,
-            radiusX: 50,
-            radiusY: 30,
-            fill: fillColor || '#9b59b6',
-            stroke: strokeColor || '#000000',
-            strokeWidth: strokeWidth || 2,
-            draggable: true,
-          });
-          mainLayer.add(ellipse);
-          mainLayer.batchDraw();
-          break;
-
-        case 'text':
-          const text = new Konva.Text({
-            x: stagePos.x,
-            y: stagePos.y,
-            text: 'Double-click to edit',
-            fontSize: 16,
-            fontFamily: 'Inter, sans-serif',
-            fill: '#1a1a1a',
-            draggable: true,
-          });
-          mainLayer.add(text);
-          mainLayer.batchDraw();
-          break;
-
-        case 'sticky':
-          const sticky = new Konva.Rect({
-            x: stagePos.x - 100,
-            y: stagePos.y - 100,
-            width: 200,
-            height: 200,
-            fill: '#ffd93d',
-            cornerRadius: 4,
-            shadowColor: 'black',
-            shadowBlur: 10,
-            shadowOpacity: 0.2,
-            draggable: true,
-          });
-          mainLayer.add(sticky);
-          mainLayer.batchDraw();
-          break;
-
-        case 'triangle':
-          const triangle = new Konva.RegularPolygon({
-            x: stagePos.x,
-            y: stagePos.y,
-            sides: 3,
-            radius: 50,
-            fill: fillColor || '#a29bfe',
-            stroke: strokeColor || '#000000',
-            strokeWidth: strokeWidth || 2,
-            draggable: true,
-          });
-          mainLayer.add(triangle);
-          mainLayer.batchDraw();
-          break;
-
-        case 'line':
-          const line = new Konva.Line({
-            points: [stagePos.x - 50, stagePos.y, stagePos.x + 50, stagePos.y],
-            stroke: strokeColor || '#000000',
-            strokeWidth: strokeWidth || 2,
-            draggable: true,
-          });
-          mainLayer.add(line);
-          mainLayer.batchDraw();
-          break;
-
-        case 'connector':
-          const connector = new Konva.Arrow({
-            points: [stagePos.x - 50, stagePos.y, stagePos.x + 50, stagePos.y],
-            stroke: strokeColor || '#000000',
-            strokeWidth: 2,
-            fill: strokeColor || '#000000',
-            draggable: true,
-            pointerLength: 10,
-            pointerWidth: 10,
-          });
-          mainLayer.add(connector);
-          mainLayer.batchDraw();
-          break;
       }
     };
 
-    const handleMouseMove = () => {
-      if (!isDrawing || !currentLine) return;
-
-      const pos = stage.getPointerPosition();
-      if (!pos) return;
-
-      const stagePos = {
-        x: (pos.x - stage.x()) / stage.scaleX(),
-        y: (pos.y - stage.y()) / stage.scaleY(),
-      };
-
-      const newPoints = currentLine.points().concat([stagePos.x, stagePos.y]);
-      currentLine.points(newPoints);
-      mainLayer.batchDraw();
-    };
-
-    const handleMouseUp = () => {
+    const handleDragMove = () => {
       if (isPanning) {
-        isPanning = false;
-        stage.draggable(false);
-      }
-
-      if (isDrawing) {
-        isDrawing = false;
-        currentLine = null;
+        const pos = stage.position();
+        viewport.setPan(pos.x, pos.y);
+        backgroundLayer.batchDraw();
       }
     };
 
-    // Set up all event listeners
-    stage.on('mousedown', handleMouseDown);
-    stage.on('mousemove', handleMouseMove);
-    stage.on('mouseup', handleMouseUp);
-
-    // Global mouseup to catch releases outside the stage
-    const globalMouseUp = () => {
-      if (isDrawing) {
-        isDrawing = false;
-        currentLine = null;
-      }
+    const handleDragEnd = () => {
       if (isPanning) {
         isPanning = false;
         stage.draggable(false);
       }
     };
 
-    window.addEventListener('mouseup', globalMouseUp);
+    stage.on('dragstart', handleDragStart);
+    stage.on('dragmove', handleDragMove);
+    stage.on('dragend', handleDragEnd);
 
-    // Pan mode drag events
-    stage.on('dragmove', updateGrid);
-
-    // Window resize
+    // Window resize handler
     const handleResize = () => {
       stage.width(window.innerWidth);
       stage.height(window.innerHeight);
-      updateGrid();
+      backgroundLayer.batchDraw();
     };
 
     window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
+      console.log('[FigJamCanvas] Cleaning up stage and renderer');
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mouseup', globalMouseUp);
+      
+      // Dispose renderer modules
+      if (rendererDisposeRef.current) {
+        rendererDisposeRef.current();
+        rendererDisposeRef.current = null;
+      }
+      
+      // Destroy stage
       stage.destroy();
+      stageRef.current = null;
     };
-  }, [selectedTool, strokeColor, strokeWidth, fillColor]);
+  }, []); // Only run once on mount
+
+  // Update viewport when store changes
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    stage.scale({ x: viewport.scale, y: viewport.scale });
+    stage.position({ x: viewport.x, y: viewport.y });
+    
+    // Redraw background for grid updates
+    layersRef.current.background?.batchDraw();
+  }, [viewport.scale, viewport.x, viewport.y]);
 
   // Update cursor based on selected tool
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const tool = selectedTool;
     let cursor = 'default';
-
-    switch (tool) {
+    switch (selectedTool) {
       case 'select':
         cursor = 'default';
         break;
@@ -363,6 +260,16 @@ const FigJamCanvas: React.FC = () => {
       case 'text':
         cursor = 'text';
         break;
+      case 'sticky-note':
+        cursor = 'crosshair';
+        break;
+      case 'rectangle':
+      case 'ellipse':
+      case 'triangle':
+      case 'line':
+      case 'connector':
+        cursor = 'crosshair';
+        break;
       default:
         cursor = 'crosshair';
     }
@@ -370,11 +277,51 @@ const FigJamCanvas: React.FC = () => {
     containerRef.current.style.cursor = cursor;
   }, [selectedTool]);
 
+  // Force re-render when elements change (triggers renderer modules via subscription)
+  useEffect(() => {
+    // Renderer modules subscribe to store changes automatically
+    // This effect ensures React stays in sync with store changes
+    console.log(`[FigJamCanvas] Elements changed: ${elements.size} total`);
+  }, [elements]);
+
+  // Render tools based on active tool - these handle stage interactions
+  const renderActiveTool = useCallback(() => {
+    if (!stageRef.current) return null;
+
+    switch (selectedTool) {
+      case 'sticky-note':
+        return (
+          <StickyNoteTool
+            key="sticky-note-tool"
+            isActive={true}
+            stageRef={stageRef}
+          />
+        );
+      case 'connector':
+      case 'connector-line':
+      case 'connector-arrow':
+        return (
+          <ConnectorTool
+            key="connector-tool"
+            isActive={true}
+            stageRef={stageRef}
+            toolId={selectedTool}
+          />
+        );
+      // Add other tools as needed
+      default:
+        return null;
+    }
+  }, [selectedTool]);
+
   return (
     <div className="canvas-wrapper">
       <CanvasToolbar />
       <div ref={containerRef} className="konva-stage-container" />
       <ZoomControls />
+      
+      {/* Render active tool components - these handle stage interactions */}
+      {renderActiveTool()}
     </div>
   );
 };
