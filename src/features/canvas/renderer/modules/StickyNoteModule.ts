@@ -19,6 +19,8 @@ export class StickyNoteModule implements RendererModule {
   private layers?: Konva.Layer;
   private storeCtx?: ModuleRendererCtx;
   private unsubscribe?: () => void;
+  private activeEditor: HTMLTextAreaElement | null = null;
+  private editorElementId: string | null = null;
 
   mount(ctx: ModuleRendererCtx): () => void {
     console.log('[StickyNoteModule] Mounting...');
@@ -68,6 +70,7 @@ export class StickyNoteModule implements RendererModule {
 
   private unmount() {
     console.log('[StickyNoteModule] Unmounting...');
+    this.closeActiveEditor();
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = undefined;
@@ -133,6 +136,7 @@ export class StickyNoteModule implements RendererModule {
     this.setupStickyInteractions(group, sticky.id);
 
     const rect = new Konva.Rect({
+      name: 'sticky-bg',
       x: 0,
       y: 0,
       width: sticky.width,
@@ -148,15 +152,18 @@ export class StickyNoteModule implements RendererModule {
     });
 
     const text = new Konva.Text({
+      name: 'sticky-text',
       x: 12,
       y: 12,
       width: Math.max(0, sticky.width - 24),
+      height: Math.max(0, sticky.height - 24),
       text: sticky.text || '',
       fontSize: 14,
       fontFamily: 'Inter, system-ui, sans-serif',
       fill: '#374151',
       wrap: 'word',
       lineHeight: 1.4,
+      verticalAlign: 'top',
     });
 
     group.add(rect);
@@ -173,7 +180,7 @@ export class StickyNoteModule implements RendererModule {
     });
 
     // Update rectangle
-    const rect = group.getChildren()[0] as Konva.Rect;
+    const rect = group.findOne('.sticky-bg') as Konva.Rect;
     if (rect) {
       rect.setAttrs({
         width: sticky.width,
@@ -183,12 +190,18 @@ export class StickyNoteModule implements RendererModule {
     }
 
     // Update text
-    const text = group.getChildren()[1] as Konva.Text;
+    const text = group.findOne('.sticky-text') as Konva.Text;
     if (text) {
       text.setAttrs({
         width: Math.max(0, sticky.width - 24),
+        height: Math.max(0, sticky.height - 24),
         text: sticky.text || '',
       });
+    }
+
+    // Update active editor if editing this element
+    if (this.activeEditor && this.editorElementId === sticky.id) {
+      this.repositionActiveEditor(group);
     }
   }
 
@@ -210,91 +223,122 @@ export class StickyNoteModule implements RendererModule {
       }
     });
 
-    // Drag handling with store updates and proper transform commits
-    let dragStartPos: { x: number; y: number } | null = null;
+    // FIXED: Enhanced drag handling with proper store commits
+    let dragStartData: { x: number; y: number; storeX: number; storeY: number } | null = null;
     
     group.on('dragstart', () => {
-      dragStartPos = { x: group.x(), y: group.y() };
+      const groupPos = group.position();
+      const store = this.storeCtx?.store.getState();
+      const element = store?.elements?.get?.(elementId);
       
-      // Begin transform in store if available
-      if (this.storeCtx) {
-        const store = this.storeCtx.store.getState();
-        store.selection?.beginTransform?.();
-      }
+      dragStartData = {
+        x: groupPos.x,
+        y: groupPos.y,
+        storeX: element?.x || 0,
+        storeY: element?.y || 0
+      };
+      
+      // Begin transform in store
+      store?.selection?.beginTransform?.();
     });
 
     group.on('dragend', () => {
-      if (!this.storeCtx || !dragStartPos) return;
+      if (!this.storeCtx || !dragStartData) return;
       
       const pos = group.position();
       const store = this.storeCtx.store.getState();
       
-      // Use withUndo for proper history management
-      const withUndo = store.withUndo || store.history?.withUndo;
-      const updateElement = store.element?.update || store.updateElement;
+      // Only update if position actually changed
+      const deltaX = Math.abs(pos.x - dragStartData.storeX);
+      const deltaY = Math.abs(pos.y - dragStartData.storeY);
       
-      if (updateElement) {
-        const updateFn = () => {
-          updateElement(elementId, { x: pos.x, y: pos.y });
-          console.log('[StickyNoteModule] Updated position for', elementId, pos);
-        };
+      if (deltaX > 1 || deltaY > 1) {
+        const withUndo = store.withUndo || store.history?.withUndo;
+        const updateElement = store.element?.update || store.updateElement;
         
-        if (withUndo) {
-          withUndo('Move sticky note', updateFn);
-        } else {
-          updateFn();
+        if (updateElement) {
+          const updateFn = () => {
+            updateElement(elementId, { x: Math.round(pos.x), y: Math.round(pos.y) });
+            console.log('[StickyNoteModule] Updated position for', elementId, pos);
+          };
+          
+          if (withUndo) {
+            withUndo('Move sticky note', updateFn);
+          } else {
+            updateFn();
+          }
         }
       }
       
       // End transform in store
-      store.selection?.endTransform?.();
-      dragStartPos = null;
+      store?.selection?.endTransform?.();
+      dragStartData = null;
     });
 
-    // Double-click to edit text
+    // Double-click to edit text OR single click if newly created and empty
     group.on('dblclick', (e) => {
       e.cancelBubble = true;
-      console.log('[StickyNoteModule] Double-click on sticky note:', elementId);
-      
-      if (!this.storeCtx) return;
-      
-      // Get stage and calculate position for text editor
-      const stage = group.getStage();
-      if (!stage) return;
-      
-      const container = stage.container();
-      const rect = container.getBoundingClientRect();
-      const groupPos = group.absolutePosition();
-      
-      // Create text editor overlay
-      this.createTextEditor(
-        rect.left + groupPos.x,
-        rect.top + groupPos.y,
-        group.width(),
-        group.height(),
-        elementId
-      );
+      this.startTextEditing(group, elementId);
     });
 
     // Hover effects
     group.on('mouseenter', () => {
-      document.body.style.cursor = 'move';
+      if (!this.activeEditor) {
+        document.body.style.cursor = 'move';
+      }
     });
 
     group.on('mouseleave', () => {
-      document.body.style.cursor = 'default';
+      if (!this.activeEditor) {
+        document.body.style.cursor = 'default';
+      }
     });
   }
 
-  private createTextEditor(pageX: number, pageY: number, width: number, height: number, elementId: string) {
-    // Remove any existing editor
-    const existing = document.querySelector('[data-sticky-editor]');
-    if (existing) {
-      existing.remove();
+  // Public method to trigger immediate text editing (called by StickyNoteTool)
+  public startTextEditingForElement(elementId: string) {
+    const group = this.nodes.get(elementId);
+    if (group) {
+      this.startTextEditing(group, elementId);
     }
+  }
 
+  private startTextEditing(group: Konva.Group, elementId: string) {
+    console.log('[StickyNoteModule] Starting text editing for:', elementId);
+    
+    // Close any existing editor
+    this.closeActiveEditor();
+    
+    if (!this.storeCtx) return;
+    
+    // Get stage and text element for positioning
+    const stage = group.getStage();
+    const textNode = group.findOne('.sticky-text') as Konva.Text;
+    if (!stage || !textNode) return;
+    
+    const container = stage.container();
+    const rect = container.getBoundingClientRect();
+    const textAbsPos = textNode.absolutePosition();
+    
+    // Create seamlessly integrated text editor
+    this.activeEditor = this.createSeamlessEditor(
+      rect.left + textAbsPos.x,
+      rect.top + textAbsPos.y,
+      textNode.width(),
+      textNode.height(),
+      elementId
+    );
+    
+    this.editorElementId = elementId;
+    
+    // Hide the Konva text while editing
+    textNode.visible(false);
+    textNode.getLayer()?.batchDraw();
+  }
+
+  private createSeamlessEditor(pageX: number, pageY: number, width: number, height: number, elementId: string): HTMLTextAreaElement {
     const editor = document.createElement('textarea');
-    editor.setAttribute('data-sticky-editor', 'true');
+    editor.setAttribute('data-sticky-editor', elementId);
     editor.setAttribute('data-testid', 'sticky-note-input');
     
     // Get current text from store
@@ -304,28 +348,41 @@ export class StickyNoteModule implements RendererModule {
     
     editor.value = currentText;
     
+    // FIXED: Seamless integration styling like FigJam
     editor.style.cssText = `
       position: absolute;
-      left: ${pageX + 12}px;
-      top: ${pageY + 12}px;
-      width: ${width - 24}px;
-      height: ${height - 24}px;
-      border: 2px solid #007acc;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.95);
+      left: ${pageX}px;
+      top: ${pageY}px;
+      width: ${width}px;
+      height: ${height}px;
+      border: none;
+      outline: none;
+      background: transparent;
       z-index: 1000;
       font-family: Inter, system-ui, sans-serif;
       font-size: 14px;
       line-height: 1.4;
+      color: #374151;
       resize: none;
-      outline: none;
-      padding: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     `;
     
     document.body.appendChild(editor);
-    editor.focus();
-    editor.select();
+    
+    // FIXED: Immediate focus with visible caret
+    setTimeout(() => {
+      editor.focus();
+      // Position cursor at end for new notes, select all for existing text
+      if (currentText) {
+        editor.select();
+      } else {
+        editor.setSelectionRange(0, 0);
+      }
+    }, 0);
 
     const commit = () => {
       const newText = editor.value;
@@ -348,10 +405,7 @@ export class StickyNoteModule implements RendererModule {
         }
       }
       
-      // Clean up editor
-      try {
-        editor.remove();
-      } catch {}
+      this.closeActiveEditor();
     };
 
     // Event handlers
@@ -364,21 +418,63 @@ export class StickyNoteModule implements RendererModule {
         e.preventDefault(); 
         commit(); 
       }
+      
+      // Allow other keys to bubble for normal typing
+      e.stopPropagation();
     });
 
     editor.addEventListener('blur', commit, { once: true });
     
-    // Click outside to commit
-    const clickOutside = (e: Event) => {
-      if (!editor.contains(e.target as Node)) {
-        commit();
-        document.removeEventListener('click', clickOutside, true);
-      }
-    };
+    return editor;
+  }
+
+  private repositionActiveEditor(group: Konva.Group) {
+    if (!this.activeEditor) return;
     
-    // Small delay to prevent immediate close
+    const stage = group.getStage();
+    const textNode = group.findOne('.sticky-text') as Konva.Text;
+    if (!stage || !textNode) return;
+    
+    const container = stage.container();
+    const rect = container.getBoundingClientRect();
+    const textAbsPos = textNode.absolutePosition();
+    
+    this.activeEditor.style.left = `${rect.left + textAbsPos.x}px`;
+    this.activeEditor.style.top = `${rect.top + textAbsPos.y}px`;
+    this.activeEditor.style.width = `${textNode.width()}px`;
+    this.activeEditor.style.height = `${textNode.height()}px`;
+  }
+
+  private closeActiveEditor() {
+    if (!this.activeEditor || !this.editorElementId) return;
+    
+    // Show the Konva text again
+    const group = this.nodes.get(this.editorElementId);
+    if (group) {
+      const textNode = group.findOne('.sticky-text') as Konva.Text;
+      if (textNode) {
+        textNode.visible(true);
+        textNode.getLayer()?.batchDraw();
+      }
+    }
+    
+    // Remove editor
+    try {
+      this.activeEditor.remove();
+    } catch {}
+    
+    this.activeEditor = null;
+    this.editorElementId = null;
+    
+    // Restore cursor
+    document.body.style.cursor = 'default';
+  }
+
+  // FIXED: Public method for immediate text editing after creation
+  public triggerImmediateTextEdit(elementId: string) {
+    // Small delay to ensure element is rendered
     setTimeout(() => {
-      document.addEventListener('click', clickOutside, true);
+      this.startTextEditingForElement(elementId);
     }, 100);
   }
 }
