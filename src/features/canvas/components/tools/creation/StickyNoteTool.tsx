@@ -42,27 +42,11 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     s.setSelectedTool || s.ui?.setSelectedTool
   );
   const setSelection = useUnifiedCanvasStore((s: any) => 
-    s.setSelection
+    s.selection?.set || s.setSelection
   );
   const withUndo = useUnifiedCanvasStore((s: any) => 
     s.withUndo || s.history?.withUndo
   );
-
-  const activeEditorRef = useRef<HTMLTextAreaElement | null>(null);
-  const suppressOpenRef = useRef<boolean>(false);
-  const justOpenedRef = useRef<boolean>(false);
-
-  // Close editor if tool deactivates
-  useEffect(() => {
-    if (isActive) return;
-    const ta = activeEditorRef.current;
-    if (!ta) return;
-    try { 
-      ta.style.display = 'none'; 
-      ta.remove(); 
-    } catch {}
-    activeEditorRef.current = null;
-  }, [isActive]);
 
   // Tool activation effect
   useEffect(() => {
@@ -70,79 +54,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     if (!isActive || !stage) return;
 
     console.log('[StickyNoteTool] Activating with color:', actualFill);
-
-    const createTextarea = (pageX: number, pageY: number, elementId: string) => {
-      // Close any existing editor first
-      const existing = activeEditorRef.current;
-      if (existing) {
-        try { 
-          existing.style.display = 'none';
-          existing.remove(); 
-        } catch {}
-        activeEditorRef.current = null;
-      }
-
-      const ta = document.createElement('textarea');
-      justOpenedRef.current = true;
-      ta.setAttribute('data-testid', 'sticky-note-input');
-      ta.style.cssText = `
-        position: absolute;
-        left: ${pageX}px;
-        top: ${pageY}px;
-        width: ${width}px;
-        height: ${height}px;
-        padding: 12px;
-        border: 2px solid #007acc;
-        border-radius: 6px;
-        background: #fffbea;
-        z-index: 1000;
-        font-family: Inter, sans-serif;
-        font-size: 16px;
-        resize: none;
-        outline: none;
-      `;
-      ta.value = text;
-      document.body.appendChild(ta);
-      activeEditorRef.current = ta;
-      ta.focus();
-      
-      // Allow current event cycle to finish
-      setTimeout(() => { justOpenedRef.current = false; }, 0);
-
-      const commit = () => {
-        const newText = ta.value.trim();
-        
-        // Update element in store
-        if (newText) {
-          const updateElement = useUnifiedCanvasStore.getState().element?.update;
-          if (updateElement) {
-            updateElement(elementId, { text: newText });
-          }
-        }
-        
-        // Clean up editor
-        try {
-          ta.style.display = 'none';
-          ta.remove();
-        } catch {}
-        if (activeEditorRef.current === ta) activeEditorRef.current = null;
-      };
-
-      // Event handlers
-      ta.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) { 
-          e.preventDefault(); 
-          commit(); 
-        }
-        if (e.key === 'Escape') { 
-          e.preventDefault(); 
-          commit(); 
-        }
-      });
-      ta.addEventListener('blur', commit, { once: true });
-      
-      return ta;
-    };
 
     const handlePointerDown = (e?: Konva.KonvaEventObject<PointerEvent>) => {
       const pos = stage.getPointerPosition();
@@ -194,20 +105,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         }, 50);
       }
 
-      // Open text editor immediately
-      try {
-        const container = stage.container();
-        const rect = container.getBoundingClientRect();
-        const ta = createTextarea(
-          rect.left + pos.x - width / 2, 
-          rect.top + pos.y - height / 2,
-          stickyElement.id
-        );
-      } catch (error) {
-        console.warn('[StickyNoteTool] Failed to create text editor:', error);
-      }
-
-      // Auto-switch back to select tool after short delay (allow for text input)
+      // Auto-switch back to select tool for interaction
       setTimeout(() => {
         if (setSelectedTool) {
           setSelectedTool('select');
@@ -220,61 +118,11 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     // Attach to stage pointer events
     stage.on('pointerdown.sticky', handlePointerDown);
 
-    // Container click handler for fallback
-    const container = stage.container();
-    const onContainerPointerDown = (evt: PointerEvent) => {
-      if (!isActive) return;
-      if (suppressOpenRef.current) return;
-      if (evt.defaultPrevented) return;
-      if (activeEditorRef.current) return;
-      
-      // Convert client coordinates to stage coordinates
-      const rect = container.getBoundingClientRect();
-      const x = evt.clientX - rect.left;
-      const y = evt.clientY - rect.top;
-      
-      // Create mock event for handlePointerDown
-      stage.setPointersPositions(evt);
-      handlePointerDown();
-      
-      evt.stopPropagation();
-    };
-    
-    container?.addEventListener('pointerdown', onContainerPointerDown, { capture: true });
-
     // Cleanup
     return () => {
       stage.off('pointerdown.sticky');
-      try { 
-        container?.removeEventListener('pointerdown', onContainerPointerDown, { capture: true } as any); 
-      } catch {}
     };
   }, [isActive, stageRef, width, height, actualFill, text, fontSize, createElement, setSelectedTool, setSelection, withUndo]);
-
-  // Global cleanup for editor
-  useEffect(() => {
-    const onDocumentPointerDown = (evt: PointerEvent) => {
-      const ta = activeEditorRef.current;
-      if (!ta) return;
-      if (justOpenedRef.current) return;
-      if (ta.contains(evt.target as Node)) return;
-      
-      // Click outside editor - commit changes
-      try {
-        ta.style.display = 'none';
-        ta.remove();
-      } catch {}
-      activeEditorRef.current = null;
-      suppressOpenRef.current = true;
-      setTimeout(() => { suppressOpenRef.current = false; }, 0);
-    };
-
-    document.addEventListener('pointerdown', onDocumentPointerDown, { capture: true });
-
-    return () => {
-      document.removeEventListener('pointerdown', onDocumentPointerDown, { capture: true } as any);
-    };
-  }, []);
 
   return null;
 };
