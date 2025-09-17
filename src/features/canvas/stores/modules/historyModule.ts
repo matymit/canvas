@@ -32,6 +32,8 @@ export interface HistoryEntry {
   mergeKey?: string;  // semantic key for coalescing (e.g., 'move:ids', 'transform:ids')
   ts: number;
   ops: StoreHistoryOp[];
+  // Memory optimization: track size for intelligent pruning
+  estimatedSize?: number;
 }
 
 export interface HistoryBatch {
@@ -47,6 +49,11 @@ export interface HistoryModuleSlice {
   index: number;             // -1 = empty, otherwise points to last applied
   mergeWindowMs: number;     // heuristics window
   batching: HistoryBatch;
+  
+  // Memory management settings
+  maxEntries: number;        // Maximum number of history entries
+  maxMemoryMB: number;       // Maximum estimated memory usage in MB
+  pruneThreshold: number;    // When to start aggressive pruning (0.8 = 80% of max)
 
   // Grouping and pushing
   beginBatch(label?: string, mergeKey?: string): void;
@@ -65,12 +72,17 @@ export interface HistoryModuleSlice {
   redo(): void;
   clear(): void;
 
+  // Memory management
+  pruneHistory(): number;    // Remove old entries, returns count pruned
+  getMemoryUsage(): { entriesCount: number; estimatedMB: number };
+
   // Introspection
   canUndo(): boolean;
   canRedo(): boolean;
 
   // Tuning
   setMergeWindow(ms: number): void;
+  setMemoryLimits(maxEntries: number, maxMemoryMB: number): void;
 }
 
 // utils
@@ -79,6 +91,84 @@ const idGen = (() => {
   let n = 0;
   return () => `h-${now().toString(36)}-${(n++).toString(36)}`;
 })();
+
+// Estimate memory usage of a history entry
+function estimateEntrySize(entry: HistoryEntry): number {
+  let size = 0;
+  
+  // Base overhead for entry metadata
+  size += 200; // id, label, mergeKey, ts, array overhead
+  
+  for (const op of entry.ops) {
+    switch (op.type) {
+      case 'add':
+      case 'remove':
+        // Estimate size of each element
+        for (const element of op.elements) {
+          size += estimateElementSize(element);
+        }
+        // Indices array overhead
+        size += (op.indices?.length || 0) * 8;
+        break;
+        
+      case 'update':
+        // Before and after elements
+        for (const element of op.before) {
+          size += estimateElementSize(element);
+        }
+        for (const element of op.after) {
+          size += estimateElementSize(element);
+        }
+        break;
+        
+      case 'reorder':
+        // ElementId arrays
+        size += op.before.length * 50; // Estimate 50 bytes per ElementId
+        size += op.after.length * 50;
+        break;
+    }
+  }
+  
+  return size;
+}
+
+// Estimate memory usage of a canvas element
+function estimateElementSize(element: CanvasElement): number {
+  let size = 500; // Base overhead for element structure
+  
+  // Add size estimates based on element type
+  switch (element.type) {
+    case 'drawing':
+      // Drawing elements can be large due to stroke points
+      const points = (element.data as any)?.points || [];
+      size += points.length * 16; // x,y coordinates
+      break;
+      
+    case 'image':
+      // Images store data URLs which can be very large
+      const dataUrl = (element.data as any)?.dataUrl || '';
+      size += dataUrl.length * 2; // Rough estimate for string storage
+      break;
+      
+    case 'table':
+      // Tables store cell data
+      const cells = (element.data as any)?.cells || [];
+      size += cells.length * 100; // Estimate per cell
+      break;
+      
+    case 'mindmap-node':
+      // Text content
+      const text = (element.data as any)?.text || '';
+      size += text.length * 2;
+      break;
+      
+    default:
+      // Basic elements (shapes, text, etc.)
+      size += 200;
+  }
+  
+  return size;
+}
 
 function pickHistoryState(state: any) {
   // If a fully-featured nested history object exists (with entries & batching), prefer it.
@@ -91,6 +181,8 @@ function pickHistoryState(state: any) {
 function coalesceInto(prev: HistoryEntry, nextOps: StoreHistoryOp[]) {
   prev.ops.push(...nextOps);
   prev.ts = now();
+  // Recalculate size after merging
+  prev.estimatedSize = estimateEntrySize(prev);
 }
 
 function shouldMerge(prev: HistoryEntry, label?: string, mergeKey?: string, mergeWindowMs?: number) {
@@ -207,6 +299,80 @@ function applyOpToStore(state: any, op: StoreHistoryOp, dir: 'undo' | 'redo') {
   }
 }
 
+// Prune history entries intelligently
+function pruneHistoryEntries(
+  entries: HistoryEntry[],
+  currentIndex: number,
+  maxEntries: number,
+  maxMemoryBytes: number
+): { entries: HistoryEntry[]; newIndex: number; pruned: number } {
+  if (entries.length <= maxEntries) {
+    // Check memory usage
+    const totalMemory = entries.reduce((sum, entry) => sum + (entry.estimatedSize || 0), 0);
+    if (totalMemory <= maxMemoryBytes) {
+      return { entries, newIndex: currentIndex, pruned: 0 };
+    }
+  }
+
+  // Split entries into undo (past) and redo (future)
+  const pastEntries = entries.slice(0, currentIndex + 1);
+  const futureEntries = entries.slice(currentIndex + 1);
+  
+  // Prioritize keeping recent entries and current position context
+  const keepRecentCount = Math.min(maxEntries * 0.7, pastEntries.length); // Keep 70% for past
+  const keepFutureCount = Math.min(maxEntries * 0.3, futureEntries.length); // Keep 30% for future
+  
+  let prunedPast = pastEntries;
+  let prunedFuture = futureEntries;
+  let pruned = 0;
+  
+  // Prune oldest past entries first
+  if (pastEntries.length > keepRecentCount) {
+    const removeCount = pastEntries.length - keepRecentCount;
+    prunedPast = pastEntries.slice(removeCount);
+    pruned += removeCount;
+  }
+  
+  // Prune future entries if needed
+  if (futureEntries.length > keepFutureCount) {
+    const removeCount = futureEntries.length - keepFutureCount;
+    prunedFuture = futureEntries.slice(0, keepFutureCount);
+    pruned += removeCount;
+  }
+  
+  // If still over memory limit, prune more aggressively by size
+  const newEntries = [...prunedPast, ...prunedFuture];
+  let totalMemory = newEntries.reduce((sum, entry) => sum + (entry.estimatedSize || 0), 0);
+  
+  if (totalMemory > maxMemoryBytes && newEntries.length > 10) {
+    // Find largest entries and remove them (except very recent ones)
+    const sortedBySize = newEntries
+      .map((entry, index) => ({ entry, index, size: entry.estimatedSize || 0 }))
+      .sort((a, b) => b.size - a.size);
+    
+    // Don't remove the last 5 entries to preserve recent context
+    const removableEntries = sortedBySize.filter(item => 
+      item.index < newEntries.length - 5
+    );
+    
+    for (const item of removableEntries) {
+      if (totalMemory <= maxMemoryBytes) break;
+      
+      const entryIndex = newEntries.indexOf(item.entry);
+      if (entryIndex >= 0) {
+        newEntries.splice(entryIndex, 1);
+        totalMemory -= item.size;
+        pruned++;
+      }
+    }
+  }
+  
+  // Recalculate index after pruning
+  const newIndex = Math.max(-1, Math.min(newEntries.length - 1, prunedPast.length - 1));
+  
+  return { entries: newEntries, newIndex, pruned };
+}
+
 export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) => ({
   entries: [],
   index: -1,
@@ -218,6 +384,10 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
     startedAt: null,
     ops: [],
   },
+  // Memory management defaults
+  maxEntries: 100, // Reasonable default for most use cases
+  maxMemoryMB: 50, // 50MB limit for history
+  pruneThreshold: 0.8, // Start pruning at 80% of limits
 
   // High-level withUndo helper for user operations
   withUndo: (description: string, mutator: () => void) => {
@@ -233,7 +403,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
 
   beginBatch: (label, mergeKey) =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       if (h.batching.active) return;
       h.batching.active = true;
       h.batching.label = label;
@@ -244,7 +414,7 @@ const h = pickHistoryState(state);
 
   endBatch: (commit = true) =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       if (!h.batching.active) return;
       const ops = h.batching.ops.slice();
       const label = h.batching.label;
@@ -260,7 +430,7 @@ const h = pickHistoryState(state);
 
       // drop redo tail if not at end
       const end = h.index + 1;
-      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
 
       const prev = base[base.length - 1];
       if (shouldMerge(prev, label, mergeKey, h.mergeWindowMs)) {
@@ -274,16 +444,35 @@ const h = pickHistoryState(state);
           mergeKey,
           ts: now(),
           ops,
+          estimatedSize: 0, // Will be calculated below
         };
+        entry.estimatedSize = estimateEntrySize(entry);
+        
         base.push(entry);
         h.entries = base;
         h.index = base.length - 1;
+      }
+      
+      // Check if pruning is needed
+      const currentMemory = h.entries.reduce((sum: number, e: HistoryEntry) => sum + (e.estimatedSize || 0), 0);
+      const memoryLimitBytes = h.maxMemoryMB * 1024 * 1024;
+      const shouldPrune = h.entries.length > h.maxEntries * h.pruneThreshold || 
+                          currentMemory > memoryLimitBytes * h.pruneThreshold;
+      
+      if (shouldPrune) {
+        const pruneResult = pruneHistoryEntries(h.entries, h.index, h.maxEntries, memoryLimitBytes);
+        h.entries = pruneResult.entries;
+        h.index = pruneResult.newIndex;
+        
+        if (pruneResult.pruned > 0) {
+          console.debug(`History pruned ${pruneResult.pruned} entries to manage memory`);
+        }
       }
     }),
 
   push: (opsIn, label, mergeKey) =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       const ops = Array.isArray(opsIn) ? opsIn : [opsIn];
       if (ops.length === 0) return;
 
@@ -294,7 +483,7 @@ const h = pickHistoryState(state);
 
       // drop redo tail if not at end
       const end = h.index + 1;
-      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
 
       const prev = base[base.length - 1];
       if (shouldMerge(prev, label, mergeKey, h.mergeWindowMs)) {
@@ -308,17 +497,66 @@ const h = pickHistoryState(state);
           mergeKey,
           ts: now(),
           ops: ops,
+          estimatedSize: 0, // Will be calculated below
         };
+        entry.estimatedSize = estimateEntrySize(entry);
+        
         base.push(entry);
         h.entries = base;
         h.index = base.length - 1;
       }
+      
+      // Check if pruning is needed
+      const currentMemory = h.entries.reduce((sum: number, e: HistoryEntry) => sum + (e.estimatedSize || 0), 0);
+      const memoryLimitBytes = h.maxMemoryMB * 1024 * 1024;
+      const shouldPrune = h.entries.length > h.maxEntries * h.pruneThreshold || 
+                          currentMemory > memoryLimitBytes * h.pruneThreshold;
+      
+      if (shouldPrune) {
+        const pruneResult = pruneHistoryEntries(h.entries, h.index, h.maxEntries, memoryLimitBytes);
+        h.entries = pruneResult.entries;
+        h.index = pruneResult.newIndex;
+        
+        if (pruneResult.pruned > 0) {
+          console.debug(`History pruned ${pruneResult.pruned} entries to manage memory`);
+        }
+      }
+    }),
+
+  // Memory management methods
+  pruneHistory: () => {
+    let prunedCount = 0;
+    set((state: any) => {
+      const h = pickHistoryState(state);
+      const memoryLimitBytes = h.maxMemoryMB * 1024 * 1024;
+      const pruneResult = pruneHistoryEntries(h.entries, h.index, h.maxEntries, memoryLimitBytes);
+      h.entries = pruneResult.entries;
+      h.index = pruneResult.newIndex;
+      prunedCount = pruneResult.pruned;
+    });
+    return prunedCount;
+  },
+
+  getMemoryUsage: () => {
+    const h = pickHistoryState(get() as any);
+    const totalBytes = h.entries.reduce((sum: number, entry: HistoryEntry) => sum + (entry.estimatedSize || 0), 0);
+    return {
+      entriesCount: h.entries.length,
+      estimatedMB: totalBytes / (1024 * 1024)
+    };
+  },
+
+  setMemoryLimits: (maxEntries: number, maxMemoryMB: number) =>
+    set((state: any) => {
+      const h = pickHistoryState(state);
+      h.maxEntries = Math.max(10, maxEntries); // Minimum 10 entries
+      h.maxMemoryMB = Math.max(5, maxMemoryMB); // Minimum 5MB
     }),
 
   // compatibility helpers
   record: (input: any) =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       const ops = normalizeLooseRecord(input);
       if (ops.length === 0) return;
       if (h.batching.active) {
@@ -326,7 +564,7 @@ const h = pickHistoryState(state);
         return;
       }
       const end = h.index + 1;
-      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
       const prev = base[base.length - 1];
       const label = input?.label;
       const mergeKey = input?.mergeKey;
@@ -335,7 +573,16 @@ const h = pickHistoryState(state);
         h.entries = base;
         h.index = base.length - 1;
       } else {
-        base.push({ id: idGen(), label, mergeKey, ts: now(), ops });
+        const entry: HistoryEntry = {
+          id: idGen(),
+          label,
+          mergeKey,
+          ts: now(),
+          ops,
+          estimatedSize: 0,
+        };
+        entry.estimatedSize = estimateEntrySize(entry);
+        base.push(entry);
         h.entries = base;
         h.index = base.length - 1;
       }
@@ -343,7 +590,7 @@ const h = pickHistoryState(state);
 
   add: (input: any) =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       const ops = normalizeLooseRecord(input);
       if (ops.length === 0) return;
       if (h.batching.active) {
@@ -351,15 +598,22 @@ const h = pickHistoryState(state);
         return;
       }
       const end = h.index + 1;
-      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
-      base.push({ id: idGen(), ts: now(), ops });
+      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      const entry: HistoryEntry = {
+        id: idGen(),
+        ts: now(),
+        ops,
+        estimatedSize: 0,
+      };
+      entry.estimatedSize = estimateEntrySize(entry);
+      base.push(entry);
       h.entries = base;
       h.index = base.length - 1;
     }),
 
   undo: () =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       if (h.index < 0) return;
       const entry: HistoryEntry = h.entries[h.index];
       // apply in reverse for correctness
@@ -371,7 +625,7 @@ const h = pickHistoryState(state);
 
   redo: () =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       if (h.index >= h.entries.length - 1) return;
       const entry: HistoryEntry = h.entries[h.index + 1];
       // apply forward in recorded order
@@ -383,7 +637,7 @@ const h = pickHistoryState(state);
 
   clear: () =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       h.entries = [];
       h.index = -1;
       h.batching.active = false;
@@ -394,18 +648,18 @@ const h = pickHistoryState(state);
     }),
 
   canUndo: () => {
-const h = pickHistoryState(get() as any);
+    const h = pickHistoryState(get() as any);
     return h.index >= 0;
   },
 
   canRedo: () => {
-const h = pickHistoryState(get() as any);
+    const h = pickHistoryState(get() as any);
     return h.index < h.entries.length - 1;
   },
 
   setMergeWindow: (ms) =>
     set((state: any) => {
-const h = pickHistoryState(state);
+      const h = pickHistoryState(state);
       h.mergeWindowMs = Math.max(0, Math.round(ms || 0));
     }),
 });
