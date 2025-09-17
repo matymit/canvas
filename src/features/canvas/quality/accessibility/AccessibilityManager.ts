@@ -1,4 +1,4 @@
-// features/canvas/accessibility/AccessibilityManager.ts
+// features/canvas/quality/accessibility/AccessibilityManager.ts
 
 import type Konva from 'konva';
 import { ScreenReaderUtils } from './ScreenReaderUtils';

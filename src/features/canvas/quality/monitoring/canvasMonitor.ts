@@ -1,4 +1,4 @@
-// features/canvas/monitoring/canvasMonitor.ts
+// features/canvas/quality/monitoring/canvasMonitor.ts
 import Konva from 'konva';
 
 export interface LayerDrawMetric {

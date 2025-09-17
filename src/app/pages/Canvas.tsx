@@ -30,7 +30,7 @@ import ImageTool from '@/features/canvas/components/tools/content/ImageTool';
 import { TableRenderer } from '@/features/canvas/renderer/modules/TableModule';
 import { MindmapRenderer } from '@/features/canvas/renderer/modules/MindmapRenderer';
 import { useMindmapLiveRouting } from '@/features/canvas/renderer/modules/mindmapWire';
-import { createSpacingHUD } from '@/features/canvas/overlay/SpacingHUD';
+import { createSpacingHUD } from '@/features/canvas/interactions/overlay/SpacingHUD';
 
 const STAGE_KEY = 'CANVAS_STAGE_KEY';
 

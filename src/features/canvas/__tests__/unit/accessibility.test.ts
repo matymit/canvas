@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AccessibilityManager } from '../../accessibility/AccessibilityManager';
-import { ScreenReaderUtils } from '../../accessibility/ScreenReaderUtils';
+import { AccessibilityManager } from '../../quality/accessibility/AccessibilityManager';
+import { ScreenReaderUtils } from '../../quality/accessibility/ScreenReaderUtils';
 
 // Mock DOM
 const mockElement = (tag: string) => {
@@ -24,7 +24,7 @@ const mockElement = (tag: string) => {
   return el;
 };
 
-vi.mock('../../accessibility/ScreenReaderUtils', () => ({
+vi.mock('../../quality/accessibility/ScreenReaderUtils', () => ({
   ScreenReaderUtils: {
     applyCanvasAria: vi.fn(),
     ensureVirtualRoot: vi.fn(() => mockElement('div')),

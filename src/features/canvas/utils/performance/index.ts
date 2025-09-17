@@ -28,4 +28,4 @@ export type { Rect } from './QuadTree';
 export * from '../spatial';
 
 // Re-export monitoring utilities
-export * from '../../monitoring';
+export * from '../../quality/monitoring';

@@ -1,4 +1,4 @@
-// features/canvas/accessibility/ScreenReaderUtils.ts
+// features/canvas/quality/accessibility/ScreenReaderUtils.ts
 
 export type Politeness = 'polite' | 'assertive';
 

@@ -1,4 +1,4 @@
-// features/canvas/overlay/SpacingHUD.ts
+// features/canvas/interactions/overlay/SpacingHUD.ts
 import Konva from 'konva';
 
 export interface SpacingHUD {

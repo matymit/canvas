@@ -1,4 +1,4 @@
-// features/canvas/accessibility/KeyboardNavigation.ts
+// features/canvas/quality/accessibility/KeyboardNavigation.ts
 
 import type Konva from 'konva';
 import { AccessibilityManager } from './AccessibilityManager';

@@ -1,4 +1,4 @@
-// features/canvas/monitoring/index.ts
+// features/canvas/quality/monitoring/index.ts
 //
 // Canvas monitoring utilities exports
 

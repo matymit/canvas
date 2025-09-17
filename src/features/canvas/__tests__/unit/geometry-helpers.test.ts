@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Konva from 'konva';
-import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '../../interaction/TransformCommit';
+import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '../../interactions/interaction/TransformCommit';
 
 // Mock Konva node for testing
 class MockKonvaNode {
