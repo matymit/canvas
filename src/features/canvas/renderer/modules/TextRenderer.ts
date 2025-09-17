@@ -93,25 +93,6 @@ export class TextRenderer implements RendererModule {
       if (!node) {
         // Create new text node
         node = this.createTextNode(text);
-        // Add dragend handler for position commit
-        node.on('dragend', (e) => {
-          const textNode = e.target as Konva.Text;
-          const nx = textNode.x();
-          const ny = textNode.y();
-          console.log('[TextRenderer] Updating text position:', { id: text.id, x: nx, y: ny });
-          
-          // Use the correct store methods
-          try {
-            const state = this.store?.getState();
-            if (state?.updateElement) {
-              state.updateElement(text.id, { x: nx, y: ny }, { pushHistory: true });
-            } else {
-              console.warn('[TextRenderer] No updateElement method found in store');
-            }
-          } catch (error) {
-            console.error('[TextRenderer] Error updating text position:', error);
-          }
-        });
         this.textNodes.set(id, node);
         this.layer.add(node);
         console.log('[TextRenderer] Created text node:', { id, text: text.text });
@@ -159,6 +140,9 @@ export class TextRenderer implements RendererModule {
     // Set element ID for selection system
     node.setAttr('elementId', text.id);
 
+    // Add event handlers
+    this.addEventHandlers(node, text);
+
     // Fixed-height content-hugging: adjust height based on text content
     if (!text.height) {
       // Auto-size height to content
@@ -200,5 +184,126 @@ export class TextRenderer implements RendererModule {
     } else {
       node.height(text.height);
     }
+  }
+
+  private addEventHandlers(node: Konva.Text, text: TextElement) {
+    // Handle dragging to update position
+    node.on('dragend', (e) => {
+      const textNode = e.target as Konva.Text;
+      const nx = textNode.x();
+      const ny = textNode.y();
+      console.log('[TextRenderer] Updating text position:', { id: text.id, x: nx, y: ny });
+      
+      try {
+        const state = this.store?.getState();
+        
+        // Try different store method patterns
+        if (state?.updateElement) {
+          state.updateElement(text.id, { x: nx, y: ny }, { pushHistory: true });
+        } else if (state?.element?.update) {
+          state.element.update(text.id, { x: nx, y: ny });
+        } else {
+          console.warn('[TextRenderer] No suitable update method found in store');
+          // Fall back to direct store update
+          const currentElement = state?.elements?.get?.(text.id);
+          if (currentElement) {
+            const updatedElement = { ...currentElement, x: nx, y: ny };
+            state?.elements?.set?.(text.id, updatedElement);
+          }
+        }
+      } catch (error) {
+        console.error('[TextRenderer] Error updating text position:', error);
+      }
+    });
+
+    // Handle double-click for text editing
+    node.on('dblclick', (e) => {
+      console.log('[TextRenderer] Text double-clicked for editing:', text.id);
+      this.startTextEditing(node, text);
+    });
+
+    // Handle double-tap for mobile
+    node.on('dbltap', (e) => {
+      console.log('[TextRenderer] Text double-tapped for editing:', text.id);
+      this.startTextEditing(node, text);
+    });
+  }
+
+  private startTextEditing(node: Konva.Text, text: TextElement) {
+    const stage = node.getStage();
+    if (!stage) {
+      console.warn('[TextRenderer] No stage found for text editing');
+      return;
+    }
+
+    // Create a simple DOM overlay for text editing
+    const rect = node.getClientRect();
+    const container = stage.container();
+    const containerRect = container.getBoundingClientRect();
+    
+    const textarea = document.createElement('textarea');
+    textarea.value = node.text();
+    textarea.style.position = 'absolute';
+    textarea.style.left = `${containerRect.left + rect.x}px`;
+    textarea.style.top = `${containerRect.top + rect.y}px`;
+    textarea.style.width = `${Math.max(100, rect.width)}px`;
+    textarea.style.height = `${Math.max(24, rect.height)}px`;
+    textarea.style.fontSize = `${node.fontSize()}px`;
+    textarea.style.fontFamily = node.fontFamily();
+    textarea.style.color = node.fill();
+    textarea.style.background = 'transparent';
+    textarea.style.border = '1px dashed #ccc';
+    textarea.style.outline = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.zIndex = '1000';
+    textarea.style.padding = '2px';
+    
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    // Hide the original text while editing
+    const originalOpacity = node.opacity();
+    node.opacity(0.3);
+    stage.batchDraw();
+
+    const finishEditing = (save: boolean = true) => {
+      const newText = textarea.value;
+      textarea.remove();
+      node.opacity(originalOpacity);
+      
+      if (save && newText !== text.text) {
+        try {
+          const state = this.store?.getState();
+          
+          // Try different store method patterns
+          if (state?.updateElement) {
+            state.updateElement(text.id, { text: newText }, { pushHistory: true });
+          } else if (state?.element?.update) {
+            state.element.update(text.id, { text: newText });
+          } else {
+            // Fallback to direct node update
+            node.text(newText);
+          }
+        } catch (error) {
+          console.error('[TextRenderer] Error updating text content:', error);
+          // Fallback to direct node update
+          node.text(newText);
+        }
+      }
+      
+      stage.batchDraw();
+    };
+
+    textarea.addEventListener('blur', () => finishEditing(true));
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        finishEditing(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        finishEditing(false);
+      }
+    });
   }
 }
