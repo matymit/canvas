@@ -11,6 +11,7 @@ import CanvasToolbar from '@/features/canvas/toolbar/CanvasToolbar';
 import { setupRenderer } from '@/features/canvas/renderer';
 import { initializeConnectorService } from '@/features/canvas/services/ConnectorService';
 import { TransformerManager } from '@/features/canvas/managers/TransformerManager';
+import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '@/features/canvas/interactions/interaction/TransformCommit';
 // Mount tool components end-to-end
 import TableTool from '@/features/canvas/components/tools/content/TableTool';
 import TextTool from '@/features/canvas/components/tools/content/TextTool';
@@ -101,6 +102,7 @@ export default function Canvas(): JSX.Element {
   const connectorServiceCleanupRef = useRef<(() => void) | null>(null);
   const transformerManagerRef = useRef<TransformerManager | null>(null);
   const spacingHUDRef = useRef<ReturnType<typeof createSpacingHUD> | null>(null);
+  const stickyNoteModuleRef = useRef<any>(null);
 
   const onStageReady = useCallback((stage: Konva.Stage) => {
     stageRef.current = stage;
@@ -125,6 +127,16 @@ export default function Canvas(): JSX.Element {
       // Setup renderer modules with cleanup
       rendererCleanupRef.current = setupRenderer(stage, layerRefs);
 
+      // FIXED: Store StickyNoteModule reference globally for tool integration
+      const moduleCtx = {
+        store: useUnifiedCanvasStore,
+        layers: layerRefs
+      };
+      
+      // The setupRenderer should have created the StickyNoteModule
+      // Make it globally accessible for the tool
+      (window as any).stickyNoteModule = stickyNoteModuleRef.current;
+
       // Initialize connector service for live routing
       const connectorService = initializeConnectorService({
         store: useUnifiedCanvasStore.getState() as any,
@@ -133,61 +145,43 @@ export default function Canvas(): JSX.Element {
       });
       connectorServiceCleanupRef.current = () => connectorService.cleanup();
 
-      // Initialize TransformerManager for selection handling
+      // FIXED: Enhanced TransformerManager with proper transform commits
       transformerManagerRef.current = new TransformerManager(stage, {
         overlayLayer: layerRefs.overlay,
         onTransformStart: (nodes) => {
-          // Mark as transforming in store
-          useUnifiedCanvasStore.getState().beginTransform();
+          // Begin transform batch for history
+          beginTransformBatch({ getStore: () => useUnifiedCanvasStore.getState() as any });
+          useUnifiedCanvasStore.getState().selection?.beginTransform?.();
         },
         onTransform: (nodes) => {
           // Live transform feedback - nodes are already being transformed by Konva
-          // No need to update store during transform
+          // No need to update store during transform, just refresh display
         },
         onTransformEnd: (nodes) => {
           const store = useUnifiedCanvasStore.getState();
-          const updateElement = store.updateElement || (store as any).element?.update;
-
-          // Use withUndo for atomic transform operation
-          store.withUndo('Transform elements', () => {
-            // Normalize transforms: convert scale to width/height and commit to store
+          
+          try {
+            // FIXED: Commit each transformed node individually
             nodes.forEach((node) => {
-              const id = node.id();
-              if (!id) return;
-
-              // Get current transform values
-              const x = node.x();
-              const y = node.y();
-              const rotation = node.rotation();
-              const scaleX = node.scaleX();
-              const scaleY = node.scaleY();
-
-              // Calculate new dimensions
-              const width = node.width() * scaleX;
-              const height = node.height() * scaleY;
-
-              // Reset scale to 1 and apply dimensions
-              node.scaleX(1);
-              node.scaleY(1);
-              node.width(width);
-              node.height(height);
-
-              // Update store with normalized values
-              updateElement(id, {
-                x,
-                y,
-                width,
-                height,
-                rotation,
+              commitTransformForNode(node, { 
+                getStore: () => useUnifiedCanvasStore.getState() as any 
               });
             });
-          });
-
-          // End transform
-          store.endTransform();
-
-          // Force transformer refresh
-          transformerManagerRef.current?.refresh();
+            
+            // End transform batch
+            endTransformBatch({ getStore: () => useUnifiedCanvasStore.getState() as any });
+            store.selection?.endTransform?.();
+            
+            // Force transformer refresh
+            setTimeout(() => {
+              transformerManagerRef.current?.refresh();
+            }, 50);
+          } catch (error) {
+            console.error('[Canvas] Transform commit failed:', error);
+            // Fallback: end transform anyway
+            endTransformBatch({ getStore: () => useUnifiedCanvasStore.getState() as any });
+            store.selection?.endTransform?.();
+          }
         },
       });
     }
@@ -534,9 +528,6 @@ export default function Canvas(): JSX.Element {
       } catch {}
     };
   }, []);
-
-  // REMOVED: Problematic selection effect that was interfering
-  // The TransformerManager handles selection attachment automatically
 
   return (
     <div style={{
