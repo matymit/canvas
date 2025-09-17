@@ -34,6 +34,7 @@ export class StickyNoteModule implements RendererModule {
     
     // FIXED: Make module globally accessible for tool integration
     (window as any).stickyNoteModule = this;
+    console.log('[StickyNoteModule] Module registered globally');
     
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
@@ -534,28 +535,42 @@ export class StickyNoteModule implements RendererModule {
     document.body.style.cursor = 'default';
   }
 
-  // FIXED: Public method for immediate text editing after creation
+  // FIXED: Public method for immediate text editing after creation with improved timing
   public triggerImmediateTextEdit(elementId: string) {
     console.log('[StickyNoteModule] Triggering immediate text edit for:', elementId);
     
-    // Use increasing delays to ensure element is fully rendered and selected
-    const attemptEdit = (delay: number, maxAttempts: number, attempt: number = 1) => {
+    // Try immediate edit first
+    const group = this.nodes.get(elementId);
+    if (group) {
+      console.log('[StickyNoteModule] Element found immediately, starting text edit');
+      // Small delay to ensure selection is complete
       setTimeout(() => {
-        const group = this.nodes.get(elementId);
-        if (group) {
-          console.log(`[StickyNoteModule] Found element on attempt ${attempt}, starting text edit`);
-          this.startTextEditing(group, elementId);
-        } else if (attempt < maxAttempts) {
-          console.log(`[StickyNoteModule] Element not ready on attempt ${attempt}, retrying...`);
-          attemptEdit(delay, maxAttempts, attempt + 1);
-        } else {
-          console.warn('[StickyNoteModule] Could not find element for text editing after', maxAttempts, 'attempts');
-        }
-      }, delay);
+        this.startTextEditing(group, elementId);
+      }, 10);
+      return;
+    }
+    
+    // Use retry mechanism with shorter delays for better UX
+    let attempts = 0;
+    const maxAttempts = 5;
+    const retryDelay = 50; // 50ms intervals
+    
+    const attemptEdit = () => {
+      attempts++;
+      const group = this.nodes.get(elementId);
+      
+      if (group) {
+        console.log(`[StickyNoteModule] Found element on attempt ${attempts}, starting text edit`);
+        this.startTextEditing(group, elementId);
+      } else if (attempts < maxAttempts) {
+        console.log(`[StickyNoteModule] Element not ready on attempt ${attempts}, retrying in ${retryDelay}ms...`);
+        setTimeout(attemptEdit, retryDelay);
+      } else {
+        console.warn('[StickyNoteModule] Could not find element for text editing after', maxAttempts, 'attempts');
+      }
     };
     
-    // Start with immediate attempt, then retry with delays
-    attemptEdit(0, 1); // Immediate
-    attemptEdit(100, 3); // Up to 3 attempts with 100ms delay
+    // Start retry mechanism
+    setTimeout(attemptEdit, retryDelay);
   }
 }
