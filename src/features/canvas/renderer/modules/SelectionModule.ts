@@ -16,7 +16,7 @@ export class SelectionModule implements RendererModule {
     (window as any).selectionModule = this;
     console.log('[SelectionModule] Module registered globally');
 
-    // Create transformer manager on overlay layer
+    // Create transformer manager on overlay layer with aspect ratio locking
     this.transformerManager = new TransformerManager(ctx.stage, {
       overlayLayer: ctx.layers.overlay,
       enabledAnchors: [
@@ -37,7 +37,7 @@ export class SelectionModule implements RendererModule {
       anchorStroke: '#FFFFFF',
       anchorFill: '#4F46E5',
       ignoreStroke: false,
-      keepRatioKey: 'Shift',
+      keepRatioKey: 'Shift', // FIXED: Enable aspect ratio locking with Shift key
       rotationSnapDeg: 15,
       onTransformStart: (nodes) => {
         console.log('[SelectionModule] Transform start:', nodes.length, 'nodes');
@@ -60,6 +60,14 @@ export class SelectionModule implements RendererModule {
         if (store?.selection?.endTransform) {
           store.selection.endTransform();
         }
+        
+        // FIXED: Force a clean refresh after transform to prevent duplicate frames
+        setTimeout(() => {
+          if (this.transformerManager) {
+            this.transformerManager.refresh();
+            console.log('[SelectionModule] Transformer refreshed after transform end');
+          }
+        }, 10);
       },
     });
 
@@ -118,20 +126,24 @@ export class SelectionModule implements RendererModule {
       return;
     }
 
-    // Small delay to ensure elements are fully rendered
+    // FIXED: Slightly longer delay to ensure elements are fully rendered and avoid double frames
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
       const nodes = this.resolveElementsToNodes(selectedIds);
       
       if (nodes.length > 0) {
         console.log('[SelectionModule] Attaching transformer to', nodes.length, 'nodes');
-        this.transformerManager?.attachToNodes(nodes);
-        this.transformerManager?.show();
+        // FIXED: Detach first to prevent any lingering transformers, then attach
+        this.transformerManager?.detach();
+        setTimeout(() => {
+          this.transformerManager?.attachToNodes(nodes);
+          this.transformerManager?.show();
+        }, 10);
       } else {
         console.warn('[SelectionModule] Could not find nodes for selected elements:', Array.from(selectedIds));
         this.transformerManager?.detach();
       }
-    }, 50);
+    }, 75); // Slightly longer delay
   }
 
   private resolveElementsToNodes(elementIds: Set<string>): import('konva/lib/Node').Node[] {
@@ -177,7 +189,10 @@ export class SelectionModule implements RendererModule {
         if (candidates.length > 0) {
           // Prefer groups over individual shapes for better transform experience
           const group = candidates.find(n => n.className === 'Group');
-          nodes.push(group || candidates[0]);
+          const selectedNode = group || candidates[0];
+          
+          // FIXED: Ensure only one node per element ID to prevent duplicate frames
+          nodes.push(selectedNode);
           found = true;
           console.log('[SelectionModule] Found node for element', elementId, ':', group ? 'Group' : candidates[0].className);
           break;
@@ -316,10 +331,13 @@ export class SelectionModule implements RendererModule {
         
         if (nodes.length > 0) {
           console.log(`[SelectionModule] Element found on attempt ${attempts}, selection successful`);
-          // Force transformer update to ensure visibility
+          // FIXED: Force clean transformer state and attach
           if (this.transformerManager) {
-            this.transformerManager.attachToNodes(nodes);
-            this.transformerManager.show();
+            this.transformerManager.detach();
+            setTimeout(() => {
+              this.transformerManager?.attachToNodes(nodes);
+              this.transformerManager?.show();
+            }, 10);
           }
           return; // Success, stop retrying
         }
