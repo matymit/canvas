@@ -30,7 +30,6 @@ features/canvas/renderer/index.ts
 features/canvas/renderer/layers.ts
 features/canvas/renderer/TransformerController.ts
 
-features/canvas/validation/ValidationManager.ts
 
 features/canvas/tauri/TauriCanvasOptimizations.ts
 

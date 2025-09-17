@@ -6,7 +6,7 @@ import useCanvasSizing from '@/features/canvas/hooks/useCanvasSizing';
 import useViewportControls from '@/features/canvas/hooks/useViewportControls';
 import { useUnifiedCanvasStore } from '@/features/canvas/stores/unifiedCanvasStore';
 import { useTauriFileOperations } from '@/features/canvas/hooks/useTauriFileOperations';
-import { GridRenderer } from '@/features/canvas/components/ui/GridRenderer';
+import { GridRenderer } from '@/features/canvas/components/GridRenderer';
 import CanvasToolbar from '@/features/canvas/toolbar/CanvasToolbar';
 import { setupRenderer } from '@/features/canvas/renderer';
 import { initializeConnectorService } from '@/features/canvas/services/ConnectorService';

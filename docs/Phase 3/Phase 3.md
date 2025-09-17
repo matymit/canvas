@@ -16,7 +16,7 @@ features/canvas/hooks/useCanvasHistoryHelpers. ts
 features/canvas/renderermodular/modules/ConnectorModule.ts  
 features/canvas/renderermodular/modules/StickyNoteModule.ts  
 
-features/canvas/utils/StoreTransactionManager.ts  
+  
 
 This set covers:  
 - **Connector system** (tool + renderer module + edge store)  

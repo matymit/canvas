@@ -33,8 +33,10 @@ describe('Persistence and History Integration', () => {
         fill: '#ffffff'
       };
 
-      // Add element using the unified interface
-      store.element.upsert(testElement);
+      // Add element using withUndo for proper history tracking
+      store.withUndo('Add rectangle', () => {
+        store.element.upsert(testElement);
+      });
 
       // Verify element was added
       expect(S().elements.size).toBe(1);
@@ -67,11 +69,15 @@ describe('Persistence and History Integration', () => {
         fill: '#ff0000'
       };
 
-      // Add element
-      store.element.upsert(testElement);
+      // Add element using withUndo
+      store.withUndo('Add circle', () => {
+        store.element.upsert(testElement);
+      });
 
-      // Update element
-      store.element.update('test-2', { x: 150, y: 200, fill: '#00ff00' });
+      // Update element using withUndo
+      store.withUndo('Update circle', () => {
+        store.element.update('test-2', { x: 150, y: 200, fill: '#00ff00' });
+      });
 
       // Verify update
       const updated = S().elements.get('test-2');
@@ -97,12 +103,16 @@ describe('Persistence and History Integration', () => {
         fontSize: 16
       };
 
-      // Add element
-      store.element.upsert(testElement);
+      // Add element using withUndo
+      store.withUndo('Add text', () => {
+        store.element.upsert(testElement);
+      });
       expect(S().elements.size).toBe(1);
 
-      // Delete element
-      store.element.delete('test-3');
+      // Delete element using withUndo
+      store.withUndo('Delete text', () => {
+        store.element.delete('test-3');
+      });
       expect(S().elements.size).toBe(0);
 
       // Undo deletion (should restore element)
@@ -155,20 +165,26 @@ describe('Persistence and History Integration', () => {
     it('should track z-order changes with history', () => {
       const store = useUnifiedCanvasStore.getState();
 
-      // Add multiple elements
-      S().element.upsert({ id: 'el-1', type: 'rect', x: 0, y: 0 } as any);
-      S().element.upsert({ id: 'el-2', type: 'rect', x: 100, y: 0 } as any);
-      S().element.upsert({ id: 'el-3', type: 'rect', x: 200, y: 0 } as any);
+      // Add multiple elements using withUndo
+      store.withUndo('Add elements', () => {
+        store.element.upsert({ id: 'el-1', type: 'rect', x: 0, y: 0 } as any);
+        store.element.upsert({ id: 'el-2', type: 'rect', x: 100, y: 0 } as any);
+        store.element.upsert({ id: 'el-3', type: 'rect', x: 200, y: 0 } as any);
+      });
 
       const originalOrder = [...S().elementOrder];
       expect(originalOrder).toEqual(['el-1', 'el-2', 'el-3']);
 
-      // Bring el-1 to front
-      S().element.bringToFront('el-1');
+      // Bring el-1 to front using withUndo
+      store.withUndo('Bring to front', () => {
+        store.element.bringToFront('el-1');
+      });
       expect(S().elementOrder).toEqual(['el-2', 'el-3', 'el-1']);
 
-      // Send el-3 to back
-      S().element.sendToBack('el-3');
+      // Send el-3 to back using withUndo
+      store.withUndo('Send to back', () => {
+        store.element.sendToBack('el-3');
+      });
       expect(S().elementOrder).toEqual(['el-3', 'el-2', 'el-1']);
 
       // Undo sendToBack
@@ -185,9 +201,11 @@ describe('Persistence and History Integration', () => {
     it('should serialize Map/Set collections for persistence', () => {
       const store = useUnifiedCanvasStore.getState();
 
-      // Add elements
-      store.element.upsert({ id: 'p1', type: 'rect', x: 0, y: 0 });
-      store.element.upsert({ id: 'p2', type: 'circle', x: 100, y: 100 });
+      // Add elements using withUndo
+      store.withUndo('Add test elements', () => {
+        store.element.upsert({ id: 'p1', type: 'rect', x: 0, y: 0 });
+        store.element.upsert({ id: 'p2', type: 'circle', x: 100, y: 100 });
+      });
 
       // Select elements
       store.selection.set(['p1', 'p2']);
@@ -229,20 +247,25 @@ describe('Persistence and History Integration', () => {
     it('should duplicate elements with history tracking', () => {
       const store = useUnifiedCanvasStore.getState();
 
-      // Add original element
-      store.element.upsert({
-        id: 'original',
-        type: 'sticky-note',
-        x: 100,
-        y: 100,
-        width: 200,
-        height: 200,
-        text: 'Original Note',
-        color: '#FFF59D'
+      // Add original element using withUndo
+      store.withUndo('Add original note', () => {
+        store.element.upsert({
+          id: 'original',
+          type: 'sticky-note',
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 200,
+          text: 'Original Note',
+          color: '#FFF59D'
+        });
       });
 
-      // Duplicate element
-      const newId = S().element.duplicate('original');
+      // Duplicate element using withUndo
+      let newId: string | null = null;
+      store.withUndo('Duplicate note', () => {
+        newId = store.element.duplicate('original');
+      });
       expect(newId).toBeTruthy();
 
       // Verify duplicate exists with offset position
@@ -264,13 +287,15 @@ describe('Persistence and History Integration', () => {
 
       const drawingPath = [10, 10, 20, 20, 30, 15, 40, 25, 50, 20];
 
-      store.element.upsert({
-        id: 'drawing-1',
-        type: 'drawing',
-        tool: 'pen',
-        path: drawingPath,
-        stroke: '#000000',
-        strokeWidth: 2
+      store.withUndo('Add drawing', () => {
+        store.element.upsert({
+          id: 'drawing-1',
+          type: 'drawing',
+          tool: 'pen',
+          path: drawingPath,
+          stroke: '#000000',
+          strokeWidth: 2
+        });
       });
 
       const element = S().elements.get('drawing-1');

@@ -1,6 +1,6 @@
 import Konva from 'konva';
 // Use the canonical performance ShapeCaching
-import { ShapeCaching, CacheConfig } from '../../utils/performance/ShapeCaching';
+import { ShapeCaching, CacheConfig } from '../utils/performance/ShapeCaching';
 
 // Compatibility functions for the existing API
 const cacheLayerStatic = (layer: Konva.Layer, cfg?: CacheConfig) => {

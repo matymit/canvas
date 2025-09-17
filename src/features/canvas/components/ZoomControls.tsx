@@ -1,6 +1,6 @@
-// features/canvas/components/ui/ZoomControls.tsx
+// features/canvas/components/ZoomControls.tsx
 import React from 'react';
-import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 
 export interface ZoomControlsProps {
   // Optional callbacks for external control

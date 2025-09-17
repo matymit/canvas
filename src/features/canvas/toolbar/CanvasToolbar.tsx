@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useCallback } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 import ShapesDropdown from '@features/canvas/toolbar/ShapesDropdown';
-import StickyColorPortal from '@features/canvas/toolbar/StickyColorPortal';
+import UnifiedColorPicker from '@features/canvas/components/UnifiedColorPicker';
 import { 
   MousePointer, Hand, Type as TypeIcon, StickyNote as StickyNoteLucide, Table as TableLucide,
   Shapes as ShapesLucide, ArrowRight, PenLine, Brush, Highlighter as HighlighterLucide,
@@ -613,12 +613,13 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         onClose={() => setShapesOpen(false)}
         onSelectShape={selectAndCloseShapes}
       />
-      <StickyColorPortal
+      <UnifiedColorPicker
         open={stickyNoteColorsOpen}
+        mode="palette"
         anchorRect={stickyNoteAnchorRect}
         onClose={() => setStickyNoteColorsOpen(false)}
-        onSelect={handleSelectStickyColor}
-        selected={store.stickyNoteColor || store.colors?.stickyNote || '#FDE68A'}
+        onChange={handleSelectStickyColor}
+        color={store.stickyNoteColor || store.colors?.stickyNote || '#FDE68A'}
         title="Sticky Color"
       />
     </div>

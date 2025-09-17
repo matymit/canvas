@@ -1,0 +1,415 @@
+/**
+ * UnifiedColorPicker - Consolidated color picker component supporting multiple modes
+ *
+ * Modes:
+ * - 'palette': Grid of preset colors with keyboard navigation (like StickyColorPortal)
+ * - 'picker': Native color input picker (like ColorPicker/FloatingColorPicker)
+ * - 'hybrid': Both palette and picker together
+ *
+ * Features:
+ * - Portal rendering for proper z-index management
+ * - Keyboard navigation (arrows, enter, escape)
+ * - Focus management with ARIA support
+ * - Flexible positioning (anchor rect or x,y coordinates)
+ * - Click outside to close
+ * - Customizable color palette
+ */
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+export type ColorPickerMode = 'palette' | 'picker' | 'hybrid';
+
+export interface UnifiedColorPickerProps {
+  // Core props
+  open: boolean;
+  mode?: ColorPickerMode;
+  color?: string;
+  onChange: (color: string) => void;
+  onClose: () => void;
+
+  // Positioning - use one or the other
+  anchorRect?: DOMRect | null; // For toolbar positioning (bottom/left)
+  anchor?: { x: number; y: number }; // For floating positioning (x/y)
+
+  // Customization
+  title?: string;
+  colors?: string[]; // Custom palette colors
+  showColorValue?: boolean; // Show hex value
+  autoFocus?: boolean;
+  className?: string;
+
+  // Deprecated - for backward compatibility
+  selected?: string; // Use 'color' instead
+  onSelect?: (color: string) => void; // Use 'onChange' instead
+}
+
+// Default FigJam-like sticky note palette
+const DEFAULT_PALETTE: string[] = [
+  '#FDE68A', // Yellow
+  '#FCA5A5', // Red
+  '#86EFAC', // Green
+  '#93C5FD', // Blue
+  '#C4B5FD', // Purple
+  '#FBCFE8', // Pink
+  '#FCD34D', // Amber
+  '#FDBA74', // Orange
+  '#A7F3D0', // Teal
+  '#BAE6FD', // Sky
+  '#DDD6FE', // Violet
+  '#F5D0FE', // Fuchsia
+];
+
+// Additional extended palette
+const EXTENDED_PALETTE: string[] = [
+  ...DEFAULT_PALETTE,
+  '#F87171', // Red-500
+  '#FB923C', // Orange-500
+  '#FACC15', // Yellow-500
+  '#4ADE80', // Green-500
+  '#22D3EE', // Cyan-500
+  '#60A5FA', // Blue-500
+  '#A78BFA', // Violet-500
+  '#F472B6', // Pink-500
+  '#E5E7EB', // Gray-200
+  '#9CA3AF', // Gray-400
+  '#4B5563', // Gray-600
+  '#1F2937', // Gray-800
+];
+
+// Panel styles
+const PANEL_BASE: React.CSSProperties = {
+  position: 'fixed',
+  zIndex: 1100,
+  background: 'var(--panel, #111827)',
+  color: 'var(--text, #e5e7eb)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 10,
+  boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
+  padding: 10,
+  minWidth: 220,
+};
+
+const HEADER_STYLE: React.CSSProperties = {
+  fontSize: 12,
+  opacity: 0.85,
+  marginBottom: 8,
+  fontWeight: 500,
+};
+
+const GRID_STYLE: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(6, 28px)',
+  gap: 8,
+  marginBottom: 10,
+};
+
+const SWATCH_STYLE: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  border: '1px solid rgba(0,0,0,0.25)',
+  cursor: 'pointer',
+  outline: 'none',
+  transition: 'transform 0.15s ease',
+};
+
+const PICKER_CONTAINER: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  paddingTop: 8,
+  borderTop: '1px solid rgba(255,255,255,0.1)',
+};
+
+const COLOR_INPUT_STYLE: React.CSSProperties = {
+  width: 40,
+  height: 32,
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 6,
+  padding: 0,
+  background: 'transparent',
+  cursor: 'pointer',
+};
+
+const HEX_INPUT_STYLE: React.CSSProperties = {
+  flex: 1,
+  height: 32,
+  padding: '0 8px',
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 6,
+  color: 'inherit',
+  fontSize: 12,
+  fontFamily: 'monospace',
+};
+
+const FOCUS_OUTLINE = '0 0 0 2px rgba(59, 130, 246, 0.5)';
+const SELECTED_OUTLINE = '0 0 0 2px rgba(255, 255, 255, 0.8)';
+
+export default function UnifiedColorPicker({
+  open,
+  mode = 'palette',
+  color: propColor,
+  onChange: propOnChange,
+  onClose,
+  anchorRect,
+  anchor,
+  title,
+  colors: customColors,
+  showColorValue = false,
+  autoFocus = true,
+  className,
+  // Backward compatibility
+  selected,
+  onSelect,
+}: UnifiedColorPickerProps) {
+  // Handle backward compatibility
+  const color = propColor ?? selected ?? '#FDE68A';
+  const onChange = propOnChange ?? onSelect ?? (() => {});
+  const colors = customColors ?? DEFAULT_PALETTE;
+
+  // Portal root
+  const root = useMemo(() => (typeof document !== 'undefined' ? document.body : null), []);
+
+  // Refs
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const swatchRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const pickerRef = useRef<HTMLInputElement | null>(null);
+  const hexInputRef = useRef<HTMLInputElement | null>(null);
+
+  // State
+  const [activeIdx, setActiveIdx] = useState<number>(() => {
+    const idx = colors.findIndex((c) => c.toLowerCase() === color.toLowerCase());
+    return idx >= 0 ? idx : 0;
+  });
+  const [hexValue, setHexValue] = useState(color);
+
+  // Update hex value when color changes
+  useEffect(() => {
+    setHexValue(color);
+  }, [color]);
+
+  // Calculate positioning
+  const position = useMemo(() => {
+    if (anchorRect) {
+      // Toolbar-style positioning (above element)
+      return {
+        bottom: Math.round(window.innerHeight - anchorRect.top + 8),
+        left: Math.round(anchorRect.left),
+        top: 'auto' as const,
+      };
+    } else if (anchor) {
+      // Floating positioning (at coordinates)
+      return {
+        left: anchor.x + 8,
+        top: anchor.y + 8,
+        bottom: 'auto' as const,
+      };
+    } else {
+      // Centered fallback
+      return {
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        bottom: 'auto' as const,
+      };
+    }
+  }, [anchorRect, anchor]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Universal keys
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+
+      // Palette navigation
+      if (mode === 'palette' || mode === 'hybrid') {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const selectedColor = colors[activeIdx] ?? color;
+          onChange(selectedColor);
+          if (mode === 'palette') onClose();
+          return;
+        }
+
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setActiveIdx((i) => (i + 1) % colors.length);
+          return;
+        }
+
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setActiveIdx((i) => (i - 1 + colors.length) % colors.length);
+          return;
+        }
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          // 6 columns by default
+          const cols = 6;
+          setActiveIdx((i) => Math.min(colors.length - 1, i + cols));
+          return;
+        }
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          const cols = 6;
+          setActiveIdx((i) => Math.max(0, i - cols));
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, mode, activeIdx, colors, color, onChange, onClose]);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!open) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (panelRef.current && !panelRef.current.contains(target)) {
+        onClose();
+      }
+    };
+
+    // Use capture phase to intercept before other handlers
+    window.addEventListener('mousedown', onMouseDown, { capture: true });
+    return () => window.removeEventListener('mousedown', onMouseDown, { capture: true } as any);
+  }, [open, onClose]);
+
+  // Auto-focus management
+  useEffect(() => {
+    if (!open || !autoFocus) return;
+
+    // Small delay to ensure portal is mounted
+    const timer = setTimeout(() => {
+      if (mode === 'picker') {
+        pickerRef.current?.focus();
+      } else if (mode === 'palette' || mode === 'hybrid') {
+        const btn = swatchRefs.current[activeIdx];
+        btn?.focus();
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [open, mode, activeIdx, autoFocus]);
+
+  // Handle hex input
+  const handleHexChange = (value: string) => {
+    setHexValue(value);
+    // Validate hex color
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+      onChange(value);
+    }
+  };
+
+  if (!open || !root) return null;
+
+  // Build panel content
+  const panelContent = (
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-label={title ?? 'Color picker'}
+      className={className}
+      style={{
+        ...PANEL_BASE,
+        ...position,
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {title && <div style={HEADER_STYLE}>{title}</div>}
+
+      {/* Palette Mode */}
+      {(mode === 'palette' || mode === 'hybrid') && (
+        <div style={GRID_STYLE} role="listbox" aria-label="Color swatches">
+          {colors.map((swatch, i) => {
+            const isSelected = swatch.toLowerCase() === color.toLowerCase();
+            const isActive = i === activeIdx;
+
+            return (
+              <button
+                key={`${swatch}-${i}`}
+                ref={(el) => (swatchRefs.current[i] = el)}
+                role="option"
+                aria-selected={isSelected}
+                aria-label={`Color ${swatch}`}
+                title={swatch}
+                style={{
+                  ...SWATCH_STYLE,
+                  background: swatch,
+                  boxShadow: isActive ? FOCUS_OUTLINE : isSelected ? SELECTED_OUTLINE : 'none',
+                  transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onChange(swatch);
+                  if (mode === 'palette') onClose();
+                }}
+                onMouseEnter={() => setActiveIdx(i)}
+                onFocus={() => setActiveIdx(i)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Picker Mode */}
+      {(mode === 'picker' || mode === 'hybrid') && (
+        <div style={PICKER_CONTAINER}>
+          <input
+            ref={pickerRef}
+            type="color"
+            value={color}
+            onChange={(e) => {
+              const newColor = e.target.value;
+              setHexValue(newColor);
+              onChange(newColor);
+            }}
+            style={COLOR_INPUT_STYLE}
+            aria-label="Pick custom color"
+            title="Pick custom color"
+          />
+
+          {showColorValue !== false && (
+            <input
+              ref={hexInputRef}
+              type="text"
+              value={hexValue}
+              onChange={(e) => handleHexChange(e.target.value)}
+              onBlur={() => {
+                // Reset to current color if invalid
+                if (!/^#[0-9A-Fa-f]{6}$/.test(hexValue)) {
+                  setHexValue(color);
+                }
+              }}
+              style={HEX_INPUT_STYLE}
+              placeholder="#000000"
+              aria-label="Hex color value"
+              title="Hex color value"
+              maxLength={7}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return createPortal(panelContent, root);
+}
+
+// Export type helpers for consumers
+export type { ColorPickerMode as Mode };
+export { DEFAULT_PALETTE, EXTENDED_PALETTE };

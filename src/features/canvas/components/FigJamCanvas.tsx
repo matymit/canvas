@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 import CanvasToolbar from '../toolbar/CanvasToolbar';
-import ZoomControls from './ui/ZoomControls';
+import ZoomControls from './ZoomControls';
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);

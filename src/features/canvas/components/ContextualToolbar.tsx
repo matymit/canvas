@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type Konva from 'konva';
 import { createPortal } from 'react-dom';
-import FloatingColorPicker from './FloatingColorPicker';
+import UnifiedColorPicker from './UnifiedColorPicker';
 
 export interface WorldRect {
   x: number;
@@ -179,8 +179,9 @@ export const ContextualToolbar: React.FC<ContextualToolbarProps> = ({
     <>
       {createPortal(toolbar, portalEl)}
       {colorPickerAnchor && (
-        <FloatingColorPicker
+        <UnifiedColorPicker
           open={colorPickerOpen}
+          mode="picker"
           anchor={colorPickerAnchor}
           color={colorTarget === 'fill' ? fillColor ?? '#ffffff' : strokeColor ?? '#ffffff'}
           onChange={(c: string) => {
@@ -188,6 +189,7 @@ export const ContextualToolbar: React.FC<ContextualToolbarProps> = ({
             else onChangeStroke?.(c);
           }}
           onClose={() => setColorPickerOpen(false)}
+          showColorValue={true}
         />
       )}
     </>

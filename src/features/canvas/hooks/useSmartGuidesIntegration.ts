@@ -1,7 +1,7 @@
 // features/canvas/hooks/useSmartGuidesIntegration.ts
 import { useEffect, useRef } from 'react';
 import type Konva from 'konva';
-import { SmartGuides, type GuideLine } from '../components/ui/SmartGuides';
+import { SmartGuides, type GuideLine } from '../components/SmartGuides';
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 
 export interface UseSmartGuidesIntegrationParams {
@@ -12,7 +12,7 @@ export interface UseSmartGuidesIntegrationParams {
  * Hook to integrate SmartGuides component with the guides module state
  */
 export function useSmartGuidesIntegration({ overlayLayer }: UseSmartGuidesIntegrationParams) {
-  const { enabled, activeGuides } = useUnifiedCanvasStore();
+  const { guidesEnabled, activeGuides } = useUnifiedCanvasStore();
   const smartGuidesRef = useRef<SmartGuides | null>(null);
 
   // Initialize SmartGuides when overlay layer is available
@@ -39,7 +39,7 @@ export function useSmartGuidesIntegration({ overlayLayer }: UseSmartGuidesIntegr
     const smartGuides = smartGuidesRef.current;
     if (!smartGuides) return;
 
-    if (enabled && activeGuides.length > 0) {
+    if (guidesEnabled && activeGuides.length > 0) {
       // Convert store guide format to SmartGuides format
       const convertedGuides: GuideLine[] = activeGuides.map(guide => {
         if (guide.axis === 'x') {
@@ -65,7 +65,7 @@ export function useSmartGuidesIntegration({ overlayLayer }: UseSmartGuidesIntegr
     } else {
       smartGuides.clear();
     }
-  }, [enabled, activeGuides]);
+  }, [guidesEnabled, activeGuides]);
 
   return smartGuidesRef.current;
 }

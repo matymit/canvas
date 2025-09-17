@@ -1,13 +1,13 @@
 // features/canvas/utils/AnimationIntegration.ts
 import Konva from 'konva';
-import type { AnimationModuleSlice, EasingName } from '../stores/modules/animationModule';
+import type { InteractionModuleSlice, EasingName } from '../stores/modules/interactionModule';
 import { animateAppear, animateTransform, animatePulse } from '../animation/ElementAnimations';
 
 /**
  * Utility to integrate the animation module with existing ElementAnimations
  */
 export class AnimationIntegration {
-  constructor(private getAnimationState: () => AnimationModuleSlice) {}
+  constructor(private getAnimationState: () => InteractionModuleSlice) {}
 
   /**
    * Get the appropriate easing function from Konva.Easings based on store preset
@@ -30,7 +30,7 @@ export class AnimationIntegration {
   animateAppear(node: Konva.Node, options?: { layer?: Konva.Layer | null }) {
     const state = this.getAnimationState();
     
-    if (!state.enabled || state.preferReducedMotion) {
+    if (!state.animationEnabled || state.preferReducedMotion) {
       return null;
     }
 
@@ -51,7 +51,7 @@ export class AnimationIntegration {
   ) {
     const state = this.getAnimationState();
     
-    if (!state.enabled || state.preferReducedMotion) {
+    if (!state.animationEnabled || state.preferReducedMotion) {
       return null;
     }
 
@@ -69,7 +69,7 @@ export class AnimationIntegration {
   animatePulse(node: Konva.Node, options?: { layer?: Konva.Layer | null; scale?: number }) {
     const state = this.getAnimationState();
     
-    if (!state.enabled || state.preferReducedMotion) {
+    if (!state.animationEnabled || state.preferReducedMotion) {
       return Promise.resolve();
     }
 
@@ -86,7 +86,7 @@ export class AnimationIntegration {
    */
   isEnabled(): boolean {
     const state = this.getAnimationState();
-    return state.enabled && !state.preferReducedMotion;
+    return state.animationEnabled && !state.preferReducedMotion;
   }
 
   /**
@@ -101,7 +101,7 @@ export class AnimationIntegration {
 /**
  * Create an animation integration instance bound to the unified store
  */
-export function createAnimationIntegration(getAnimationState: () => AnimationModuleSlice): AnimationIntegration {
+export function createAnimationIntegration(getAnimationState: () => InteractionModuleSlice): AnimationIntegration {
   return new AnimationIntegration(getAnimationState);
 }
 

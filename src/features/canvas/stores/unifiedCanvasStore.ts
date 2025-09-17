@@ -5,18 +5,13 @@ import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
 
 // Module creators
-import { createElementModule } from './modules/elementModule';
-import { createSelectionModule } from './modules/selectionModule';
-import { createViewportModule } from './modules/viewportModule';
+import { createCoreModule } from './modules/coreModule';
 import { createHistoryModule } from './modules/historyModule';
-import { createUIModule } from './modules/uiModule';
-import { createGuidesModule } from './modules/guidesModule';
-import { createAnimationModule } from './modules/animationModule';
+import { createInteractionModule } from './modules/interactionModule';
 
-import type { UIModuleSlice } from './modules/uiModule';
-import type { GuidesModuleSlice } from './modules/guidesModule';
-import type { AnimationModuleSlice } from './modules/animationModule';
+import type { CoreModuleSlice } from './modules/coreModule';
 import type { HistoryModuleSlice } from './modules/historyModule';
+import type { InteractionModuleSlice } from './modules/interactionModule';
 
 // Types (keep imports narrow to avoid circular types)
 import type { CanvasElement, ElementId } from '../../../../types/index';
@@ -144,7 +139,7 @@ export interface ConvenienceSlice {
   };
 }
 
-export type UnifiedCanvasStore = ElementSlice & SelectionSlice & ViewportSlice & HistoryModuleSlice & UIModuleSlice & GuidesModuleSlice & AnimationModuleSlice & ConvenienceSlice;
+export type UnifiedCanvasStore = CoreModuleSlice & HistoryModuleSlice & InteractionModuleSlice & ConvenienceSlice;
 
 // Helper for persistence: serialize Map/Set into arrays
 function partializeForPersist(state: UnifiedCanvasStore) {
@@ -201,24 +196,16 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
   persist(
     subscribeWithSelector(
       immer((set, get) => {
-        // Create base modules
+        // Create consolidated modules
         const historyModule = createHistoryModule(set as any, get as any);
-        const elementModule = createElementModule(set as any, get as any);
-        const selectionModule = createSelectionModule(set as any, get as any);
-        const uiModule = createUIModule(set as any, get as any);
-        const guidesModule = createGuidesModule(set as any, get as any);
-        const animationModule = createAnimationModule(set as any, get as any);
-        const viewportModule = createViewportModule(set as any, get as any);
+        const coreModule = createCoreModule(set as any, get as any);
+        const interactionModule = createInteractionModule(set as any, get as any);
 
         return {
           // Spread all modules
           ...historyModule,
-          ...elementModule,
-          ...selectionModule,
-          ...uiModule,
-          ...guidesModule,
-          ...animationModule,
-          ...viewportModule,
+          ...coreModule,
+          ...interactionModule,
 
           // Compatibility shim for modules that expect state.history object with helper methods
           history: {
@@ -282,7 +269,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
                 if (state.ui) state.ui.strokeColor = color;
                 if (state.colors) state.colors.stroke = color;
               });
-              uiModule.setStrokeColor(color);
+              interactionModule.setStrokeColor(color);
             },
             setFillColor: (color: string) => {
               set((state) => {
@@ -290,7 +277,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
                 if (state.ui) state.ui.fillColor = color;
                 if (state.colors) state.colors.fill = color;
               });
-              uiModule.setFillColor(color);
+              interactionModule.setFillColor(color);
             },
             setStrokeWidth: (width: number) => set((state) => {
               state.strokeWidth = width;
