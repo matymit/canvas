@@ -150,7 +150,7 @@ export default function Canvas(): JSX.Element {
 
           // Use withUndo for atomic transform operation
           store.withUndo('Transform elements', () => {
-            // Normalize transforms: convert scale to width/height
+            // Normalize transforms: convert scale to width/height and commit to store
             nodes.forEach((node) => {
               const id = node.id();
               if (!id) return;
@@ -210,58 +210,44 @@ export default function Canvas(): JSX.Element {
       });
     }
 
-    // Enhanced click-to-select with proper empty click handling
-    const selectAtPointer = (e?: any) => {
+    // FIXED: Improved click-to-select with proper empty space deselection
+    const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      // Skip if clicking on a tool-specific target (tools handle their own events)
+      if (selectedTool !== 'select' && selectedTool !== 'pan') {
+        return; // Let tools handle their own clicks
+      }
+      
       const pos = stage.getPointerPosition();
       if (!pos) return;
-      const s: any = useUnifiedCanvasStore.getState();
-      const order: string[] = Array.isArray(s.elementOrder) ? s.elementOrder.slice() : [];
-      const additive = !!(e && e.evt && (e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey));
+      
+      const store: any = useUnifiedCanvasStore.getState();
+      const isAdditive = e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey;
 
       // Check if we clicked on a Konva node first (more accurate than bounds check)
       const clickedNode = stage.getIntersection(pos);
       if (clickedNode && clickedNode.id()) {
         const id = clickedNode.id();
         try {
-          if (additive && s.selection?.toggle) {
-            s.selection.toggle(id);
+          if (isAdditive && store.selection?.toggle) {
+            store.selection.toggle(id);
           } else {
-            s.selection?.set?.([id]);
+            store.selection?.set?.([id]);
           }
         } catch {}
         return;
       }
 
-      // Fallback to bounds check for elements without Konva nodes yet
-      let foundElement = false;
-      for (let i = order.length - 1; i >= 0; i--) {
-        const id = order[i];
-        const el = s.elements?.get?.(id);
-        if (!el) continue;
-        const b = el.bounds || { x: el.x, y: el.y, width: el.width, height: el.height };
-        if (!b) continue;
-        if (pos.x >= b.x && pos.x <= b.x + b.width && pos.y >= b.y && pos.y <= b.y + b.height) {
-          try {
-            if (additive && s.selection?.toggle) {
-              s.selection.toggle(id);
-            } else {
-              s.selection?.set?.([id]);
-            }
-          } catch {}
-          foundElement = true;
-          break;
-        }
-      }
-
-      // Clear selection if clicked on empty space and not additive
-      if (!foundElement && !additive) {
+      // FIXED: Always clear selection on empty space click (unless additive)
+      if (!isAdditive) {
         try {
-          s.selection?.clear?.();
+          console.log('[Canvas] Clicking empty space - clearing selection');
+          store.selection?.clear?.();
         } catch {}
       }
     };
 
-    stage.on('click.e2e-select', (ev) => selectAtPointer(ev));
+    // FIXED: Use click event for better reliability
+    stage.on('click.canvas-select', handleStageClick);
 
     // Spacing HUD drag wiring: show label between dragged node and nearest neighbor by X
     const onDragMoveHUD = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -307,7 +293,14 @@ export default function Canvas(): JSX.Element {
       tableRendererRef.current = new TableRenderer({ background: backgroundLayer, main: mainLayer, preview: previewLayer, overlay: overlayLayer });
       mindmapRendererRef.current = new MindmapRenderer({ background: backgroundLayer, main: mainLayer, preview: previewLayer, overlay: overlayLayer });
     }
-  }, [grid.visible, grid.density, grid.color]);
+
+    // Cleanup function
+    return () => {
+      stage.off('click.canvas-select');
+      stage.off('dragmove.spacinghud');
+      stage.off('dragend.spacinghud');
+    };
+  }, [grid.visible, grid.density, grid.color, selectedTool]);
 
   // Stage props
   const stageProps = useMemo(
@@ -537,64 +530,13 @@ export default function Canvas(): JSX.Element {
         const stage = stageRef.current;
         stage?.off('dragmove.spacinghud');
         stage?.off('dragend.spacinghud');
+        stage?.off('click.canvas-select');
       } catch {}
     };
   }, []);
 
-  // After hydration, ensure a selection exists and overlay draws
-  useEffect(() => {
-    // Try immediately, then again on next frame
-    try {
-      const s: any = useUnifiedCanvasStore.getState();
-      const ensure = () => {
-        try {
-          const ids: string[] = Array.from(useUnifiedCanvasStore.getState().selectedElementIds ?? []);
-          if (ids.length > 0 && s.selection?.set) s.selection.set(ids);
-          else {
-            const order: string[] = Array.isArray(useUnifiedCanvasStore.getState().elementOrder) ? useUnifiedCanvasStore.getState().elementOrder : [];
-            const last = order[order.length - 1] ?? order[0];
-            if (last && s.selection?.set) s.selection.set([last]);
-          }
-        } catch {}
-      };
-      ensure();
-      requestAnimationFrame(ensure);
-    } catch {}
-
-    // Also subscribe to store so when elements hydrate we pick a selection if none exists
-    const unsubscribe2 = useUnifiedCanvasStore.subscribe(
-      (st) => ({ order: st.elementOrder, selected: st.selectedElementIds }),
-      (snap) => {
-        try {
-          const order: string[] = Array.isArray(snap.order) ? snap.order : [];
-          const selected = Array.from(snap.selected ?? []);
-          if (order.length > 0 && selected.length === 0) {
-            const last = order[order.length - 1] ?? order[0];
-            const api: any = useUnifiedCanvasStore.getState().selection;
-            api?.set?.([last]);
-          }
-        } catch {}
-      },
-      { fireImmediately: true }
-    );
-    return () => {
-      try { unsubscribe2(); } catch {}
-      // Cleanup transformer manager
-      if (transformerManagerRef.current) {
-        transformerManagerRef.current.destroy();
-        transformerManagerRef.current = null;
-      }
-      // Cleanup other services
-      if (rendererCleanupRef.current) {
-        rendererCleanupRef.current();
-        rendererCleanupRef.current = null;
-      }
-      if (connectorServiceCleanupRef.current) {
-        connectorServiceCleanupRef.current();
-        connectorServiceCleanupRef.current = null;
-      }
-    };
-  }, []);
+  // REMOVED: Problematic selection effect that was interfering
+  // The TransformerManager handles selection attachment automatically
 
   return (
     <div style={{
