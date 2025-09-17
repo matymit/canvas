@@ -83,7 +83,10 @@ export class ShapeRenderer implements RendererModule {
   }
 
   private reconcile(shapes: Map<Id, ShapeElement>) {
-    console.log("[ShapeRenderer] Reconciling", shapes.size, "shape elements");
+    // Only log when there are actual shapes to reconcile (reduce console spam)
+    if (shapes.size > 0) {
+      console.log("[ShapeRenderer] Reconciling", shapes.size, "shape elements");
+    }
 
     if (!this.layer) return;
 

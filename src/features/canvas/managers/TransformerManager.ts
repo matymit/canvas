@@ -78,7 +78,6 @@ export class TransformerManager {
   private ensureTransformer() {
     if (this.transformer) return;
 
-    console.log("[TransformerManager] Creating new transformer");
     this.transformer = new Konva.Transformer({
       name: "selection-transformer",
       padding: this.opts.padding,
@@ -101,11 +100,7 @@ export class TransformerManager {
     // Wire events to callbacks and snapping behavior
     this.transformer!.on("transformstart", () => {
       const nodes = this.transformer!.nodes();
-      console.log(
-        "[TransformerManager] Transform start for",
-        nodes.length,
-        "nodes",
-      );
+
       this.opts.onTransformStart?.(nodes);
     });
 
@@ -135,11 +130,7 @@ export class TransformerManager {
       }
 
       const nodes = tr.nodes();
-      console.log(
-        "[TransformerManager] Transform end for",
-        nodes.length,
-        "nodes",
-      );
+
       this.opts.onTransformEnd?.(nodes);
 
       // FIXED: Clean overlay draw to prevent duplicate frames
@@ -153,15 +144,11 @@ export class TransformerManager {
       const down = (e: KeyboardEvent) => {
         if (e.key === this.opts.keepRatioKey && this.transformer) {
           this.transformer.keepRatio(true);
-          console.log("[TransformerManager] Aspect ratio locked (key pressed)");
         }
       };
       const up = (e: KeyboardEvent) => {
         if (e.key === this.opts.keepRatioKey && this.transformer) {
           this.transformer.keepRatio(this.opts.lockAspectRatio || false);
-          console.log(
-            "[TransformerManager] Aspect ratio unlocked (key released)",
-          );
         }
       };
 
@@ -181,8 +168,6 @@ export class TransformerManager {
     this.ensureTransformer();
     if (!this.transformer) return;
 
-    console.log("[TransformerManager] Attaching to", nodes.length, "nodes");
-
     // Filter nodes that are still in stage
     const live = nodes.filter((n) => {
       try {
@@ -196,19 +181,23 @@ export class TransformerManager {
     this.transformer.nodes([]);
     this.overlay.batchDraw();
 
-    // Small delay before attaching to ensure clean state
-    setTimeout(() => {
-      if (this.transformer && live.length > 0) {
-        this.transformer.nodes(live);
-        this.transformer.visible(true);
-        this.overlay.batchDraw();
-        console.log(
-          "[TransformerManager] Successfully attached to",
-          live.length,
-          "nodes",
-        );
-      }
-    }, 5);
+    // Attach directly without delay to prevent timing issues
+    if (this.transformer && live.length > 0) {
+      this.transformer.nodes(live);
+      this.transformer.visible(true);
+      this.overlay.batchDraw();
+
+      // Debug: Check if transformer actually has nodes after attachment
+      setTimeout(() => {
+        if (this.transformer) {
+          const attachedNodes = this.transformer.nodes();
+
+          if (attachedNodes.length === 0) {
+          }
+        }
+      }, 50);
+    } else {
+    }
   }
 
   attachToNodeIds(ids: string[]) {
@@ -223,7 +212,7 @@ export class TransformerManager {
 
   detach() {
     if (!this.transformer) return;
-    console.log("[TransformerManager] Detaching transformer");
+
     this.transformer.nodes([]);
     this.transformer.visible(false);
     this.overlay.batchDraw();
@@ -235,7 +224,7 @@ export class TransformerManager {
 
   refresh() {
     if (!this.transformer) return;
-    console.log("[TransformerManager] Refreshing transformer");
+
     this.transformer.forceUpdate();
     this.overlay.batchDraw();
   }
@@ -256,12 +245,10 @@ export class TransformerManager {
   setKeepRatio(keepRatio: boolean) {
     if (!this.transformer) return;
     this.transformer.keepRatio(keepRatio);
-    console.log("[TransformerManager] Aspect ratio lock set to:", keepRatio);
   }
 
   destroy() {
     if (!this.transformer) return;
-    console.log("[TransformerManager] Destroying transformer");
 
     // Clean up keyboard listeners
     if (this.keyboardCleanup) {

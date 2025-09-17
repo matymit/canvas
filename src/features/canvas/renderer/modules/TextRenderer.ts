@@ -1,12 +1,12 @@
 // Text renderer module for rendering text elements
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
 
 type Id = string;
 
 interface TextElement {
   id: Id;
-  type: 'text';
+  type: "text";
   x: number;
   y: number;
   width?: number;
@@ -17,7 +17,7 @@ interface TextElement {
     fontSize?: number;
     fontWeight?: string;
     fill?: string;
-    align?: 'left' | 'center' | 'right';
+    align?: "left" | "center" | "right";
   };
   rotation?: number;
   opacity?: number;
@@ -29,7 +29,7 @@ export class TextRenderer implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log('[TextRenderer] Mounting...');
+    console.log("[TextRenderer] Mounting...");
     this.layer = ctx.layers.main;
 
     // Subscribe to store changes - watch text elements
@@ -38,21 +38,21 @@ export class TextRenderer implements RendererModule {
       (state) => {
         const texts = new Map<Id, TextElement>();
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === 'text') {
+          if (element.type === "text") {
             texts.set(id, element as TextElement);
           }
         }
         return texts;
       },
       // Callback: reconcile changes
-      (texts) => this.reconcile(texts)
+      (texts) => this.reconcile(texts),
     );
 
     // Initial render
     const initialState = ctx.store.getState();
     const initialTexts = new Map<Id, TextElement>();
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'text') {
+      if (element.type === "text") {
         initialTexts.set(id, element as TextElement);
       }
     }
@@ -63,7 +63,7 @@ export class TextRenderer implements RendererModule {
   }
 
   private unmount() {
-    console.log('[TextRenderer] Unmounting...');
+    console.log("[TextRenderer] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -77,7 +77,10 @@ export class TextRenderer implements RendererModule {
   }
 
   private reconcile(texts: Map<Id, TextElement>) {
-    console.log('[TextRenderer] Reconciling', texts.size, 'text elements');
+    // Only log when there are actual text elements to reconcile (reduce console spam)
+    if (texts.size > 0) {
+      console.log("[TextRenderer] Reconciling", texts.size, "text elements");
+    }
 
     if (!this.layer) return;
 
@@ -92,11 +95,15 @@ export class TextRenderer implements RendererModule {
         // Create new text node
         node = this.createTextNode(text);
         // Add dragend handler for position commit
-        node.on('dragend', (e) => {
+        node.on("dragend", (e) => {
           const textNode = e.target as Konva.Text;
           const nx = textNode.x();
           const ny = textNode.y();
-          (window as any).__canvasStore?.element?.updateElement?.(text.id, { x: nx, y: ny }, { pushHistory: true });
+          (window as any).__canvasStore?.element?.updateElement?.(
+            text.id,
+            { x: nx, y: ny },
+            { pushHistory: true },
+          );
         });
         this.textNodes.set(id, node);
         this.layer.add(node);
@@ -109,7 +116,7 @@ export class TextRenderer implements RendererModule {
     // Remove deleted text elements
     for (const [id, node] of this.textNodes) {
       if (!seen.has(id)) {
-        console.log('[TextRenderer] Removing text:', id);
+        console.log("[TextRenderer] Removing text:", id);
         node.destroy();
         this.textNodes.delete(id);
       }
@@ -126,13 +133,13 @@ export class TextRenderer implements RendererModule {
       width: text.width,
       text: text.text,
       fontSize: text.style?.fontSize || 16,
-      fontFamily: text.style?.fontFamily || 'Arial, sans-serif',
-      fontStyle: text.style?.fontWeight || 'normal',
-      fill: text.style?.fill || '#000000',
-      align: text.style?.align || 'left',
+      fontFamily: text.style?.fontFamily || "Arial, sans-serif",
+      fontStyle: text.style?.fontWeight || "normal",
+      fill: text.style?.fill || "#000000",
+      align: text.style?.align || "left",
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
-      wrap: 'word',
+      wrap: "word",
       listening: true,
       draggable: true, // enable dragging
       // Performance optimizations
@@ -159,10 +166,10 @@ export class TextRenderer implements RendererModule {
       width: text.width,
       text: text.text,
       fontSize: text.style?.fontSize || 16,
-      fontFamily: text.style?.fontFamily || 'Arial, sans-serif',
-      fontStyle: text.style?.fontWeight || 'normal',
-      fill: text.style?.fill || '#000000',
-      align: text.style?.align || 'left',
+      fontFamily: text.style?.fontFamily || "Arial, sans-serif",
+      fontStyle: text.style?.fontWeight || "normal",
+      fill: text.style?.fill || "#000000",
+      align: text.style?.align || "left",
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
       // Performance optimizations

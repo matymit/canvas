@@ -28,13 +28,11 @@ export class StickyNoteModule implements RendererModule {
   private editorElementId: string | null = null;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[StickyNoteModule] Mounting...");
     this.layers = ctx.layers.main;
     this.storeCtx = ctx;
 
     // FIXED: Make module globally accessible for tool integration
     (window as any).stickyNoteModule = this;
-    console.log("[StickyNoteModule] Module registered globally");
 
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
@@ -81,7 +79,6 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private unmount() {
-    console.log("[StickyNoteModule] Unmounting...");
     this.closeActiveEditor();
     if (this.unsubscribe) {
       this.unsubscribe();
@@ -102,14 +99,7 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private reconcile(stickyNotes: Map<Id, StickySnapshot>) {
-    console.log(
-      "[StickyNoteModule] Reconciling",
-      stickyNotes.size,
-      "sticky notes",
-    );
-
     if (!this.layers) {
-      console.warn("[StickyNoteModule] No main layer available");
       return;
     }
 
@@ -122,23 +112,11 @@ export class StickyNoteModule implements RendererModule {
 
       if (!group) {
         // Create new sticky note
-        console.log(
-          "[StickyNoteModule] Creating sticky note:",
-          id,
-          "fill:",
-          sticky.fill,
-        );
         group = this.createStickyGroup(sticky);
         this.nodes.set(id, group);
         this.layers.add(group);
       } else {
         // Update existing sticky note
-        console.log(
-          "[StickyNoteModule] Updating sticky note:",
-          id,
-          "fill:",
-          sticky.fill,
-        );
         this.updateStickyGroup(group, sticky);
       }
     }
@@ -146,7 +124,6 @@ export class StickyNoteModule implements RendererModule {
     // Remove deleted sticky notes
     for (const [id, group] of this.nodes) {
       if (!seen.has(id)) {
-        console.log("[StickyNoteModule] Removing sticky note:", id);
         group.destroy();
         this.nodes.delete(id);
       }
@@ -160,6 +137,8 @@ export class StickyNoteModule implements RendererModule {
       id: sticky.id,
       x: sticky.x,
       y: sticky.y,
+      width: sticky.width,
+      height: sticky.height,
       draggable: true,
     });
 
@@ -207,13 +186,15 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private updateStickyGroup(group: Konva.Group, sticky: StickySnapshot) {
-    // Update position
+    // Update position and size
     group.setAttrs({
       x: sticky.x,
       y: sticky.y,
+      width: sticky.width,
+      height: sticky.height,
     });
 
-    // FIXED: Ensure elementId attribute is maintained
+    // Ensure elementId attribute is maintained
     group.setAttr("elementId", sticky.id);
 
     // Update rectangle
@@ -245,9 +226,13 @@ export class StickyNoteModule implements RendererModule {
   private setupStickyInteractions(group: Konva.Group, elementId: string) {
     // FIXED: Proper click handler for selection using SelectionModule
     group.on("click tap", (e) => {
-      e.cancelBubble = true; // Prevent stage click
-
-      console.log("[StickyNoteModule] Click on sticky note:", elementId);
+      // Don't cancel bubble if the click is on a transformer (resize handles)
+      const isTransformerClick =
+        e.target?.getParent()?.className === "Transformer" ||
+        e.target?.className === "Transformer";
+      if (!isTransformerClick) {
+        e.cancelBubble = true; // Prevent stage click
+      }
 
       const selectionModule = getSelectionModule();
       if (selectionModule) {
@@ -298,6 +283,16 @@ export class StickyNoteModule implements RendererModule {
       storeY: number;
     } | null = null;
 
+    // FIXED: Add transform start data tracking
+    let transformStartData: {
+      width: number;
+      height: number;
+      scaleX: number;
+      scaleY: number;
+      storeWidth: number;
+      storeHeight: number;
+    } | null = null;
+
     group.on("dragstart", () => {
       const groupPos = group.position();
       const store = this.storeCtx?.store.getState();
@@ -336,11 +331,6 @@ export class StickyNoteModule implements RendererModule {
               x: Math.round(pos.x),
               y: Math.round(pos.y),
             });
-            console.log(
-              "[StickyNoteModule] Updated position for",
-              elementId,
-              pos,
-            );
           };
 
           if (withUndo) {
@@ -354,6 +344,78 @@ export class StickyNoteModule implements RendererModule {
       // Transform handling is managed by TransformerManager
       // No need for manual endTransform calls during drag
       dragStartData = null;
+    });
+
+    // FIXED: Add transform event handlers for resize operations
+    group.on("transformstart", () => {
+      const store = this.storeCtx?.store.getState();
+      const element = store?.elements?.get?.(elementId);
+
+      if (element) {
+        transformStartData = {
+          width: group.width() || element.width || 240,
+          height: group.height() || element.height || 180,
+          scaleX: group.scaleX() || 1,
+          scaleY: group.scaleY() || 1,
+          storeWidth: element.width || 240,
+          storeHeight: element.height || 180,
+        };
+      }
+    });
+
+    group.on("transform", () => {
+      // Update the group's width/height during transform for visual feedback
+      // The actual store update happens in transformend
+    });
+
+    group.on("transformend", () => {
+      if (!this.storeCtx || !transformStartData) return;
+
+      const store = this.storeCtx.store.getState();
+      const newWidth = Math.max(
+        50,
+        Math.round(
+          (group.width() || transformStartData.width) * (group.scaleX() || 1),
+        ),
+      );
+      const newHeight = Math.max(
+        50,
+        Math.round(
+          (group.height() || transformStartData.height) * (group.scaleY() || 1),
+        ),
+      );
+
+      // Only update if size actually changed
+      const deltaWidth = Math.abs(newWidth - transformStartData.storeWidth);
+      const deltaHeight = Math.abs(newHeight - transformStartData.storeHeight);
+
+      if (deltaWidth > 1 || deltaHeight > 1) {
+        const withUndo =
+          (store as any).history?.withUndo?.bind((store as any).history) ||
+          (store as any).withUndo;
+        const updateElement = store.element?.update || store.updateElement;
+
+        if (updateElement) {
+          const updateFn = () => {
+            updateElement(elementId, {
+              width: newWidth,
+              height: newHeight,
+            });
+
+            // Reset scale to 1 to maintain consistent hit testing
+            group.scaleX(1);
+            group.scaleY(1);
+          };
+
+          if (withUndo) {
+            withUndo("Resize sticky note", updateFn);
+          } else {
+            updateFn();
+          }
+        }
+      }
+
+      transformStartData = null;
     });
 
     // Double-click to edit text
@@ -385,8 +447,6 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private startTextEditing(group: Konva.Group, elementId: string) {
-    console.log("[StickyNoteModule] Starting text editing for:", elementId);
-
     // Close any existing editor
     this.closeActiveEditor();
 

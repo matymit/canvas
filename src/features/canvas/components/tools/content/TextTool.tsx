@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import Konva from 'konva';
-import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
-import { measureText } from '../../../utils/text/TextMeasurement';
+import React, { useEffect, useRef } from "react";
+import Konva from "konva";
+import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import { measureText } from "../../../utils/text/TextMeasurement";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -11,54 +11,103 @@ export interface TextToolProps {
   toolId?: string; // default: 'text'
 }
 
-function createTextarea(left: number, top: number, fontSize: number, color: string, fontFamily: string): HTMLTextAreaElement {
-  const ta = document.createElement('textarea');
-  ta.setAttribute('data-testid', 'text-portal-input');
-  ta.style.position = 'absolute';
+function createTextarea(
+  left: number,
+  top: number,
+  fontSize: number,
+  color: string,
+  fontFamily: string,
+): HTMLTextAreaElement {
+  const ta = document.createElement("textarea");
+  ta.setAttribute("data-testid", "text-portal-input");
+  ta.style.position = "absolute";
   ta.style.left = `${left}px`;
   ta.style.top = `${top}px`;
-  ta.style.minWidth = '4px';
-  ta.style.width = '4px';
+  ta.style.minWidth = "4px";
+  ta.style.width = "4px";
   ta.style.height = `${Math.round(fontSize * 1.2)}px`; // fixed single-line height
-  ta.style.padding = '0px';
-  ta.style.border = '0px';
-  ta.style.borderRadius = '0px';
-  ta.style.outline = 'none';
-  ta.style.resize = 'none'; // no manual resize
-  ta.style.cursor = 'text';
-  ta.style.background = 'transparent';
+  ta.style.padding = "0px";
+  ta.style.border = "0px";
+  ta.style.borderRadius = "0px";
+  ta.style.outline = "none";
+  ta.style.resize = "none"; // no manual resize
+  ta.style.cursor = "text";
+  ta.style.background = "transparent";
   ta.style.color = color;
   ta.style.fontFamily = fontFamily;
   ta.style.fontSize = `${fontSize}px`;
-  ta.style.lineHeight = '1.2';
-  ta.style.zIndex = '1000';
-  ta.style.boxShadow = 'none';
-  ta.style.pointerEvents = 'auto';
-  ta.style.whiteSpace = 'nowrap';
-  ta.style.overflow = 'hidden';
+  ta.style.lineHeight = "1.2";
+  ta.style.zIndex = "1000";
+  ta.style.boxShadow = "none";
+  ta.style.pointerEvents = "auto";
+  ta.style.whiteSpace = "nowrap";
+  ta.style.overflow = "hidden";
   return ta;
 }
 
-export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId = 'text' }) => {
-  const selectedTool = useUnifiedCanvasStore((s: any) => s.selectedTool ?? s.ui?.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool);
-  const upsertElement = useUnifiedCanvasStore((s: any) => s.element?.upsert ?? s.elements?.addElement);
+export const TextTool: React.FC<TextToolProps> = ({
+  isActive,
+  stageRef,
+  toolId = "text",
+}) => {
+  // Debug: log when props change
+  React.useEffect(() => {
+    console.log("[TextTool] Props changed:", {
+      isActive,
+      toolId,
+      hasStage: !!stageRef.current,
+    });
+  }, [isActive, toolId, stageRef]);
+  const selectedTool = useUnifiedCanvasStore(
+    (s: any) => s.selectedTool ?? s.ui?.selectedTool,
+  );
+
+  // Debug: log when selectedTool changes
+  React.useEffect(() => {
+    console.log("[TextTool] selectedTool changed:", selectedTool);
+  }, [selectedTool]);
+  const setSelectedTool = useUnifiedCanvasStore(
+    (s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool,
+  );
+  const upsertElement = useUnifiedCanvasStore(
+    (s: any) => s.element?.upsert ?? s.elements?.addElement,
+  );
   const withUndo = useUnifiedCanvasStore((s: any) => s.history?.withUndo);
-  const fillColor = useUnifiedCanvasStore((s: any) => s.fillColor ?? s.ui?.fillColor ?? '#111827');
+  const fillColor = useUnifiedCanvasStore(
+    (s: any) => s.fillColor ?? s.ui?.fillColor ?? "#111827",
+  );
   const fontSize = 18;
-  const fontFamily = 'Inter, system-ui, sans-serif';
+  const fontFamily = "Inter, system-ui, sans-serif";
 
   const activeEditorRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     const stage = stageRef.current;
-    const active = isActive && (selectedTool === toolId);
+    const active = isActive && selectedTool === toolId;
+    console.log("[TextTool] Effect running:", {
+      isActive,
+      selectedTool,
+      toolId,
+      active,
+      hasStage: !!stage,
+      stageListeners: stage ? stage.eventListeners : [],
+    });
     if (!stage || !active) return;
 
-    const onStageClick = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      if (!isActive || activeEditorRef.current || selectedTool !== toolId) return;
+    const onStagePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
+      console.log("[TextTool] PointerDown event triggered:", {
+        isActive,
+        hasActiveEditor: !!activeEditorRef.current,
+        selectedTool,
+        toolId,
+        eventType: e.type,
+        evt: e.evt.type,
+      });
+      if (!isActive || activeEditorRef.current || selectedTool !== toolId)
+        return;
 
       const pos = stage.getPointerPosition();
+      console.log("[TextTool] Pointer position:", pos);
       if (!pos) return;
 
       const rect = stage.container().getBoundingClientRect();
@@ -66,24 +115,35 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       const top = rect.top + pos.y;
 
       const ta = createTextarea(left, top, fontSize, fillColor, fontFamily);
+      console.log("[TextTool] Created textarea:", {
+        left,
+        top,
+        fontSize,
+        fillColor,
+        fontFamily,
+      });
       document.body.appendChild(ta);
       activeEditorRef.current = ta;
+      console.log("[TextTool] Textarea added to DOM, focusing...");
       ta.focus();
+      console.log("[TextTool] Textarea focused successfully");
 
       const updateSize = () => {
-        const text = ta.value || '';
+        const text = ta.value || "";
         const m = measureText({ text, fontFamily, fontSize });
         ta.style.width = `${Math.max(1, Math.ceil(m.width))}px`;
         ta.style.height = `${Math.round(fontSize * 1.2)}px`;
       };
 
       updateSize();
-      ta.addEventListener('input', updateSize);
+      ta.addEventListener("input", updateSize);
 
       const commit = (cancel = false) => {
-        const value = (ta.value || '').trim();
-        ta.removeEventListener('input', updateSize);
-        try { ta.remove(); } catch {}
+        const value = (ta.value || "").trim();
+        ta.removeEventListener("input", updateSize);
+        try {
+          ta.remove();
+        } catch {}
         if (activeEditorRef.current === ta) activeEditorRef.current = null;
 
         if (!cancel && value.length > 0) {
@@ -94,7 +154,7 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
           const commitFn = () => {
             upsertElement?.({
               id: crypto.randomUUID(),
-              type: 'text',
+              type: "text",
               x: pos.x,
               y: pos.y,
               width,
@@ -105,38 +165,62 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
             } as any);
           };
 
-          if (withUndo) withUndo('Insert text', commitFn); else commitFn();
+          if (withUndo) withUndo("Insert text", commitFn);
+          else commitFn();
         }
 
-        setSelectedTool?.('select');
+        setSelectedTool?.("select");
       };
 
-      ta.addEventListener('keydown', (ke) => {
-        if (ke.key === 'Enter' && !ke.shiftKey) {
+      ta.addEventListener("keydown", (ke) => {
+        if (ke.key === "Enter" && !ke.shiftKey) {
           ke.preventDefault();
           commit(false);
-        } else if (ke.key === 'Escape') {
+        } else if (ke.key === "Escape") {
           ke.preventDefault();
           commit(true);
         }
       });
 
-      ta.addEventListener('blur', () => commit(false), { once: true });
+      ta.addEventListener("blur", () => commit(false), { once: true });
 
       e.cancelBubble = true;
+      e.evt.stopPropagation();
     };
 
-    stage.on('click.texttool', onStageClick);
+    // Add a small delay to ensure stage is fully ready
+    setTimeout(() => {
+      console.log("[TextTool] Attaching pointerdown listener to stage");
+      stage.on("pointerdown.texttool", onStagePointerDown);
+      console.log(
+        "[TextTool] Listener attached. Current stage listeners:",
+        stage.eventListeners.length,
+      );
+    }, 100);
 
     return () => {
-      stage.off('click.texttool', onStageClick as any);
+      console.log("[TextTool] Cleaning up pointerdown listener");
+      stage.off("pointerdown.texttool", onStagePointerDown);
       const existing = activeEditorRef.current;
       if (existing) {
-        try { existing.remove(); } catch {}
+        try {
+          existing.remove();
+        } catch {}
         activeEditorRef.current = null;
       }
     };
-  }, [isActive, selectedTool, toolId, stageRef, fillColor, fontSize, fontFamily, upsertElement, setSelectedTool, withUndo]);
+  }, [
+    isActive,
+    selectedTool,
+    toolId,
+    stageRef,
+    fillColor,
+    fontSize,
+    fontFamily,
+    upsertElement,
+    setSelectedTool,
+    withUndo,
+  ]);
 
   return null;
 };

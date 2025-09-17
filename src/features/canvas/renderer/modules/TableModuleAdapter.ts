@@ -1,8 +1,8 @@
 // Adapter for TableModule to implement RendererModule interface
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
-import { TableRenderer } from './TableModule';
-import type { TableElement } from '../../types/elements/table';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
+import { TableRenderer } from "./TableModule";
+import type { TableElement } from "../../types/elements/table";
 
 type Id = string;
 
@@ -11,7 +11,7 @@ export class TableModuleAdapter implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log('[TableModuleAdapter] Mounting...');
+    console.log("[TableModuleAdapter] Mounting...");
 
     // Create TableRenderer instance
     this.renderer = new TableRenderer(ctx.layers);
@@ -22,7 +22,7 @@ export class TableModuleAdapter implements RendererModule {
       (state) => {
         const tables = new Map<Id, TableElement>();
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === 'table') {
+          if (element.type === "table") {
             tables.set(id, element as TableElement);
           }
         }
@@ -31,14 +31,14 @@ export class TableModuleAdapter implements RendererModule {
       // Callback: reconcile changes
       (tables) => {
         this.reconcile(tables);
-      }
+      },
     );
 
     // Initial render
     const initialState = ctx.store.getState();
     const initialTables = new Map<Id, TableElement>();
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'table') {
+      if (element.type === "table") {
         initialTables.set(id, element as TableElement);
       }
     }
@@ -49,20 +49,23 @@ export class TableModuleAdapter implements RendererModule {
   }
 
   private unmount() {
-    console.log('[TableModuleAdapter] Unmounting...');
+    console.log("[TableModuleAdapter] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
     // Cleanup tables manually
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find('.table').forEach((node: Konva.Node) => node.destroy());
+      layer.find(".table").forEach((node: Konva.Node) => node.destroy());
       layer.batchDraw();
     }
   }
 
   private reconcile(tables: Map<Id, TableElement>) {
-    console.log('[TableModuleAdapter] Reconciling', tables.size, 'tables');
+    // Only log when there are actual tables to reconcile (reduce console spam)
+    if (tables.size > 0) {
+      console.log("[TableModuleAdapter] Reconciling", tables.size, "tables");
+    }
 
     if (!this.renderer) return;
 
@@ -77,7 +80,7 @@ export class TableModuleAdapter implements RendererModule {
     // Remove deleted tables manually
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find('.table').forEach((node: Konva.Node) => {
+      layer.find(".table").forEach((node: Konva.Node) => {
         const nodeId = node.id();
         if (nodeId && !seen.has(nodeId)) {
           node.destroy();

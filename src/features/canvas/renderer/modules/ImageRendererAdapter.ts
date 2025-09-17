@@ -1,8 +1,8 @@
 // Adapter for ImageRenderer to implement RendererModule interface
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
-import { ImageRenderer } from './ImageRenderer';
-import type ImageElement from '../../types/elements/image';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
+import { ImageRenderer } from "./ImageRenderer";
+import type ImageElement from "../../types/elements/image";
 
 type Id = string;
 
@@ -11,7 +11,7 @@ export class ImageRendererAdapter implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log('[ImageRendererAdapter] Mounting...');
+    console.log("[ImageRendererAdapter] Mounting...");
 
     // Create ImageRenderer instance
     this.renderer = new ImageRenderer(ctx.layers);
@@ -22,7 +22,7 @@ export class ImageRendererAdapter implements RendererModule {
       (state) => {
         const images = new Map<Id, ImageElement>();
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === 'image') {
+          if (element.type === "image") {
             images.set(id, element as ImageElement);
           }
         }
@@ -31,14 +31,14 @@ export class ImageRendererAdapter implements RendererModule {
       // Callback: reconcile changes
       (images) => {
         this.reconcile(images);
-      }
+      },
     );
 
     // Initial render
     const initialState = ctx.store.getState();
     const initialImages = new Map<Id, ImageElement>();
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'image') {
+      if (element.type === "image") {
         initialImages.set(id, element as ImageElement);
       }
     }
@@ -49,20 +49,23 @@ export class ImageRendererAdapter implements RendererModule {
   }
 
   private unmount() {
-    console.log('[ImageRendererAdapter] Unmounting...');
+    console.log("[ImageRendererAdapter] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
     // Cleanup images manually
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find('.image').forEach((node: Konva.Node) => node.destroy());
+      layer.find(".image").forEach((node: Konva.Node) => node.destroy());
       layer.batchDraw();
     }
   }
 
   private reconcile(images: Map<Id, ImageElement>) {
-    console.log('[ImageRendererAdapter] Reconciling', images.size, 'images');
+    // Only log when there are actual images to reconcile (reduce console spam)
+    if (images.size > 0) {
+      console.log("[ImageRendererAdapter] Reconciling", images.size, "images");
+    }
 
     if (!this.renderer) return;
 
@@ -72,15 +75,19 @@ export class ImageRendererAdapter implements RendererModule {
     for (const [id, image] of images) {
       seen.add(id);
       // Fire and forget async rendering
-      this.renderer.render(image).catch(err => {
-        console.error('[ImageRendererAdapter] Failed to render image:', id, err);
+      this.renderer.render(image).catch((err) => {
+        console.error(
+          "[ImageRendererAdapter] Failed to render image:",
+          id,
+          err,
+        );
       });
     }
 
     // Remove deleted images manually
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find('.image').forEach((node: Konva.Node) => {
+      layer.find(".image").forEach((node: Konva.Node) => {
         const nodeId = node.id();
         if (nodeId && !seen.has(nodeId)) {
           node.destroy();

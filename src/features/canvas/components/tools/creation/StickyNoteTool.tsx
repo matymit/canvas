@@ -56,8 +56,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     const stage = stageRef.current;
     if (!isActive || !stage) return;
 
-    console.log("[StickyNoteTool] Activating with color:", actualFill);
-
     const handlePointerDown = async (
       e?: Konva.KonvaEventObject<PointerEvent>,
     ) => {
@@ -87,8 +85,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         },
       };
 
-      console.log("[StickyNoteTool] Creating element:", stickyElement);
-
       // FIXED: Sequential creation with proper timing and error handling
       try {
         // Create element in store with history
@@ -109,7 +105,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         // Create with history
         const createFn = () => {
           createElement(stickyElement);
-          console.log("[StickyNoteTool] Element created successfully");
         };
 
         if (withUndo) {
@@ -122,10 +117,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         creationPromiseRef.current = new Promise<void>((resolve) => {
           // Step 1: Wait for element to be created and rendered (100ms)
           setTimeout(() => {
-            console.log(
-              "[StickyNoteTool] Step 1: Element should be rendered, selecting...",
-            );
-
             // Step 2: Auto-select using SelectionModule with retry logic
             const selectionModule = getSelectionModule();
             if (selectionModule?.autoSelectElement) {
@@ -142,10 +133,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
             // Step 3: Wait for selection to complete (50ms)
             setTimeout(() => {
-              console.log(
-                "[StickyNoteTool] Step 2: Selection complete, triggering text edit...",
-              );
-
               // Step 4: Trigger immediate text editing
               const stickyModule = getStickyNoteModule();
               if (stickyModule?.triggerImmediateTextEdit) {
@@ -158,9 +145,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
               // Step 5: Switch to select tool after text editing starts (50ms)
               setTimeout(() => {
-                console.log(
-                  "[StickyNoteTool] Step 3: Switching to select tool",
-                );
                 const setSelectedTool =
                   useUnifiedCanvasStore.getState().setSelectedTool;
                 if (setSelectedTool) {

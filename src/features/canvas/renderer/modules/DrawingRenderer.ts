@@ -1,12 +1,12 @@
 // Drawing renderer module for rendering pen, marker, and highlighter paths
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
 
 type Id = string;
 
 interface DrawingElement {
   id: Id;
-  type: 'pen' | 'marker' | 'highlighter' | 'eraser';
+  type: "pen" | "marker" | "highlighter" | "eraser";
   points: number[]; // Flattened array of [x1, y1, x2, y2, ...]
   style?: {
     stroke?: string;
@@ -22,7 +22,7 @@ export class DrawingRenderer implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log('[DrawingRenderer] Mounting...');
+    console.log("[DrawingRenderer] Mounting...");
     this.mainLayer = ctx.layers.main;
     this.highlighterLayer = ctx.layers.highlighter;
 
@@ -32,21 +32,31 @@ export class DrawingRenderer implements RendererModule {
       (state) => {
         const drawings = new Map<Id, DrawingElement>();
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === 'pen' || element.type === 'marker' || element.type === 'highlighter' || element.type === 'eraser') {
+          if (
+            element.type === "pen" ||
+            element.type === "marker" ||
+            element.type === "highlighter" ||
+            element.type === "eraser"
+          ) {
             drawings.set(id, element as DrawingElement);
           }
         }
         return drawings;
       },
       // Callback: reconcile changes
-      (drawings) => this.reconcile(drawings)
+      (drawings) => this.reconcile(drawings),
     );
 
     // Initial render
     const initialState = ctx.store.getState();
     const initialDrawings = new Map<Id, DrawingElement>();
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'pen' || element.type === 'marker' || element.type === 'highlighter' || element.type === 'eraser') {
+      if (
+        element.type === "pen" ||
+        element.type === "marker" ||
+        element.type === "highlighter" ||
+        element.type === "eraser"
+      ) {
         initialDrawings.set(id, element as DrawingElement);
       }
     }
@@ -57,7 +67,7 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private unmount() {
-    console.log('[DrawingRenderer] Unmounting...');
+    console.log("[DrawingRenderer] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -74,7 +84,14 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private reconcile(drawings: Map<Id, DrawingElement>) {
-    console.log('[DrawingRenderer] Reconciling', drawings.size, 'drawing elements');
+    // Only log when there are actual drawings to reconcile (reduce console spam)
+    if (drawings.size > 0) {
+      console.log(
+        "[DrawingRenderer] Reconciling",
+        drawings.size,
+        "drawing elements",
+      );
+    }
 
     if (!this.mainLayer || !this.highlighterLayer) return;
 
@@ -90,7 +107,10 @@ export class DrawingRenderer implements RendererModule {
         node = this.createDrawingNode(drawing);
         this.drawingNodes.set(id, node);
         // Add to appropriate layer based on type
-        const targetLayer = drawing.type === 'highlighter' ? this.highlighterLayer : this.mainLayer;
+        const targetLayer =
+          drawing.type === "highlighter"
+            ? this.highlighterLayer
+            : this.mainLayer;
         targetLayer.add(node);
       } else {
         // Update existing drawing node
@@ -101,7 +121,7 @@ export class DrawingRenderer implements RendererModule {
     // Remove deleted drawing elements
     for (const [id, node] of this.drawingNodes) {
       if (!seen.has(id)) {
-        console.log('[DrawingRenderer] Removing drawing:', id);
+        console.log("[DrawingRenderer] Removing drawing:", id);
         node.destroy();
         this.drawingNodes.delete(id);
       }
@@ -112,8 +132,8 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private createDrawingNode(drawing: DrawingElement): Konva.Line {
-    const isHighlighter = drawing.type === 'highlighter';
-    const isEraser = drawing.type === 'eraser';
+    const isHighlighter = drawing.type === "highlighter";
+    const isEraser = drawing.type === "eraser";
 
     return new Konva.Line({
       id: drawing.id,
@@ -121,26 +141,34 @@ export class DrawingRenderer implements RendererModule {
       stroke: this.getStrokeColor(drawing),
       strokeWidth: this.getStrokeWidth(drawing),
       opacity: this.getOpacity(drawing),
-      lineCap: 'round',
-      lineJoin: 'round',
+      lineCap: "round",
+      lineJoin: "round",
       listening: true,
       perfectDrawEnabled: false,
       shadowForStrokeEnabled: false,
       tension: 0,
-      globalCompositeOperation: isEraser ? 'destination-out' : (isHighlighter ? 'multiply' : 'source-over'),
+      globalCompositeOperation: isEraser
+        ? "destination-out"
+        : isHighlighter
+          ? "multiply"
+          : "source-over",
     });
   }
 
   private updateDrawingNode(node: Konva.Line, drawing: DrawingElement) {
-    const isHighlighter = drawing.type === 'highlighter';
-    const isEraser = drawing.type === 'eraser';
+    const isHighlighter = drawing.type === "highlighter";
+    const isEraser = drawing.type === "eraser";
 
     node.setAttrs({
       points: drawing.points,
       stroke: this.getStrokeColor(drawing),
       strokeWidth: this.getStrokeWidth(drawing),
       opacity: this.getOpacity(drawing),
-      globalCompositeOperation: isEraser ? 'destination-out' : (isHighlighter ? 'multiply' : 'source-over'),
+      globalCompositeOperation: isEraser
+        ? "destination-out"
+        : isHighlighter
+          ? "multiply"
+          : "source-over",
     });
   }
 
@@ -148,16 +176,16 @@ export class DrawingRenderer implements RendererModule {
     if (drawing.style?.stroke) return drawing.style.stroke;
 
     switch (drawing.type) {
-      case 'pen':
-        return '#000000';
-      case 'marker':
-        return '#EF4444';
-      case 'highlighter':
-        return '#FDE047';
-      case 'eraser':
-        return '#FFFFFF';  // Eraser uses white for destination-out
+      case "pen":
+        return "#000000";
+      case "marker":
+        return "#EF4444";
+      case "highlighter":
+        return "#FDE047";
+      case "eraser":
+        return "#FFFFFF"; // Eraser uses white for destination-out
       default:
-        return '#000000';
+        return "#000000";
     }
   }
 
@@ -165,13 +193,13 @@ export class DrawingRenderer implements RendererModule {
     if (drawing.style?.strokeWidth) return drawing.style.strokeWidth;
 
     switch (drawing.type) {
-      case 'pen':
+      case "pen":
         return 2;
-      case 'marker':
+      case "marker":
         return 4;
-      case 'highlighter':
+      case "highlighter":
         return 12;
-      case 'eraser':
+      case "eraser":
         return 20;
       default:
         return 2;
@@ -182,14 +210,14 @@ export class DrawingRenderer implements RendererModule {
     if (drawing.style?.opacity !== undefined) return drawing.style.opacity;
 
     switch (drawing.type) {
-      case 'pen':
+      case "pen":
         return 1;
-      case 'marker':
+      case "marker":
         return 0.9;
-      case 'highlighter':
+      case "highlighter":
         return 0.4;
-      case 'eraser':
-        return 1;  // Full opacity for eraser effect
+      case "eraser":
+        return 1; // Full opacity for eraser effect
       default:
         return 1;
     }

@@ -138,12 +138,26 @@ export class SelectionModule implements RendererModule {
           nodes.length,
           "nodes",
         );
+
+        // Debug: Log node properties to ensure they're transformable
+        nodes.forEach((node, index) => {
+          const size = node.size();
+          const pos = node.position();
+          console.log(`[SelectionModule] Node ${index}:`, {
+            id: node.id() || node.getAttr("elementId"),
+            className: node.className,
+            size: size,
+            position: pos,
+            visible: node.visible(),
+            listening: node.listening(),
+            draggable: node.draggable(),
+          });
+        });
+
         // FIXED: Detach first to prevent any lingering transformers, then attach
         this.transformerManager?.detach();
-        setTimeout(() => {
-          this.transformerManager?.attachToNodes(nodes);
-          this.transformerManager?.show();
-        }, 10);
+        this.transformerManager?.attachToNodes(nodes);
+        this.transformerManager?.show();
       } else {
         console.warn(
           "[SelectionModule] Could not find nodes for selected elements:",
@@ -208,14 +222,23 @@ export class SelectionModule implements RendererModule {
           const selectedNode = group || candidates[0];
 
           // FIXED: Ensure only one node per element ID to prevent duplicate frames
-          nodes.push(selectedNode);
-          found = true;
-          console.log(
-            "[SelectionModule] Found node for element",
-            elementId,
-            ":",
-            group ? "Group" : candidates[0].className,
-          );
+          if (selectedNode) {
+            nodes.push(selectedNode);
+            found = true;
+            console.log(
+              "[SelectionModule] Found node for element",
+              elementId,
+              ":",
+              group ? "Group" : selectedNode.className || "Unknown",
+            );
+          } else {
+            console.warn(
+              "[SelectionModule] Found candidates but selectedNode is null for element:",
+              elementId,
+              "candidates:",
+              candidates.length,
+            );
+          }
           break;
         }
       }

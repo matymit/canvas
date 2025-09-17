@@ -84,13 +84,16 @@ export class MindmapRendererAdapter implements RendererModule {
   }
 
   private reconcile(elements: MindmapElements) {
-    console.log(
-      "[MindmapRendererAdapter] Reconciling",
-      elements.nodes.size,
-      "nodes and",
-      elements.edges.size,
-      "edges",
-    );
+    // Only log when there are actual elements to reconcile (reduce console spam)
+    if (elements.nodes.size > 0 || elements.edges.size > 0) {
+      console.log(
+        "[MindmapRendererAdapter] Reconciling",
+        elements.nodes.size,
+        "nodes and",
+        elements.edges.size,
+        "edges",
+      );
+    }
 
     if (!this.renderer) return;
 
