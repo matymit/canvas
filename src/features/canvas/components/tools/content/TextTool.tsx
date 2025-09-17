@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
-import { measureText } from "../../../utils/text/TextMeasurement";
+import { openStandaloneTextEditor } from "../../../utils/editors/openStandaloneTextEditor";
+import type { CanvasTool } from "../../../managers/ToolManager";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -11,216 +12,153 @@ export interface TextToolProps {
   toolId?: string; // default: 'text'
 }
 
-function createTextarea(
-  left: number,
-  top: number,
-  fontSize: number,
-  color: string,
-  fontFamily: string,
-): HTMLTextAreaElement {
-  const ta = document.createElement("textarea");
-  ta.setAttribute("data-testid", "text-portal-input");
-  ta.style.position = "absolute";
-  ta.style.left = `${left}px`;
-  ta.style.top = `${top}px`;
-  ta.style.minWidth = "4px";
-  ta.style.width = "4px";
-  ta.style.height = `${Math.round(fontSize * 1.2)}px`; // fixed single-line height
-  ta.style.padding = "0px";
-  ta.style.border = "0px";
-  ta.style.borderRadius = "0px";
-  ta.style.outline = "none";
-  ta.style.resize = "none"; // no manual resize
-  ta.style.cursor = "text";
-  ta.style.background = "transparent";
-  ta.style.color = color;
-  ta.style.fontFamily = fontFamily;
-  ta.style.fontSize = `${fontSize}px`;
-  ta.style.lineHeight = "1.2";
-  ta.style.zIndex = "1000";
-  ta.style.boxShadow = "none";
-  ta.style.pointerEvents = "auto";
-  ta.style.whiteSpace = "nowrap";
-  ta.style.overflow = "hidden";
-  return ta;
+// Canvas tool implementation for direct Konva event handling
+export class TextCanvasTool implements CanvasTool {
+  name = 'text';
+  private stage?: Konva.Stage;
+  private layer?: Konva.Layer;
+  private handlers: Array<{ evt: string; fn: (e: any) => void }> = [];
+
+  attach(stage: Konva.Stage, layer: Konva.Layer) {
+    console.log("[TextCanvasTool] Attaching to stage and layer");
+    this.stage = stage;
+    this.layer = layer;
+
+    const onStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      console.log("[TextCanvasTool] Stage click intercepted", { target: e.target });
+
+      // Prevent event propagation to stop Canvas component's handleStageClick from firing
+      e.evt.stopPropagation();
+      e.evt.preventDefault();
+
+      const target = e.target;
+      // Skip if clicking on existing text element
+      if (target && (target as any).className === 'Text') return;
+      // Skip if clicking on the stage background (not main layer)
+      if (target === stage) return;
+
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+
+      // Convert screen coordinates to world coordinates
+      const worldX = (pos.x - stage.x()) / stage.scaleX();
+      const worldY = (pos.y - stage.y()) / stage.scaleY();
+
+      // Get current UI state from store
+      const currentStore = useUnifiedCanvasStore.getState();
+      const fillColor = currentStore.fillColor ?? currentStore.ui?.fillColor ?? '#111827';
+      const fontSize = 18;
+      const fontFamily = 'Inter, system-ui, sans-serif';
+
+      openStandaloneTextEditor({
+        stage,
+        worldX,
+        worldY,
+        fontFamily,
+        fontSize,
+        color: fillColor,
+        onCommit: (text, finalWorldX, finalWorldY) => {
+          // Create text element
+          const textElement = {
+            id: crypto.randomUUID(),
+            type: 'text' as const,
+            x: finalWorldX,
+            y: finalWorldY,
+            width: Math.max(50, text.length * fontSize * 0.6), // Estimate width
+            height: fontSize * 1.2,
+            text,
+            style: {
+              fill: fillColor,
+              fontFamily,
+              fontSize
+            },
+            bounds: {
+              x: finalWorldX,
+              y: finalWorldY,
+              width: Math.max(50, text.length * fontSize * 0.6),
+              height: fontSize * 1.2
+            }
+          };
+
+          // Add to store with undo support
+          const upsertElement = currentStore.element?.upsert;
+          const withUndo = currentStore.withUndo;
+          const setSelectedTool = currentStore.setSelectedTool;
+
+          const commitFn = () => {
+            upsertElement?.(textElement);
+          };
+
+          if (withUndo) {
+            withUndo('Add text', commitFn);
+          } else {
+            commitFn();
+          }
+
+          // Switch back to select tool
+          setSelectedTool?.('select');
+        }
+      });
+    };
+
+    const onTextDblClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const target = e.target as Konva.Text;
+      if (!target || (target as any).className !== 'Text') return;
+      if (!stage || !layer) return;
+
+      // Get the element ID and edit existing text
+      const elementId = target.getAttr('elementId') || target.id();
+      if (elementId) {
+        // For existing text editing, we would implement shape text editor
+        // This is a placeholder for future implementation
+        console.log('Double-click on existing text element:', elementId);
+      }
+    };
+
+    const onTextDblTap = (e: Konva.KonvaEventObject<TouchEvent>) => onTextDblClick(e as any);
+
+    // Bind events to stage
+    stage.on('click', onStageClick);
+    stage.on('dblclick', onTextDblClick);
+    stage.on('dbltap', onTextDblTap);
+
+    this.handlers.push({ evt: 'click', fn: onStageClick });
+    this.handlers.push({ evt: 'dblclick', fn: onTextDblClick });
+    this.handlers.push({ evt: 'dbltap', fn: onTextDblTap });
+  }
+
+  detach() {
+    console.log("[TextCanvasTool] Detaching from stage");
+    if (!this.stage) return;
+    for (const { evt, fn } of this.handlers) {
+      this.stage.off(evt, fn);
+    }
+    this.handlers = [];
+    this.stage = undefined;
+    if (this.layer) {
+      this.layer = undefined;
+    }
+  }
 }
+
+// Legacy React component - kept for backward compatibility but inactive when canvas tool is used
 
 export const TextTool: React.FC<TextToolProps> = ({
   isActive,
   stageRef,
   toolId = "text",
 }) => {
-  // Debug: log when props change
+  // This React component is now inactive - the canvas tool handles all interactions
+  // We keep it for backward compatibility but it doesn't bind any events
+
+  // Log when the component is rendered for debugging
   React.useEffect(() => {
-    console.log("[TextTool] Props changed:", {
+    console.log("[TextTool] React component rendered (inactive):", {
       isActive,
       toolId,
       hasStage: !!stageRef.current,
     });
   }, [isActive, toolId, stageRef]);
-  const selectedTool = useUnifiedCanvasStore(
-    (s: any) => s.selectedTool ?? s.ui?.selectedTool,
-  );
-
-  // Debug: log when selectedTool changes
-  React.useEffect(() => {
-    console.log("[TextTool] selectedTool changed:", selectedTool);
-  }, [selectedTool]);
-  const setSelectedTool = useUnifiedCanvasStore(
-    (s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool,
-  );
-  const upsertElement = useUnifiedCanvasStore(
-    (s: any) => s.element?.upsert ?? s.elements?.addElement,
-  );
-  const withUndo = useUnifiedCanvasStore((s: any) => s.history?.withUndo);
-  const fillColor = useUnifiedCanvasStore(
-    (s: any) => s.fillColor ?? s.ui?.fillColor ?? "#111827",
-  );
-  const fontSize = 18;
-  const fontFamily = "Inter, system-ui, sans-serif";
-
-  const activeEditorRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    const stage = stageRef.current;
-    const active = isActive && selectedTool === toolId;
-    console.log("[TextTool] Effect running:", {
-      isActive,
-      selectedTool,
-      toolId,
-      active,
-      hasStage: !!stage,
-      stageListeners: stage ? stage.eventListeners : [],
-    });
-    if (!stage || !active) return;
-
-    const onStagePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      console.log("[TextTool] PointerDown event triggered:", {
-        isActive,
-        hasActiveEditor: !!activeEditorRef.current,
-        selectedTool,
-        toolId,
-        eventType: e.type,
-        evt: e.evt.type,
-      });
-      if (!isActive || activeEditorRef.current || selectedTool !== toolId)
-        return;
-
-      const pos = stage.getPointerPosition();
-      console.log("[TextTool] Pointer position:", pos);
-      if (!pos) return;
-
-      const rect = stage.container().getBoundingClientRect();
-      const left = rect.left + pos.x;
-      const top = rect.top + pos.y;
-
-      const ta = createTextarea(left, top, fontSize, fillColor, fontFamily);
-      console.log("[TextTool] Created textarea:", {
-        left,
-        top,
-        fontSize,
-        fillColor,
-        fontFamily,
-      });
-      document.body.appendChild(ta);
-      activeEditorRef.current = ta;
-      console.log("[TextTool] Textarea added to DOM, focusing...");
-      ta.focus();
-      console.log("[TextTool] Textarea focused successfully");
-
-      const updateSize = () => {
-        const text = ta.value || "";
-        const m = measureText({ text, fontFamily, fontSize });
-        ta.style.width = `${Math.max(1, Math.ceil(m.width))}px`;
-        ta.style.height = `${Math.round(fontSize * 1.2)}px`;
-      };
-
-      updateSize();
-      ta.addEventListener("input", updateSize);
-
-      const commit = (cancel = false) => {
-        const value = (ta.value || "").trim();
-        ta.removeEventListener("input", updateSize);
-        try {
-          ta.remove();
-        } catch {}
-        if (activeEditorRef.current === ta) activeEditorRef.current = null;
-
-        if (!cancel && value.length > 0) {
-          const m = measureText({ text: value, fontFamily, fontSize });
-          const width = Math.max(1, Math.ceil(m.width));
-          const height = Math.round(fontSize * 1.2); // fixed single-line height
-
-          const commitFn = () => {
-            upsertElement?.({
-              id: crypto.randomUUID(),
-              type: "text",
-              x: pos.x,
-              y: pos.y,
-              width,
-              height,
-              text: value,
-              style: { fill: fillColor, fontFamily, fontSize },
-              bounds: { x: pos.x, y: pos.y, width, height },
-            } as any);
-          };
-
-          if (withUndo) withUndo("Insert text", commitFn);
-          else commitFn();
-        }
-
-        setSelectedTool?.("select");
-      };
-
-      ta.addEventListener("keydown", (ke) => {
-        if (ke.key === "Enter" && !ke.shiftKey) {
-          ke.preventDefault();
-          commit(false);
-        } else if (ke.key === "Escape") {
-          ke.preventDefault();
-          commit(true);
-        }
-      });
-
-      ta.addEventListener("blur", () => commit(false), { once: true });
-
-      e.cancelBubble = true;
-      e.evt.stopPropagation();
-    };
-
-    // Add a small delay to ensure stage is fully ready
-    setTimeout(() => {
-      console.log("[TextTool] Attaching pointerdown listener to stage");
-      stage.on("pointerdown.texttool", onStagePointerDown);
-      console.log(
-        "[TextTool] Listener attached. Current stage listeners:",
-        stage.eventListeners.length,
-      );
-    }, 100);
-
-    return () => {
-      console.log("[TextTool] Cleaning up pointerdown listener");
-      stage.off("pointerdown.texttool", onStagePointerDown);
-      const existing = activeEditorRef.current;
-      if (existing) {
-        try {
-          existing.remove();
-        } catch {}
-        activeEditorRef.current = null;
-      }
-    };
-  }, [
-    isActive,
-    selectedTool,
-    toolId,
-    stageRef,
-    fillColor,
-    fontSize,
-    fontFamily,
-    upsertElement,
-    setSelectedTool,
-    withUndo,
-  ]);
 
   return null;
 };

@@ -16,7 +16,7 @@ import { initializeConnectorService } from "@/features/canvas/services/Connector
 // import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '@/features/canvas/interactions/interaction/TransformCommit';
 // Mount tool components end-to-end
 import TableTool from "@/features/canvas/components/tools/content/TableTool";
-import TextTool from "@/features/canvas/components/tools/content/TextTool";
+import TextTool, { TextCanvasTool } from "@/features/canvas/components/tools/content/TextTool";
 import ConnectorTool from "@/features/canvas/components/tools/creation/ConnectorTool";
 import StickyNoteTool from "@/features/canvas/components/tools/creation/StickyNoteTool";
 import PenTool from "@/features/canvas/components/tools/drawing/PenTool";
@@ -34,6 +34,7 @@ import { TableRenderer } from "@/features/canvas/renderer/modules/TableModule";
 import { MindmapRenderer } from "@/features/canvas/renderer/modules/MindmapRenderer";
 import { useMindmapLiveRouting } from "@/features/canvas/renderer/modules/mindmapWire";
 import { createSpacingHUD } from "@/features/canvas/interactions/overlay/SpacingHUD";
+import ToolManager from "@/features/canvas/managers/ToolManager";
 
 const STAGE_KEY = "CANVAS_STAGE_KEY";
 
@@ -118,6 +119,7 @@ export default function Canvas(): JSX.Element {
   const spacingHUDRef = useRef<ReturnType<typeof createSpacingHUD> | null>(
     null,
   );
+  const toolManagerRef = useRef<ToolManager | null>(null);
   // const stickyNoteModuleRef = useRef<any>(null);
 
   const onStageReady = useCallback(
@@ -177,6 +179,19 @@ export default function Canvas(): JSX.Element {
         });
         connectorServiceCleanupRef.current = () => connectorService.cleanup();
 
+        // Setup ToolManager with proper lifecycle
+        console.log("[Canvas] Setting up ToolManager");
+        const toolManager = new ToolManager({
+          stage,
+          mainLayer: layerRefs.main,
+          store: useUnifiedCanvasStore.getState(),
+        });
+        toolManagerRef.current = toolManager;
+
+        // Register canvas tools that need direct Konva event binding
+        const textCanvasTool = new TextCanvasTool();
+        toolManager.registerCanvasTool('text', textCanvasTool);
+
         // REMOVED: Duplicate TransformerManager creation - SelectionModule handles this now
       }
 
@@ -200,8 +215,9 @@ export default function Canvas(): JSX.Element {
 
       // FIXED: Improved click-to-select with proper empty space deselection
       const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-        // Skip if clicking on a tool-specific target (tools handle their own events)
+        // Skip if not in select mode - let canvas tools handle their own events
         if (selectedTool !== "select" && selectedTool !== "pan") {
+          console.log(`[Canvas] Skipping click handling for tool: ${selectedTool}`);
           return; // Let tools handle their own clicks
         }
 
@@ -315,6 +331,12 @@ export default function Canvas(): JSX.Element {
 
       // Cleanup function
       return () => {
+        // Cleanup ToolManager
+        if (toolManagerRef.current) {
+          toolManagerRef.current.destroy();
+          toolManagerRef.current = null;
+        }
+
         stage.off("click.canvas-select");
         stage.off("dragmove.spacinghud");
         stage.off("dragend.spacinghud");
@@ -477,6 +499,25 @@ export default function Canvas(): JSX.Element {
       );
     }
   }, [fitToContent]);
+
+  // Activate tools through ToolManager when selectedTool changes
+  useEffect(() => {
+    if (!toolManagerRef.current) return;
+
+    console.log(`[Canvas] Tool changed to: ${selectedTool}`);
+
+    if (selectedTool === 'text') {
+      console.log("[Canvas] Activating TextCanvasTool");
+      toolManagerRef.current.activateCanvasTool('text');
+    } else {
+      // Deactivate any active canvas tool when switching away
+      const activeTool = toolManagerRef.current.getActiveCanvasTool();
+      if (activeTool) {
+        console.log("[Canvas] Deactivating canvas tool");
+        activeTool.detach();
+      }
+    }
+  }, [selectedTool]);
 
   // Ensure initial tool is select for Accessibility E2E expectation
   useEffect(() => {

@@ -100,7 +100,7 @@ export function openShapeTextEditor(
     background: 'transparent',
     color,
     fontFamily,
-    fontSize: `${fontSize * scaleY}px`,
+    fontSize: `${fontSize * Math.min(scaleX, scaleY)}px`, // Use minimum scale for consistent sizing
     lineHeight: `${lineHeight}`,
     textAlign: 'center',
     whiteSpace: 'pre-wrap',
@@ -109,6 +109,7 @@ export function openShapeTextEditor(
     transition: 'width 120ms ease, height 120ms ease, left 120ms ease, top 120ms ease',
     userSelect: 'text',
     webkitUserSelect: 'text',
+    transformOrigin: '0 0',
   });
 
   // Initialize with existing text if present.
@@ -130,24 +131,52 @@ export function openShapeTextEditor(
   sel?.addRange(range);
   overlay.focus();
 
-  // Live reflow
+  // Live reflow with proper coordinate tracking
   let raf: number | null = null;
   const measureAndLayout = () => {
     raf && cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => {
-      // Compute desired content size (approx) from scroll dimensions
-      const desiredW = Math.min(startWorld.w * scaleX, Math.max(minW * scaleX, overlay.scrollWidth));
-      const desiredH = Math.min(startWorld.h * scaleY, Math.max(minH * scaleY, overlay.scrollHeight));
+      // Get current stage transform state
+      const currentScaleX = stage.scaleX();
+      const currentScaleY = stage.scaleY();
 
-      // Apply CSS transition-resized overlay
-      css(overlay, {
-        width: `${desiredW}px`,
-        height: `${desiredH}px`,
-      });
+      // Recompute overlay position based on current transform
+      const updatedElement = store.element!.getById(elementId);
+      if (updatedElement) {
+        const updatedInner = computeShapeInnerBox(
+          {
+            id: updatedElement.id,
+            type: updatedElement.type as any,
+            x: updatedElement.x,
+            y: updatedElement.y,
+            width: updatedElement.width,
+            height: updatedElement.height,
+            radius: (updatedElement.data as any)?.radius,
+            padding: padding,
+          },
+          padding
+        );
+
+        const { px, py } = worldToPage(stage, updatedInner.x, updatedInner.y);
+        const scaledWidth = updatedInner.width * currentScaleX;
+        const scaledHeight = updatedInner.height * currentScaleY;
+
+        css(overlay, {
+          left: `${px}px`,
+          top: `${py}px`,
+          width: `${Math.max(minW * currentScaleX, scaledWidth)}px`,
+          height: `${Math.max(minH * currentScaleY, scaledHeight)}px`,
+          fontSize: `${fontSize * Math.min(currentScaleX, currentScaleY)}px`,
+        });
+      }
+
+      // Compute desired content size (approx) from scroll dimensions
+      const currentScale = Math.min(currentScaleX, currentScaleY);
+      const desiredH = Math.max(minH * currentScale, overlay.scrollHeight);
 
       // If content exceeds available inner height, grow element height smoothly
       const availHWorld = startWorld.h;
-      const desiredHWorld = desiredH / scaleY;
+      const desiredHWorld = desiredH / currentScaleY;
 
       if (desiredHWorld > availHWorld + 0.5) {
         const delta = desiredHWorld - availHWorld;
@@ -156,28 +185,6 @@ export function openShapeTextEditor(
 
         store.element!.update(elementId, {
           height: Math.max((element.height ?? availHWorld) + step, desiredHWorld + padding * 2),
-        });
-
-        // Recompute world->page coordinates for overlay after growth
-        const updated = store.element!.getById(elementId)!;
-        const grownInner = computeShapeInnerBox(
-          {
-            id: updated.id,
-            type: updated.type as any,
-            x: updated.x,
-            y: updated.y,
-            width: updated.width,
-            height: updated.height,
-            radius: (updated.data as any)?.radius,
-            padding: padding,
-          },
-          padding
-        );
-
-        const { px, py } = worldToPage(stage, grownInner.x, grownInner.y);
-        css(overlay, {
-          left: `${px}px`,
-          top: `${py}px`,
         });
       }
     });
@@ -191,9 +198,18 @@ export function openShapeTextEditor(
     } else if (e.key === 'Escape') {
       e.preventDefault();
       commit(true);
+    } else {
+      // Trigger layout update on any key input
+      requestAnimationFrame(measureAndLayout);
     }
   };
   const onBlur = () => commit(false);
+
+  // Listen for stage transform changes to keep editor positioned correctly
+  const onStageTransform = () => measureAndLayout();
+  stage.on('dragmove.shape-text-editor', onStageTransform);
+  stage.on('wheel.shape-text-editor', onStageTransform);
+  stage.on('xChange.shape-text-editor yChange.shape-text-editor scaleXChange.shape-text-editor scaleYChange.shape-text-editor', onStageTransform);
 
   overlay.addEventListener('input', onInput);
   overlay.addEventListener('blur', onBlur, { once: true });
@@ -205,6 +221,9 @@ export function openShapeTextEditor(
   function cleanup() {
     overlay.removeEventListener('input', onInput);
     window.removeEventListener('keydown', onKey, { capture: true } as any);
+    stage.off('dragmove.shape-text-editor');
+    stage.off('wheel.shape-text-editor');
+    stage.off('xChange.shape-text-editor yChange.shape-text-editor scaleXChange.shape-text-editor scaleYChange.shape-text-editor');
     if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
     if (raf) cancelAnimationFrame(raf);
   }

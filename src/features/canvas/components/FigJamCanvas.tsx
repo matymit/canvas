@@ -9,13 +9,14 @@ import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 // Tool imports - all major tools
 import StickyNoteTool from "./tools/creation/StickyNoteTool";
 import ConnectorTool from "./tools/creation/ConnectorTool";
-import TextTool from "./tools/content/TextTool";
+import TextTool, { TextCanvasTool } from "./tools/content/TextTool";
 import ImageTool from "./tools/content/ImageTool";
 import TableTool from "./tools/content/TableTool";
 import MindmapTool from "./tools/content/MindmapTool";
 import RectangleTool from "./tools/shapes/RectangleTool";
 import CircleTool from "./tools/shapes/CircleTool";
 import TriangleTool from "./tools/shapes/TriangleTool";
+import ToolManager from "../managers/ToolManager";
 // Note: Drawing tools (pen, marker, highlighter, eraser) would be in ./tools/drawing/
 
 const FigJamCanvas: React.FC = () => {
@@ -35,6 +36,7 @@ const FigJamCanvas: React.FC = () => {
     overlay: null,
   });
   const rendererDisposeRef = useRef<(() => void) | null>(null);
+  const toolManagerRef = useRef<ToolManager | null>(null);
 
   // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
@@ -144,6 +146,19 @@ const FigJamCanvas: React.FC = () => {
     });
     rendererDisposeRef.current = rendererDispose;
 
+    // Setup ToolManager with proper lifecycle
+    console.log("[FigJamCanvas] Setting up ToolManager");
+    const toolManager = new ToolManager({
+      stage,
+      mainLayer,
+      store: useUnifiedCanvasStore.getState(),
+    });
+    toolManagerRef.current = toolManager;
+
+    // Register canvas tools that need direct Konva event binding
+    const textCanvasTool = new TextCanvasTool();
+    toolManager.registerCanvasTool('text', textCanvasTool);
+
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       // Skip if not in select mode
@@ -239,6 +254,12 @@ const FigJamCanvas: React.FC = () => {
       console.log("[FigJamCanvas] Cleaning up stage and renderer");
       window.removeEventListener("resize", handleResize);
 
+      // Destroy tool manager
+      if (toolManagerRef.current) {
+        toolManagerRef.current.destroy();
+        toolManagerRef.current = null;
+      }
+
       // Dispose renderer modules
       if (rendererDisposeRef.current) {
         rendererDisposeRef.current();
@@ -263,7 +284,7 @@ const FigJamCanvas: React.FC = () => {
     layersRef.current.background?.batchDraw();
   }, [viewport.scale, viewport.x, viewport.y]);
 
-  // Update cursor based on selected tool
+  // Update cursor and activate tools based on selected tool
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -310,6 +331,19 @@ const FigJamCanvas: React.FC = () => {
     }
 
     containerRef.current.style.cursor = cursor;
+
+    // Activate tool through ToolManager if it has a canvas tool implementation
+    if (toolManagerRef.current) {
+      if (selectedTool === 'text') {
+        toolManagerRef.current.activateCanvasTool('text');
+      } else {
+        // Deactivate any active canvas tool when switching away
+        const activeTool = toolManagerRef.current.getActiveCanvasTool();
+        if (activeTool) {
+          activeTool.detach();
+        }
+      }
+    }
   }, [selectedTool]);
 
   // Force re-render when elements change (triggers renderer modules via subscription)
@@ -383,6 +417,7 @@ const FigJamCanvas: React.FC = () => {
           return <StickyNoteTool key="sticky-tool" {...toolProps} />;
 
         case "text":
+          // Text tool now uses canvas tool for event handling, React component is inactive
           return <TextTool key="text-tool" {...toolProps} />;
 
         case "image":

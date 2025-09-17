@@ -5,6 +5,13 @@ import React from "react";
 import Konva from "konva";
 import type { UnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 
+// New CanvasTool interface for tools that need direct Konva event binding
+export interface CanvasTool {
+  attach(stage: Konva.Stage, layer: Konva.Layer): void;
+  detach(): void;
+  name: string;
+}
+
 // Import all tool components
 import { TableTool } from "../components/tools/content/TableTool";
 import { TextTool } from "../components/tools/content/TextTool";
@@ -32,13 +39,16 @@ export interface ToolDefinition {
 
 export interface ToolManagerOptions {
   stage: Konva.Stage;
+  mainLayer: Konva.Layer;
   store: UnifiedCanvasStore;
 }
 
 export class ToolManager {
   private stage: Konva.Stage;
+  private mainLayer: Konva.Layer;
   private store: UnifiedCanvasStore;
   private toolInstances = new Map<string, any>();
+  private activeCanvasTool: CanvasTool | null = null;
 
   // Tool registry with all available tools
   private tools: Record<string, ToolDefinition> = {
@@ -212,8 +222,9 @@ export class ToolManager {
     },
   };
 
-  constructor({ stage, store }: ToolManagerOptions) {
+  constructor({ stage, mainLayer, store }: ToolManagerOptions) {
     this.stage = stage;
+    this.mainLayer = mainLayer;
     this.store = store;
 
     // Initialize tool instances for tools with components
@@ -279,6 +290,12 @@ export class ToolManager {
       return;
     }
 
+    // Detach previous canvas tool if any
+    if (this.activeCanvasTool) {
+      this.activeCanvasTool.detach();
+      this.activeCanvasTool = null;
+    }
+
     // Update store
     this.store.setSelectedTool(toolId);
 
@@ -303,6 +320,12 @@ export class ToolManager {
 
     // For tools with React components, they handle their own activation through hooks
     // The components watch for store changes and activate/deactivate accordingly
+
+    // Check if this tool has a canvas tool implementation
+    const canvasTool = this.toolInstances.get(toolId + '_canvas') as CanvasTool;
+    if (canvasTool) {
+      this.activateCanvasTool(toolId);
+    }
   }
 
   private handleNavigationTool(toolId: string) {
@@ -353,6 +376,12 @@ export class ToolManager {
   }
 
   public destroy() {
+    // Detach active canvas tool
+    if (this.activeCanvasTool) {
+      this.activeCanvasTool.detach();
+      this.activeCanvasTool = null;
+    }
+
     // Cleanup keyboard shortcuts
     if ((this as any)._keyboardCleanup) {
       (this as any)._keyboardCleanup();
@@ -360,6 +389,28 @@ export class ToolManager {
 
     // Clear tool instances
     this.toolInstances.clear();
+  }
+
+  // Method to register canvas tools that implement CanvasTool interface
+  public registerCanvasTool(toolId: string, tool: CanvasTool) {
+    this.toolInstances.set(toolId + '_canvas', tool);
+  }
+
+  // Method to activate a canvas tool
+  public activateCanvasTool(toolId: string) {
+    const tool = this.toolInstances.get(toolId + '_canvas') as CanvasTool;
+    if (tool) {
+      if (this.activeCanvasTool) {
+        this.activeCanvasTool.detach();
+      }
+      this.activeCanvasTool = tool;
+      tool.attach(this.stage, this.mainLayer);
+    }
+  }
+
+  // Get current active canvas tool
+  public getActiveCanvasTool(): CanvasTool | null {
+    return this.activeCanvasTool;
   }
 }
 
