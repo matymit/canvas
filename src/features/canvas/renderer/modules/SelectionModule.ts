@@ -101,13 +101,37 @@ export class SelectionModule implements RendererModule {
     if (!this.storeCtx) return [];
 
     const nodes: import('konva/lib/Node').Node[] = [];
-    const layers = [this.storeCtx.layers.main, this.storeCtx.layers.highlighter];
+
+    // Collect all available layers and filter out undefined/null ones
+    const allLayers = [
+      { name: 'main', layer: this.storeCtx.layers.main },
+      { name: 'highlighter', layer: this.storeCtx.layers.highlighter }
+    ];
+
+    const validLayers = allLayers.filter(({ name, layer }) => {
+      if (!layer) {
+        console.warn(`[SelectionModule] Layer '${name}' is undefined, skipping search`);
+        return false;
+      }
+      return true;
+    }).map(({ layer }) => layer);
+
+    if (validLayers.length === 0) {
+      console.error('[SelectionModule] No valid layers available for element resolution');
+      return [];
+    }
 
     for (const elementId of elementIds) {
       let found = false;
-      
-      // Search in main layers for nodes with elementId attribute or matching id
-      for (const layer of layers) {
+
+      // Search in valid layers for nodes with elementId attribute or matching id
+      for (const layer of validLayers) {
+        // Additional safety check before calling find()
+        if (!layer || typeof layer.find !== 'function') {
+          console.warn('[SelectionModule] Invalid layer encountered, skipping');
+          continue;
+        }
+
         const candidates = layer.find((node) => {
           const nodeElementId = node.getAttr('elementId') || node.id();
           return nodeElementId === elementId;
