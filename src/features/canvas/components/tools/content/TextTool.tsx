@@ -11,31 +11,32 @@ export interface TextToolProps {
   toolId?: string; // default: 'text'
 }
 
-function createTextarea(left: number, top: number, fontSize: number, color: string, fontFamily: string): HTMLTextAreaElement {
+function createTextarea(screenX: number, screenY: number, fontSize: number, color: string, fontFamily: string): HTMLTextAreaElement {
   const ta = document.createElement('textarea');
   ta.setAttribute('data-testid', 'text-portal-input');
   ta.style.position = 'absolute';
-  ta.style.left = `${left}px`;
-  ta.style.top = `${top}px`;
-  ta.style.minWidth = '4px';
-  ta.style.width = '4px';
-  ta.style.height = `${Math.round(fontSize * 1.2)}px`; // fixed single-line height
-  ta.style.padding = '0px';
-  ta.style.border = '0px';
-  ta.style.borderRadius = '0px';
+  ta.style.left = `${screenX}px`;
+  ta.style.top = `${screenY}px`;
+  ta.style.minWidth = '20px';
+  ta.style.width = '20px';
+  ta.style.height = `${Math.round(fontSize * 1.2)}px`;
+  ta.style.padding = '2px 4px';
+  ta.style.border = '1px dashed rgba(0, 0, 255, 0.5)';
+  ta.style.borderRadius = '2px';
   ta.style.outline = 'none';
-  ta.style.resize = 'none'; // no manual resize
+  ta.style.resize = 'none';
   ta.style.cursor = 'text';
-  ta.style.background = 'transparent';
+  ta.style.background = 'rgba(255, 255, 255, 0.95)';
   ta.style.color = color;
   ta.style.fontFamily = fontFamily;
   ta.style.fontSize = `${fontSize}px`;
   ta.style.lineHeight = '1.2';
   ta.style.zIndex = '1000';
-  ta.style.boxShadow = 'none';
+  ta.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
   ta.style.pointerEvents = 'auto';
   ta.style.whiteSpace = 'nowrap';
   ta.style.overflow = 'hidden';
+  ta.style.boxSizing = 'border-box';
   return ta;
 }
 
@@ -64,8 +65,19 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
     }
   }, []);
 
+  // Convert screen coordinates to world coordinates
+  const screenToWorld = useCallback((stage: Konva.Stage, screenX: number, screenY: number) => {
+    const stagePos = stage.position();
+    const stageScale = stage.scaleX();
+    
+    const worldX = (screenX - stagePos.x) / stageScale;
+    const worldY = (screenY - stagePos.y) / stageScale;
+    
+    return { x: worldX, y: worldY };
+  }, []);
+
   // Commit text function
-  const commitText = useCallback((textarea: HTMLTextAreaElement, position: { x: number; y: number }, cancel = false) => {
+  const commitText = useCallback((textarea: HTMLTextAreaElement, worldPosition: { x: number; y: number }, cancel = false) => {
     const value = (textarea.value || '').trim();
     
     // Remove textarea
@@ -87,8 +99,8 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       const textElement = {
         id: crypto.randomUUID(),
         type: 'text' as const,
-        x: position.x,
-        y: position.y,
+        x: worldPosition.x,
+        y: worldPosition.y,
         width,
         height,
         text: value,
@@ -101,15 +113,15 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
           textDecoration: '',
         },
         bounds: { 
-          x: position.x, 
-          y: position.y, 
+          x: worldPosition.x, 
+          y: worldPosition.y, 
           width, 
           height 
         },
       };
 
       const commitFn = () => {
-        console.log('[TextTool] Creating text element:', textElement);
+        console.log('[TextTool] Creating text element at world coords:', { worldPosition, element: textElement });
         // Use pushHistory option to ensure history tracking
         addElement(textElement, { pushHistory: true, select: true });
         console.log('[TextTool] Text element created successfully');
@@ -157,24 +169,30 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
         target: e.target.constructor.name
       });
       
-      if (!active || activeEditorRef.current || selectedTool !== toolId) {
+      // Only handle clicks on the stage itself, not on existing elements
+      if (!active || activeEditorRef.current || selectedTool !== toolId || e.target !== stage) {
         return;
       }
 
-      const pos = stage.getPointerPosition();
-      if (!pos) {
+      const pointerPos = stage.getPointerPosition();
+      if (!pointerPos) {
         console.warn('[TextTool] No pointer position available');
         return;
       }
 
-      console.log('[TextTool] Creating text editor at:', pos);
+      console.log('[TextTool] Creating text editor at screen pos:', pointerPos);
 
-      const rect = stage.container().getBoundingClientRect();
-      const left = rect.left + pos.x;
-      const top = rect.top + pos.y;
+      // Convert to world coordinates for the final element
+      const worldPos = screenToWorld(stage, pointerPos.x, pointerPos.y);
+      console.log('[TextTool] World position:', worldPos);
 
-      const ta = createTextarea(left, top, fontSize, fillColor, fontFamily);
-      document.body.appendChild(ta);
+      // Get screen position for the DOM editor
+      const containerRect = stage.container().getBoundingClientRect();
+      const screenX = containerRect.left + pointerPos.x;
+      const screenY = containerRect.top + pointerPos.y;
+
+      const ta = createTextarea(screenX, screenY, fontSize, fillColor, fontFamily);
+      document.body.appendChild(ta); // Use body to avoid container transform issues
       activeEditorRef.current = ta;
       
       // Focus with slight delay to ensure proper attachment
@@ -189,7 +207,8 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       const updateSize = () => {
         const text = ta.value || 'W'; // Use 'W' as minimum for sizing
         const m = measureText({ text, fontFamily, fontSize });
-        ta.style.width = `${Math.max(4, Math.ceil(m.width + 4))}px`;
+        const newWidth = Math.max(20, Math.ceil(m.width + 8));
+        ta.style.width = `${newWidth}px`;
         ta.style.height = `${Math.round(fontSize * 1.2)}px`;
       };
 
@@ -198,10 +217,12 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
 
       const commit = (cancel = false) => {
         ta.removeEventListener('input', updateSize);
-        commitText(ta, pos, cancel);
+        commitText(ta, worldPos, cancel);
       };
 
       const handleKeyDown = (ke: KeyboardEvent) => {
+        ke.stopPropagation(); // Prevent canvas shortcuts
+        
         if (ke.key === 'Enter' && !ke.shiftKey) {
           ke.preventDefault();
           commit(false);
@@ -232,7 +253,7 @@ export const TextTool: React.FC<TextToolProps> = ({ isActive, stageRef, toolId =
       stage.off('click.texttool');
       cleanup();
     };
-  }, [isActive, selectedTool, toolId, stageRef, fillColor, fontSize, fontFamily, commitText, cleanup]);
+  }, [isActive, selectedTool, toolId, stageRef, fillColor, fontSize, fontFamily, commitText, cleanup, screenToWorld]);
 
   return null;
 };
