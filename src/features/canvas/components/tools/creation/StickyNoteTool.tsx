@@ -41,6 +41,9 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   const setSelectedTool = useUnifiedCanvasStore((s: any) => 
     s.setSelectedTool || s.ui?.setSelectedTool
   );
+  const setSelection = useUnifiedCanvasStore((s: any) => 
+    s.setSelection
+  );
   const withUndo = useUnifiedCanvasStore((s: any) => 
     s.withUndo || s.history?.withUndo
   );
@@ -182,6 +185,15 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         return;
       }
 
+      // Auto-select the created element for immediate transform handles
+      if (setSelection) {
+        // Small delay to ensure element is rendered first
+        setTimeout(() => {
+          console.log('[StickyNoteTool] Auto-selecting element:', stickyElement.id);
+          setSelection([stickyElement.id]);
+        }, 50);
+      }
+
       // Open text editor immediately
       try {
         const container = stage.container();
@@ -195,10 +207,12 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         console.warn('[StickyNoteTool] Failed to create text editor:', error);
       }
 
-      // Auto-switch back to select tool
-      if (setSelectedTool) {
-        setSelectedTool('select');
-      }
+      // Auto-switch back to select tool after short delay (allow for text input)
+      setTimeout(() => {
+        if (setSelectedTool) {
+          setSelectedTool('select');
+        }
+      }, 100);
 
       if (e) e.cancelBubble = true;
     };
@@ -235,7 +249,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         container?.removeEventListener('pointerdown', onContainerPointerDown, { capture: true } as any); 
       } catch {}
     };
-  }, [isActive, stageRef, width, height, actualFill, text, fontSize, createElement, setSelectedTool, withUndo]);
+  }, [isActive, stageRef, width, height, actualFill, text, fontSize, createElement, setSelectedTool, setSelection, withUndo]);
 
   // Global cleanup for editor
   useEffect(() => {
