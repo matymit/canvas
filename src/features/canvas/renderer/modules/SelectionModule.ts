@@ -12,6 +12,9 @@ export class SelectionModule implements RendererModule {
     console.log('[SelectionModule] Mounting...');
     this.storeCtx = ctx;
 
+    // FIXED: Make module globally accessible for tool integration
+    (window as any).selectionModule = this;
+
     // Create transformer manager on overlay layer
     this.transformerManager = new TransformerManager(ctx.stage, {
       overlayLayer: ctx.layers.overlay,
@@ -37,6 +40,11 @@ export class SelectionModule implements RendererModule {
       rotationSnapDeg: 15,
       onTransformStart: (nodes) => {
         console.log('[SelectionModule] Transform start:', nodes.length, 'nodes');
+        // Begin transform in store if available
+        const store = this.storeCtx?.store.getState();
+        if (store?.selection?.beginTransform) {
+          store.selection.beginTransform();
+        }
       },
       onTransform: (nodes) => {
         // Real-time updates during transform for smoother UX
@@ -45,13 +53,33 @@ export class SelectionModule implements RendererModule {
       onTransformEnd: (nodes) => {
         console.log('[SelectionModule] Transform end, committing changes');
         this.updateElementsFromNodes(nodes, true); // Commit with history
+        
+        // End transform in store if available
+        const store = this.storeCtx?.store.getState();
+        if (store?.selection?.endTransform) {
+          store.selection.endTransform();
+        }
       },
     });
 
-    // Subscribe to selection changes
+    // Subscribe to selection changes with proper fallbacks for different store structures
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: get selected element IDs
-      (state) => state.selectedElementIds,
+      // Selector: get selected element IDs with fallbacks for different store structures
+      (state) => {
+        // Try different possible selection state locations
+        const selection = state.selectedElementIds || 
+                         state.selection?.selectedIds ||
+                         state.selection?.selected ||
+                         new Set<string>();
+        
+        // Convert array to Set if needed
+        if (Array.isArray(selection)) {
+          return new Set(selection);
+        }
+        
+        // Return as Set
+        return selection instanceof Set ? selection : new Set<string>();
+      },
       // Callback: update transformer
       (selectedIds) => this.updateSelection(selectedIds),
       // Fire immediately to handle initial selection
@@ -71,11 +99,16 @@ export class SelectionModule implements RendererModule {
       this.transformerManager.destroy();
       this.transformerManager = undefined;
     }
+    
+    // Clean up global reference
+    if ((window as any).selectionModule === this) {
+      (window as any).selectionModule = null;
+    }
   }
 
   private updateSelection(selectedIds: Set<string>) {
     this.selectedElementIds = selectedIds;
-    console.log('[SelectionModule] Selection updated:', selectedIds.size, 'elements');
+    console.log('[SelectionModule] Selection updated:', selectedIds.size, 'elements', Array.from(selectedIds));
 
     if (!this.transformerManager || !this.storeCtx) return;
 
@@ -84,17 +117,20 @@ export class SelectionModule implements RendererModule {
       return;
     }
 
-    // Find Konva nodes for selected elements across all layers
-    const nodes = this.resolveElementsToNodes(selectedIds);
-    
-    if (nodes.length > 0) {
-      console.log('[SelectionModule] Attaching transformer to', nodes.length, 'nodes');
-      this.transformerManager.attachToNodes(nodes);
-      this.transformerManager.show();
-    } else {
-      console.warn('[SelectionModule] Could not find nodes for selected elements:', Array.from(selectedIds));
-      this.transformerManager.detach();
-    }
+    // Small delay to ensure elements are fully rendered
+    setTimeout(() => {
+      // Find Konva nodes for selected elements across all layers
+      const nodes = this.resolveElementsToNodes(selectedIds);
+      
+      if (nodes.length > 0) {
+        console.log('[SelectionModule] Attaching transformer to', nodes.length, 'nodes');
+        this.transformerManager?.attachToNodes(nodes);
+        this.transformerManager?.show();
+      } else {
+        console.warn('[SelectionModule] Could not find nodes for selected elements:', Array.from(selectedIds));
+        this.transformerManager?.detach();
+      }
+    }, 50);
   }
 
   private resolveElementsToNodes(elementIds: Set<string>): import('konva/lib/Node').Node[] {
@@ -142,6 +178,7 @@ export class SelectionModule implements RendererModule {
           const group = candidates.find(n => n.className === 'Group');
           nodes.push(group || candidates[0]);
           found = true;
+          console.log('[SelectionModule] Found node for element', elementId, ':', group ? 'Group' : candidates[0].className);
           break;
         }
       }
@@ -217,21 +254,71 @@ export class SelectionModule implements RendererModule {
     }
   }
 
-  // Public API for other modules to trigger selection
+  // FIXED: Public API for other modules to trigger selection with proper store integration
   selectElement(elementId: string) {
     if (!this.storeCtx) return;
-    const setSelection = this.storeCtx.store.getState().setSelection;
-    if (setSelection) {
-      setSelection([elementId]);
+    
+    const store = this.storeCtx.store.getState();
+    console.log('[SelectionModule] Selecting element via store:', elementId);
+    
+    // Try different store selection methods
+    if (store.setSelection) {
+      store.setSelection([elementId]);
+    } else if (store.selection?.set) {
+      store.selection.set([elementId]);
+    } else if (store.selectedElementIds) {
+      // Handle Set-based selection
+      if (store.selectedElementIds instanceof Set) {
+        store.selectedElementIds.clear();
+        store.selectedElementIds.add(elementId);
+      } else if (Array.isArray(store.selectedElementIds)) {
+        store.selectedElementIds.length = 0;
+        store.selectedElementIds.push(elementId);
+      }
+      // Trigger state update if using Zustand
+      this.storeCtx.store.setState?.({ selectedElementIds: store.selectedElementIds });
     }
   }
 
-  // Auto-select element (useful for tools after creation)
+  // FIXED: Auto-select element with proper timing
   autoSelectElement(elementId: string) {
     console.log('[SelectionModule] Auto-selecting element:', elementId);
-    // Small delay to ensure element is rendered first
-    setTimeout(() => {
-      this.selectElement(elementId);
-    }, 100);
+    
+    // Immediate selection attempt
+    this.selectElement(elementId);
+    
+    // Retry with increasing delays to handle rendering timing
+    const retryDelays = [50, 100, 200];
+    retryDelays.forEach((delay, index) => {
+      setTimeout(() => {
+        const nodes = this.resolveElementsToNodes(new Set([elementId]));
+        if (nodes.length === 0 && index < retryDelays.length - 1) {
+          console.log(`[SelectionModule] Retry ${index + 1} - element not yet rendered, retrying...`);
+          this.selectElement(elementId);
+        } else if (nodes.length > 0) {
+          console.log('[SelectionModule] Element found and selected successfully');
+        }
+      }, delay);
+    });
+  }
+
+  // Public method to clear selection
+  clearSelection() {
+    if (!this.storeCtx) return;
+    
+    const store = this.storeCtx.store.getState();
+    
+    if (store.setSelection) {
+      store.setSelection([]);
+    } else if (store.selection?.clear) {
+      store.selection.clear();
+    } else if (store.selectedElementIds) {
+      if (store.selectedElementIds instanceof Set) {
+        store.selectedElementIds.clear();
+      } else if (Array.isArray(store.selectedElementIds)) {
+        store.selectedElementIds.length = 0;
+      }
+      this.storeCtx.store.setState?.({ selectedElementIds: store.selectedElementIds });
+    }
   }
 }
