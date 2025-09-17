@@ -27,10 +27,12 @@ export class TextRenderer implements RendererModule {
   private textNodes = new Map<Id, Konva.Text>();
   private layer?: Konva.Layer;
   private unsubscribe?: () => void;
+  private store?: any;
 
   mount(ctx: ModuleRendererCtx): () => void {
     console.log('[TextRenderer] Mounting...');
     this.layer = ctx.layers.main;
+    this.store = ctx.store;
 
     // Subscribe to store changes - watch text elements
     this.unsubscribe = ctx.store.subscribe(
@@ -96,10 +98,23 @@ export class TextRenderer implements RendererModule {
           const textNode = e.target as Konva.Text;
           const nx = textNode.x();
           const ny = textNode.y();
-          (window as any).__canvasStore?.element?.updateElement?.(text.id, { x: nx, y: ny }, { pushHistory: true });
+          console.log('[TextRenderer] Updating text position:', { id: text.id, x: nx, y: ny });
+          
+          // Use the correct store methods
+          try {
+            const state = this.store?.getState();
+            if (state?.updateElement) {
+              state.updateElement(text.id, { x: nx, y: ny }, { pushHistory: true });
+            } else {
+              console.warn('[TextRenderer] No updateElement method found in store');
+            }
+          } catch (error) {
+            console.error('[TextRenderer] Error updating text position:', error);
+          }
         });
         this.textNodes.set(id, node);
         this.layer.add(node);
+        console.log('[TextRenderer] Created text node:', { id, text: text.text });
       } else {
         // Update existing text node
         this.updateTextNode(node, text);
@@ -121,24 +136,28 @@ export class TextRenderer implements RendererModule {
   private createTextNode(text: TextElement): Konva.Text {
     const node = new Konva.Text({
       id: text.id,
+      name: `text-${text.id}`,
       x: text.x,
       y: text.y,
       width: text.width,
       text: text.text,
-      fontSize: text.style?.fontSize || 16,
-      fontFamily: text.style?.fontFamily || 'Arial, sans-serif',
+      fontSize: text.style?.fontSize || 18,
+      fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
       fontStyle: text.style?.fontWeight || 'normal',
-      fill: text.style?.fill || '#000000',
+      fill: text.style?.fill || '#111827',
       align: text.style?.align || 'left',
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
-      wrap: 'word',
+      wrap: 'none', // Single line text for now
       listening: true,
       draggable: true, // enable dragging
       // Performance optimizations
       perfectDrawEnabled: false,
       shadowForStrokeEnabled: false,
     });
+
+    // Set element ID for selection system
+    node.setAttr('elementId', text.id);
 
     // Fixed-height content-hugging: adjust height based on text content
     if (!text.height) {
@@ -158,10 +177,10 @@ export class TextRenderer implements RendererModule {
       y: text.y,
       width: text.width,
       text: text.text,
-      fontSize: text.style?.fontSize || 16,
-      fontFamily: text.style?.fontFamily || 'Arial, sans-serif',
+      fontSize: text.style?.fontSize || 18,
+      fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
       fontStyle: text.style?.fontWeight || 'normal',
-      fill: text.style?.fill || '#000000',
+      fill: text.style?.fill || '#111827',
       align: text.style?.align || 'left',
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
@@ -169,6 +188,9 @@ export class TextRenderer implements RendererModule {
       perfectDrawEnabled: false,
       shadowForStrokeEnabled: false,
     });
+
+    // Set element ID for selection system
+    node.setAttr('elementId', text.id);
 
     // Fixed-height content-hugging: adjust height based on text content
     if (!text.height) {
