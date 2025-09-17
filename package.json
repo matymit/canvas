@@ -15,6 +15,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:update": "playwright test --update-snapshots",
+    "test:desktop": "node scripts/desktop-e2e-smoke.mjs",
     "analyze:bundle": "node scripts/bundle-analyzer.js",
     "lighthouse:prod": "lighthouse http://localhost:4173 --output=html --output-path=./lighthouse-report.html",
     "type-check": "tsc --noEmit",
@@ -62,7 +63,9 @@
     "tailwindcss": "^4.1.13",
     "typescript": "^5.0.2",
     "vite": "^7.1.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "selenium-webdriver": "^4.24.0",
+    "vitest-canvas-mock": "^0.3.3"
   },
   "engines": {
     "node": ">=16.0.0",

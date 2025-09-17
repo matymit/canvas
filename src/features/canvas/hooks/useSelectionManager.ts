@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import Konva from 'konva';
 // Store imports are kept defensive, adapt to your store facade
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '../interaction/TransformCommit';
 
 type ElementId = string;
 
@@ -52,6 +53,22 @@ export default function useSelectionManager(
   const selectionSlice = useUnifiedCanvasStore((s: any) => s.selection ?? null);
   // const elementSlice = useUnifiedCanvasStore((s: any) => s.elements ?? new Map<ElementId, any>());
 
+  // inject store access for transform commits
+  const getStore = useCallback(() => {
+    const state = (useUnifiedCanvasStore as any).getState();
+    return {
+      getElement: (id: ElementId) => state.elements?.get?.(id) || state.element?.getById?.(id),
+      updateElement: (id: ElementId, patch: any, opts?: any) => {
+        if (state.element?.update) {
+          state.element.update(id, patch);
+        } else if (state.updateElement) {
+          state.updateElement(id, patch, opts);
+        }
+      },
+      history: state.history,
+    };
+  }, []);
+
   // Marquee state
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
@@ -92,6 +109,54 @@ export default function useSelectionManager(
     selectionSlice?.clear?.();
     selectionSlice?.commit?.();
   }, [selectionSlice]);
+
+  // Create transformer if it doesn't exist and wire lifecycle
+  useEffect(() => {
+    const overlay = overlayLayerRef?.current;
+    if (!overlay) return;
+
+    if (!transformerRef?.current) {
+      const tr = new Konva.Transformer({
+        ignoreStroke: true,
+        rotateEnabled: true,
+        enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        name: 'selection-transformer',
+      });
+      overlay.add(tr);
+      if (transformerRef) {
+        (transformerRef as any).current = tr;
+      }
+    }
+
+    // wire history/commit
+    const tr = transformerRef?.current;
+    if (!tr) return;
+
+    const onStart = () => {
+      beginTransformBatch({ getStore });
+      const state = (useUnifiedCanvasStore as any).getState();
+      state.selection?.beginTransform?.();
+    };
+    
+    const onEnd = () => {
+      const nodes = tr.nodes();
+      nodes.forEach((n) => commitTransformForNode(n, { getStore }));
+      const state = (useUnifiedCanvasStore as any).getState();
+      state.selection?.endTransform?.();
+      endTransformBatch({ getStore });
+      overlay.getStage()?.batchDraw();
+    };
+
+    tr.on('transformstart', onStart);
+    tr.on('transformend', onEnd);
+
+    return () => {
+      if (tr) {
+        tr.off('transformstart', onStart);
+        tr.off('transformend', onEnd);
+      }
+    };
+  }, [overlayLayerRef, transformerRef, getStore]);
 
   // Transformer helpers
   const detachTransformer = useCallback(() => {

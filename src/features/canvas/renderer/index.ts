@@ -16,6 +16,7 @@ import { ImageRendererAdapter } from './modules/ImageRendererAdapter';
 import { MindmapRendererAdapter } from './modules/MindmapRendererAdapter';
 import { TextRenderer } from './modules/TextRenderer';
 import { ShapeRenderer } from './modules/ShapeRenderer';
+import { ShapeTextRenderer } from './modules/ShapeTextRenderer';
 import { DrawingRenderer } from './modules/DrawingRenderer';
 
 export interface CanvasElementLike {
@@ -70,6 +71,7 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
     new MindmapRendererAdapter(),
     new TextRenderer(),
     new ShapeRenderer(),
+    new ShapeTextRenderer(),
     new DrawingRenderer(),
   ];
 

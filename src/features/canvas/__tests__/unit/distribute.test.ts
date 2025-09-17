@@ -21,12 +21,13 @@ describe('distribute utilities', () => {
   it('distributeHorizontally (centers) spaces centers evenly', () => {
     const out = distributeHorizontally(elems, 'centers');
     expect(out).toHaveLength(3);
-    // step = span / (n-1) = 90 / 2 = 45
-    // center positions: a.cx = 5, then 5+45=50 -> b should be centered at 50, so x = 50 - 5 = 45
-    // next center 95 -> c width 20 => x = 95 - 10 = 85
+    // Centers span from firstCenter=5 to lastCenter=(70+20/2)=80; step = (80-5)/2 = 37.5
+    // Center positions: 5, 42.5, 80
+    // b width=10 => x = 42.5 - 5 => 37.5 -> rounds to 38
+    // c width=20 => x = 80 - 10 => 70
     expect(out[0].x).toBe(0);
-    expect(out[1].x).toBe(45);
-    expect(out[2].x).toBe(85);
+    expect(out[1].x).toBe(38);
+    expect(out[2].x).toBe(70);
   });
 
   it('distributeVertically (gaps) produces equal gaps', () => {

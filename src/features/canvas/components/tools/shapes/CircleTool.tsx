@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
+import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -27,7 +28,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
   const drawingRef = useRef<{
-    circle: Konva.Circle | null;
+    circle: Konva.Ellipse | null;
     start: { x: number; y: number } | null;
   }>({ circle: null, start: null });
 
@@ -45,17 +46,18 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
-      const circle = new Konva.Circle({
-        x: pos.x,
-        y: pos.y,
-        radius: 0,
-        stroke: strokeColor,
-        strokeWidth,
-        fill: fillColor,
-        listening: false,
-        perfectDrawEnabled: false,
-        name: 'tool-preview-circle',
-      });
+    const circle = new Konva.Ellipse({
+      x: pos.x,
+      y: pos.y,
+      radiusX: 0,
+      radiusY: 0,
+      stroke: strokeColor,
+      strokeWidth,
+      fill: fillColor,
+      listening: false,
+      perfectDrawEnabled: false,
+      name: 'tool-preview-circle',
+    });
 
       drawingRef.current.circle = circle;
       previewLayer.add(circle);
@@ -72,11 +74,12 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       const start = drawingRef.current.start;
       if (!pos || !layer || !circle || !start) return;
 
-      const dx = pos.x - start.x;
-      const dy = pos.y - start.y;
-      const radius = Math.sqrt(dx * dx + dy * dy);
-
-      circle.radius(radius);
+      const x = Math.min(start.x, pos.x);
+      const y = Math.min(start.y, pos.y);
+      const w = Math.max(8, Math.abs(pos.x - start.x));
+      const h = Math.max(8, Math.abs(pos.y - start.y));
+      circle.position({ x: x + w / 2, y: y + h / 2 });
+      circle.radius({ x: w / 2, y: h / 2 });
       layer.batchDraw();
     };
 
@@ -92,32 +95,34 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
       if (!circle || !start || !pos || !previewLayer) return;
 
-      const dx = pos.x - start.x;
-      const dy = pos.y - start.y;
-      let radius = Math.sqrt(dx * dx + dy * dy);
+      let x = Math.min(start.x, pos.x);
+      let y = Math.min(start.y, pos.y);
+      let w = Math.abs(pos.x - start.x);
+      let h = Math.abs(pos.y - start.y);
 
       // remove preview
       circle.remove();
       previewLayer.batchDraw();
 
-      // If click without drag, create a minimal circle for test ergonomics
-      const MIN_RADIUS = 20;
-      if (radius < 2) {
-        radius = MIN_RADIUS;
+      // If click without drag, create a default circle
+      const MIN_SIZE = 120;
+      if (w < 2 && h < 2) {
+        x = start.x;
+        y = start.y;
+        w = MIN_SIZE;
+        h = MIN_SIZE;
       }
 
       // Commit to store; the renderer will update main layer
-      const id = `circle-${Date.now()}`;
-      const diameter = radius * 2;
-      upsertElement?.({
+      const id = `ellipse-${Date.now()}`;
+      const elementId = upsertElement?.({
         id,
-        type: 'circle',
-        x: start.x - radius,
-        y: start.y - radius,
-        width: diameter,
-        height: diameter,
-        radius,
-        bounds: { x: start.x - radius, y: start.y - radius, width: diameter, height: diameter },
+        type: 'ellipse',
+        x,
+        y,
+        width: w,
+        height: h,
+        bounds: { x, y, width: w, height: h },
         draggable: true,
         style: {
           stroke: strokeColor,
@@ -126,11 +131,14 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
         },
       } as any);
 
-      // Select the new circle to ensure transformer sentinel appears
+      // Select the new ellipse to ensure transformer sentinel appears
       try { replaceSelectionWithSingle?.(id as any); } catch {}
 
-      // Auto-switch back to select
+      // Auto-switch back to select and open text editor
       setSelectedTool?.('select');
+      if (elementId && stage) {
+        openShapeTextEditor(stage, id, { padding: 10, fontSize: 18, lineHeight: 1.3 });
+      }
     };
 
     // Attach handlers on stage

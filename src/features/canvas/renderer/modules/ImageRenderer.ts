@@ -45,8 +45,17 @@ export class ImageRenderer {
         id: el.id,
         name: 'image',
         listening: true, // element-level interactions
+        draggable: true,  // enable element-level drag
         x: el.x,
         y: el.y,
+      });
+      // Commit x/y on dragend
+      g.on('dragend', (e) => {
+        const grp = e.target as Konva.Group;
+        const nx = grp.x();
+        const ny = grp.y();
+        // store facade via global bridge
+        (window as any).__canvasStore?.element?.updateElement?.(el.id, { x: nx, y: ny }, { pushHistory: true });
       });
       this.layers.main.add(g);
       this.groupById.set(el.id, g);

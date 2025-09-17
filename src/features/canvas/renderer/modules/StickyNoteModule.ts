@@ -121,9 +121,18 @@ export class StickyNoteModule implements RendererModule {
 
   private createStickyGroup(sticky: StickySnapshot): Konva.Group {
     const group = new Konva.Group({
+      id: sticky.id,
       x: sticky.x,
       y: sticky.y,
-      draggable: false,
+      draggable: true, // enable dragging
+    });
+
+    // Add dragend handler for position commit
+    group.on('dragend', (e) => {
+      const grp = e.target as Konva.Group;
+      const nx = grp.x();
+      const ny = grp.y();
+      (window as any).__canvasStore?.element?.updateElement?.(sticky.id, { x: nx, y: ny }, { pushHistory: true });
     });
 
     const rect = new Konva.Rect({

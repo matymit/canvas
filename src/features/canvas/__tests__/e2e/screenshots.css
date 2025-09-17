@@ -1,0 +1,16 @@
+/* Hide dynamic/volatile elements for deterministic canvas screenshots */
+
+/* Example selectors – adjust to your app's DOM structure as needed */
+[data-testid="cursor"],
+[data-testid^="transformer"],
+[data-testid^="overlay-"],
+[data-testid="fps-counter"],
+[data-testid="time"] {
+  visibility: hidden !important;
+}
+
+/* Optionally normalize animations */
+* {
+  animation: none !important;
+  transition: none !important;
+}

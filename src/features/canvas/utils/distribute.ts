@@ -10,9 +10,12 @@ export function distributeHorizontally(elems: Elem[], mode: 'centers' | 'gaps' =
   if (span <= 0) return elems;
 
   if (mode === 'centers') {
-    const step = (sorted.length > 1) ? span / (sorted.length - 1) : 0;
+    // Distribute by equal center spacing between first and last centers
+    const firstCenter = left.x + left.w / 2;
+    const lastCenter = right.x + right.w / 2;
+    const step = (sorted.length > 1) ? (lastCenter - firstCenter) / (sorted.length - 1) : 0;
     return sorted.map((el, i) => {
-      const cx = left.x + (el.w / 2) + i * step;
+      const cx = firstCenter + i * step;
       return { ...el, x: Math.round(cx - el.w / 2) };
     });
   } else {

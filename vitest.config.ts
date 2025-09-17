@@ -5,7 +5,7 @@ import path from 'path';
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test/setupTests.ts'],
+    setupFiles: ['./src/test/setupTests.ts', './src/test/setupCanvas.ts'],
     // Exclude Playwright E2E specs from Vitest unit runs
     exclude: [
       '**/node_modules/**',
@@ -14,6 +14,10 @@ export default defineConfig({
     ],
     restoreMocks: true,
     clearMocks: true,
+    deps: {
+      optimizer: { web: { include: ['vitest-canvas-mock', 'konva'] } },
+    },
+    environmentOptions: { jsdom: { resources: 'usable' } },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
@@ -32,9 +36,10 @@ export default defineConfig({
     },
   },
   resolve: {
+    conditions: ['browser'],
     alias: {
       // Force browser build of Konva in tests to avoid requiring native 'canvas'
-      konva: path.posix.join('konva', 'lib', 'index.js'),
+      konva: 'konva/lib/index.js',
     },
   },
 });

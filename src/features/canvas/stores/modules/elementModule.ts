@@ -78,6 +78,19 @@ function __deepClone<T>(v: T): T {
   }
 }
 
+function __sanitize<T extends Record<string, any>>(v: T): T {
+  try {
+    if (v && typeof v === 'object') {
+      const copy: any = Array.isArray(v) ? v.slice() : { ...v };
+      for (const k of Object.keys(copy)) {
+        if (k.startsWith('_')) delete copy[k];
+      }
+      return copy as T;
+    }
+  } catch {}
+  return v;
+}
+
 export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) => ({
   elements: new Map<ElementId, CanvasElement>(),
   elementOrder: [],
@@ -114,7 +127,7 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
 
       // write map immutably
       state.elements = new Map<ElementId, CanvasElement>(state.elements);
-      state.elements.set(element.id as ElementId, element);
+      state.elements.set(element.id as ElementId, __sanitize(element));
 
       // maintain order
       state.elementOrder = state.elementOrder.slice();
@@ -151,7 +164,7 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
         const el = elements[i];
         const at =
           typeof opts?.index === 'number' ? Math.min(state.elementOrder.length, opts.index + i) : state.elementOrder.length;
-        state.elements.set(el.id as ElementId, el);
+        state.elements.set(el.id as ElementId, __sanitize(el));
         state.elementOrder.splice(at, 0, el.id as ElementId);
       }
 
@@ -182,7 +195,7 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
     set((state) => {
       const prev = state.elements?.get(id) ?? (state as any).element?.elements?.get?.(id);
       if (!prev) return;
-      const next = typeof patch === 'function' ? (patch as any)(prev) : { ...prev, ...patch };
+      const next = __sanitize(typeof patch === 'function' ? (patch as any)(prev) : { ...prev, ...patch });
 
       // map immutable write
       const map: Map<ElementId, CanvasElement> =
@@ -304,7 +317,6 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
         }
       }
 
-      removed = prev;
     });
     if (opts?.pushHistory && removed) {
       const root = get() as any;

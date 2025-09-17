@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
+import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -113,7 +114,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
 
       // Commit to store; renderer will update main layer
       const id = `triangle-${Date.now()}`;
-      upsertElement?.({
+      const elementId = upsertElement?.({
         id,
         type: 'triangle',
         x,
@@ -132,8 +133,11 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       // Select the new triangle to ensure transformer sentinel appears
       try { replaceSelectionWithSingle?.(id as any); } catch {}
 
-      // Auto-switch back to select
+      // Auto-switch back to select and open text editor
       setSelectedTool?.('select');
+      if (elementId && stage) {
+        openShapeTextEditor(stage, id, { padding: 8, fontSize: 18, lineHeight: 1.3 });
+      }
     };
 
     stage.on('pointerdown.tritool', onPointerDown);

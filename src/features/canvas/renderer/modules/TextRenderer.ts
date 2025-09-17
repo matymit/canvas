@@ -91,6 +91,13 @@ export class TextRenderer implements RendererModule {
       if (!node) {
         // Create new text node
         node = this.createTextNode(text);
+        // Add dragend handler for position commit
+        node.on('dragend', (e) => {
+          const textNode = e.target as Konva.Text;
+          const nx = textNode.x();
+          const ny = textNode.y();
+          (window as any).__canvasStore?.element?.updateElement?.(text.id, { x: nx, y: ny }, { pushHistory: true });
+        });
         this.textNodes.set(id, node);
         this.layer.add(node);
       } else {
@@ -127,6 +134,7 @@ export class TextRenderer implements RendererModule {
       opacity: text.opacity || 1,
       wrap: 'word',
       listening: true,
+      draggable: true, // enable dragging
       // Performance optimizations
       perfectDrawEnabled: false,
       shadowForStrokeEnabled: false,

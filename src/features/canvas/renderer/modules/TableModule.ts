@@ -81,6 +81,13 @@ export class TableRenderer {
         x: el.x,
         y: el.y,
       });
+      // Add dragend handler for position commit
+      g.on('dragend', (e) => {
+        const grp = e.target as Konva.Group;
+        const nx = grp.x();
+        const ny = grp.y();
+        (window as any).__canvasStore?.element?.updateElement?.(el.id, { x: nx, y: ny }, { pushHistory: true });
+      });
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
     }

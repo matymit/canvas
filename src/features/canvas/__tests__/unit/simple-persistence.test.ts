@@ -42,8 +42,9 @@ describe('Simple Persistence Test', () => {
         height: 150
       });
 
-      expect(store.elements.size).toBe(1);
-      expect(store.elements.get('test-1')).toBeDefined();
+      const s = useUnifiedCanvasStore.getState();
+      expect(s.elements.size).toBe(1);
+      expect(s.elements.get('test-1')).toBeDefined();
     } else if (store.element && typeof store.element.upsert === 'function') {
       const id = store.element.upsert({
         id: 'test-1',
@@ -54,8 +55,9 @@ describe('Simple Persistence Test', () => {
         height: 150
       });
 
+      const s = useUnifiedCanvasStore.getState();
       expect(id).toBe('test-1');
-      expect(store.elements.size).toBe(1);
+      expect(s.elements.size).toBe(1);
     } else {
       console.log('No add methods found');
     }

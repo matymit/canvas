@@ -90,6 +90,13 @@ export class ShapeRenderer implements RendererModule {
         // Create new shape node
         node = this.createShapeNode(shape);
         if (node) {
+          // Add dragend handler for position commit
+          node.on('dragend', (e) => {
+            const shapeNode = e.target as Konva.Shape;
+            const nx = shapeNode.x();
+            const ny = shapeNode.y();
+            (window as any).__canvasStore?.element?.updateElement?.(shape.id, { x: nx, y: ny }, { pushHistory: true });
+          });
           this.shapeNodes.set(id, node);
           this.layer.add(node);
         }
@@ -122,6 +129,7 @@ export class ShapeRenderer implements RendererModule {
       opacity: shape.style?.opacity || 1,
       rotation: shape.rotation || 0,
       listening: true,
+      draggable: true, // enable dragging
     };
 
     switch (shape.type) {
