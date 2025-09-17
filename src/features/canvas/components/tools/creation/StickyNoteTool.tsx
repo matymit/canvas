@@ -24,6 +24,11 @@ function getStickyNoteModule(): any {
   return (window as any).stickyNoteModule;
 }
 
+// Get reference to SelectionModule for immediate selection
+function getSelectionModule(): any {
+  return (window as any).selectionModule;
+}
+
 const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   isActive,
   stageRef,
@@ -45,9 +50,6 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   );
   const setSelectedTool = useUnifiedCanvasStore((s: any) => 
     s.setSelectedTool || s.ui?.setSelectedTool
-  );
-  const setSelection = useUnifiedCanvasStore((s: any) => 
-    s.selection?.set || s.setSelection
   );
   const withUndo = useUnifiedCanvasStore((s: any) => 
     s.withUndo || s.history?.withUndo
@@ -101,29 +103,41 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         return;
       }
 
-      // FIXED: Immediate auto-selection for resize frame
-      if (setSelection) {
-        setTimeout(() => {
-          console.log('[StickyNoteTool] Auto-selecting element:', stickyElement.id);
-          setSelection([stickyElement.id]);
-        }, 50); // Quick selection first
-      }
+      // FIXED: Use SelectionModule for immediate auto-selection
+      setTimeout(() => {
+        const selectionModule = getSelectionModule();
+        if (selectionModule?.autoSelectElement) {
+          console.log('[StickyNoteTool] Auto-selecting via SelectionModule:', stickyElement.id);
+          selectionModule.autoSelectElement(stickyElement.id);
+        } else {
+          console.warn('[StickyNoteTool] SelectionModule not available, trying store selection');
+          // Fallback to direct store selection
+          const store = useUnifiedCanvasStore.getState();
+          if (store.setSelection) {
+            store.setSelection([stickyElement.id]);
+          } else if (store.selectedElementIds && typeof store.selectedElementIds === 'object') {
+            // Handle Set-based selection
+            store.selectedElementIds.clear();
+            store.selectedElementIds.add(stickyElement.id);
+          }
+        }
+      }, 150); // Allow time for element to render
 
-      // FIXED: Immediate text editing with proper timing
+      // FIXED: Immediate text editing with proper timing after selection
       setTimeout(() => {
         const stickyModule = getStickyNoteModule();
         if (stickyModule?.triggerImmediateTextEdit) {
           console.log('[StickyNoteTool] Triggering immediate text edit for:', stickyElement.id);
           stickyModule.triggerImmediateTextEdit(stickyElement.id);
         }
-      }, 100); // Allow renderer to create element first
+      }, 200); // Wait for selection to complete first
 
       // FIXED: Switch to select tool after both selection and text editing are initiated
       setTimeout(() => {
         if (setSelectedTool) {
           setSelectedTool('select');
         }
-      }, 150);
+      }, 250);
 
       if (e) e.cancelBubble = true;
     };
@@ -135,7 +149,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     return () => {
       stage.off('pointerdown.sticky');
     };
-  }, [isActive, stageRef, width, height, actualFill, text, fontSize, createElement, setSelectedTool, setSelection, withUndo]);
+  }, [isActive, stageRef, width, height, actualFill, text, fontSize, createElement, setSelectedTool, withUndo]);
 
   return null;
 };
