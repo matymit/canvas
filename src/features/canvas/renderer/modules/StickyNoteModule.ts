@@ -17,11 +17,13 @@ type StickySnapshot = {
 export class StickyNoteModule implements RendererModule {
   private nodes = new Map<Id, Konva.Group>();
   private layers?: Konva.Layer;
+  private storeCtx?: ModuleRendererCtx;
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
     console.log('[StickyNoteModule] Mounting...');
     this.layers = ctx.layers.main;
+    this.storeCtx = ctx;
     
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
@@ -32,38 +34,33 @@ export class StickyNoteModule implements RendererModule {
           if (element.type === 'sticky-note') {
             stickyNotes.set(id, {
               id,
-              x: element.x,
-              y: element.y,
-              width: element.width || 200,
-              height: element.height || 100,
-              fill: element.style?.fill,
-              text: element.text,
+              x: element.x || 0,
+              y: element.y || 0,
+              width: element.width || 240,
+              height: element.height || 180,
+              fill: element.style?.fill || element.fill,
+              text: element.text || element.data?.text || '',
             });
           }
         }
         return stickyNotes;
       },
       // Callback: reconcile changes
-      (stickyNotes) => this.reconcile(stickyNotes)
-    );
-
-    // Initial render
-    const initialState = ctx.store.getState();
-    const initialStickies = new Map<Id, StickySnapshot>();
-    for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'sticky-note') {
-        initialStickies.set(id, {
-          id,
-          x: element.x,
-          y: element.y,
-          width: element.width || 200,
-          height: element.height || 100,
-          fill: element.style?.fill,
-          text: element.text,
-        });
+      (stickyNotes) => this.reconcile(stickyNotes),
+      // Options: shallow compare and fire immediately
+      {
+        fireImmediately: true,
+        equalityFn: (a: Map<Id, StickySnapshot>, b: Map<Id, StickySnapshot>) => {
+          if (a.size !== b.size) return false;
+          for (const [id, aSticky] of a) {
+            const bSticky = b.get(id);
+            if (!bSticky) return false;
+            if (JSON.stringify(aSticky) !== JSON.stringify(bSticky)) return false;
+          }
+          return true;
+        }
       }
-    }
-    this.reconcile(initialStickies);
+    );
 
     // Return cleanup function
     return () => this.unmount();
@@ -73,6 +70,7 @@ export class StickyNoteModule implements RendererModule {
     console.log('[StickyNoteModule] Unmounting...');
     if (this.unsubscribe) {
       this.unsubscribe();
+      this.unsubscribe = undefined;
     }
     for (const group of this.nodes.values()) {
       group.destroy();
@@ -86,7 +84,10 @@ export class StickyNoteModule implements RendererModule {
   private reconcile(stickyNotes: Map<Id, StickySnapshot>) {
     console.log('[StickyNoteModule] Reconciling', stickyNotes.size, 'sticky notes');
     
-    if (!this.layers) return;
+    if (!this.layers) {
+      console.warn('[StickyNoteModule] No main layer available');
+      return;
+    }
 
     const seen = new Set<Id>();
 
@@ -103,6 +104,7 @@ export class StickyNoteModule implements RendererModule {
         this.layers.add(group);
       } else {
         // Update existing sticky note
+        console.log('[StickyNoteModule] Updating sticky note:', id, 'fill:', sticky.fill);
         this.updateStickyGroup(group, sticky);
       }
     }
@@ -124,37 +126,40 @@ export class StickyNoteModule implements RendererModule {
       id: sticky.id,
       x: sticky.x,
       y: sticky.y,
-      draggable: true, // enable dragging
+      draggable: true,
     });
 
-    // Add dragend handler for position commit
-    group.on('dragend', (e) => {
-      const grp = e.target as Konva.Group;
-      const nx = grp.x();
-      const ny = grp.y();
-      (window as any).__canvasStore?.element?.updateElement?.(sticky.id, { x: nx, y: ny }, { pushHistory: true });
-    });
+    // CRITICAL: Set elementId for selection handling
+    group.setAttr('elementId', sticky.id);
+
+    // Add interaction handlers
+    this.setupStickyInteractions(group, sticky.id);
 
     const rect = new Konva.Rect({
       x: 0,
       y: 0,
       width: sticky.width,
       height: sticky.height,
-      fill: sticky.fill || '#FEF08A', // Default yellow
+      fill: sticky.fill || '#FEF08A', // Default sticky yellow
       stroke: '#E5E7EB',
       strokeWidth: 1,
       cornerRadius: 8,
+      shadowColor: 'black',
+      shadowBlur: 10,
+      shadowOpacity: 0.1,
+      shadowOffset: { x: 0, y: 2 },
     });
 
     const text = new Konva.Text({
       x: 12,
       y: 12,
-      width: sticky.width - 24,
+      width: Math.max(0, sticky.width - 24),
       text: sticky.text || '',
       fontSize: 14,
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Inter, system-ui, sans-serif',
       fill: '#374151',
       wrap: 'word',
+      lineHeight: 1.4,
     });
 
     group.add(rect);
@@ -172,17 +177,55 @@ export class StickyNoteModule implements RendererModule {
 
     // Update rectangle
     const rect = group.getChildren()[0] as Konva.Rect;
-    rect.setAttrs({
-      width: sticky.width,
-      height: sticky.height,
-      fill: sticky.fill || '#FEF08A',
-    });
+    if (rect) {
+      rect.setAttrs({
+        width: sticky.width,
+        height: sticky.height,
+        fill: sticky.fill || '#FEF08A',
+      });
+    }
 
     // Update text
     const text = group.getChildren()[1] as Konva.Text;
-    text.setAttrs({
-      width: sticky.width - 24,
-      text: sticky.text || '',
+    if (text) {
+      text.setAttrs({
+        width: Math.max(0, sticky.width - 24),
+        text: sticky.text || '',
+      });
+    }
+  }
+
+  private setupStickyInteractions(group: Konva.Group, elementId: string) {
+    // Drag handling with store updates
+    group.on('dragend', () => {
+      if (!this.storeCtx) return;
+      
+      const pos = group.position();
+      const updateElement = this.storeCtx.store.getState().element?.update;
+      
+      if (updateElement) {
+        try {
+          updateElement(elementId, { x: pos.x, y: pos.y });
+          console.log('[StickyNoteModule] Updated position for', elementId, pos);
+        } catch (error) {
+          console.error('[StickyNoteModule] Failed to update position:', error);
+        }
+      }
+    });
+
+    // Double-click to edit text (optional - can be handled by tools)
+    group.on('dblclick', () => {
+      console.log('[StickyNoteModule] Double-click on sticky note:', elementId);
+      // Could trigger text editing mode here
+    });
+
+    // Hover effects
+    group.on('mouseenter', () => {
+      document.body.style.cursor = 'move';
+    });
+
+    group.on('mouseleave', () => {
+      document.body.style.cursor = 'default';
     });
   }
 }
