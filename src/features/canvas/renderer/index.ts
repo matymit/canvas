@@ -18,6 +18,7 @@ import { TextRenderer } from './modules/TextRenderer';
 import { ShapeRenderer } from './modules/ShapeRenderer';
 import { ShapeTextRenderer } from './modules/ShapeTextRenderer';
 import { DrawingRenderer } from './modules/DrawingRenderer';
+import { SelectionModule } from './modules/SelectionModule';
 
 export interface CanvasElementLike {
   id: string;
@@ -64,6 +65,7 @@ export interface RendererModule {
 // Setup renderer modules
 export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['layers']) {
   const modules: RendererModule[] = [
+    // Content rendering modules first
     new StickyNoteModule(),
     new ConnectorRendererAdapter(),
     new TableModuleAdapter(),
@@ -73,6 +75,8 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
     new ShapeRenderer(),
     new ShapeTextRenderer(),
     new DrawingRenderer(),
+    // Selection module last so it can find rendered nodes
+    new SelectionModule(),
   ];
 
   console.log('[Renderer] Mounting', modules.length, 'renderer modules');
