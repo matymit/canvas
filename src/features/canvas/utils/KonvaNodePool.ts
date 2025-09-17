@@ -1,5 +1,6 @@
 // features/canvas/utils/KonvaNodePool.ts
 import type Konva from 'konva';
+import { memoryUtils } from './performance/MemoryManager';
 
 export type PoolKey = string;
 
@@ -11,12 +12,34 @@ export interface PoolFactory<T extends Konva.Node> {
   reset?: (node: T) => void;
   // Dispose a node permanently (default destroys the node).
   dispose?: (node: T) => void;
+  // Validate that a node is still safe to reuse (optional)
+  validate?: (node: T) => boolean;
 }
 
 export interface PoolStats {
   totalKeys: number;
   totalNodes: number;
-  perKey: Array<{ key: PoolKey; size: number; max?: number }>;
+  totalAcquired: number;
+  totalReused: number;
+  totalCreated: number;
+  totalDisposed: number;
+  perKey: Array<{ key: PoolKey; size: number; max?: number; hitRate: number }>;
+  memoryEstimateMB: number;
+}
+
+export interface PoolConfig {
+  defaultMaxPerKey: number;
+  enableMetrics: boolean;
+  enableValidation: boolean;
+  maxIdleTime: number; // Time before idle nodes are disposed (ms)
+  gcInterval: number; // Garbage collection check interval (ms)
+  memoryPressureThreshold: number; // When to start aggressive cleanup (0.8 = 80%)
+}
+
+interface NodeMetadata {
+  lastUsed: number;
+  timesReused: number;
+  memoryTrackingId?: string;
 }
 
 export class KonvaNodePool {
@@ -24,19 +47,46 @@ export class KonvaNodePool {
   private readonly factories = new Map<PoolKey, PoolFactory<any>>();
   private readonly maxPerKey = new Map<PoolKey, number>();
   private readonly nodeToKey = new WeakMap<Konva.Node, PoolKey>();
-  private defaultMaxPerKey: number;
+  private readonly nodeMetadata = new WeakMap<Konva.Node, NodeMetadata>();
+  private readonly stats = new Map<PoolKey, {
+    acquired: number;
+    reused: number;
+    created: number;
+    disposed: number;
+  }>();
+  
+  private config: PoolConfig;
+  private gcTimer: number | null = null;
+  private isDisposed = false;
 
-  constructor(defaultMaxPerKey = 64) {
-    this.defaultMaxPerKey = defaultMaxPerKey;
+  constructor(config: Partial<PoolConfig> = {}) {
+    this.config = {
+      defaultMaxPerKey: 64,
+      enableMetrics: true,
+      enableValidation: true,
+      maxIdleTime: 2 * 60 * 1000, // 2 minutes
+      gcInterval: 30 * 1000, // 30 seconds
+      memoryPressureThreshold: 0.8,
+      ...config,
+    };
+
+    this.startGarbageCollection();
   }
 
   register<T extends Konva.Node>(key: PoolKey, factory: PoolFactory<T>, maxPerKey?: number): void {
+    if (this.isDisposed) return;
+    
     this.factories.set(key, factory);
     if (typeof maxPerKey === 'number') this.maxPerKey.set(key, maxPerKey);
     if (!this.pools.has(key)) this.pools.set(key, []);
+    if (!this.stats.has(key)) {
+      this.stats.set(key, { acquired: 0, reused: 0, created: 0, disposed: 0 });
+    }
   }
 
   unregister(key: PoolKey, dispose = true): void {
+    if (this.isDisposed) return;
+    
     const pool = this.pools.get(key);
     if (dispose && pool) {
       const factory = this.factories.get(key);
@@ -47,58 +97,184 @@ export class KonvaNodePool {
     this.pools.delete(key);
     this.factories.delete(key);
     this.maxPerKey.delete(key);
+    this.stats.delete(key);
   }
 
   acquire<T extends Konva.Node>(key: PoolKey): T {
+    if (this.isDisposed) {
+      throw new Error('KonvaNodePool has been disposed');
+    }
+    
     const factory = this.factories.get(key);
     if (!factory) throw new Error(`KonvaNodePool: no factory registered for key "${key}"`);
+    
     const pool = this.pools.get(key)!;
-    // Reuse or create
-    const node = (pool.pop() as T) ?? (factory.create() as T);
+    const stats = this.stats.get(key)!;
+    let node: T;
+    
+    // Try to reuse an existing node
+    if (pool.length > 0) {
+      let reuseableNode: T | null = null;
+      let reuseIndex = -1;
+      
+      // Find the most recently used valid node
+      for (let i = pool.length - 1; i >= 0; i--) {
+        const candidateNode = pool[i] as T;
+        
+        // Validate node if validation is enabled
+        if (this.config.enableValidation && factory.validate) {
+          if (!factory.validate(candidateNode)) {
+            // Invalid node, remove and dispose
+            pool.splice(i, 1);
+            this.safeDispose(candidateNode, factory);
+            stats.disposed++;
+            continue;
+          }
+        }
+        
+        reuseableNode = candidateNode;
+        reuseIndex = i;
+        break;
+      }
+      
+      if (reuseableNode) {
+        node = reuseableNode;
+        pool.splice(reuseIndex, 1);
+        stats.reused++;
+        
+        // Update metadata
+        const metadata = this.nodeMetadata.get(node);
+        if (metadata) {
+          metadata.lastUsed = Date.now();
+          metadata.timesReused++;
+        }
+      } else {
+        // No valid nodes available, create new one
+        node = factory.create() as T;
+        stats.created++;
+        
+        // Track in memory manager
+        const memoryTrackingId = memoryUtils.trackNode(node, {
+          poolKey: key,
+          createdAt: Date.now(),
+        });
+        
+        this.nodeMetadata.set(node, {
+          lastUsed: Date.now(),
+          timesReused: 0,
+          memoryTrackingId,
+        });
+      }
+    } else {
+      // Pool is empty, create new node
+      node = factory.create() as T;
+      stats.created++;
+      
+      // Track in memory manager
+      const memoryTrackingId = memoryUtils.trackNode(node, {
+        poolKey: key,
+        createdAt: Date.now(),
+      });
+      
+      this.nodeMetadata.set(node, {
+        lastUsed: Date.now(),
+        timesReused: 0,
+        memoryTrackingId,
+      });
+    }
+    
     this.nodeToKey.set(node, key);
+    stats.acquired++;
+    
     return node;
   }
 
   release<T extends Konva.Node>(node: T): void {
+    if (this.isDisposed) {
+      // Pool is disposed, just destroy the node
+      this.cleanupNode(node);
+      return;
+    }
+    
     const key = this.nodeToKey.get(node);
     if (!key) {
       // Unknown node — destroy to avoid cross-pool contamination.
-      node.destroy();
+      this.cleanupNode(node);
       return;
     }
+    
     const factory = this.factories.get(key);
     const pool = this.pools.get(key);
-    if (!pool) {
+    const stats = this.stats.get(key);
+    
+    if (!pool || !stats) {
       // Pool was removed; dispose.
       this.safeDispose(node, factory);
       return;
     }
 
+    // Validate node before returning to pool
+    if (this.config.enableValidation && factory?.validate && !factory.validate(node)) {
+      this.safeDispose(node, factory);
+      stats.disposed++;
+      return;
+    }
+
     this.safeReset(node, factory);
 
-    const max = this.maxPerKey.get(key) ?? this.defaultMaxPerKey;
+    const max = this.maxPerKey.get(key) ?? this.config.defaultMaxPerKey;
     if (pool.length >= max) {
-      // Over capacity — dispose oldest to keep memory bounded.
+      // Over capacity — dispose to keep memory bounded.
       this.safeDispose(node, factory);
+      stats.disposed++;
     } else {
+      // Return to pool
       pool.push(node);
+      
+      // Update metadata
+      const metadata = this.nodeMetadata.get(node);
+      if (metadata) {
+        metadata.lastUsed = Date.now();
+      }
     }
   }
 
   prewarm(key: PoolKey, count: number): void {
+    if (this.isDisposed) return;
+    
     const factory = this.factories.get(key);
     if (!factory) throw new Error(`KonvaNodePool: no factory registered for key "${key}"`);
+    
     const pool = this.pools.get(key)!;
-    const max = this.maxPerKey.get(key) ?? this.defaultMaxPerKey;
+    const max = this.maxPerKey.get(key) ?? this.config.defaultMaxPerKey;
     const target = Math.min(count, max);
+    const stats = this.stats.get(key)!;
+    
     while (pool.length < target) {
       const node = factory.create();
       this.safeReset(node, factory);
+      
+      // Track in memory manager
+      const memoryTrackingId = memoryUtils.trackNode(node, {
+        poolKey: key,
+        createdAt: Date.now(),
+        prewarmed: true,
+      });
+      
+      this.nodeMetadata.set(node, {
+        lastUsed: Date.now(),
+        timesReused: 0,
+        memoryTrackingId,
+      });
+      
       pool.push(node);
+      stats.created++;
     }
   }
 
   prune(key?: PoolKey): void {
+    if (this.isDisposed) return;
+    
     if (key) {
       this.pruneOne(key);
       return;
@@ -106,21 +282,59 @@ export class KonvaNodePool {
     for (const k of this.pools.keys()) this.pruneOne(k);
   }
 
-  clear(dispose = true): void {
+  // Prune idle nodes that haven't been used recently
+  pruneIdle(maxIdleTime?: number): number {
+    if (this.isDisposed) return 0;
+    
+    const idleThreshold = maxIdleTime ?? this.config.maxIdleTime;
+    const now = Date.now();
+    let totalPruned = 0;
+    
     for (const [key, pool] of this.pools) {
-      if (dispose) {
+      const factory = this.factories.get(key);
+      const stats = this.stats.get(key)!;
+      let poolPruned = 0;
+      
+      // Filter out idle nodes
+      for (let i = pool.length - 1; i >= 0; i--) {
+        const node = pool[i];
+        const metadata = this.nodeMetadata.get(node);
+        
+        if (metadata && (now - metadata.lastUsed) > idleThreshold) {
+          pool.splice(i, 1);
+          this.safeDispose(node, factory);
+          stats.disposed++;
+          poolPruned++;
+        }
+      }
+      
+      totalPruned += poolPruned;
+      
+      if (poolPruned > 0 && this.config.enableMetrics) {
+        console.debug(`KonvaNodePool: Pruned ${poolPruned} idle nodes from pool "${key}"`);
+      }
+    }
+    
+    return totalPruned;
+  }
+
+  clear(dispose = true): void {
+    if (dispose) {
+      for (const [key, pool] of this.pools) {
         const factory = this.factories.get(key);
         for (const node of pool) this.safeDispose(node, factory);
       }
     }
+    
     this.pools.clear();
     this.maxPerKey.clear();
     this.factories.clear();
-    // WeakMap will clear naturally
+    this.stats.clear();
+    // WeakMaps will clear naturally
   }
 
   setDefaultMaxPerKey(max: number): void {
-    this.defaultMaxPerKey = Math.max(0, max | 0);
+    this.config.defaultMaxPerKey = Math.max(0, max | 0);
   }
 
   setMaxForKey(key: PoolKey, max: number): void {
@@ -129,49 +343,172 @@ export class KonvaNodePool {
     this.pruneOne(key);
   }
 
-  stats(): PoolStats {
-    let total = 0;
+  getStats(): PoolStats {
+    let totalNodes = 0;
+    let totalAcquired = 0;
+    let totalReused = 0;
+    let totalCreated = 0;
+    let totalDisposed = 0;
+    
     const perKey = Array.from(this.pools.entries()).map(([k, v]) => {
-      total += v.length;
-      return { key: k, size: v.length, max: this.maxPerKey.get(k) };
+      totalNodes += v.length;
+      const stats = this.stats.get(k)!;
+      totalAcquired += stats.acquired;
+      totalReused += stats.reused;
+      totalCreated += stats.created;
+      totalDisposed += stats.disposed;
+      
+      const hitRate = stats.acquired > 0 ? stats.reused / stats.acquired : 0;
+      
+      return { 
+        key: k, 
+        size: v.length, 
+        max: this.maxPerKey.get(k),
+        hitRate: Math.round(hitRate * 100) / 100 // Round to 2 decimal places
+      };
     });
-    return { totalKeys: this.pools.size, totalNodes: total, perKey };
+    
+    // Estimate memory usage
+    let memoryEstimate = 0;
+    for (const [, pool] of this.pools) {
+      // Rough estimate: each Konva node ~2KB average
+      memoryEstimate += pool.length * 2048;
+    }
+    
+    return {
+      totalKeys: this.pools.size,
+      totalNodes,
+      totalAcquired,
+      totalReused,
+      totalCreated,
+      totalDisposed,
+      perKey,
+      memoryEstimateMB: memoryEstimate / (1024 * 1024),
+    };
+  }
+
+  // Check if memory pressure requires aggressive cleanup
+  handleMemoryPressure(): number {
+    if (this.isDisposed) return 0;
+    
+    const memoryMetrics = memoryUtils.getMetrics();
+    let cleaned = 0;
+    
+    // If we have memory pressure, be more aggressive with cleanup
+    if (memoryMetrics.totalHeapUsed && memoryMetrics.totalHeapSize) {
+      const usage = memoryMetrics.totalHeapUsed / memoryMetrics.totalHeapSize;
+      
+      if (usage > this.config.memoryPressureThreshold) {
+        console.warn(`Memory pressure detected (${Math.round(usage * 100)}%), cleaning up node pools`);
+        
+        // Prune idle nodes more aggressively
+        cleaned += this.pruneIdle(this.config.maxIdleTime * 0.5);
+        
+        // Reduce pool sizes temporarily
+        for (const [key, pool] of this.pools) {
+          const currentMax = this.maxPerKey.get(key) ?? this.config.defaultMaxPerKey;
+          const targetSize = Math.floor(currentMax * 0.5); // Reduce to 50%
+          
+          if (pool.length > targetSize) {
+            const factory = this.factories.get(key);
+            const stats = this.stats.get(key)!;
+            const toRemove = pool.length - targetSize;
+            
+            for (let i = 0; i < toRemove; i++) {
+              const node = pool.pop();
+              if (node) {
+                this.safeDispose(node, factory);
+                stats.disposed++;
+                cleaned++;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return cleaned;
+  }
+
+  // Dispose the entire pool and cleanup resources
+  dispose(): void {
+    if (this.isDisposed) return;
+    
+    this.isDisposed = true;
+    
+    // Stop garbage collection
+    if (this.gcTimer !== null) {
+      clearInterval(this.gcTimer);
+      this.gcTimer = null;
+    }
+    
+    // Clean up all resources
+    this.clear(true);
   }
 
   private pruneOne(key: PoolKey): void {
     const pool = this.pools.get(key);
     if (!pool) return;
-    const max = this.maxPerKey.get(key) ?? this.defaultMaxPerKey;
+    
+    const max = this.maxPerKey.get(key) ?? this.config.defaultMaxPerKey;
     if (pool.length <= max) return;
+    
     const factory = this.factories.get(key);
+    const stats = this.stats.get(key)!;
+    
     while (pool.length > max) {
       const node = pool.pop()!;
       this.safeDispose(node, factory);
+      stats.disposed++;
     }
   }
 
   private safeReset<T extends Konva.Node>(node: T, factory?: PoolFactory<T>): void {
     if (factory?.reset) {
-      factory.reset(node);
+      try {
+        factory.reset(node);
+      } catch (error) {
+        console.warn('Error in custom reset function:', error);
+        // Fall back to default reset
+        this.defaultReset(node);
+      }
       return;
     }
-    // Conservative default reset: detach, stop interactions, clear listeners, and remove children for containers.
+    
+    this.defaultReset(node);
+  }
+
+  private defaultReset<T extends Konva.Node>(node: T): void {
     try {
+      // Stop any ongoing operations
       node.stopDrag?.();
     } catch {
       // ignore
     }
+    
     try {
-      node.off(); // remove all event handlers
+      // Clear all event handlers
+      node.off();
     } catch {
       // ignore
     }
-    // Detach from parent but keep node alive for reuse
+    
     try {
+      // Detach from parent but keep node alive for reuse
       node.remove();
     } catch {
       // ignore
     }
+    
+    try {
+      // Reset common properties that might affect reuse
+      node.visible(true);
+      node.listening(true);
+      node.draggable(false);
+    } catch {
+      // ignore
+    }
+    
     // If the node is a container (e.g., Group), clear children so the pooled wrapper is clean.
     const anyNode = node as unknown as { removeChildren?: () => void };
     try {
@@ -182,12 +519,59 @@ export class KonvaNodePool {
   }
 
   private safeDispose<T extends Konva.Node>(node: T, factory?: PoolFactory<T>): void {
-    try {
-      if (factory?.dispose) factory.dispose(node);
-      else node.destroy();
-    } catch {
-      // ignore
+    // Clean up memory tracking first
+    const metadata = this.nodeMetadata.get(node);
+    if (metadata?.memoryTrackingId) {
+      memoryUtils.cleanup(metadata.memoryTrackingId);
     }
+    
+    try {
+      if (factory?.dispose) {
+        factory.dispose(node);
+      } else {
+        this.cleanupNode(node);
+      }
+    } catch (error) {
+      console.warn('Error disposing node:', error);
+    }
+  }
+
+  private cleanupNode<T extends Konva.Node>(node: T): void {
+    try {
+      // Clean up event listeners
+      node.off();
+      
+      // Remove from parent
+      node.remove();
+      
+      // Destroy the node
+      node.destroy();
+    } catch (error) {
+      console.warn('Error cleaning up node:', error);
+    }
+  }
+
+  private startGarbageCollection(): void {
+    if (this.gcTimer !== null) return;
+    
+    this.gcTimer = setInterval(() => {
+      if (this.isDisposed) return;
+      
+      try {
+        // Prune idle nodes
+        const prunedIdle = this.pruneIdle();
+        
+        // Handle memory pressure
+        const cleanedUnderPressure = this.handleMemoryPressure();
+        
+        const totalCleaned = prunedIdle + cleanedUnderPressure;
+        if (totalCleaned > 0 && this.config.enableMetrics) {
+          console.debug(`KonvaNodePool GC: cleaned ${totalCleaned} nodes (${prunedIdle} idle, ${cleanedUnderPressure} pressure)`);
+        }
+      } catch (error) {
+        console.warn('Error in KonvaNodePool garbage collection:', error);
+      }
+    }, this.config.gcInterval) as unknown as number;
   }
 }
 
