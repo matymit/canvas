@@ -1,36 +1,49 @@
 // Connector tool with endpoint snapping, preview, and line/arrow variants
-import React, { useEffect, useRef } from 'react';
-import Konva from 'konva';
-import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
-import type { AnchorSide } from '../../../types/elements/connector';
-import type { ConnectorElement } from '../../../types/elements/connector';
-import { findNearestAnchor } from '../../../utils/anchors/AnchorSnapping';
+import React, { useEffect, useRef } from "react";
+import Konva from "konva";
+import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import type { AnchorSide } from "../../../types/elements/connector";
+import type { ConnectorElement } from "../../../types/elements/connector";
+import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
 
 type StageRef = React.RefObject<Konva.Stage>;
 
 export interface ConnectorToolProps {
   isActive: boolean;
   stageRef: StageRef;
-  toolId?: 'connector-line' | 'connector-arrow';
+  toolId?: "connector-line" | "connector-arrow";
 }
 
 const DEFAULT_STYLE = {
-  stroke: '#111827',
+  stroke: "#111827",
   strokeWidth: 2,
   rounded: true,
   arrowSize: 10,
   opacity: 1,
 };
 
-export const ConnectorTool: React.FC<ConnectorToolProps> = ({ 
-  isActive, 
-  stageRef, 
-  toolId = 'connector-line' 
+export const ConnectorTool: React.FC<ConnectorToolProps> = ({
+  isActive,
+  stageRef,
+  toolId = "connector-line",
 }) => {
-  const selectedTool = useUnifiedCanvasStore((s: any) => s.selectedTool ?? s.ui?.selectedTool);
-  const setTool = useUnifiedCanvasStore((s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool);
-  const addElement = useUnifiedCanvasStore((s: any) => s.element?.addElement || s.element?.createElement || s.elements?.addElement);
-  const selectOnly = useUnifiedCanvasStore((s: any) => (s as any).replaceSelectionWithSingle ?? s.selection?.replaceSelectionWithSingle);
+  const selectedTool = useUnifiedCanvasStore(
+    (s: any) => s.selectedTool ?? s.ui?.selectedTool,
+  );
+  const setTool = useUnifiedCanvasStore(
+    (s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool,
+  );
+  const addElement = useUnifiedCanvasStore(
+    (s: any) =>
+      s.element?.addElement ||
+      s.element?.createElement ||
+      s.elements?.addElement,
+  );
+  const selectOnly = useUnifiedCanvasStore(
+    (s: any) =>
+      (s as any).replaceSelectionWithSingle ??
+      s.selection?.replaceSelectionWithSingle,
+  );
   const begin = useUnifiedCanvasStore((s: any) => s.history?.beginBatch);
   const end = useUnifiedCanvasStore((s: any) => s.history?.endBatch);
 
@@ -46,7 +59,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     const layers = stage.getLayers();
     const main = layers[1] as Konva.Layer | undefined; // background(0), main(1), preview(2), overlay(3)
     if (!main) return [];
-    return main.find<Konva.Node>('Group, Rect, Line, Image, Text'); // broad; filter as needed
+    return main.find<Konva.Node>("Group, Rect, Line, Image, Text"); // broad; filter as needed
   };
 
   useEffect(() => {
@@ -58,21 +71,23 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     const previewLayer = layers[layers.length - 2] as Konva.Layer | undefined; // preview
     if (!previewLayer) return;
 
-    const isArrow = toolId === 'connector-arrow';
+    const isArrow = toolId === "connector-arrow";
 
     const onPointerDown = () => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
       const candidates = getCandidates(stage);
-      const snap = findNearestAnchor(stage, pos, candidates, { 
-        pixelThreshold: 12, 
-        includeCenter: true 
+      const snap = findNearestAnchor(pos, candidates, {
+        pixelThreshold: 12,
+        includeCenter: true,
       });
 
       const start = snap ? { x: snap.x, y: snap.y } : { x: pos.x, y: pos.y };
       ref.current.start = start;
-      ref.current.startSnap = snap ? { elementId: snap.elementId, side: snap.side } : null;
+      ref.current.startSnap = snap
+        ? { elementId: snap.elementId, side: snap.side }
+        : null;
 
       const shape = isArrow
         ? new Konva.Arrow({
@@ -81,25 +96,25 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
             strokeWidth: DEFAULT_STYLE.strokeWidth,
             pointerLength: DEFAULT_STYLE.arrowSize,
             pointerWidth: DEFAULT_STYLE.arrowSize * 0.7,
-            lineCap: DEFAULT_STYLE.rounded ? 'round' : 'butt',
-            lineJoin: DEFAULT_STYLE.rounded ? 'round' : 'miter',
+            lineCap: DEFAULT_STYLE.rounded ? "round" : "butt",
+            lineJoin: DEFAULT_STYLE.rounded ? "round" : "miter",
             opacity: DEFAULT_STYLE.opacity,
             listening: false,
             perfectDrawEnabled: false,
             shadowForStrokeEnabled: false,
-            name: 'connector-preview',
+            name: "connector-preview",
           })
         : new Konva.Line({
             points: [start.x, start.y, start.x, start.y],
             stroke: DEFAULT_STYLE.stroke,
             strokeWidth: DEFAULT_STYLE.strokeWidth,
-            lineCap: DEFAULT_STYLE.rounded ? 'round' : 'butt',
-            lineJoin: DEFAULT_STYLE.rounded ? 'round' : 'miter',
+            lineCap: DEFAULT_STYLE.rounded ? "round" : "butt",
+            lineJoin: DEFAULT_STYLE.rounded ? "round" : "miter",
             opacity: DEFAULT_STYLE.opacity,
             listening: false,
             perfectDrawEnabled: false,
             shadowForStrokeEnabled: false,
-            name: 'connector-preview',
+            name: "connector-preview",
           });
 
       ref.current.preview = shape;
@@ -117,9 +132,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       // Try snapping the "to" endpoint
       const candidates = getCandidates(stage);
-      const snap = findNearestAnchor(stage, pos, candidates, { 
-        pixelThreshold: 12, 
-        includeCenter: true 
+      const snap = findNearestAnchor(pos, candidates, {
+        pixelThreshold: 12,
+        includeCenter: true,
       });
       const end = snap ? { x: snap.x, y: snap.y } : { x: pos.x, y: pos.y };
 
@@ -134,37 +149,58 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     const commit = (
       startPoint: { x: number; y: number },
       startSnap: { elementId: string; side: AnchorSide } | null,
-      endPoint: { x: number; y: number }, 
-      endSnap: { elementId: string; side: AnchorSide } | null
+      endPoint: { x: number; y: number },
+      endSnap: { elementId: string; side: AnchorSide } | null,
     ) => {
-      const from: ConnectorElement['from'] = startSnap
-        ? { kind: 'element', elementId: startSnap.elementId, anchor: startSnap.side }
-        : { kind: 'point', x: startPoint.x, y: startPoint.y };
+      const from: ConnectorElement["from"] = startSnap
+        ? {
+            kind: "element",
+            elementId: startSnap.elementId,
+            anchor: startSnap.side,
+          }
+        : { kind: "point", x: startPoint.x, y: startPoint.y };
 
-      const to: ConnectorElement['to'] = endSnap
-        ? { kind: 'element', elementId: endSnap.elementId, anchor: endSnap.side }
-        : { kind: 'point', x: endPoint.x, y: endPoint.y };
+      const to: ConnectorElement["to"] = endSnap
+        ? {
+            kind: "element",
+            elementId: endSnap.elementId,
+            anchor: endSnap.side,
+          }
+        : { kind: "point", x: endPoint.x, y: endPoint.y };
 
-      const variant = isArrow ? 'arrow' : 'line';
+      const variant = isArrow ? "arrow" : "line";
 
-      begin?.('create-connector', 'create-connector');
-      
-      const id = crypto?.randomUUID?.() || `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+      begin?.("create-connector", "create-connector");
+
+      const id =
+        crypto?.randomUUID?.() ||
+        `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       const element: ConnectorElement = {
         id,
-        type: 'connector',
+        type: "connector",
         variant,
         from,
         to,
         style: DEFAULT_STYLE,
+        x: 0,
+        y: 0,
+        bounds: {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+        },
       };
 
       // Try different addElement signatures based on the store implementation
       let elementId: string | undefined;
       if (addElement) {
         try {
-          elementId = (addElement as any)(element, { select: true, pushHistory: true });
+          elementId = (addElement as any)(element, {
+            select: true,
+            pushHistory: true,
+          });
         } catch {
           try {
             elementId = (addElement as any)(element);
@@ -173,13 +209,13 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
           }
         }
       }
-      
+
       end?.(true);
 
       if ((elementId || id) && selectOnly) {
         selectOnly(elementId || id);
       }
-      setTool?.('select');
+      setTool?.("select");
     };
 
     const onPointerUp = () => {
@@ -191,7 +227,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       if (!pos || !start) {
         // cleanup and bail
         if (ghost) {
-          try { ghost.destroy(); } catch {}
+          try {
+            ghost.destroy();
+          } catch {}
           ref.current.preview = null;
           previewLayer.batchDraw();
         }
@@ -202,16 +240,20 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       // Snap to end anchor if available
       const candidates = getCandidates(stage);
-      const snap = findNearestAnchor(stage, pos, candidates, { 
-        pixelThreshold: 12, 
-        includeCenter: true 
+      const snap = findNearestAnchor(pos, candidates, {
+        pixelThreshold: 12,
+        includeCenter: true,
       });
       const endPoint = snap ? { x: snap.x, y: snap.y } : { x: pos.x, y: pos.y };
-      const endSnap = snap ? { elementId: snap.elementId, side: snap.side } : null;
+      const endSnap = snap
+        ? { elementId: snap.elementId, side: snap.side }
+        : null;
 
       // cleanup preview before committing
       if (ghost) {
-        try { ghost.destroy(); } catch {}
+        try {
+          ghost.destroy();
+        } catch {}
         ref.current.preview = null;
         previewLayer.batchDraw();
       }
@@ -224,12 +266,12 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       ref.current.startSnap = null;
     };
 
-    stage.on('pointerdown.connector', onPointerDown);
-    stage.on('pointermove.connector', onPointerMove);
-    stage.on('pointerup.connector', onPointerUp);
+    stage.on("pointerdown.connector", onPointerDown);
+    stage.on("pointermove.connector", onPointerMove);
+    stage.on("pointerup.connector", onPointerUp);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         const g = ref.current.preview;
         if (g) {
           try {
@@ -240,17 +282,17 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         }
         ref.current.start = null;
         ref.current.startSnap = null;
-        setTool?.('select');
+        setTool?.("select");
       }
     };
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
 
     return () => {
-      stage.off('pointerdown.connector', onPointerDown);
-      stage.off('pointermove.connector', onPointerMove);
-      stage.off('pointerup.connector', onPointerUp);
-      window.removeEventListener('keydown', onKeyDown);
-      
+      stage.off("pointerdown.connector", onPointerDown);
+      stage.off("pointermove.connector", onPointerMove);
+      stage.off("pointerup.connector", onPointerUp);
+      window.removeEventListener("keydown", onKeyDown);
+
       const g = ref.current.preview;
       if (g) {
         try {
@@ -262,7 +304,17 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       ref.current.start = null;
       ref.current.startSnap = null;
     };
-  }, [isActive, selectedTool, toolId, stageRef, addElement, selectOnly, begin, end, setTool]);
+  }, [
+    isActive,
+    selectedTool,
+    toolId,
+    stageRef,
+    addElement,
+    selectOnly,
+    begin,
+    end,
+    setTool,
+  ]);
 
   return null;
 };

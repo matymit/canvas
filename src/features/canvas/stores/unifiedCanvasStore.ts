@@ -1,20 +1,20 @@
 // features/canvas/stores/unifiedCanvasStore.ts
-import { create } from 'zustand';
-import { persist, subscribeWithSelector } from 'zustand/middleware';
-import { immer } from 'zustand/middleware/immer';
-import { enableMapSet } from 'immer';
+import { create } from "zustand";
+import { persist, subscribeWithSelector } from "zustand/middleware";
+import { immer } from "zustand/middleware/immer";
+import { enableMapSet } from "immer";
 
 // Module creators
-import { createCoreModule } from './modules/coreModule';
-import { createHistoryModule } from './modules/historyModule';
-import { createInteractionModule } from './modules/interactionModule';
+import { createCoreModule } from "./modules/coreModule";
+import { createHistoryModule } from "./modules/historyModule";
+import { createInteractionModule } from "./modules/interactionModule";
 
-import type { CoreModuleSlice } from './modules/coreModule';
-import type { HistoryModuleSlice } from './modules/historyModule';
-import type { InteractionModuleSlice } from './modules/interactionModule';
+import type { CoreModuleSlice } from "./modules/coreModule";
+import type { HistoryModuleSlice } from "./modules/historyModule";
+import type { InteractionModuleSlice } from "./modules/interactionModule";
 
 // Types (keep imports narrow to avoid circular types)
-import type { CanvasElement, ElementId } from '../../../../types/index';
+import type { CanvasElement, ElementId } from "../../../../types/index";
 
 export interface ViewportState {
   x: number;
@@ -76,6 +76,8 @@ export interface SelectionSlice {
     deleteSelected: () => void;
     moveSelectedBy: (dx: number, dy: number) => void;
     getSelected: () => CanvasElement[];
+    beginTransform: () => void;
+    endTransform: () => void;
   };
 }
 
@@ -139,7 +141,10 @@ export interface ConvenienceSlice {
   };
 }
 
-export type UnifiedCanvasStore = CoreModuleSlice & HistoryModuleSlice & InteractionModuleSlice & ConvenienceSlice;
+export type UnifiedCanvasStore = CoreModuleSlice &
+  HistoryModuleSlice &
+  InteractionModuleSlice &
+  ConvenienceSlice;
 
 // Helper for persistence: serialize Map/Set into arrays
 function partializeForPersist(state: UnifiedCanvasStore) {
@@ -161,7 +166,7 @@ function partializeForPersist(state: UnifiedCanvasStore) {
 // Helper to rebuild Map/Set when rehydrating
 function mergeAfterHydration(
   persisted: any,
-  current: UnifiedCanvasStore
+  current: UnifiedCanvasStore,
 ): UnifiedCanvasStore {
   const restored = { ...current } as UnifiedCanvasStore;
   if (persisted?.elements) restored.elements = new Map(persisted.elements);
@@ -172,7 +177,8 @@ function mergeAfterHydration(
   if (persisted?.viewport) {
     restored.viewport.x = persisted.viewport.x ?? current.viewport.x;
     restored.viewport.y = persisted.viewport.y ?? current.viewport.y;
-    restored.viewport.scale = persisted.viewport.scale ?? current.viewport.scale;
+    restored.viewport.scale =
+      persisted.viewport.scale ?? current.viewport.scale;
     restored.viewport.minScale =
       persisted.viewport.minScale ?? current.viewport.minScale;
     restored.viewport.maxScale =
@@ -183,9 +189,9 @@ function mergeAfterHydration(
 
 // Default tool state
 const DEFAULT_UI = {
-  selectedTool: 'select',
-  strokeColor: '#000000',
-  fillColor: '#ffffff',
+  selectedTool: "select",
+  strokeColor: "#000000",
+  fillColor: "#ffffff",
   strokeWidth: 2,
 };
 
@@ -199,7 +205,10 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
         // Create consolidated modules
         const historyModule = createHistoryModule(set as any, get as any);
         const coreModule = createCoreModule(set as any, get as any);
-        const interactionModule = createInteractionModule(set as any, get as any);
+        const interactionModule = createInteractionModule(
+          set as any,
+          get as any,
+        );
 
         return {
           // Spread all modules
@@ -210,9 +219,11 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
           // Compatibility shim for modules that expect state.history object with helper methods
           history: {
             record: (input: any) => (get() as any).record?.(input),
-            push: (ops: any, label?: string, mergeKey?: string) => (get() as any).push?.(ops, label, mergeKey),
+            push: (ops: any, label?: string, mergeKey?: string) =>
+              (get() as any).push?.(ops, label, mergeKey),
             add: (input: any) => (get() as any).add?.(input),
-            withUndo: (description: string, mutator: () => void) => historyModule.withUndo(description, mutator),
+            withUndo: (description: string, mutator: () => void) =>
+              historyModule.withUndo(description, mutator),
             beginBatch: historyModule.beginBatch,
             endBatch: historyModule.endBatch,
             undo: historyModule.undo,
@@ -225,28 +236,33 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
           strokeColor: DEFAULT_UI.strokeColor,
           fillColor: DEFAULT_UI.fillColor,
           strokeWidth: DEFAULT_UI.strokeWidth,
-          stickyNoteColor: '#FFF59D',
-          setSelectedTool: (tool: string) => set((state) => {
-            state.selectedTool = tool;
-            if (state.ui) state.ui.selectedTool = tool;
-          }),
-          setStrokeColor: (color: string) => set((state) => {
-            state.strokeColor = color;
-            if (state.ui) state.ui.strokeColor = color;
-          }),
-          setFillColor: (color: string) => set((state) => {
-            state.fillColor = color;
-            if (state.ui) state.ui.fillColor = color;
-          }),
-          setStrokeWidth: (width: number) => set((state) => {
-            state.strokeWidth = width;
-            if (state.ui) state.ui.strokeWidth = width;
-          }),
-          setStickyNoteColor: (color: string) => set((state) => {
-            state.stickyNoteColor = color;
-            if (state.ui) state.ui.stickyNoteColor = color;
-            if (state.colors) state.colors.stickyNote = color;
-          }),
+          stickyNoteColor: "#FFF59D",
+          setSelectedTool: (tool: string) =>
+            set((state) => {
+              state.selectedTool = tool;
+              if (state.ui) state.ui.selectedTool = tool;
+            }),
+          setStrokeColor: (color: string) =>
+            set((state) => {
+              state.strokeColor = color;
+              if (state.ui) state.ui.strokeColor = color;
+            }),
+          setFillColor: (color: string) =>
+            set((state) => {
+              state.fillColor = color;
+              if (state.ui) state.ui.fillColor = color;
+            }),
+          setStrokeWidth: (width: number) =>
+            set((state) => {
+              state.strokeWidth = width;
+              if (state.ui) state.ui.strokeWidth = width;
+            }),
+          setStickyNoteColor: (color: string) =>
+            set((state) => {
+              state.stickyNoteColor = color;
+              if (state.ui) state.ui.stickyNoteColor = color;
+              if (state.colors) state.colors.stickyNote = color;
+            }),
 
           // Add history methods at root for toolbar
           undo: () => historyModule.undo(),
@@ -258,11 +274,12 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             strokeColor: DEFAULT_UI.strokeColor,
             fillColor: DEFAULT_UI.fillColor,
             strokeWidth: DEFAULT_UI.strokeWidth,
-            stickyNoteColor: '#FFF59D',
-            setSelectedTool: (tool: string) => set((state) => {
-              state.selectedTool = tool;
-              if (state.ui) state.ui.selectedTool = tool;
-            }),
+            stickyNoteColor: "#FFF59D",
+            setSelectedTool: (tool: string) =>
+              set((state) => {
+                state.selectedTool = tool;
+                if (state.ui) state.ui.selectedTool = tool;
+              }),
             setStrokeColor: (color: string) => {
               set((state) => {
                 state.strokeColor = color;
@@ -279,24 +296,27 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
               });
               interactionModule.setFillColor(color);
             },
-            setStrokeWidth: (width: number) => set((state) => {
-              state.strokeWidth = width;
-              if (state.ui) state.ui.strokeWidth = width;
-            }),
-            setStickyNoteColor: (color: string) => set((state) => {
-              state.stickyNoteColor = color;
-              if (state.ui) state.ui.stickyNoteColor = color;
-              if (state.colors) state.colors.stickyNote = color;
-            }),
+            setStrokeWidth: (width: number) =>
+              set((state) => {
+                state.strokeWidth = width;
+                if (state.ui) state.ui.strokeWidth = width;
+              }),
+            setStickyNoteColor: (color: string) =>
+              set((state) => {
+                state.stickyNoteColor = color;
+                if (state.ui) state.ui.stickyNoteColor = color;
+                if (state.colors) state.colors.stickyNote = color;
+              }),
           },
         };
-      })
+      }),
     ),
     {
-      name: 'libreollama-canvas',
+      name: "libreollama-canvas",
       version: 2,
       partialize: partializeForPersist,
-      merge: (persisted, current) => mergeAfterHydration(persisted, current as any),
-    }
-  )
+      merge: (persisted, current) =>
+        mergeAfterHydration(persisted, current as any),
+    },
+  ),
 );

@@ -5,10 +5,11 @@ export interface CacheConfig {
   y?: number;
   width?: number;
   height?: number;
-  offset?: { x: number; y: number };
+  offset?: number;
   drawBorder?: boolean;
   pixelRatio?: number;
   imageSmoothingEnabled?: boolean;
+  hitCanvasPixelRatio?: number;
 }
 
 /**
@@ -205,7 +206,7 @@ export class ShapeCaching {
     return (
       node instanceof Konva.Path ||
       node instanceof Konva.TextPath ||
-      (node instanceof Konva.Text && (node.shadowEnabled() || node.stroke()))
+      (node instanceof Konva.Text && (node.shadowEnabled() || !!node.stroke()))
     );
   }
 }

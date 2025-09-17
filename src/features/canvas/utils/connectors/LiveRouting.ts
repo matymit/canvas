@@ -41,11 +41,6 @@ export class LiveRoutingManager {
     }
   }
 
-  private onElementsChanged(elements: Map<string, any>): void {
-    // Rebuild cache when elements change
-    this.buildConnectorCache();
-  }
-
   private getConnectedConnectors(elementId: string): ConnectorElement[] {
     const connectors: ConnectorElement[] = [];
     

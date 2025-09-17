@@ -1,7 +1,7 @@
 // features/canvas/components/tools/creation/StickyNoteTool.tsx
-import React, { useEffect, useRef } from 'react';
-import Konva from 'konva';
-import { useUnifiedCanvasStore } from '@features/canvas/stores/unifiedCanvasStore';
+import React, { useEffect, useRef } from "react";
+import Konva from "konva";
+import { useUnifiedCanvasStore } from "@features/canvas/stores/unifiedCanvasStore";
 
 export interface StickyNoteToolProps {
   isActive: boolean;
@@ -15,8 +15,8 @@ export interface StickyNoteToolProps {
 
 const DEFAULT_WIDTH = 240;
 const DEFAULT_HEIGHT = 180;
-const DEFAULT_FILL = '#FFF59D'; // light yellow
-const DEFAULT_TEXT = '';
+const DEFAULT_FILL = "#FFF59D"; // light yellow
+const DEFAULT_TEXT = "";
 const DEFAULT_FONT_SIZE = 16;
 
 // Get reference to StickyNoteModule for direct text editing trigger
@@ -39,21 +39,14 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   fontSize = DEFAULT_FONT_SIZE,
 }) => {
   // Get the selected sticky note color from the store
-  const selectedStickyNoteColor = useUnifiedCanvasStore((s: any) => 
-    s.stickyNoteColor || s.ui?.stickyNoteColor || s.colors?.stickyNote || DEFAULT_FILL
+  const selectedStickyNoteColor = useUnifiedCanvasStore(
+    (s: any) =>
+      s.stickyNoteColor ||
+      s.ui?.stickyNoteColor ||
+      s.colors?.stickyNote ||
+      DEFAULT_FILL,
   );
   const actualFill = fill ?? selectedStickyNoteColor;
-  
-  // Store methods with proper fallbacks
-  const createElement = useUnifiedCanvasStore((s: any) => 
-    s.element?.upsert || s.addElement || s.elements?.create
-  );
-  const setSelectedTool = useUnifiedCanvasStore((s: any) => 
-    s.setSelectedTool || s.ui?.setSelectedTool
-  );
-  const withUndo = useUnifiedCanvasStore((s: any) => 
-    s.withUndo || s.history?.withUndo
-  );
 
   // FIXED: Track creation promises to ensure proper sequencing
   const creationPromiseRef = useRef<Promise<void> | null>(null);
@@ -63,9 +56,11 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     const stage = stageRef.current;
     if (!isActive || !stage) return;
 
-    console.log('[StickyNoteTool] Activating with color:', actualFill);
+    console.log("[StickyNoteTool] Activating with color:", actualFill);
 
-    const handlePointerDown = async (e?: Konva.KonvaEventObject<PointerEvent>) => {
+    const handlePointerDown = async (
+      e?: Konva.KonvaEventObject<PointerEvent>,
+    ) => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
@@ -74,7 +69,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       // Create sticky note element using proper store method
       const stickyElement = {
         id: elementId,
-        type: 'sticky-note' as const,
+        type: "sticky-note" as const,
         x: pos.x - width / 2,
         y: pos.y - height / 2,
         width,
@@ -83,39 +78,42 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         style: {
           fill: actualFill,
           fontSize,
-          fontFamily: 'Inter, sans-serif',
-          textColor: '#333333',
+          fontFamily: "Inter, sans-serif",
+          textColor: "#333333",
           padding: 12,
         },
         data: {
           text: text,
-        }
+        },
       };
-      
-      console.log('[StickyNoteTool] Creating element:', stickyElement);
-      
+
+      console.log("[StickyNoteTool] Creating element:", stickyElement);
+
       // FIXED: Sequential creation with proper timing and error handling
       try {
         // Create element in store with history
-        const createElement = useUnifiedCanvasStore.getState().element?.upsert || 
-                            useUnifiedCanvasStore.getState().addElement || 
-                            useUnifiedCanvasStore.getState().elements?.create;
-        const withUndo = useUnifiedCanvasStore.getState().withUndo || 
-                        useUnifiedCanvasStore.getState().history?.withUndo;
+        const createElement =
+          useUnifiedCanvasStore.getState().element?.upsert ||
+          useUnifiedCanvasStore.getState().addElement;
+        const withUndo = (
+          useUnifiedCanvasStore.getState() as any
+        ).history?.withUndo?.bind(
+          (useUnifiedCanvasStore.getState() as any).history,
+        );
 
         if (!createElement) {
-          console.error('[StickyNoteTool] No createElement method available!');
+          console.error("[StickyNoteTool] No createElement method available!");
           return;
         }
 
         // Create with history
         const createFn = () => {
           createElement(stickyElement);
-          console.log('[StickyNoteTool] Element created successfully');
+          console.log("[StickyNoteTool] Element created successfully");
         };
 
         if (withUndo) {
-          withUndo('Add sticky note', createFn);
+          withUndo("Add sticky note", createFn);
         } else {
           createFn();
         }
@@ -124,8 +122,10 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         creationPromiseRef.current = new Promise<void>((resolve) => {
           // Step 1: Wait for element to be created and rendered (100ms)
           setTimeout(() => {
-            console.log('[StickyNoteTool] Step 1: Element should be rendered, selecting...');
-            
+            console.log(
+              "[StickyNoteTool] Step 1: Element should be rendered, selecting...",
+            );
+
             // Step 2: Auto-select using SelectionModule with retry logic
             const selectionModule = getSelectionModule();
             if (selectionModule?.autoSelectElement) {
@@ -142,42 +142,48 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
             // Step 3: Wait for selection to complete (50ms)
             setTimeout(() => {
-              console.log('[StickyNoteTool] Step 2: Selection complete, triggering text edit...');
-              
+              console.log(
+                "[StickyNoteTool] Step 2: Selection complete, triggering text edit...",
+              );
+
               // Step 4: Trigger immediate text editing
               const stickyModule = getStickyNoteModule();
               if (stickyModule?.triggerImmediateTextEdit) {
                 stickyModule.triggerImmediateTextEdit(elementId);
               } else {
-                console.warn('[StickyNoteTool] StickyNoteModule not available for text editing');
+                console.warn(
+                  "[StickyNoteTool] StickyNoteModule not available for text editing",
+                );
               }
 
               // Step 5: Switch to select tool after text editing starts (50ms)
               setTimeout(() => {
-                console.log('[StickyNoteTool] Step 3: Switching to select tool');
-                const setSelectedTool = useUnifiedCanvasStore.getState().setSelectedTool;
+                console.log(
+                  "[StickyNoteTool] Step 3: Switching to select tool",
+                );
+                const setSelectedTool =
+                  useUnifiedCanvasStore.getState().setSelectedTool;
                 if (setSelectedTool) {
-                  setSelectedTool('select');
+                  setSelectedTool("select");
                 }
                 resolve();
               }, 50);
             }, 50);
           }, 100);
         });
-
       } catch (error) {
-        console.error('[StickyNoteTool] Failed to create sticky note:', error);
+        console.error("[StickyNoteTool] Failed to create sticky note:", error);
       }
 
       if (e) e.cancelBubble = true;
     };
 
     // Attach to stage pointer events
-    stage.on('pointerdown.sticky', handlePointerDown);
+    stage.on("pointerdown.sticky", handlePointerDown);
 
     // Cleanup
     return () => {
-      stage.off('pointerdown.sticky');
+      stage.off("pointerdown.sticky");
       creationPromiseRef.current = null;
     };
   }, [isActive, stageRef, width, height, actualFill, text, fontSize]);

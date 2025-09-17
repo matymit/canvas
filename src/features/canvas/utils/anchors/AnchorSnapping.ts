@@ -31,7 +31,6 @@ function sidePointsForRect(
 }
 
 export function findNearestAnchor(
-  stage: Konva.Stage,
   point: { x: number; y: number },
   candidates: Konva.Node[],
   opts?: AnchorSnapOptions

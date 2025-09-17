@@ -12,14 +12,12 @@ export interface ConnectorServiceDeps {
 
 export class ConnectorService {
   private store: UnifiedCanvasStore;
-  private stage: Konva.Stage;
   private renderer: ConnectorRenderer;
   private liveRouting: LiveRoutingManager;
   private isInitialized = false;
 
   constructor({ store, stage, layers }: ConnectorServiceDeps) {
     this.store = store;
-    this.stage = stage;
 
     // Initialize renderer
     this.renderer = new ConnectorRenderer(layers, {

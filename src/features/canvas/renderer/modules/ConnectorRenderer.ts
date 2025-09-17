@@ -1,5 +1,5 @@
-import Konva from 'konva';
-import type { ConnectorElement } from '../../types/elements/connector';
+import Konva from "konva";
+import type { ConnectorElement } from "../../types/elements/connector";
 
 export interface RendererLayers {
   background: Konva.Layer;
@@ -23,8 +23,10 @@ export class ConnectorRenderer {
     this.deps = deps;
   }
 
-  private resolveEndpoint(ep: ConnectorElement['from']): { x: number; y: number } | null {
-    if (ep.kind === 'point') return { x: ep.x, y: ep.y };
+  private resolveEndpoint(
+    ep: ConnectorElement["from"],
+  ): { x: number; y: number } | null {
+    if (ep.kind === "point") return { x: ep.x, y: ep.y };
     const node = this.deps.getNodeById(ep.elementId);
     if (!node) return null;
     const rect = node.getClientRect({ skipStroke: true, skipShadow: true });
@@ -33,23 +35,23 @@ export class ConnectorRenderer {
     let x = cx;
     let y = cy;
     switch (ep.anchor) {
-      case 'left':
+      case "left":
         x = rect.x;
         y = cy;
         break;
-      case 'right':
+      case "right":
         x = rect.x + rect.width;
         y = cy;
         break;
-      case 'top':
+      case "top":
         x = cx;
         y = rect.y;
         break;
-      case 'bottom':
+      case "bottom":
         x = cx;
         y = rect.y + rect.height;
         break;
-      case 'center':
+      case "center":
       default:
         x = cx;
         y = cy;
@@ -65,7 +67,7 @@ export class ConnectorRenderer {
   async render(conn: ConnectorElement): Promise<void> {
     let g = this.groupById.get(conn.id);
     if (!g || !g.getStage()) {
-      g = new Konva.Group({ id: conn.id, name: 'connector', listening: true });
+      g = new Konva.Group({ id: conn.id, name: "connector", listening: true });
       this.layers.main.add(g);
       this.groupById.set(conn.id, g);
     }
@@ -83,7 +85,7 @@ export class ConnectorRenderer {
 
     const points = [p1.x, p1.y, p2.x, p2.y];
 
-    if (conn.variant === 'arrow') {
+    if (conn.variant === "arrow") {
       if (!shape || !(shape instanceof Konva.Arrow) || !shape.getStage()) {
         if (shape) shape.destroy();
         shape = new Konva.Arrow({
@@ -91,15 +93,15 @@ export class ConnectorRenderer {
           stroke: conn.style.stroke,
           strokeWidth: conn.style.strokeWidth,
           dash: conn.style.dash,
-          lineCap: rounded ? 'round' : 'butt',
-          lineJoin: rounded ? 'round' : 'miter',
+          lineCap: rounded ? "round" : "butt",
+          lineJoin: rounded ? "round" : "miter",
           opacity: conn.style.opacity ?? 1,
           pointerLength: conn.style.arrowSize ?? 10,
           pointerWidth: (conn.style.arrowSize ?? 10) * 0.7,
           listening: true,
           perfectDrawEnabled: false,
           shadowForStrokeEnabled: false,
-          name: 'connector-shape',
+          name: "connector-shape",
         });
         g.add(shape);
         this.shapeById.set(conn.id, shape);
@@ -111,8 +113,8 @@ export class ConnectorRenderer {
         shape.opacity(conn.style.opacity ?? 1);
         (shape as Konva.Arrow).pointerLength(conn.style.arrowSize ?? 10);
         (shape as Konva.Arrow).pointerWidth((conn.style.arrowSize ?? 10) * 0.7);
-        shape.lineCap(rounded ? 'round' : 'butt');
-        shape.lineJoin(rounded ? 'round' : 'miter');
+        shape.lineCap(rounded ? "round" : "butt");
+        shape.lineJoin(rounded ? "round" : "miter");
       }
     } else {
       // line
@@ -123,13 +125,13 @@ export class ConnectorRenderer {
           stroke: conn.style.stroke,
           strokeWidth: conn.style.strokeWidth,
           dash: conn.style.dash,
-          lineCap: rounded ? 'round' : 'butt',
-          lineJoin: rounded ? 'round' : 'miter',
+          lineCap: rounded ? "round" : "butt",
+          lineJoin: rounded ? "round" : "miter",
           opacity: conn.style.opacity ?? 1,
           listening: true,
           perfectDrawEnabled: false,
           shadowForStrokeEnabled: false,
-          name: 'connector-shape',
+          name: "connector-shape",
         });
         g.add(shape);
         this.shapeById.set(conn.id, shape);
@@ -139,8 +141,8 @@ export class ConnectorRenderer {
         shape.strokeWidth(conn.style.strokeWidth);
         shape.dash(conn.style.dash);
         shape.opacity(conn.style.opacity ?? 1);
-        shape.lineCap(rounded ? 'round' : 'butt');
-        shape.lineJoin(rounded ? 'round' : 'miter');
+        shape.lineCap(rounded ? "round" : "butt");
+        shape.lineJoin(rounded ? "round" : "miter");
       }
     }
 
@@ -161,7 +163,7 @@ export class ConnectorRenderer {
     this.layers.main.batchDraw();
   }
 
-  rerouteConnector(connId: string, conn: ConnectorElement): void {
+  rerouteConnector(_connId: string, conn: ConnectorElement): void {
     this.render(conn);
   }
 

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { TableElement } from '../../types/elements/table';
-import { getCellIndex, getCellPosition } from '../../types/elements/table';
+import { getCellIndex } from '../../types/elements/table';
 
 export interface TableCellPosition {
   row: number;
@@ -40,7 +40,6 @@ export function useTableKeyboard(
 
   const {
     onCellEdit,
-    onCellUpdate, 
     onCellDelete,
     onEscape,
     onSelectAll,

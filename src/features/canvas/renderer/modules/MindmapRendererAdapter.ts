@@ -1,8 +1,11 @@
 // Adapter for MindmapRenderer to implement RendererModule interface
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
-import { MindmapRenderer } from './MindmapRenderer';
-import type { MindmapNodeElement, MindmapEdgeElement } from '../../types/elements/mindmap';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
+import { MindmapRenderer } from "./MindmapRenderer";
+import type {
+  MindmapNodeElement,
+  MindmapEdgeElement,
+} from "../../types/elements/mindmap";
 
 type Id = string;
 
@@ -16,7 +19,7 @@ export class MindmapRendererAdapter implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log('[MindmapRendererAdapter] Mounting...');
+    console.log("[MindmapRendererAdapter] Mounting...");
 
     // Create MindmapRenderer instance
     this.renderer = new MindmapRenderer(ctx.layers);
@@ -29,10 +32,10 @@ export class MindmapRendererAdapter implements RendererModule {
         const edges = new Map<Id, MindmapEdgeElement>();
 
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === 'mindmap-node') {
+          if (element.type === "mindmap-node") {
             nodes.set(id, element as MindmapNodeElement);
-          } else if (element.type === 'mindmap-edge') {
-            edges.set(id, element as MindmapEdgeElement);
+          } else if (element.type === "mindmap-edge") {
+            edges.set(id, element as unknown as MindmapEdgeElement);
           }
         }
 
@@ -41,7 +44,7 @@ export class MindmapRendererAdapter implements RendererModule {
       // Callback: reconcile changes
       (mindmapElements: MindmapElements) => {
         this.reconcile(mindmapElements);
-      }
+      },
     );
 
     // Initial render
@@ -52,10 +55,10 @@ export class MindmapRendererAdapter implements RendererModule {
     };
 
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'mindmap-node') {
+      if (element.type === "mindmap-node") {
         initialElements.nodes.set(id, element as MindmapNodeElement);
-      } else if (element.type === 'mindmap-edge') {
-        initialElements.edges.set(id, element as MindmapEdgeElement);
+      } else if (element.type === "mindmap-edge") {
+        initialElements.edges.set(id, element as unknown as MindmapEdgeElement);
       }
     }
 
@@ -66,20 +69,28 @@ export class MindmapRendererAdapter implements RendererModule {
   }
 
   private unmount() {
-    console.log('[MindmapRendererAdapter] Unmounting...');
+    console.log("[MindmapRendererAdapter] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
     // Cleanup mindmap elements manually
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find('.mindmap-node, .mindmap-edge').forEach((node: Konva.Node) => node.destroy());
+      layer
+        .find(".mindmap-node, .mindmap-edge")
+        .forEach((node: Konva.Node) => node.destroy());
       layer.batchDraw();
     }
   }
 
   private reconcile(elements: MindmapElements) {
-    console.log('[MindmapRendererAdapter] Reconciling', elements.nodes.size, 'nodes and', elements.edges.size, 'edges');
+    console.log(
+      "[MindmapRendererAdapter] Reconciling",
+      elements.nodes.size,
+      "nodes and",
+      elements.edges.size,
+      "edges",
+    );
 
     if (!this.renderer) return;
 
@@ -92,7 +103,7 @@ export class MindmapRendererAdapter implements RendererModule {
       if (!node) return null;
       return {
         x: node.x + node.width / 2,
-        y: node.y + node.height / 2
+        y: node.y + node.height / 2,
       };
     };
 
@@ -111,13 +122,13 @@ export class MindmapRendererAdapter implements RendererModule {
     // Remove deleted elements manually
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find('.mindmap-node').forEach((node: Konva.Node) => {
+      layer.find(".mindmap-node").forEach((node: Konva.Node) => {
         const nodeId = node.id();
         if (nodeId && !seenNodes.has(nodeId)) {
           node.destroy();
         }
       });
-      layer.find('.mindmap-edge').forEach((node: Konva.Node) => {
+      layer.find(".mindmap-edge").forEach((node: Konva.Node) => {
         const nodeId = node.id();
         if (nodeId && !seenEdges.has(nodeId)) {
           node.destroy();

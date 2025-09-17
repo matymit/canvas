@@ -108,7 +108,7 @@ export function openShapeTextEditor(
     zIndex: '1000',
     transition: 'width 120ms ease, height 120ms ease, left 120ms ease, top 120ms ease',
     userSelect: 'text',
-    WebkitUserSelect: 'text',
+    webkitUserSelect: 'text',
   });
 
   // Initialize with existing text if present.
@@ -217,15 +217,15 @@ export function openShapeTextEditor(
     // Persist text and text style into the shape element
     store.element!.update(elementId, {
       data: {
-        ...(element.data || {}),
+        ...(element?.data || {}),
         text: txt,
         padding,
       },
       style: {
-        ...(element.style || {}),
+        ...(element?.style || {}),
         fontFamily,
         fontSize,
-        textColor: color,
+        fill: color,
         textAlign: 'center',
       }
     });

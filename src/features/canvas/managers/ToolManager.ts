@@ -1,30 +1,30 @@
 // ToolManager for coordinating all canvas tools
 // Integrates with the unified store and four-layer architecture
 
-import React from 'react';
-import Konva from 'konva';
-import type { UnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import React from "react";
+import Konva from "konva";
+import type { UnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 
 // Import all tool components
-import { TableTool } from '../components/tools/content/TableTool';
-import { TextTool } from '../components/tools/content/TextTool';
-import { ImageTool } from '../components/tools/content/ImageTool';
-import { MindmapTool } from '../components/tools/content/MindmapTool';
-import { PenTool } from '../components/tools/drawing/PenTool';
-import { MarkerTool } from '../components/tools/drawing/MarkerTool';
-import { HighlighterTool } from '../components/tools/drawing/HighlighterTool';
-import { EraserTool } from '../components/tools/drawing/EraserTool';
-import { RectangleTool } from '../components/tools/shapes/RectangleTool';
-import { CircleTool } from '../components/tools/shapes/CircleTool';
-import { TriangleTool } from '../components/tools/shapes/TriangleTool';
-import { StickyNoteTool } from '../components/tools/creation/StickyNoteTool';
-import { ConnectorTool } from '../components/tools/creation/ConnectorTool';
+import { TableTool } from "../components/tools/content/TableTool";
+import { TextTool } from "../components/tools/content/TextTool";
+import { ImageTool } from "../components/tools/content/ImageTool";
+import { MindmapTool } from "../components/tools/content/MindmapTool";
+import { PenTool } from "../components/tools/drawing/PenTool";
+import MarkerTool from "../components/tools/drawing/MarkerTool";
+import HighlighterTool from "../components/tools/drawing/HighlighterTool";
+import EraserTool from "../components/tools/drawing/EraserTool";
+import { RectangleTool } from "../components/tools/shapes/RectangleTool";
+import { CircleTool } from "../components/tools/shapes/CircleTool";
+import { TriangleTool } from "../components/tools/shapes/TriangleTool";
+import StickyNoteTool from "../components/tools/creation/StickyNoteTool";
+import { ConnectorTool } from "../components/tools/creation/ConnectorTool";
 
 export interface ToolDefinition {
   id: string;
   name: string;
   description: string;
-  category: 'navigation' | 'content' | 'drawing' | 'shapes' | 'creation';
+  category: "navigation" | "content" | "drawing" | "shapes" | "creation";
   component?: React.ComponentType<any>;
   cursor: string;
   shortcut?: string;
@@ -39,186 +39,186 @@ export class ToolManager {
   private stage: Konva.Stage;
   private store: UnifiedCanvasStore;
   private toolInstances = new Map<string, any>();
-  
+
   // Tool registry with all available tools
   private tools: Record<string, ToolDefinition> = {
-    'select': {
-      id: 'select',
-      name: 'Select',
-      description: 'Select and move objects',
-      category: 'navigation',
-      cursor: 'default',
-      shortcut: 'V',
+    select: {
+      id: "select",
+      name: "Select",
+      description: "Select and move objects",
+      category: "navigation",
+      cursor: "default",
+      shortcut: "V",
     },
-    'pan': {
-      id: 'pan',
-      name: 'Pan',
-      description: 'Pan around the canvas',
-      category: 'navigation',
-      cursor: 'grab',
-      shortcut: 'H',
+    pan: {
+      id: "pan",
+      name: "Pan",
+      description: "Pan around the canvas",
+      category: "navigation",
+      cursor: "grab",
+      shortcut: "H",
     },
-    'table': {
-      id: 'table',
-      name: 'Table',
-      description: 'Create tables',
-      category: 'content',
+    table: {
+      id: "table",
+      name: "Table",
+      description: "Create tables",
+      category: "content",
       component: TableTool,
-      cursor: 'crosshair',
-      shortcut: 'T',
+      cursor: "crosshair",
+      shortcut: "T",
     },
-    'text': {
-      id: 'text',
-      name: 'Text',
-      description: 'Add text',
-      category: 'content',
+    text: {
+      id: "text",
+      name: "Text",
+      description: "Add text",
+      category: "content",
       component: TextTool,
-      cursor: 'text',
-      shortcut: 'T',
+      cursor: "text",
+      shortcut: "T",
     },
-    'sticky-note': {
-      id: 'sticky-note',
-      name: 'Sticky Note',
-      description: 'Add sticky notes',
-      category: 'creation',
+    "sticky-note": {
+      id: "sticky-note",
+      name: "Sticky Note",
+      description: "Add sticky notes",
+      category: "creation",
       component: StickyNoteTool,
-      cursor: 'crosshair',
-      shortcut: 'S',
+      cursor: "crosshair",
+      shortcut: "S",
     },
-    'pen': {
-      id: 'pen',
-      name: 'Pen',
-      description: 'Draw with pen',
-      category: 'drawing',
+    pen: {
+      id: "pen",
+      name: "Pen",
+      description: "Draw with pen",
+      category: "drawing",
       component: PenTool,
-      cursor: 'crosshair',
-      shortcut: 'P',
+      cursor: "crosshair",
+      shortcut: "P",
     },
-    'marker': {
-      id: 'marker',
-      name: 'Marker',
-      description: 'Draw with marker',
-      category: 'drawing',
+    marker: {
+      id: "marker",
+      name: "Marker",
+      description: "Draw with marker",
+      category: "drawing",
       component: MarkerTool,
-      cursor: 'crosshair',
-      shortcut: 'M',
+      cursor: "crosshair",
+      shortcut: "M",
     },
-    'highlighter': {
-      id: 'highlighter',
-      name: 'Highlighter',
-      description: 'Highlight content',
-      category: 'drawing',
+    highlighter: {
+      id: "highlighter",
+      name: "Highlighter",
+      description: "Highlight content",
+      category: "drawing",
       component: HighlighterTool,
-      cursor: 'crosshair',
-      shortcut: 'G',
+      cursor: "crosshair",
+      shortcut: "G",
     },
-    'draw-rectangle': {
-      id: 'draw-rectangle',
-      name: 'Rectangle',
-      description: 'Draw rectangles',
-      category: 'shapes',
+    "draw-rectangle": {
+      id: "draw-rectangle",
+      name: "Rectangle",
+      description: "Draw rectangles",
+      category: "shapes",
       component: RectangleTool,
-      cursor: 'crosshair',
-      shortcut: 'R',
+      cursor: "crosshair",
+      shortcut: "R",
     },
-    'draw-triangle': {
-      id: 'draw-triangle',
-      name: 'Triangle',
-      description: 'Draw triangles',
-      category: 'shapes',
+    "draw-triangle": {
+      id: "draw-triangle",
+      name: "Triangle",
+      description: "Draw triangles",
+      category: "shapes",
       component: TriangleTool,
-      cursor: 'crosshair',
-      shortcut: 'T',
+      cursor: "crosshair",
+      shortcut: "T",
     },
-    'line': {
-      id: 'line',
-      name: 'Line',
-      description: 'Draw straight lines',
-      category: 'shapes',
+    line: {
+      id: "line",
+      name: "Line",
+      description: "Draw straight lines",
+      category: "shapes",
       component: ConnectorTool,
-      cursor: 'crosshair',
-      shortcut: 'L',
+      cursor: "crosshair",
+      shortcut: "L",
     },
-    'arrow': {
-      id: 'arrow',
-      name: 'Arrow',
-      description: 'Draw arrows',
-      category: 'shapes',
+    arrow: {
+      id: "arrow",
+      name: "Arrow",
+      description: "Draw arrows",
+      category: "shapes",
       component: ConnectorTool,
-      cursor: 'crosshair',
-      shortcut: 'A',
+      cursor: "crosshair",
+      shortcut: "A",
     },
-    'connector-line': {
-      id: 'connector-line',
-      name: 'Connector Line',
-      description: 'Create connector lines',
-      category: 'shapes',
+    "connector-line": {
+      id: "connector-line",
+      name: "Connector Line",
+      description: "Create connector lines",
+      category: "shapes",
       component: ConnectorTool,
-      cursor: 'crosshair',
-      shortcut: 'N',
+      cursor: "crosshair",
+      shortcut: "N",
     },
-    'connector-arrow': {
-      id: 'connector-arrow',
-      name: 'Connector Arrow',
-      description: 'Create connector arrows',
-      category: 'shapes',
+    "connector-arrow": {
+      id: "connector-arrow",
+      name: "Connector Arrow",
+      description: "Create connector arrows",
+      category: "shapes",
       component: ConnectorTool,
-      cursor: 'crosshair',
-      shortcut: 'W',
+      cursor: "crosshair",
+      shortcut: "W",
     },
-    'draw-circle': {
-      id: 'draw-circle',
-      name: 'Circle',
-      description: 'Draw circles',
-      category: 'shapes',
+    "draw-circle": {
+      id: "draw-circle",
+      name: "Circle",
+      description: "Draw circles",
+      category: "shapes",
       component: CircleTool,
-      cursor: 'crosshair',
-      shortcut: 'C',
+      cursor: "crosshair",
+      shortcut: "C",
     },
-    'eraser': {
-      id: 'eraser',
-      name: 'Eraser',
-      description: 'Erase content',
-      category: 'drawing',
+    eraser: {
+      id: "eraser",
+      name: "Eraser",
+      description: "Erase content",
+      category: "drawing",
       component: EraserTool,
-      cursor: 'crosshair',
-      shortcut: 'E',
+      cursor: "crosshair",
+      shortcut: "E",
     },
-    'image': {
-      id: 'image',
-      name: 'Image',
-      description: 'Add images',
-      category: 'content',
+    image: {
+      id: "image",
+      name: "Image",
+      description: "Add images",
+      category: "content",
       component: ImageTool,
-      cursor: 'crosshair',
-      shortcut: 'I',
+      cursor: "crosshair",
+      shortcut: "I",
     },
-    'mindmap': {
-      id: 'mindmap',
-      name: 'Mindmap',
-      description: 'Create mindmaps',
-      category: 'content',
+    mindmap: {
+      id: "mindmap",
+      name: "Mindmap",
+      description: "Create mindmaps",
+      category: "content",
       component: MindmapTool,
-      cursor: 'crosshair',
-      shortcut: 'D',
+      cursor: "crosshair",
+      shortcut: "D",
     },
-    'comment': {
-      id: 'comment',
-      name: 'Comment',
-      description: 'Add comments',
-      category: 'creation',
-      cursor: 'crosshair',
-      shortcut: 'O',
+    comment: {
+      id: "comment",
+      name: "Comment",
+      description: "Add comments",
+      category: "creation",
+      cursor: "crosshair",
+      shortcut: "O",
     },
   };
 
   constructor({ stage, store }: ToolManagerOptions) {
     this.stage = stage;
     this.store = store;
-    
+
     // Initialize tool instances for tools with components
     this.initializeTools();
-    
+
     // Set up keyboard shortcuts
     this.setupKeyboardShortcuts();
   }
@@ -226,15 +226,15 @@ export class ToolManager {
   private initializeTools() {
     // Create refs for tool components that need stage access
     const stageRef = { current: this.stage };
-    
-    Object.values(this.tools).forEach(tool => {
+
+    Object.values(this.tools).forEach((tool) => {
       if (tool.component) {
         // For now, we'll create tool instances when they're first activated
         // This is more efficient than creating all tools upfront
         this.toolInstances.set(tool.id, {
           component: tool.component,
           stageRef,
-          initialized: false
+          initialized: false,
         });
       }
     });
@@ -246,14 +246,16 @@ export class ToolManager {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle shortcuts if no input is focused
-      if (e.target instanceof HTMLInputElement || 
-          e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
         return;
       }
 
       const key = e.key.toLowerCase();
-      const tool = Object.values(this.tools).find(t => 
-        t.shortcut && t.shortcut.toLowerCase() === key
+      const tool = Object.values(this.tools).find(
+        (t) => t.shortcut && t.shortcut.toLowerCase() === key,
       );
 
       if (tool && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -262,11 +264,11 @@ export class ToolManager {
       }
     };
 
-    container.addEventListener('keydown', handleKeyDown);
-    
+    container.addEventListener("keydown", handleKeyDown);
+
     // Store cleanup function
     (this as any)._keyboardCleanup = () => {
-      container.removeEventListener('keydown', handleKeyDown);
+      container.removeEventListener("keydown", handleKeyDown);
     };
   }
 
@@ -292,9 +294,9 @@ export class ToolManager {
 
   private handleToolActivation(toolId: string) {
     const tool = this.tools[toolId];
-    
+
     // For navigation tools (select, pan), we handle them directly
-    if (tool.category === 'navigation') {
+    if (tool.category === "navigation") {
       this.handleNavigationTool(toolId);
       return;
     }
@@ -305,11 +307,11 @@ export class ToolManager {
 
   private handleNavigationTool(toolId: string) {
     switch (toolId) {
-      case 'select':
+      case "select":
         // Enable selection interactions
         this.stage.draggable(false);
         break;
-      case 'pan':
+      case "pan":
         // Enable pan mode
         this.stage.draggable(true);
         break;
@@ -324,19 +326,23 @@ export class ToolManager {
     return Object.values(this.tools);
   }
 
-  public getToolsByCategory(category: ToolDefinition['category']): ToolDefinition[] {
-    return Object.values(this.tools).filter(tool => tool.category === category);
+  public getToolsByCategory(
+    category: ToolDefinition["category"],
+  ): ToolDefinition[] {
+    return Object.values(this.tools).filter(
+      (tool) => tool.category === category,
+    );
   }
 
   public registerTool(tool: ToolDefinition) {
     this.tools[tool.id] = tool;
-    
+
     if (tool.component) {
       const stageRef = { current: this.stage };
       this.toolInstances.set(tool.id, {
         component: tool.component,
         stageRef,
-        initialized: false
+        initialized: false,
       });
     }
   }

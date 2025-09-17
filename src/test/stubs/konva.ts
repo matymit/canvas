@@ -1,6 +1,6 @@
 // src/test/stubs/konva.ts
 // Very small Konva stub used for unit tests that don't need actual drawing.
-class Node {
+class KonvaNode {
   attrs: Record<string, any>;
   _parent: any = null;
   _children: any[] = [];
@@ -13,7 +13,7 @@ class Node {
   setAttrs(next: any) { Object.assign(this.attrs, next); }
   getLayer() { let p: any = this._parent; while (p && !(p instanceof Layer)) p = p._parent; return p || null; }
 }
-class Group extends Node { constructor(attrs: any = {}) { super(attrs); } }
+class Group extends KonvaNode { constructor(attrs: any = {}) { super(attrs); } }
 class Layer extends Group {
   _drawCount = 0;
   batchDraw() { this._drawCount++; }
@@ -29,8 +29,13 @@ class Layer extends Group {
     return dfs(this);
   }
 }
-class Text extends Node { constructor(attrs: any = {}) { super(attrs); } }
-class Rect extends Node { constructor(attrs: any = {}) { super(attrs); } }
-class Circle extends Node { constructor(attrs: any = {}) { super(attrs); } }
-class Line extends Node { constructor(attrs: any = {}) { super(attrs); } }
+class KonvaText extends KonvaNode { constructor(attrs: any = {}) { super(attrs); } }
+class Rect extends KonvaNode { constructor(attrs: any = {}) { super(attrs); } }
+class Circle extends KonvaNode { constructor(attrs: any = {}) { super(attrs); } }
+class Line extends KonvaNode { constructor(attrs: any = {}) { super(attrs); } }
+
+// Export classes with Konva-compatible names
+export const Node = KonvaNode;
+export const Text = KonvaText;
+export { Group, Layer, Rect, Circle, Line };
 

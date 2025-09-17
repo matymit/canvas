@@ -131,8 +131,8 @@ export class RafBatcher {
       return false;
     }
     
-    // Validate layer is still valid
-    if (layer.isDestroyed()) {
+    // Validate layer is still valid (check if it's still attached to a stage)
+    if (!layer.getStage() || !layer.getParent()) {
       console.warn('RafBatcher: Attempted to draw destroyed layer');
       return false;
     }
@@ -300,8 +300,8 @@ export class RafBatcher {
     
     for (const layer of layers) {
       try {
-        // Validate layer is still valid before drawing
-        if (!layer.isDestroyed()) {
+        // Validate layer is still valid before drawing (check if it's still attached to a stage)
+        if (layer.getStage() && layer.getParent()) {
           if (this.config.preferImmediateDrawInRAF) {
             layer.draw();
           } else {
@@ -395,7 +395,7 @@ export class RafBatcher {
     const staleLayers: Konva.Layer[] = [];
     
     for (const layer of this.layers) {
-      if (layer.isDestroyed()) {
+      if (!layer.getStage() || !layer.getParent()) {
         staleLayers.push(layer);
       }
     }

@@ -15,7 +15,7 @@ export default function TextEditorOverlay() {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [fontSize, setFontSize] = useState(16);
+  const [fontSize] = useState(16);
 
   const elementApi = useUnifiedCanvasStore((s) => s.element);
   const beginBatch = useUnifiedCanvasStore((s) => (s as any).beginBatch);

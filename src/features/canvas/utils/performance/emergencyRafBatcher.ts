@@ -22,19 +22,22 @@ export class EmergencyRafBatcher extends RafBatcher {
     this.maxLatency = Math.max(8, opts.maxLatencyMs ?? 32);
   }
 
-  override enqueueWrite(fn: () => void) {
-    super.enqueueWrite(fn);
+  override enqueueWrite(fn: () => void): boolean {
+    const result = super.enqueueWrite(fn);
     this.armTimer();
+    return result;
   }
 
-  override enqueueRead(fn: () => void) {
-    super.enqueueRead(fn);
+  override enqueueRead(fn: () => void): boolean {
+    const result = super.enqueueRead(fn);
     this.armTimer();
+    return result;
   }
 
-  override requestLayerDraw(layer: Konva.Layer) {
-    super.requestLayerDraw(layer);
+  override requestLayerDraw(layer: Konva.Layer): boolean {
+    const result = super.requestLayerDraw(layer);
     this.armTimer();
+    return result;
   }
 
   override flushNow() {

@@ -4,18 +4,15 @@
 import React, { useEffect, useRef } from "react";
 import Konva from "konva";
 import { nanoid } from "nanoid";
-import type { 
-  MindmapNodeElement, 
-  MindmapEdgeElement 
+import type {
+  MindmapNodeElement
 } from "../../../types/elements/mindmap";
-import { 
-  createMindmapNode, 
-  createMindmapEdge, 
+import {
+  createMindmapNode,
+  createMindmapEdge,
   calculateChildPosition,
-  getNodeConnectionPoint,
   MINDMAP_CONFIG,
-  DEFAULT_NODE_STYLE,
-  DEFAULT_BRANCH_STYLE 
+  DEFAULT_NODE_STYLE
 } from "../../../types/elements/mindmap";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 

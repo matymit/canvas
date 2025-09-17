@@ -5,7 +5,11 @@ import React, { useEffect, useRef } from "react";
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import type { TableElement } from "../../../types/elements/table";
-import { createEmptyTable, DEFAULT_TABLE_STYLE, DEFAULT_TABLE_CONFIG } from "../../../types/elements/table";
+import {
+  createEmptyTable,
+  DEFAULT_TABLE_STYLE,
+  DEFAULT_TABLE_CONFIG,
+} from "../../../types/elements/table";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
@@ -16,7 +20,11 @@ export interface TableToolProps {
   toolId?: string; // e.g., "table"
 }
 
-function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
+function getNamedOrIndexedLayer(
+  stage: Konva.Stage,
+  name: string,
+  indexFallback: number,
+): Konva.Layer | null {
   // Try by name or id; fallback to index if not named
   const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
   if (named && named instanceof Konva.Layer) return named;
@@ -24,11 +32,17 @@ function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback:
   return layers[indexFallback] ?? null;
 }
 
-export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId = "table" }) => {
+export const TableTool: React.FC<TableToolProps> = ({
+  isActive,
+  stageRef,
+  toolId = "table",
+}) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s) => s.replaceSelectionWithSingle);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore(
+    (s) => s.replaceSelectionWithSingle,
+  );
 
   const drawingRef = useRef<{
     start: { x: number; y: number } | null;
@@ -40,9 +54,10 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
-    const previewLayer = getNamedOrIndexedLayer(stage, 'preview', 2) || 
-                        stage.getLayers()[stage.getLayers().length - 2] || 
-                        stage.getLayers()[0];
+    const previewLayer =
+      getNamedOrIndexedLayer(stage, "preview", 2) ||
+      stage.getLayers()[stage.getLayers().length - 2] ||
+      stage.getLayers()[0];
 
     if (!previewLayer) return;
 
@@ -52,12 +67,16 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
 
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
-      const g = new Konva.Group({ listening: false, name: "table-preview", draggable: true });
-      
+      const g = new Konva.Group({
+        listening: false,
+        name: "table-preview",
+        draggable: true,
+      });
+
       const outer = new Konva.Rect({
-        x: pos.x, 
-        y: pos.y, 
-        width: 0, 
+        x: pos.x,
+        y: pos.y,
+        width: 0,
         height: 0,
         stroke: DEFAULT_TABLE_STYLE.borderColor,
         strokeWidth: DEFAULT_TABLE_STYLE.borderWidth,
@@ -65,21 +84,21 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
         listening: false,
         perfectDrawEnabled: false,
       });
-      
+
       g.add(outer);
       previewLayer.add(g);
       drawingRef.current.preview = g;
       previewLayer.batchDraw();
 
-      stage.on('pointermove.tabletool', onPointerMove);
-      stage.on('pointerup.tabletool', onPointerUp);
+      stage.on("pointermove.tabletool", onPointerMove);
+      stage.on("pointerup.tabletool", onPointerUp);
     };
 
     const onPointerMove = () => {
       const start = drawingRef.current.start;
       const g = drawingRef.current.preview;
       if (!start || !g) return;
-      
+
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
@@ -92,7 +111,7 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
       if (outer) {
         outer.position({ x, y });
         outer.size({ width: w, height: h });
-        
+
         updateGridPreview(g, w, h);
       }
       previewLayer.batchDraw();
@@ -101,7 +120,7 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
     const commit = (x: number, y: number, w: number, h: number) => {
       const tableData = createEmptyTable(x, y, w, h);
       const id = nanoid();
-      
+
       const elementData = {
         ...tableData,
         id,
@@ -117,19 +136,18 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
         },
         draggable: true,
       };
-      
+
       upsertElement?.(elementData);
 
       if (replaceSelectionWithSingle) {
         replaceSelectionWithSingle(id);
       }
       setSelectedTool("select");
-      
     };
 
     const onPointerUp = () => {
-      stage.off('pointermove.tabletool');
-      stage.off('pointerup.tabletool');
+      stage.off("pointermove.tabletool");
+      stage.off("pointerup.tabletool");
 
       const start = drawingRef.current.start;
       const g = drawingRef.current.preview;
@@ -153,29 +171,29 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
       const { minWidth, minHeight } = DEFAULT_TABLE_CONFIG;
       const finalW = w < 4 ? minWidth : Math.max(minWidth, w);
       const finalH = h < 4 ? minHeight : Math.max(minHeight, h);
-      
+
       commit(x, y, finalW, finalH);
     };
 
     const onDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       const table = e.target.getParent();
-      if (table && table.name() === 'table') {
+      if (table && table.name() === "table") {
         const pos = stage.getPointerPosition();
         if (!pos) return;
         const tableElement = table.attrs as TableElement;
-        openFirstCellEditor(stage, tableElement.id, tableElement, pos);
+        openFirstCellEditor(stage, tableElement.id, tableElement);
       }
     };
 
-    stage.on('pointerdown.tabletool', onPointerDown);
-    stage.on('dblclick.tabletool', onDoubleClick);
+    stage.on("pointerdown.tabletool", onPointerDown);
+    stage.on("dblclick.tabletool", onDoubleClick);
 
     return () => {
-      stage.off('pointerdown.tabletool', onPointerDown);
-      stage.off('pointermove.tabletool', onPointerMove);
-      stage.off('pointerup.tabletool', onPointerUp);
-      stage.off('dblclick.tabletool', onDoubleClick);
-      
+      stage.off("pointerdown.tabletool", onPointerDown);
+      stage.off("pointermove.tabletool", onPointerMove);
+      stage.off("pointerup.tabletool", onPointerUp);
+      stage.off("dblclick.tabletool", onDoubleClick);
+
       const g = drawingRef.current.preview;
       if (g) {
         g.destroy();
@@ -184,7 +202,15 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
       drawingRef.current.start = null;
       previewLayer.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
+  }, [
+    isActive,
+    selectedTool,
+    toolId,
+    stageRef,
+    upsertElement,
+    setSelectedTool,
+    replaceSelectionWithSingle,
+  ]);
 
   return null;
 };
@@ -194,23 +220,23 @@ export default TableTool;
 // Helper function to update grid preview
 function updateGridPreview(group: Konva.Group, width: number, height: number) {
   // Remove existing grid preview
-  const existing = group.findOne('.grid-preview');
+  const existing = group.findOne(".grid-preview");
   if (existing) existing.destroy();
-  
+
   if (width < 20 || height < 20) return; // Too small for grid preview
-  
+
   // Add simple grid lines
   const { rows, cols } = DEFAULT_TABLE_CONFIG;
   const colWidth = width / cols;
   const rowHeight = height / rows;
-  
+
   const gridShape = new Konva.Shape({
     sceneFunc: (ctx: any, shape: Konva.Shape) => {
       ctx.save();
       ctx.strokeStyle = DEFAULT_TABLE_STYLE.borderColor;
       ctx.lineWidth = 1;
       ctx.globalAlpha = 0.5;
-      
+
       // Vertical lines
       for (let c = 1; c < cols; c++) {
         const x = c * colWidth;
@@ -219,8 +245,8 @@ function updateGridPreview(group: Konva.Group, width: number, height: number) {
         ctx.lineTo(x, height);
         ctx.stroke();
       }
-      
-      // Horizontal lines  
+
+      // Horizontal lines
       for (let r = 1; r < rows; r++) {
         const y = r * rowHeight;
         ctx.beginPath();
@@ -228,28 +254,32 @@ function updateGridPreview(group: Konva.Group, width: number, height: number) {
         ctx.lineTo(width, y);
         ctx.stroke();
       }
-      
+
       ctx.restore();
       ctx.fillStrokeShape(shape);
     },
     listening: false,
-    name: 'grid-preview'
+    name: "grid-preview",
   });
-  
+
   group.add(gridShape);
 }
 
 // Simple editor entry point for the first cell
-function openFirstCellEditor(stage: Konva.Stage, tableId: string, tableModel: TableElement) {
+function openFirstCellEditor(
+  stage: Konva.Stage,
+  tableId: string,
+  tableModel: TableElement,
+) {
   // Position at first cell's top-left with padding
   const px = tableModel.x + tableModel.style.paddingX;
   const py = tableModel.y + tableModel.style.paddingY;
-  
+
   // Create a DOM textarea overlay at the cell position
   const container = stage.container();
   const rect = container.getBoundingClientRect();
   const stageTransform = stage.getAbsoluteTransform();
-  
+
   // Transform table coordinates to screen coordinates
   const screenPos = stageTransform.point({ x: px, y: py });
   const left = rect.left + screenPos.x;
@@ -275,7 +305,7 @@ function openFirstCellEditor(stage: Konva.Stage, tableId: string, tableModel: Ta
     zIndex: "1000",
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
   } as CSSStyleDeclaration);
-  
+
   document.body.appendChild(textarea);
   textarea.focus();
   textarea.select();
@@ -285,9 +315,9 @@ function openFirstCellEditor(stage: Konva.Stage, tableId: string, tableModel: Ta
     if (textarea.parentElement) {
       textarea.parentElement.removeChild(textarea);
     }
-    
+
     if (cancel || value.length === 0) return;
-    
+
     // Update cell (0,0) in store via element update
     const store = useUnifiedCanvasStore.getState();
     const updateElement = store.element?.update;
@@ -297,9 +327,9 @@ function openFirstCellEditor(stage: Konva.Stage, tableId: string, tableModel: Ta
           ...store.element.getById?.(tableId)?.data,
           cells: [
             { text: value },
-            ...(store.element.getById?.(tableId)?.data?.cells?.slice(1) || [])
-          ]
-        }
+            ...(store.element.getById?.(tableId)?.data?.cells?.slice(1) || []),
+          ],
+        },
       });
     }
   };
@@ -315,7 +345,7 @@ function openFirstCellEditor(stage: Konva.Stage, tableId: string, tableModel: Ta
     }
     // Allow Shift+Enter for new lines within cell
   };
-  
+
   const handleBlur = () => {
     commit(false);
   };

@@ -1,16 +1,6 @@
 import Konva from 'konva';
 // Use the canonical performance ShapeCaching
-import { ShapeCaching, CacheConfig } from '../utils/performance/ShapeCaching';
-
-// Compatibility functions for the existing API
-const cacheLayerStatic = (layer: Konva.Layer, cfg?: CacheConfig) => {
-  ShapeCaching.cacheNode(layer, cfg);
-  return layer;
-};
-const clearShapeCache = (node: Konva.Shape | Konva.Group) => {
-  ShapeCaching.clearCache(node);
-  return node;
-};
+import { ShapeCaching } from '../utils/performance/ShapeCaching';
 
 export interface GridOptions {
   spacing: number;           // world units between dots

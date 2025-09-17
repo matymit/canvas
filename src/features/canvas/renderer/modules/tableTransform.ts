@@ -134,7 +134,6 @@ export function addTableColumn(
   // Insert empty cells for the new column
   const newCells = [...element.cells];
   for (let row = 0; row < element.rows; row++) {
-    const cellIndex = row * element.cols + insertAt;
     const adjustedIndex = row * (element.cols + 1) + insertAt;
     newCells.splice(adjustedIndex, 0, { text: "" });
   }

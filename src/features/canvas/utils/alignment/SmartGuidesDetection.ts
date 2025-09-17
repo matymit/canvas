@@ -1,5 +1,3 @@
-import Konva from 'konva';
-
 export interface AlignmentGuide {
   axis: 'x' | 'y';
   value: number;

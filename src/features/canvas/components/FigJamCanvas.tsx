@@ -1,20 +1,21 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import Konva from 'konva';
-import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
-import { setupRenderer } from '../renderer';
-import CanvasToolbar from '../toolbar/CanvasToolbar';
-import ZoomControls from './ZoomControls';
+import React, { useEffect, useRef, useCallback } from "react";
+import Konva from "konva";
+import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import { setupRenderer } from "../renderer";
+import CanvasToolbar from "../toolbar/CanvasToolbar";
+import ZoomControls from "./ZoomControls";
+import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
 // Tool imports - all major tools
-import StickyNoteTool from './tools/creation/StickyNoteTool';
-import ConnectorTool from './tools/creation/ConnectorTool';
-import TextTool from './tools/content/TextTool';
-import ImageTool from './tools/content/ImageTool';
-import TableTool from './tools/content/TableTool';
-import MindmapTool from './tools/content/MindmapTool';
-import RectangleTool from './tools/shapes/RectangleTool';
-import CircleTool from './tools/shapes/CircleTool';
-import TriangleTool from './tools/shapes/TriangleTool';
+import StickyNoteTool from "./tools/creation/StickyNoteTool";
+import ConnectorTool from "./tools/creation/ConnectorTool";
+import TextTool from "./tools/content/TextTool";
+import ImageTool from "./tools/content/ImageTool";
+import TableTool from "./tools/content/TableTool";
+import MindmapTool from "./tools/content/MindmapTool";
+import RectangleTool from "./tools/shapes/RectangleTool";
+import CircleTool from "./tools/shapes/CircleTool";
+import TriangleTool from "./tools/shapes/TriangleTool";
 // Note: Drawing tools (pen, marker, highlighter, eraser) would be in ./tools/drawing/
 
 const FigJamCanvas: React.FC = () => {
@@ -26,25 +27,39 @@ const FigJamCanvas: React.FC = () => {
     highlighter: Konva.Layer | null;
     preview: Konva.Layer | null;
     overlay: Konva.Layer | null;
-  }>({ background: null, main: null, highlighter: null, preview: null, overlay: null });
+  }>({
+    background: null,
+    main: null,
+    highlighter: null,
+    preview: null,
+    overlay: null,
+  });
   const rendererDisposeRef = useRef<(() => void) | null>(null);
 
   // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
   const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool);
   const elements = useUnifiedCanvasStore((state) => state.elements);
-  const selectedElementIds = useUnifiedCanvasStore((state) => state.selectedElementIds);
-  
+  const selectedElementIds = useUnifiedCanvasStore(
+    (state) => state.selectedElementIds,
+  );
+
   // Store methods
   const setSelection = useUnifiedCanvasStore((state) => state.setSelection);
   const addToSelection = useUnifiedCanvasStore((state) => state.addToSelection);
   const clearSelection = useUnifiedCanvasStore((state) => state.clearSelection);
+  const deleteSelected = useUnifiedCanvasStore(
+    (state) => state.selection?.deleteSelected,
+  );
+  const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
+  const undo = useUnifiedCanvasStore((state) => state.undo);
+  const redo = useUnifiedCanvasStore((state) => state.redo);
 
   // Initialize stage and renderer system
   useEffect(() => {
     if (!containerRef.current) return;
 
-    console.log('[FigJamCanvas] Initializing stage and renderer system');
+    console.log("[FigJamCanvas] Initializing stage and renderer system");
 
     // Create Konva stage
     const stage = new Konva.Stage({
@@ -81,7 +96,7 @@ const FigJamCanvas: React.FC = () => {
     // Setup grid on background layer
     const gridSize = 20;
     const dotRadius = 1;
-    const dotColor = '#c0c0c0';
+    const dotColor = "#c0c0c0";
 
     const gridShape = new Konva.Shape({
       listening: false,
@@ -119,7 +134,7 @@ const FigJamCanvas: React.FC = () => {
     backgroundLayer.batchDraw();
 
     // Setup renderer system - this is the KEY integration
-    console.log('[FigJamCanvas] Setting up renderer modules');
+    console.log("[FigJamCanvas] Setting up renderer modules");
     const rendererDispose = setupRenderer(stage, {
       background: backgroundLayer,
       main: mainLayer,
@@ -132,7 +147,7 @@ const FigJamCanvas: React.FC = () => {
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       // Skip if not in select mode
-      if (selectedTool !== 'select') return;
+      if (selectedTool !== "select") return;
 
       // If clicking on empty stage, clear selection
       if (e.target === stage) {
@@ -142,8 +157,8 @@ const FigJamCanvas: React.FC = () => {
 
       // If clicking on an element, select it (renderer modules should set element IDs on nodes)
       const clickedNode = e.target;
-      const elementId = clickedNode.getAttr('elementId') || clickedNode.id();
-      
+      const elementId = clickedNode.getAttr("elementId") || clickedNode.id();
+
       if (elementId && elements.has(elementId)) {
         if (e.evt.ctrlKey || e.evt.metaKey) {
           // Toggle selection with Ctrl/Cmd
@@ -161,7 +176,7 @@ const FigJamCanvas: React.FC = () => {
       }
     };
 
-    stage.on('click', handleStageClick);
+    stage.on("click", handleStageClick);
 
     // Mouse wheel zoom with viewport store integration
     const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -171,21 +186,21 @@ const FigJamCanvas: React.FC = () => {
 
       const deltaScale = e.evt.deltaY > 0 ? 0.9 : 1.1;
       viewport.zoomAt(pointer.x, pointer.y, deltaScale);
-      
+
       // Update stage to match viewport store
       stage.scale({ x: viewport.scale, y: viewport.scale });
       stage.position({ x: viewport.x, y: viewport.y });
-      
+
       // Redraw grid
       backgroundLayer.batchDraw();
     };
 
-    stage.on('wheel', handleWheel);
+    stage.on("wheel", handleWheel);
 
     // Pan handling when pan tool is active
     let isPanning = false;
     const handleDragStart = () => {
-      if (selectedTool === 'pan') {
+      if (selectedTool === "pan") {
         isPanning = true;
         stage.draggable(true);
       }
@@ -206,9 +221,9 @@ const FigJamCanvas: React.FC = () => {
       }
     };
 
-    stage.on('dragstart', handleDragStart);
-    stage.on('dragmove', handleDragMove);
-    stage.on('dragend', handleDragEnd);
+    stage.on("dragstart", handleDragStart);
+    stage.on("dragmove", handleDragMove);
+    stage.on("dragend", handleDragEnd);
 
     // Window resize handler
     const handleResize = () => {
@@ -217,19 +232,19 @@ const FigJamCanvas: React.FC = () => {
       backgroundLayer.batchDraw();
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     // Cleanup
     return () => {
-      console.log('[FigJamCanvas] Cleaning up stage and renderer');
-      window.removeEventListener('resize', handleResize);
-      
+      console.log("[FigJamCanvas] Cleaning up stage and renderer");
+      window.removeEventListener("resize", handleResize);
+
       // Dispose renderer modules
       if (rendererDisposeRef.current) {
         rendererDisposeRef.current();
         rendererDisposeRef.current = null;
       }
-      
+
       // Destroy stage
       stage.destroy();
       stageRef.current = null;
@@ -243,7 +258,7 @@ const FigJamCanvas: React.FC = () => {
 
     stage.scale({ x: viewport.scale, y: viewport.scale });
     stage.position({ x: viewport.x, y: viewport.y });
-    
+
     // Redraw background for grid updates
     layersRef.current.background?.batchDraw();
   }, [viewport.scale, viewport.x, viewport.y]);
@@ -252,46 +267,46 @@ const FigJamCanvas: React.FC = () => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    let cursor = 'default';
+    let cursor = "default";
     switch (selectedTool) {
-      case 'select':
-        cursor = 'default';
+      case "select":
+        cursor = "default";
         break;
-      case 'pan':
-        cursor = 'grab';
+      case "pan":
+        cursor = "grab";
         break;
-      case 'pen':
-      case 'marker':
-      case 'highlighter':
-      case 'eraser':
-        cursor = 'crosshair';
+      case "pen":
+      case "marker":
+      case "highlighter":
+      case "eraser":
+        cursor = "crosshair";
         break;
-      case 'text':
-        cursor = 'text';
+      case "text":
+        cursor = "text";
         break;
-      case 'sticky-note':
-      case 'sticky':
-        cursor = 'crosshair';
+      case "sticky-note":
+      case "sticky":
+        cursor = "crosshair";
         break;
-      case 'rectangle':
-      case 'ellipse':
-      case 'circle':
-      case 'triangle':
-      case 'line':
-        cursor = 'crosshair';
+      case "rectangle":
+      case "ellipse":
+      case "circle":
+      case "triangle":
+      case "line":
+        cursor = "crosshair";
         break;
-      case 'connector':
-      case 'connector-line':
-      case 'connector-arrow':
-        cursor = 'crosshair';
+      case "connector":
+      case "connector-line":
+      case "connector-arrow":
+        cursor = "crosshair";
         break;
-      case 'image':
-      case 'table':
-      case 'mindmap':
-        cursor = 'crosshair';
+      case "image":
+      case "table":
+      case "mindmap":
+        cursor = "crosshair";
         break;
       default:
-        cursor = 'default';
+        cursor = "default";
     }
 
     containerRef.current.style.cursor = cursor;
@@ -304,11 +319,57 @@ const FigJamCanvas: React.FC = () => {
     console.log(`[FigJamCanvas] Elements changed: ${elements.size} total`);
   }, [elements]);
 
+  // Keyboard shortcuts implementation
+  useKeyboardShortcuts(
+    {
+      onDelete: () => {
+        // Only delete if there are selected elements
+        if (selectedElementIds.size === 0) return;
+
+        // Use withUndo for proper history integration
+        if (withUndo && deleteSelected) {
+          withUndo("Delete selected elements", () => {
+            deleteSelected();
+          });
+        }
+      },
+      onUndo: () => {
+        undo?.();
+      },
+      onRedo: () => {
+        redo?.();
+      },
+      onSelectAll: () => {
+        // Select all elements
+        const allIds = Array.from(elements.keys());
+        setSelection(allIds);
+      },
+      onZoomIn: () => {
+        viewport.zoomIn();
+      },
+      onZoomOut: () => {
+        viewport.zoomOut();
+      },
+      onZoomReset: () => {
+        viewport.reset();
+      },
+      onFitToContent: () => {
+        viewport.fitToContent();
+      },
+      onTool: (toolId: string) => {
+        // Switch to the specified tool
+        const setSelectedTool =
+          useUnifiedCanvasStore.getState().setSelectedTool;
+        setSelectedTool(toolId);
+      },
+    },
+    containerRef.current,
+  );
+
   // Render tools based on active tool - these handle stage interactions
   const renderActiveTool = useCallback(() => {
     if (!stageRef.current) return null;
 
-    const stage = stageRef.current;
     const toolProps = { isActive: true, stageRef };
 
     // Normalize tool names (handle both old and new naming)
@@ -317,38 +378,62 @@ const FigJamCanvas: React.FC = () => {
     try {
       switch (normalizedTool) {
         // Content tools
-        case 'sticky-note':
-        case 'sticky':
+        case "sticky-note":
+        case "sticky":
           return <StickyNoteTool key="sticky-tool" {...toolProps} />;
 
-        case 'text':
+        case "text":
           return <TextTool key="text-tool" {...toolProps} />;
 
-        case 'image':
+        case "image":
           return <ImageTool key="image-tool" {...toolProps} />;
 
-        case 'table':
+        case "table":
           return <TableTool key="table-tool" {...toolProps} />;
 
-        case 'mindmap':
+        case "mindmap":
           return <MindmapTool key="mindmap-tool" {...toolProps} />;
 
         // Shape tools
-        case 'rectangle':
-          return <RectangleTool key="rectangle-tool" {...toolProps} toolId={selectedTool} />;
+        case "rectangle":
+          return (
+            <RectangleTool
+              key="rectangle-tool"
+              {...toolProps}
+              toolId={selectedTool}
+            />
+          );
 
-        case 'circle':
-        case 'ellipse':
-          return <CircleTool key="circle-tool" {...toolProps} toolId={selectedTool} />;
+        case "circle":
+        case "ellipse":
+          return (
+            <CircleTool
+              key="circle-tool"
+              {...toolProps}
+              toolId={selectedTool}
+            />
+          );
 
-        case 'triangle':
-          return <TriangleTool key="triangle-tool" {...toolProps} toolId={selectedTool} />;
+        case "triangle":
+          return (
+            <TriangleTool
+              key="triangle-tool"
+              {...toolProps}
+              toolId={selectedTool}
+            />
+          );
 
         // Connector tools
-        case 'connector':
-        case 'connector-line':
-        case 'connector-arrow':
-          return <ConnectorTool key="connector-tool" {...toolProps} toolId={selectedTool} />;
+        case "connector":
+        case "connector-line":
+        case "connector-arrow":
+          return (
+            <ConnectorTool
+              key="connector-tool"
+              {...toolProps}
+              toolId={selectedTool as "connector-line" | "connector-arrow"}
+            />
+          );
 
         // Drawing tools would go here
         // case 'pen':
@@ -361,13 +446,16 @@ const FigJamCanvas: React.FC = () => {
         //   return <EraserTool key="eraser-tool" {...toolProps} />;
 
         // No tool component needed for select/pan
-        case 'select':
-        case 'pan':
+        case "select":
+        case "pan":
         default:
           return null;
       }
     } catch (error) {
-      console.error(`[FigJamCanvas] Error rendering tool '${selectedTool}':`, error);
+      console.error(
+        `[FigJamCanvas] Error rendering tool '${selectedTool}':`,
+        error,
+      );
       return null;
     }
   }, [selectedTool]);
@@ -377,7 +465,7 @@ const FigJamCanvas: React.FC = () => {
       <CanvasToolbar />
       <div ref={containerRef} className="konva-stage-container" />
       <ZoomControls />
-      
+
       {/* Render active tool components - these handle stage interactions */}
       {renderActiveTool()}
     </div>

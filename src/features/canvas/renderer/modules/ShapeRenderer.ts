@@ -1,12 +1,12 @@
 // Shape renderer module for rendering basic shapes (rectangle, circle, triangle)
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
 
 type Id = string;
 
 interface ShapeElement {
   id: Id;
-  type: 'rectangle' | 'circle' | 'triangle';
+  type: "rectangle" | "circle" | "triangle";
   x: number;
   y: number;
   width?: number;
@@ -27,7 +27,7 @@ export class ShapeRenderer implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log('[ShapeRenderer] Mounting...');
+    console.log("[ShapeRenderer] Mounting...");
     this.layer = ctx.layers.main;
 
     // Subscribe to store changes - watch shape elements
@@ -36,21 +36,29 @@ export class ShapeRenderer implements RendererModule {
       (state) => {
         const shapes = new Map<Id, ShapeElement>();
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle') {
+          if (
+            element.type === "rectangle" ||
+            element.type === "circle" ||
+            element.type === "triangle"
+          ) {
             shapes.set(id, element as ShapeElement);
           }
         }
         return shapes;
       },
       // Callback: reconcile changes
-      (shapes) => this.reconcile(shapes)
+      (shapes) => this.reconcile(shapes),
     );
 
     // Initial render
     const initialState = ctx.store.getState();
     const initialShapes = new Map<Id, ShapeElement>();
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle') {
+      if (
+        element.type === "rectangle" ||
+        element.type === "circle" ||
+        element.type === "triangle"
+      ) {
         initialShapes.set(id, element as ShapeElement);
       }
     }
@@ -61,7 +69,7 @@ export class ShapeRenderer implements RendererModule {
   }
 
   private unmount() {
-    console.log('[ShapeRenderer] Unmounting...');
+    console.log("[ShapeRenderer] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -75,7 +83,7 @@ export class ShapeRenderer implements RendererModule {
   }
 
   private reconcile(shapes: Map<Id, ShapeElement>) {
-    console.log('[ShapeRenderer] Reconciling', shapes.size, 'shape elements');
+    console.log("[ShapeRenderer] Reconciling", shapes.size, "shape elements");
 
     if (!this.layer) return;
 
@@ -91,11 +99,15 @@ export class ShapeRenderer implements RendererModule {
         node = this.createShapeNode(shape);
         if (node) {
           // Add dragend handler for position commit
-          node.on('dragend', (e) => {
+          node.on("dragend", (e) => {
             const shapeNode = e.target as Konva.Shape;
             const nx = shapeNode.x();
             const ny = shapeNode.y();
-            (window as any).__canvasStore?.element?.updateElement?.(shape.id, { x: nx, y: ny }, { pushHistory: true });
+            (window as any).__canvasStore?.element?.updateElement?.(
+              shape.id,
+              { x: nx, y: ny },
+              { pushHistory: true },
+            );
           });
           this.shapeNodes.set(id, node);
           this.layer.add(node);
@@ -109,7 +121,7 @@ export class ShapeRenderer implements RendererModule {
     // Remove deleted shape elements
     for (const [id, node] of this.shapeNodes) {
       if (!seen.has(id)) {
-        console.log('[ShapeRenderer] Removing shape:', id);
+        console.log("[ShapeRenderer] Removing shape:", id);
         node.destroy();
         this.shapeNodes.delete(id);
       }
@@ -118,13 +130,13 @@ export class ShapeRenderer implements RendererModule {
     this.layer.batchDraw();
   }
 
-  private createShapeNode(shape: ShapeElement): Konva.Shape | null {
+  private createShapeNode(shape: ShapeElement): Konva.Shape | undefined {
     const commonAttrs = {
       id: shape.id,
       x: shape.x,
       y: shape.y,
-      fill: shape.style?.fill || '#E5E7EB',
-      stroke: shape.style?.stroke || '#6B7280',
+      fill: shape.style?.fill || "#E5E7EB",
+      stroke: shape.style?.stroke || "#6B7280",
       strokeWidth: shape.style?.strokeWidth || 2,
       opacity: shape.style?.opacity || 1,
       rotation: shape.rotation || 0,
@@ -133,20 +145,20 @@ export class ShapeRenderer implements RendererModule {
     };
 
     switch (shape.type) {
-      case 'rectangle':
+      case "rectangle":
         return new Konva.Rect({
           ...commonAttrs,
           width: shape.width || 100,
           height: shape.height || 100,
         });
 
-      case 'circle':
+      case "circle":
         return new Konva.Circle({
           ...commonAttrs,
-          radius: shape.radius || shape.width ? (shape.width! / 2) : 50,
+          radius: shape.radius || shape.width ? shape.width! / 2 : 50,
         });
 
-      case 'triangle':
+      case "triangle":
         const width = shape.width || 100;
         const height = shape.height || 100;
         return new Konva.RegularPolygon({
@@ -156,8 +168,8 @@ export class ShapeRenderer implements RendererModule {
         });
 
       default:
-        console.warn('[ShapeRenderer] Unknown shape type:', shape.type);
-        return null;
+        console.warn("[ShapeRenderer] Unknown shape type:", shape.type);
+        return undefined;
     }
   }
 
@@ -165,25 +177,28 @@ export class ShapeRenderer implements RendererModule {
     const commonAttrs = {
       x: shape.x,
       y: shape.y,
-      fill: shape.style?.fill || '#E5E7EB',
-      stroke: shape.style?.stroke || '#6B7280',
+      fill: shape.style?.fill || "#E5E7EB",
+      stroke: shape.style?.stroke || "#6B7280",
       strokeWidth: shape.style?.strokeWidth || 2,
       opacity: shape.style?.opacity || 1,
       rotation: shape.rotation || 0,
     };
 
-    if (shape.type === 'rectangle' && node instanceof Konva.Rect) {
+    if (shape.type === "rectangle" && node instanceof Konva.Rect) {
       node.setAttrs({
         ...commonAttrs,
         width: shape.width || 100,
         height: shape.height || 100,
       });
-    } else if (shape.type === 'circle' && node instanceof Konva.Circle) {
+    } else if (shape.type === "circle" && node instanceof Konva.Circle) {
       node.setAttrs({
         ...commonAttrs,
-        radius: shape.radius || shape.width ? (shape.width! / 2) : 50,
+        radius: shape.radius || shape.width ? shape.width! / 2 : 50,
       });
-    } else if (shape.type === 'triangle' && node instanceof Konva.RegularPolygon) {
+    } else if (
+      shape.type === "triangle" &&
+      node instanceof Konva.RegularPolygon
+    ) {
       const width = shape.width || 100;
       const height = shape.height || 100;
       node.setAttrs({

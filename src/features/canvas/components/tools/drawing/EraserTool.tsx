@@ -31,7 +31,6 @@ const EraserTool: React.FC<EraserToolProps> = ({
 
     const layers = stage.getLayers();
     const previewLayer = layers[Math.max(0, layers.length - 2)] as Konva.Layer | undefined; // preview
-    const mainLayer = layers[1] as Konva.Layer | undefined; // main
 
     const showCursor = (pos: { x: number; y: number }) => {
       const overlay = layers[layers.length - 1] as Konva.Layer | undefined;

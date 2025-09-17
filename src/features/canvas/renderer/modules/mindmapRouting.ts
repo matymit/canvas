@@ -140,7 +140,7 @@ export function calculateMultiBranchControls(
   childCenters: Pt[],
   curvature = 0.35
 ): Array<{ c1: Pt; c2: Pt }> {
-  return childCenters.map((child, index) => {
+  return childCenters.map((child) => {
     // Adjust curvature based on vertical separation to avoid overlaps
     const verticalSeparation = Math.abs(child.y - parentCenter.y);
     const adjustedCurvature = curvature * Math.min(1, verticalSeparation / 100);

@@ -1,6 +1,6 @@
 // features/canvas/stores/modules/coreModule.ts
-import type { StoreSlice } from './types';
-import type { ElementId, CanvasElement } from '../../../../../types/index';
+import type { StoreSlice } from "./types";
+import type { ElementId, CanvasElement } from "../../../../../types/index";
 
 // ============================================================================
 // ELEMENT MODULE TYPES AND IMPLEMENTATION
@@ -19,33 +19,42 @@ export interface ElementModuleSlice {
   // Mutators
   addElement: (
     element: CanvasElement,
-    opts?: { index?: number; select?: boolean; pushHistory?: boolean }
+    opts?: { index?: number; select?: boolean; pushHistory?: boolean },
   ) => void;
 
   addElements: (
     elements: CanvasElement[],
-    opts?: { index?: number; selectIds?: ElementId[]; pushHistory?: boolean }
+    opts?: { index?: number; selectIds?: ElementId[]; pushHistory?: boolean },
   ) => void;
 
   updateElement: (
     id: ElementId,
     patch: Partial<CanvasElement> | ((el: CanvasElement) => CanvasElement),
-    opts?: { pushHistory?: boolean }
+    opts?: { pushHistory?: boolean },
   ) => void;
 
   updateElements: (
     patches: Array<{ id: ElementId; patch: Partial<CanvasElement> }>,
-    opts?: { pushHistory?: boolean }
+    opts?: { pushHistory?: boolean },
   ) => void;
 
   moveElement: (id: ElementId, toIndex: number) => void;
   bringToFront: (id: ElementId) => void;
   sendToBack: (id: ElementId) => void;
 
-  removeElement: (id: ElementId, opts?: { pushHistory?: boolean; deselect?: boolean }) => void;
-  removeElements: (ids: ElementId[], opts?: { pushHistory?: boolean; deselect?: boolean }) => void;
+  removeElement: (
+    id: ElementId,
+    opts?: { pushHistory?: boolean; deselect?: boolean },
+  ) => void;
+  removeElements: (
+    ids: ElementId[],
+    opts?: { pushHistory?: boolean; deselect?: boolean },
+  ) => void;
 
-  duplicateElement: (id: ElementId, opts?: { offset?: { x: number; y: number } }) => ElementId | undefined;
+  duplicateElement: (
+    id: ElementId,
+    opts?: { offset?: { x: number; y: number } },
+  ) => ElementId | undefined;
 
   // Utilities
   replaceAll: (elements: CanvasElement[], order?: ElementId[]) => void;
@@ -69,7 +78,9 @@ export interface ElementModuleSlice {
 // ============================================================================
 
 function firstElementIdOrNull(state: any): ElementId | undefined {
-  const order: ElementId[] = Array.isArray(state.elementOrder) ? state.elementOrder : [];
+  const order: ElementId[] = Array.isArray(state.elementOrder)
+    ? state.elementOrder
+    : [];
   return order.length > 0 ? order[0] : undefined;
 }
 
@@ -139,11 +150,11 @@ export interface ViewportModuleSlice {
   };
 }
 
-function getElementBounds(el: any):
-  | { x: number; y: number; width: number; height: number }
-  | null {
-  if (typeof el?.x === 'number' && typeof el?.y === 'number') {
-    if (typeof el?.width === 'number' && typeof el?.height === 'number') {
+function getElementBounds(
+  el: any,
+): { x: number; y: number; width: number; height: number } | null {
+  if (typeof el?.x === "number" && typeof el?.y === "number") {
+    if (typeof el?.width === "number" && typeof el?.height === "number") {
       return { x: el.x, y: el.y, width: el.width, height: el.height };
     }
     if (Array.isArray(el?.points) && el.points.length >= 2) {
@@ -167,7 +178,10 @@ function getElementBounds(el: any):
 // COMBINED CORE MODULE SLICE
 // ============================================================================
 
-export interface CoreModuleSlice extends ElementModuleSlice, SelectionModuleSlice, ViewportModuleSlice {}
+export interface CoreModuleSlice
+  extends ElementModuleSlice,
+    SelectionModuleSlice,
+    ViewportModuleSlice {}
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -178,15 +192,15 @@ function __deepClone<T>(v: T): T {
 
   try {
     // For basic primitives, return as-is
-    if (typeof v !== 'object') return v;
+    if (typeof v !== "object") return v;
 
     // Try JSON serialization first (simplest approach)
     return JSON.parse(JSON.stringify(v as any));
   } catch {
     try {
       // Fallback: shallow clone for objects/arrays
-      if (Array.isArray(v)) return (v.slice() as unknown) as T;
-      if (v && typeof v === 'object') {
+      if (Array.isArray(v)) return v.slice() as unknown as T;
+      if (v && typeof v === "object") {
         const copy = {} as any;
         for (const key in v) {
           if (Object.prototype.hasOwnProperty.call(v, key)) {
@@ -205,10 +219,10 @@ function __deepClone<T>(v: T): T {
 
 function __sanitize<T extends Record<string, any>>(v: T): T {
   try {
-    if (v && typeof v === 'object') {
+    if (v && typeof v === "object") {
       const copy: any = Array.isArray(v) ? v.slice() : { ...v };
       for (const k of Object.keys(copy)) {
-        if (k.startsWith('_')) delete copy[k];
+        if (k.startsWith("_")) delete copy[k];
       }
       return copy as T;
     }
@@ -222,7 +236,13 @@ function __sanitize<T extends Record<string, any>>(v: T): T {
 
 export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
   // Viewport constants and utilities
-  const VIEWPORT_DEFAULTS = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 4 };
+  const VIEWPORT_DEFAULTS = {
+    x: 0,
+    y: 0,
+    scale: 1,
+    minScale: 0.1,
+    maxScale: 4,
+  };
 
   function clamp(v: number, lo: number, hi: number) {
     return Math.max(lo, Math.min(hi, v));
@@ -262,7 +282,9 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
     getAllElementsInOrder: () => {
       const map = get().elements;
-      return get().elementOrder.map((id) => map.get(id)).filter(Boolean) as CanvasElement[];
+      return get()
+        .elementOrder.map((id) => map.get(id))
+        .filter(Boolean) as CanvasElement[];
     },
 
     addElement: (element, opts) => {
@@ -270,9 +292,11 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         const index = Math.max(
           0,
           Math.min(
-            typeof opts?.index === 'number' ? opts.index : state.elementOrder.length,
-            state.elementOrder.length
-          )
+            typeof opts?.index === "number"
+              ? opts.index
+              : state.elementOrder.length,
+            state.elementOrder.length,
+          ),
         );
 
         // write map immutably
@@ -284,23 +308,35 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         state.elementOrder.splice(index, 0, element.id as ElementId);
 
         // optional selection
-        const sel = (state as any).selectedElementIds ?? (state as any).selection?.selectedElementIds;
+        const sel =
+          (state as any).selectedElementIds ??
+          (state as any).selection?.selectedElementIds;
         if (opts?.select && sel) {
           const next = new Set<ElementId>(sel);
           next.add(element.id as ElementId);
-          if ('selectedElementIds' in state) (state as any).selectedElementIds = next;
-          if ((state as any).selection && 'selectedElementIds' in (state as any).selection) {
+          if ("selectedElementIds" in state)
+            (state as any).selectedElementIds = next;
+          if (
+            (state as any).selection &&
+            "selectedElementIds" in (state as any).selection
+          ) {
             (state as any).selection.selectedElementIds = next;
           }
-          if ('selectionVersion' in state) (state as any).selectionVersion = ((state as any).selectionVersion ?? 0) + 1;
-          if ((state as any).selection && 'selectionVersion' in (state as any).selection) {
-            (state as any).selection.selectionVersion = ((state as any).selection.selectionVersion ?? 0) + 1;
+          if ("selectionVersion" in state)
+            (state as any).selectionVersion =
+              ((state as any).selectionVersion ?? 0) + 1;
+          if (
+            (state as any).selection &&
+            "selectionVersion" in (state as any).selection
+          ) {
+            (state as any).selection.selectionVersion =
+              ((state as any).selection.selectionVersion ?? 0) + 1;
           }
         }
       });
       if (opts?.pushHistory) {
         const root = get() as any;
-        root.record?.({ op: 'add', elements: [element] });
+        root.record?.({ op: "add", elements: [element] });
       }
     },
 
@@ -313,67 +349,109 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         for (let i = 0; i < elements.length; i++) {
           const el = elements[i];
           const at =
-            typeof opts?.index === 'number' ? Math.min(state.elementOrder.length, opts.index + i) : state.elementOrder.length;
+            typeof opts?.index === "number"
+              ? Math.min(state.elementOrder.length, opts.index + i)
+              : state.elementOrder.length;
           state.elements.set(el.id as ElementId, __sanitize(el));
           state.elementOrder.splice(at, 0, el.id as ElementId);
         }
 
         // optional selection
-        const sel = (state as any).selectedElementIds ?? (state as any).selection?.selectedElementIds;
+        const sel =
+          (state as any).selectedElementIds ??
+          (state as any).selection?.selectedElementIds;
         if (sel && selectIds.size > 0) {
           const next = new Set<ElementId>(sel);
           selectIds.forEach((id) => next.add(id));
-          if ('selectedElementIds' in state) (state as any).selectedElementIds = next;
-          if ((state as any).selection && 'selectedElementIds' in (state as any).selection) {
+          if ("selectedElementIds" in state)
+            (state as any).selectedElementIds = next;
+          if (
+            (state as any).selection &&
+            "selectedElementIds" in (state as any).selection
+          ) {
             (state as any).selection.selectedElementIds = next;
           }
-          if ('selectionVersion' in state) (state as any).selectionVersion = ((state as any).selectionVersion ?? 0) + 1;
-          if ((state as any).selection && 'selectionVersion' in (state as any).selection) {
-            (state as any).selection.selectionVersion = ((state as any).selection.selectionVersion ?? 0) + 1;
+          if ("selectionVersion" in state)
+            (state as any).selectionVersion =
+              ((state as any).selectionVersion ?? 0) + 1;
+          if (
+            (state as any).selection &&
+            "selectionVersion" in (state as any).selection
+          ) {
+            (state as any).selection.selectionVersion =
+              ((state as any).selection.selectionVersion ?? 0) + 1;
           }
         }
       });
       if (opts?.pushHistory) {
         const root = get() as any;
-        root.record?.({ op: 'add', elements });
+        root.record?.({ op: "add", elements });
       }
     },
 
     updateElement: (id, patch, opts) => {
       // Capture plain "before" outside of immer draft
-      const beforeOriginal = __deepClone((get() as any).getElement?.(id) ?? (get() as any).element?.getById?.(id));
+      const beforeOriginal = __deepClone(
+        (get() as any).getElement?.(id) ??
+          (get() as any).element?.getById?.(id),
+      );
       set((state) => {
-        const prev = state.elements?.get(id) ?? (state as any).element?.elements?.get?.(id);
+        const prev =
+          state.elements?.get(id) ??
+          (state as any).element?.elements?.get?.(id);
         if (!prev) return;
-        const next = __sanitize(typeof patch === 'function' ? (patch as any)(prev) : { ...prev, ...patch });
+        const next = __sanitize(
+          typeof patch === "function"
+            ? (patch as any)(prev)
+            : { ...prev, ...patch },
+        );
 
         // map immutable write
         const map: Map<ElementId, CanvasElement> =
-          state.elements ?? (state as any).element?.elements ?? new Map<ElementId, CanvasElement>();
+          state.elements ??
+          (state as any).element?.elements ??
+          new Map<ElementId, CanvasElement>();
         const newMap = new Map<ElementId, CanvasElement>(map);
         newMap.set(id, next);
-        if ('elements' in state) state.elements = newMap;
-        else if ((state as any).element && 'elements' in (state as any).element) (state as any).element.elements = newMap;
+        if ("elements" in state) state.elements = newMap;
+        else if ((state as any).element && "elements" in (state as any).element)
+          (state as any).element.elements = newMap;
       });
       if (opts?.pushHistory && beforeOriginal) {
-        const afterOriginal = __deepClone((get() as any).getElement?.(id) ?? (get() as any).element?.getById?.(id));
+        const afterOriginal = __deepClone(
+          (get() as any).getElement?.(id) ??
+            (get() as any).element?.getById?.(id),
+        );
         if (afterOriginal) {
           const root = get() as any;
-          root.record?.({ op: 'update', before: [beforeOriginal], after: [afterOriginal] });
+          root.record?.({
+            op: "update",
+            before: [beforeOriginal],
+            after: [afterOriginal],
+          });
         }
       }
     },
 
-    updateElements: (patches: Array<{ id: ElementId; patch: Partial<CanvasElement> }>, opts?: { pushHistory?: boolean }) => {
-      const ids = patches.map(p => p.id);
+    updateElements: (
+      patches: Array<{ id: ElementId; patch: Partial<CanvasElement> }>,
+      opts?: { pushHistory?: boolean },
+    ) => {
+      const ids = patches.map((p) => p.id);
       const beforeOriginals: CanvasElement[] = ids
-        .map((id) => (get() as any).getElement?.(id) ?? (get() as any).element?.getById?.(id))
+        .map(
+          (id) =>
+            (get() as any).getElement?.(id) ??
+            (get() as any).element?.getById?.(id),
+        )
         .filter(Boolean)
         .map(__deepClone);
 
       set((state) => {
         const map: Map<ElementId, CanvasElement> =
-          state.elements ?? (state as any).element?.elements ?? new Map<ElementId, CanvasElement>();
+          state.elements ??
+          (state as any).element?.elements ??
+          new Map<ElementId, CanvasElement>();
         const newMap = new Map<ElementId, CanvasElement>(map);
 
         for (const { id, patch } of patches) {
@@ -383,16 +461,25 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
           newMap.set(id, next);
         }
 
-        if ('elements' in state) state.elements = newMap;
-        else if ((state as any).element && 'elements' in (state as any).element) (state as any).element.elements = newMap;
+        if ("elements" in state) state.elements = newMap;
+        else if ((state as any).element && "elements" in (state as any).element)
+          (state as any).element.elements = newMap;
       });
       if (opts?.pushHistory && beforeOriginals.length > 0) {
         const afterOriginals: CanvasElement[] = ids
-          .map((id) => (get() as any).getElement?.(id) ?? (get() as any).element?.getById?.(id))
+          .map(
+            (id) =>
+              (get() as any).getElement?.(id) ??
+              (get() as any).element?.getById?.(id),
+          )
           .filter(Boolean)
           .map(__deepClone);
         const root = get() as any;
-        root.record?.({ op: 'update', before: beforeOriginals, after: afterOriginals });
+        root.record?.({
+          op: "update",
+          before: beforeOriginals,
+          after: afterOriginals,
+        });
       }
     },
 
@@ -437,13 +524,16 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
       set((state) => {
         const map: Map<ElementId, CanvasElement> =
-          state.elements ?? (state as any).element?.elements ?? new Map<ElementId, CanvasElement>();
+          state.elements ??
+          (state as any).element?.elements ??
+          new Map<ElementId, CanvasElement>();
 
         const newMap = new Map<ElementId, CanvasElement>(map);
         newMap.delete(id);
 
-        if ('elements' in state) state.elements = newMap;
-        else if ((state as any).element && 'elements' in (state as any).element) (state as any).element.elements = newMap;
+        if ("elements" in state) state.elements = newMap;
+        else if ((state as any).element && "elements" in (state as any).element)
+          (state as any).element.elements = newMap;
 
         const order: ElementId[] = state.elementOrder.slice();
         const idx = order.indexOf(id);
@@ -453,17 +543,29 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         }
 
         if (opts?.deselect) {
-          const sel = (state as any).selectedElementIds ?? (state as any).selection?.selectedElementIds;
+          const sel =
+            (state as any).selectedElementIds ??
+            (state as any).selection?.selectedElementIds;
           if (sel) {
             const next = new Set<ElementId>(sel);
             next.delete(id);
-            if ('selectedElementIds' in state) (state as any).selectedElementIds = next;
-            if ((state as any).selection && 'selectedElementIds' in (state as any).selection) {
+            if ("selectedElementIds" in state)
+              (state as any).selectedElementIds = next;
+            if (
+              (state as any).selection &&
+              "selectedElementIds" in (state as any).selection
+            ) {
               (state as any).selection.selectedElementIds = next;
             }
-            if ('selectionVersion' in state) (state as any).selectionVersion = ((state as any).selectionVersion ?? 0) + 1;
-            if ((state as any).selection && 'selectionVersion' in (state as any).selection) {
-              (state as any).selection.selectionVersion = ((state as any).selection.selectionVersion ?? 0) + 1;
+            if ("selectionVersion" in state)
+              (state as any).selectionVersion =
+                ((state as any).selectionVersion ?? 0) + 1;
+            if (
+              (state as any).selection &&
+              "selectionVersion" in (state as any).selection
+            ) {
+              (state as any).selection.selectionVersion =
+                ((state as any).selection.selectionVersion ?? 0) + 1;
             }
           }
         }
@@ -471,7 +573,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
       if (opts?.pushHistory && removed) {
         const root = get() as any;
-        root.record?.({ op: 'remove', elements: [removed] });
+        root.record?.({ op: "remove", elements: [removed] });
       }
     },
 
@@ -488,7 +590,9 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
       set((state) => {
         const map: Map<ElementId, CanvasElement> =
-          state.elements ?? (state as any).element?.elements ?? new Map<ElementId, CanvasElement>();
+          state.elements ??
+          (state as any).element?.elements ??
+          new Map<ElementId, CanvasElement>();
         const newMap = new Map<ElementId, CanvasElement>(map);
 
         // Remove elements from the map
@@ -496,26 +600,41 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
           newMap.delete(id);
         }
 
-        if ('elements' in state) state.elements = newMap;
-        else if ((state as any).element && 'elements' in (state as any).element) (state as any).element.elements = newMap;
+        if ("elements" in state) state.elements = newMap;
+        else if ((state as any).element && "elements" in (state as any).element)
+          (state as any).element.elements = newMap;
 
         if (elementsToRemove.length > 0) {
           const toRemove = new Set(ids);
-          state.elementOrder = state.elementOrder.filter((eid: ElementId) => !toRemove.has(eid));
+          state.elementOrder = state.elementOrder.filter(
+            (eid: ElementId) => !toRemove.has(eid),
+          );
         }
 
         if (opts?.deselect) {
-          const sel = (state as any).selectedElementIds ?? (state as any).selection?.selectedElementIds;
+          const sel =
+            (state as any).selectedElementIds ??
+            (state as any).selection?.selectedElementIds;
           if (sel) {
             const next = new Set<ElementId>(sel);
             ids.forEach((id) => next.delete(id));
-            if ('selectedElementIds' in state) (state as any).selectedElementIds = next;
-            if ((state as any).selection && 'selectedElementIds' in (state as any).selection) {
+            if ("selectedElementIds" in state)
+              (state as any).selectedElementIds = next;
+            if (
+              (state as any).selection &&
+              "selectedElementIds" in (state as any).selection
+            ) {
               (state as any).selection.selectedElementIds = next;
             }
-            if ('selectionVersion' in state) (state as any).selectionVersion = ((state as any).selectionVersion ?? 0) + 1;
-            if ((state as any).selection && 'selectionVersion' in (state as any).selection) {
-              (state as any).selection.selectionVersion = ((state as any).selection.selectionVersion ?? 0) + 1;
+            if ("selectionVersion" in state)
+              (state as any).selectionVersion =
+                ((state as any).selectionVersion ?? 0) + 1;
+            if (
+              (state as any).selection &&
+              "selectionVersion" in (state as any).selection
+            ) {
+              (state as any).selection.selectionVersion =
+                ((state as any).selection.selectionVersion ?? 0) + 1;
             }
           }
         }
@@ -523,7 +642,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
       if (opts?.pushHistory && elementsToRemove.length > 0) {
         const root = get() as any;
-        root.record?.({ op: 'remove', elements: elementsToRemove });
+        root.record?.({ op: "remove", elements: elementsToRemove });
       }
     },
 
@@ -531,15 +650,20 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       const el = get().elements.get(id);
       if (!el) return undefined;
       const clone = { ...el } as any;
-      const newId = (crypto?.randomUUID?.() ?? `${id}-copy`) as unknown as ElementId;
+      const newId = (crypto?.randomUUID?.() ??
+        `${id}-copy`) as unknown as ElementId;
       clone.id = newId;
 
       // apply simple position offset if present
       const dx = opts?.offset?.x ?? 12;
       const dy = opts?.offset?.y ?? 12;
-      if ('x' in clone && typeof clone.x === 'number') clone.x += dx;
-      if ('y' in clone && typeof clone.y === 'number') clone.y += dy;
-      if ('points' in clone && Array.isArray(clone.points) && clone.points.length >= 2) {
+      if ("x" in clone && typeof clone.x === "number") clone.x += dx;
+      if ("y" in clone && typeof clone.y === "number") clone.y += dy;
+      if (
+        "points" in clone &&
+        Array.isArray(clone.points) &&
+        clone.points.length >= 2
+      ) {
         const pts = clone.points as number[];
         const shifted: number[] = [];
         for (let i = 0; i < pts.length; i += 2) {
@@ -549,7 +673,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       }
 
       // add to store and select
-      const add = (get() as any).addElement ?? (get() as any).element?.addElement;
+      const add =
+        (get() as any).addElement ?? (get() as any).element?.addElement;
       add?.(clone as CanvasElement, { select: true, pushHistory: true });
 
       return newId;
@@ -563,19 +688,31 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         state.elementOrder = order ?? elements.map((e) => e.id as ElementId);
 
         // prune selection of missing ids
-        const sel = (state as any).selectedElementIds ?? (state as any).selection?.selectedElementIds;
+        const sel =
+          (state as any).selectedElementIds ??
+          (state as any).selection?.selectedElementIds;
         if (sel) {
           const next = new Set<ElementId>();
           sel.forEach((id: ElementId) => {
             if (map.has(id)) next.add(id);
           });
-          if ('selectedElementIds' in state) (state as any).selectedElementIds = next;
-          if ((state as any).selection && 'selectedElementIds' in (state as any).selection) {
+          if ("selectedElementIds" in state)
+            (state as any).selectedElementIds = next;
+          if (
+            (state as any).selection &&
+            "selectedElementIds" in (state as any).selection
+          ) {
             (state as any).selection.selectedElementIds = next;
           }
-          if ('selectionVersion' in state) (state as any).selectionVersion = ((state as any).selectionVersion ?? 0) + 1;
-          if ((state as any).selection && 'selectionVersion' in (state as any).selection) {
-            (state as any).selection.selectionVersion = ((state as any).selection.selectionVersion ?? 0) + 1;
+          if ("selectionVersion" in state)
+            (state as any).selectionVersion =
+              ((state as any).selectionVersion ?? 0) + 1;
+          if (
+            (state as any).selection &&
+            "selectionVersion" in (state as any).selection
+          ) {
+            (state as any).selection.selectionVersion =
+              ((state as any).selection.selectionVersion ?? 0) + 1;
           }
         }
       }),
@@ -609,7 +746,11 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         // Only record if order actually changed
         if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
           const root = get() as any;
-          root.record?.({ op: 'reorder', before: beforeOrder, after: afterOrder });
+          root.record?.({
+            op: "reorder",
+            before: beforeOrder,
+            after: afterOrder,
+          });
         }
       },
       sendToBack: (id: ElementId) => {
@@ -621,7 +762,11 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         // Only record if order actually changed
         if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
           const root = get() as any;
-          root.record?.({ op: 'reorder', before: beforeOrder, after: afterOrder });
+          root.record?.({
+            op: "reorder",
+            before: beforeOrder,
+            after: afterOrder,
+          });
         }
       },
       getById: (id: ElementId) => {
@@ -662,7 +807,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         state.selectedElementIds = new Set<ElementId>();
         // Keep lastSelectedId to allow overlay reattach after reload if elements exist
         const fallback = firstElementIdOrNull(state);
-        (state as any).lastSelectedId = fallback ?? (state as any).lastSelectedId;
+        (state as any).lastSelectedId =
+          fallback ?? (state as any).lastSelectedId;
         (state as any).selectionVersion++;
       }),
 
@@ -781,8 +927,9 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         const state = get();
         const selectedIds = Array.from(state.selectedElementIds);
         // Remove each selected element
-        selectedIds.forEach(id => {
-          const removeElement = (state as any).removeElement ?? (state as any).element?.delete;
+        selectedIds.forEach((id) => {
+          const removeElement =
+            (state as any).removeElement ?? (state as any).element?.delete;
           removeElement?.(id);
         });
         // Clear selection
@@ -792,24 +939,37 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         const state = get();
         const selectedIds = Array.from(state.selectedElementIds);
         // Update each selected element position
-        selectedIds.forEach(id => {
-          const updateElement = (state as any).updateElement ?? (state as any).element?.update;
-          updateElement?.(id, (el: any) => ({ ...el, x: el.x + dx, y: el.y + dy }));
+        selectedIds.forEach((id) => {
+          const updateElement =
+            (state as any).updateElement ?? (state as any).element?.update;
+          updateElement?.(id, (el: any) => ({
+            ...el,
+            x: el.x + dx,
+            y: el.y + dy,
+          }));
         });
       },
       getSelected: () => {
         const state = get();
         const selectedIds = Array.from(state.selectedElementIds);
-        const getElements = (state as any).getElements ?? (state as any).element?.getAll;
+        const getElements =
+          (state as any).getElements ?? (state as any).element?.getAll;
         if (getElements && (state as any).getElements) {
           return (state as any).getElements(selectedIds);
         }
         // Fallback: get from elements map
-        const elements = (state as any).elements ?? (state as any).element?.elements;
+        const elements =
+          (state as any).elements ?? (state as any).element?.elements;
         if (elements) {
-          return selectedIds.map(id => elements.get(id)).filter(Boolean);
+          return selectedIds.map((id) => elements.get(id)).filter(Boolean);
         }
         return [];
+      },
+      beginTransform: () => {
+        get().beginTransform();
+      },
+      endTransform: () => {
+        get().endTransform();
       },
     },
 
@@ -835,7 +995,11 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
       zoomAt: (clientX, clientY, deltaScale) => {
         const { viewport } = get() as any;
-        const targetScale = clamp(viewport.scale * deltaScale, viewport.minScale, viewport.maxScale);
+        const targetScale = clamp(
+          viewport.scale * deltaScale,
+          viewport.minScale,
+          viewport.maxScale,
+        );
         const before = toWorld(clientX, clientY);
         set((draft) => {
           (draft as any).viewport.scale = targetScale;
@@ -891,7 +1055,12 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
           maxY = Math.max(maxY, b.y + b.height);
         });
 
-        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+        if (
+          !isFinite(minX) ||
+          !isFinite(minY) ||
+          !isFinite(maxX) ||
+          !isFinite(maxY)
+        ) {
           return;
         }
 
@@ -903,7 +1072,11 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         const targetH = 800;
         const scaleX = targetW / Math.max(contentW, 1);
         const scaleY = targetH / Math.max(contentH, 1);
-        const nextScale = clamp(Math.min(scaleX, scaleY), (get() as any).viewport.minScale, (get() as any).viewport.maxScale);
+        const nextScale = clamp(
+          Math.min(scaleX, scaleY),
+          (get() as any).viewport.minScale,
+          (get() as any).viewport.maxScale,
+        );
         const stageCenterX = targetW / 2;
         const stageCenterY = targetH / 2;
         const worldCenterX = (minX + maxX) / 2;
