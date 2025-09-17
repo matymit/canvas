@@ -1,235 +1,228 @@
-// Opens a DOM overlay editor centered inside a shape, auto-resizes smoothly,
-// and writes back text + shape height growth to the store.
-
 import Konva from 'konva';
-import { computeShapeInnerBox } from '../text/computeShapeInnerBox';
-import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
-import type { ElementId, CanvasElement } from '../../../../types';
 
-// Shape type with text properties
-type ShapeElement = CanvasElement & {
-  type: 'rectangle' | 'circle' | 'ellipse' | 'triangle';
-  text?: string;
-  fontSize?: number;
-  fontFamily?: string;
-  textColor?: string;
-  textAlign?: 'left' | 'center' | 'right';
-  padding?: number;
-};
-
-function worldToPage(stage: Konva.Stage, wx: number, wy: number) {
-  const scaleX = stage.scaleX() || 1;
-  const scaleY = stage.scaleY() || 1;
-  const sx = stage.x() || 0;
-  const sy = stage.y() || 0;
-  const containerRect = stage.container().getBoundingClientRect();
-  const px = containerRect.left + sx + wx * scaleX;
-  const py = containerRect.top + sy + wy * scaleY;
-  return { px, py, scaleX, scaleY };
-}
-
-function css(el: HTMLElement, props: Partial<CSSStyleDeclaration>) {
-  Object.assign(el.style, props);
-}
-
-export interface OpenShapeTextEditorOptions {
-  padding?: number;
-  minWidth?: number;
-  minHeight?: number;
-  fontFamily?: string;
-  fontSize?: number;
-  color?: string;
-  lineHeight?: number; // CSS number (like 1.3)
-  onCommitted?: (id: ElementId, text: string) => void;
+export interface TextEditorOptions {
+  stage: Konva.Stage;
+  layer: Konva.Layer;
+  shape: Konva.Text;
+  onCommit: (text: string) => void;
+  onCancel?: () => void;
 }
 
 /**
- * Centered caret: use a contentEditable DIV with text-align:center.
- * Smooth growth: CSS transitions for overlay size; vertical auto-grow by updating element height.
+ * Opens a DOM-based text editor overlay positioned on top of a Konva.Text node
+ * The editor stays in sync with canvas transforms (pan/zoom) and commits changes
  */
-export function openShapeTextEditor(
-  stage: Konva.Stage,
-  elementId: ElementId,
-  opts: OpenShapeTextEditorOptions = {}
-) {
-  const store = useUnifiedCanvasStore.getState();
-  const element = store.element?.getById(elementId) as ShapeElement | undefined;
-  
-  if (!element || !store.element?.update) return;
+export function openShapeTextEditor({ stage, layer, shape, onCommit, onCancel }: TextEditorOptions) {
+  // Ensure shape is visible and drawn so we can get bounds
+  layer.batchDraw();
 
-  // Defaults from UI/text tool norms
-  const padding = opts.padding ?? (element.data?.padding) ?? 8;
-  const fontFamily = opts.fontFamily ?? element.style?.fontFamily ?? 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial';
-  const fontSize = opts.fontSize ?? element.style?.fontSize ?? 18;
-  const lineHeight = opts.lineHeight ?? 1.3;
-  const color = opts.color ?? element.style?.textColor ?? '#111827';
-  const minW = opts.minWidth ?? 80;
-  const minH = opts.minHeight ?? Math.ceil(fontSize * lineHeight);
-
-  const inner = computeShapeInnerBox(
-    {
-      id: element.id,
-      type: element.type as any,
-      x: element.x,
-      y: element.y,
-      width: element.width,
-      height: element.height,
-      radius: (element.data as any)?.radius,
-      padding: padding,
-    },
-    padding
-  );
-
-  const startWorld = { x: inner.x, y: inner.y, w: Math.max(minW, inner.width), h: Math.max(minH, inner.height) };
-  const { px: left0, py: top0, scaleX, scaleY } = worldToPage(stage, startWorld.x, startWorld.y);
-
-  const overlay = document.createElement('div');
-  overlay.contentEditable = 'true';
-  overlay.setAttribute('role', 'textbox');
-  overlay.setAttribute('aria-label', 'Shape text editor');
-  css(overlay, {
-    position: 'absolute',
-    left: `${left0}px`,
-    top: `${top0}px`,
-    width: `${startWorld.w * scaleX}px`,
-    height: `${startWorld.h * scaleY}px`,
-    padding: '0px',
-    margin: '0px',
-    outline: 'none',
-    border: 'none',
-    background: 'transparent',
-    color,
-    fontFamily,
-    fontSize: `${fontSize * scaleY}px`,
-    lineHeight: `${lineHeight}`,
-    textAlign: 'center',
-    whiteSpace: 'pre-wrap',
-    overflow: 'hidden',
-    zIndex: '1000',
-    transition: 'width 120ms ease, height 120ms ease, left 120ms ease, top 120ms ease',
-    userSelect: 'text',
-    WebkitUserSelect: 'text',
-  });
-
-  // Initialize with existing text if present.
-  const existingText = (element.data as any)?.text || '';
-  if (existingText.length) {
-    overlay.innerText = existingText;
-  } else {
-    overlay.innerText = '';
+  const container = stage.container();
+  if (!container) {
+    console.warn('[TextEditor] No stage container found');
+    return;
   }
 
-  document.body.appendChild(overlay);
+  // Create editor element
+  const editor = document.createElement('textarea');
+  editor.setAttribute('data-text-editor', 'true');
+  editor.value = shape.text();
+  
+  // Style the editor to match the text
+  const fontSize = shape.fontSize();
+  const fontFamily = shape.fontFamily();
+  const fill = shape.fill();
+  
+  editor.style.position = 'absolute';
+  editor.style.zIndex = '1000';
+  editor.style.minWidth = '20px';
+  editor.style.minHeight = '20px';
+  editor.style.outline = 'none';
+  editor.style.border = '1px dashed rgba(0, 0, 255, 0.5)';
+  editor.style.borderRadius = '2px';
+  editor.style.background = 'rgba(255, 255, 255, 0.95)';
+  editor.style.color = fill;
+  editor.style.fontFamily = fontFamily;
+  editor.style.fontSize = `${fontSize}px`;
+  editor.style.lineHeight = '1.2';
+  editor.style.padding = '2px 4px';
+  editor.style.resize = 'none';
+  editor.style.whiteSpace = 'nowrap';
+  editor.style.overflow = 'hidden';
+  editor.style.transformOrigin = '0 0';
+  editor.style.boxSizing = 'border-box';
 
-  // Place caret and focus
-  const range = document.createRange();
-  range.selectNodeContents(overlay);
-  range.collapse(false);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
-  overlay.focus();
+  // Append to document body (not container to avoid transform issues)
+  document.body.appendChild(editor);
 
-  // Live reflow
-  let raf: number | null = null;
-  const measureAndLayout = () => {
-    raf && cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      // Compute desired content size (approx) from scroll dimensions
-      const desiredW = Math.min(startWorld.w * scaleX, Math.max(minW * scaleX, overlay.scrollWidth));
-      const desiredH = Math.min(startWorld.h * scaleY, Math.max(minH * scaleY, overlay.scrollHeight));
+  // Hide the original text while editing
+  const originalOpacity = shape.opacity();
+  shape.opacity(0.2);
+  layer.batchDraw();
 
-      // Apply CSS transition-resized overlay
-      css(overlay, {
-        width: `${desiredW}px`,
-        height: `${desiredH}px`,
-      });
+  // Position update function that accounts for stage transforms
+  function updateEditorPosition() {
+    try {
+      const containerRect = container.getBoundingClientRect();
+      const stagePos = stage.position();
+      const stageScale = stage.scaleX(); // Assume uniform scaling
+      
+      // Get the shape's position in world coordinates
+      const shapeX = shape.x();
+      const shapeY = shape.y();
+      
+      // Convert to screen coordinates
+      const screenX = containerRect.left + (shapeX * stageScale) + stagePos.x;
+      const screenY = containerRect.top + (shapeY * stageScale) + stagePos.y;
+      
+      // Calculate size accounting for scale
+      const shapeWidth = Math.max(shape.width() || shape.textWidth, 100);
+      const shapeHeight = Math.max(shape.height() || shape.textHeight, fontSize * 1.2);
+      const scaledWidth = shapeWidth * stageScale;
+      const scaledHeight = shapeHeight * stageScale;
+      
+      // Update editor position and size
+      editor.style.left = `${screenX}px`;
+      editor.style.top = `${screenY}px`;
+      editor.style.width = `${Math.max(60, scaledWidth)}px`;
+      editor.style.height = `${Math.max(24, scaledHeight)}px`;
+      
+      // Scale the font size to match the canvas zoom
+      editor.style.fontSize = `${fontSize * stageScale}px`;
+      
+    } catch (error) {
+      console.warn('[TextEditor] Error updating position:', error);
+    }
+  }
 
-      // If content exceeds available inner height, grow element height smoothly
-      const availHWorld = startWorld.h;
-      const desiredHWorld = desiredH / scaleY;
+  // Initial positioning
+  updateEditorPosition();
 
-      if (desiredHWorld > availHWorld + 0.5) {
-        const delta = desiredHWorld - availHWorld;
-        // Step growth by small increments to look smooth
-        const step = Math.max(2, Math.round(delta / 4));
+  // Auto-resize as user types
+  function autoResize() {
+    const currentText = editor.value;
+    if (currentText.length === 0) return;
+    
+    // Create temporary element to measure text
+    const temp = document.createElement('div');
+    temp.style.position = 'absolute';
+    temp.style.visibility = 'hidden';
+    temp.style.whiteSpace = 'nowrap';
+    temp.style.fontFamily = editor.style.fontFamily;
+    temp.style.fontSize = editor.style.fontSize;
+    temp.style.padding = editor.style.padding;
+    temp.innerText = currentText;
+    
+    document.body.appendChild(temp);
+    const measuredWidth = temp.offsetWidth;
+    const measuredHeight = temp.offsetHeight;
+    document.body.removeChild(temp);
+    
+    // Update editor size with some padding
+    const minWidth = 60;
+    const minHeight = 24;
+    editor.style.width = `${Math.max(minWidth, measuredWidth + 10)}px`;
+    editor.style.height = `${Math.max(minHeight, measuredHeight)}px`;
+  }
 
-        store.element!.update(elementId, {
-          height: Math.max((element.height ?? availHWorld) + step, desiredHWorld + padding * 2),
-        });
-
-        // Recompute world->page coordinates for overlay after growth
-        const updated = store.element!.getById(elementId)!;
-        const grownInner = computeShapeInnerBox(
-          {
-            id: updated.id,
-            type: updated.type as any,
-            x: updated.x,
-            y: updated.y,
-            width: updated.width,
-            height: updated.height,
-            radius: (updated.data as any)?.radius,
-            padding: padding,
-          },
-          padding
-        );
-
-        const { px, py } = worldToPage(stage, grownInner.x, grownInner.y);
-        css(overlay, {
-          left: `${px}px`,
-          top: `${py}px`,
-        });
-      }
-    });
+  // Listen to stage transforms to keep editor in sync
+  const onStageTransform = () => updateEditorPosition();
+  stage.on('dragmove.text-editor', onStageTransform);
+  stage.on('scaleXChange.text-editor scaleYChange.text-editor', onStageTransform);
+  stage.on('xChange.text-editor yChange.text-editor', onStageTransform);
+  
+  // Listen to mouse wheel for zoom
+  const onWheel = () => {
+    // Small delay to let zoom complete
+    setTimeout(updateEditorPosition, 10);
   };
+  stage.on('wheel.text-editor', onWheel);
 
-  const onInput = () => measureAndLayout();
-  const onKey = (e: KeyboardEvent) => {
+  // Cleanup function
+  function cleanup() {
+    try {
+      editor.remove();
+    } catch (error) {
+      console.warn('[TextEditor] Error removing editor:', error);
+    }
+    
+    // Restore original text opacity
+    shape.opacity(originalOpacity);
+    layer.batchDraw();
+    
+    // Remove event listeners
+    stage.off('dragmove.text-editor');
+    stage.off('scaleXChange.text-editor scaleYChange.text-editor');
+    stage.off('xChange.text-editor yChange.text-editor');
+    stage.off('wheel.text-editor');
+  }
+
+  // Commit function
+  function commit(save: boolean = true) {
+    const newText = editor.value.trim();
+    cleanup();
+    
+    if (save) {
+      console.log('[TextEditor] Committing text:', newText);
+      onCommit(newText);
+    } else {
+      console.log('[TextEditor] Canceling text edit');
+      onCancel?.();
+    }
+  }
+
+  // Event handlers
+  const onKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation(); // Prevent canvas shortcuts
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      commit(false);
+      commit(true);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      commit(true);
+      commit(false);
+    } else {
+      // Auto-resize on typing
+      setTimeout(autoResize, 0);
     }
   };
-  const onBlur = () => commit(false);
 
-  overlay.addEventListener('input', onInput);
-  overlay.addEventListener('blur', onBlur, { once: true });
-  window.addEventListener('keydown', onKey, { capture: true });
+  const onBlur = () => {
+    // Small delay to allow other events to process
+    setTimeout(() => commit(true), 100);
+  };
 
-  // Initial layout
-  measureAndLayout();
+  const onInput = () => {
+    autoResize();
+  };
 
-  function cleanup() {
-    overlay.removeEventListener('input', onInput);
-    window.removeEventListener('keydown', onKey, { capture: true } as any);
-    if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
-    if (raf) cancelAnimationFrame(raf);
-  }
+  // Attach event listeners
+  editor.addEventListener('keydown', onKeyDown);
+  editor.addEventListener('blur', onBlur);
+  editor.addEventListener('input', onInput);
 
-  function commit(cancel: boolean) {
-    const txt = overlay.innerText.trim();
-    cleanup();
-    if (cancel || txt.length === 0) return;
+  // Focus and select all text
+  setTimeout(() => {
+    try {
+      editor.focus();
+      editor.select();
+    } catch (error) {
+      console.warn('[TextEditor] Error focusing editor:', error);
+    }
+  }, 10);
 
-    // Persist text and text style into the shape element
-    store.element!.update(elementId, {
-      data: {
-        ...(element.data || {}),
-        text: txt,
-        padding,
-      },
-      style: {
-        ...(element.style || {}),
-        fontFamily,
-        fontSize,
-        textColor: color,
-        textAlign: 'center',
-      }
-    });
+  // Return cleanup function for manual cleanup if needed
+  return cleanup;
+}
 
-    opts.onCommitted?.(elementId, txt);
-  }
+/**
+ * Utility function to compute text bounds for positioning
+ */
+export function computeTextBounds(text: Konva.Text): { x: number; y: number; width: number; height: number } {
+  const clientRect = text.getClientRect({ skipTransform: false });
+  return {
+    x: clientRect.x,
+    y: clientRect.y,
+    width: Math.max(clientRect.width, 40),
+    height: Math.max(clientRect.height, 24)
+  };
 }
