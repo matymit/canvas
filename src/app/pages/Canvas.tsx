@@ -124,18 +124,28 @@ export default function Canvas(): JSX.Element {
       (window as any).canvasStage = stage;
       (window as any).canvasLayers = layerRefs;
 
-      // Setup renderer modules with cleanup
+      // FIXED: Setup renderer modules with cleanup and ensure global references are set
+      console.log('[Canvas] Setting up renderer modules...');
       rendererCleanupRef.current = setupRenderer(stage, layerRefs);
-
-      // FIXED: Store StickyNoteModule reference globally for tool integration
-      const moduleCtx = {
-        store: useUnifiedCanvasStore,
-        layers: layerRefs
-      };
       
-      // The setupRenderer should have created the StickyNoteModule
-      // Make it globally accessible for the tool
-      (window as any).stickyNoteModule = stickyNoteModuleRef.current;
+      // FIXED: Wait a frame to ensure modules are fully initialized before making them globally accessible
+      setTimeout(() => {
+        // Verify that modules are properly registered
+        const stickyModule = (window as any).stickyNoteModule;
+        const selectionModule = (window as any).selectionModule;
+        
+        if (stickyModule) {
+          console.log('[Canvas] StickyNoteModule properly registered globally');
+        } else {
+          console.warn('[Canvas] StickyNoteModule not found in global scope');
+        }
+        
+        if (selectionModule) {
+          console.log('[Canvas] SelectionModule properly registered globally');
+        } else {
+          console.warn('[Canvas] SelectionModule not found in global scope');
+        }
+      }, 50);
 
       // Initialize connector service for live routing
       const connectorService = initializeConnectorService({
