@@ -1,6 +1,7 @@
 // Text renderer module for rendering text elements
 import Konva from 'konva';
 import type { ModuleRendererCtx, RendererModule } from '../index';
+import { openShapeTextEditor } from '../../utils/editors/openShapeTextEditor';
 
 type Id = string;
 
@@ -26,12 +27,14 @@ interface TextElement {
 export class TextRenderer implements RendererModule {
   private textNodes = new Map<Id, Konva.Text>();
   private layer?: Konva.Layer;
+  private stage?: Konva.Stage;
   private unsubscribe?: () => void;
   private store?: any;
 
   mount(ctx: ModuleRendererCtx): () => void {
     console.log('[TextRenderer] Mounting...');
     this.layer = ctx.layers.main;
+    this.stage = ctx.stage;
     this.store = ctx.store;
 
     // Subscribe to store changes - watch text elements
@@ -194,26 +197,7 @@ export class TextRenderer implements RendererModule {
       const ny = textNode.y();
       console.log('[TextRenderer] Updating text position:', { id: text.id, x: nx, y: ny });
       
-      try {
-        const state = this.store?.getState();
-        
-        // Try different store method patterns
-        if (state?.updateElement) {
-          state.updateElement(text.id, { x: nx, y: ny }, { pushHistory: true });
-        } else if (state?.element?.update) {
-          state.element.update(text.id, { x: nx, y: ny });
-        } else {
-          console.warn('[TextRenderer] No suitable update method found in store');
-          // Fall back to direct store update
-          const currentElement = state?.elements?.get?.(text.id);
-          if (currentElement) {
-            const updatedElement = { ...currentElement, x: nx, y: ny };
-            state?.elements?.set?.(text.id, updatedElement);
-          }
-        }
-      } catch (error) {
-        console.error('[TextRenderer] Error updating text position:', error);
-      }
+      this.updateTextInStore(text.id, { x: nx, y: ny });
     });
 
     // Handle double-click for text editing
@@ -229,80 +213,49 @@ export class TextRenderer implements RendererModule {
     });
   }
 
+  private updateTextInStore(textId: string, updates: Partial<TextElement>) {
+    try {
+      const state = this.store?.getState();
+      
+      // Try different store method patterns
+      if (state?.updateElement) {
+        state.updateElement(textId, updates, { pushHistory: true });
+      } else if (state?.element?.update) {
+        state.element.update(textId, updates);
+      } else {
+        console.warn('[TextRenderer] No suitable update method found in store');
+        // Fall back to direct store update - not ideal but prevents crashes
+        const currentElement = state?.elements?.get?.(textId);
+        if (currentElement && state?.elements?.set) {
+          const updatedElement = { ...currentElement, ...updates };
+          state.elements.set(textId, updatedElement);
+        }
+      }
+    } catch (error) {
+      console.error('[TextRenderer] Error updating text in store:', error);
+    }
+  }
+
   private startTextEditing(node: Konva.Text, text: TextElement) {
-    const stage = node.getStage();
-    if (!stage) {
-      console.warn('[TextRenderer] No stage found for text editing');
+    if (!this.stage || !this.layer) {
+      console.warn('[TextRenderer] No stage or layer available for text editing');
       return;
     }
 
-    // Create a simple DOM overlay for text editing
-    const rect = node.getClientRect();
-    const container = stage.container();
-    const containerRect = container.getBoundingClientRect();
+    console.log('[TextRenderer] Opening text editor for:', text.id);
     
-    const textarea = document.createElement('textarea');
-    textarea.value = node.text();
-    textarea.style.position = 'absolute';
-    textarea.style.left = `${containerRect.left + rect.x}px`;
-    textarea.style.top = `${containerRect.top + rect.y}px`;
-    textarea.style.width = `${Math.max(100, rect.width)}px`;
-    textarea.style.height = `${Math.max(24, rect.height)}px`;
-    textarea.style.fontSize = `${node.fontSize()}px`;
-    textarea.style.fontFamily = node.fontFamily();
-    textarea.style.color = node.fill();
-    textarea.style.background = 'transparent';
-    textarea.style.border = '1px dashed #ccc';
-    textarea.style.outline = 'none';
-    textarea.style.resize = 'none';
-    textarea.style.zIndex = '1000';
-    textarea.style.padding = '2px';
-    
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-
-    // Hide the original text while editing
-    const originalOpacity = node.opacity();
-    node.opacity(0.3);
-    stage.batchDraw();
-
-    const finishEditing = (save: boolean = true) => {
-      const newText = textarea.value;
-      textarea.remove();
-      node.opacity(originalOpacity);
-      
-      if (save && newText !== text.text) {
-        try {
-          const state = this.store?.getState();
-          
-          // Try different store method patterns
-          if (state?.updateElement) {
-            state.updateElement(text.id, { text: newText }, { pushHistory: true });
-          } else if (state?.element?.update) {
-            state.element.update(text.id, { text: newText });
-          } else {
-            // Fallback to direct node update
-            node.text(newText);
-          }
-        } catch (error) {
-          console.error('[TextRenderer] Error updating text content:', error);
-          // Fallback to direct node update
-          node.text(newText);
+    openShapeTextEditor({
+      stage: this.stage,
+      layer: this.layer,
+      shape: node,
+      onCommit: (newText: string) => {
+        console.log('[TextRenderer] Text editor committed:', newText);
+        if (newText !== text.text) {
+          this.updateTextInStore(text.id, { text: newText });
         }
-      }
-      
-      stage.batchDraw();
-    };
-
-    textarea.addEventListener('blur', () => finishEditing(true));
-    textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        finishEditing(true);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        finishEditing(false);
+      },
+      onCancel: () => {
+        console.log('[TextRenderer] Text editing cancelled');
       }
     });
   }
