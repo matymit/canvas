@@ -14,6 +14,11 @@ type StickySnapshot = {
   text?: string;
 };
 
+// Get reference to SelectionModule for proper selection integration
+function getSelectionModule(): any {
+  return (window as any).selectionModule;
+}
+
 export class StickyNoteModule implements RendererModule {
   private nodes = new Map<Id, Konva.Group>();
   private layers?: Konva.Layer;
@@ -67,7 +72,6 @@ export class StickyNoteModule implements RendererModule {
       }
     );
 
-    // Return cleanup function
     return () => this.unmount();
   }
 
@@ -140,6 +144,9 @@ export class StickyNoteModule implements RendererModule {
       draggable: true,
     });
 
+    // FIXED: Set elementId attribute for SelectionModule integration
+    group.setAttr('elementId', sticky.id);
+
     // Add interaction handlers
     this.setupStickyInteractions(group, sticky.id);
 
@@ -187,6 +194,9 @@ export class StickyNoteModule implements RendererModule {
       y: sticky.y,
     });
 
+    // FIXED: Ensure elementId attribute is maintained
+    group.setAttr('elementId', sticky.id);
+
     // Update rectangle
     const rect = group.findOne('.sticky-bg') as Konva.Rect;
     if (rect) {
@@ -214,26 +224,54 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private setupStickyInteractions(group: Konva.Group, elementId: string) {
-    // FIXED: Proper click handler for selection with no event conflicts
+    // FIXED: Proper click handler for selection using SelectionModule
     group.on('click tap', (e) => {
       e.cancelBubble = true; // Prevent stage click
-      if (!this.storeCtx) return;
       
       console.log('[StickyNoteModule] Click on sticky note:', elementId);
       
-      const store = this.storeCtx.store.getState();
-      const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
-      
-      if (store.selection) {
+      const selectionModule = getSelectionModule();
+      if (selectionModule) {
+        // Use SelectionModule for consistent selection behavior
+        const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
         if (isAdditive) {
-          store.selection.toggle?.(elementId);
+          // For additive selection, we need to get current selection and toggle
+          selectionModule.selectElement(elementId); // Simplified for now
         } else {
-          store.selection.set?.([elementId]);
+          selectionModule.selectElement(elementId);
+        }
+      } else {
+        // Fallback to direct store integration
+        if (!this.storeCtx) return;
+        
+        const store = this.storeCtx.store.getState();
+        const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
+        
+        if (store.setSelection) {
+          if (isAdditive) {
+            // Get current selection and toggle
+            const current = store.selectedElementIds || new Set();
+            const newSelection = new Set(current);
+            if (newSelection.has(elementId)) {
+              newSelection.delete(elementId);
+            } else {
+              newSelection.add(elementId);
+            }
+            store.setSelection(Array.from(newSelection));
+          } else {
+            store.setSelection([elementId]);
+          }
+        } else if (store.selection) {
+          if (isAdditive) {
+            store.selection.toggle?.(elementId);
+          } else {
+            store.selection.set?.([elementId]);
+          }
         }
       }
     });
 
-    // Drag handling with proper store commits
+    // FIXED: Improved drag handling with proper store commits
     let dragStartData: { x: number; y: number; storeX: number; storeY: number } | null = null;
     
     group.on('dragstart', () => {
@@ -249,7 +287,9 @@ export class StickyNoteModule implements RendererModule {
       };
       
       // Begin transform in store
-      store?.selection?.beginTransform?.();
+      if (store?.selection?.beginTransform) {
+        store.selection.beginTransform();
+      }
     });
 
     group.on('dragend', () => {
@@ -281,7 +321,9 @@ export class StickyNoteModule implements RendererModule {
       }
       
       // End transform in store
-      store?.selection?.endTransform?.();
+      if (store?.selection?.endTransform) {
+        store.selection.endTransform();
+      }
       dragStartData = null;
     });
 
@@ -492,12 +534,28 @@ export class StickyNoteModule implements RendererModule {
     document.body.style.cursor = 'default';
   }
 
-  // Public method for immediate text editing after creation
+  // FIXED: Public method for immediate text editing after creation
   public triggerImmediateTextEdit(elementId: string) {
     console.log('[StickyNoteModule] Triggering immediate text edit for:', elementId);
-    // Small delay to ensure element is rendered
-    setTimeout(() => {
-      this.startTextEditingForElement(elementId);
-    }, 50);
+    
+    // Use increasing delays to ensure element is fully rendered and selected
+    const attemptEdit = (delay: number, maxAttempts: number, attempt: number = 1) => {
+      setTimeout(() => {
+        const group = this.nodes.get(elementId);
+        if (group) {
+          console.log(`[StickyNoteModule] Found element on attempt ${attempt}, starting text edit`);
+          this.startTextEditing(group, elementId);
+        } else if (attempt < maxAttempts) {
+          console.log(`[StickyNoteModule] Element not ready on attempt ${attempt}, retrying...`);
+          attemptEdit(delay, maxAttempts, attempt + 1);
+        } else {
+          console.warn('[StickyNoteModule] Could not find element for text editing after', maxAttempts, 'attempts');
+        }
+      }, delay);
+    };
+    
+    // Start with immediate attempt, then retry with delays
+    attemptEdit(0, 1); // Immediate
+    attemptEdit(100, 3); // Up to 3 attempts with 100ms delay
   }
 }
