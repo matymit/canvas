@@ -215,11 +215,7 @@ export default function Canvas(): JSX.Element {
 
       // FIXED: Improved click-to-select with proper empty space deselection
       const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-        // Skip if not in select mode - let canvas tools handle their own events
-        if (selectedTool !== "select" && selectedTool !== "pan") {
-          console.log(`[Canvas] Skipping click handling for tool: ${selectedTool}`);
-          return; // Let tools handle their own clicks
-        }
+        // This handler only fires for select/pan tools due to conditional binding
 
         const pos = stage.getPointerPosition();
         if (!pos) return;
@@ -244,14 +240,16 @@ export default function Canvas(): JSX.Element {
         // FIXED: Always clear selection on empty space click (unless additive)
         if (!isAdditive) {
           try {
-            console.log("[Canvas] Clicking empty space - clearing selection");
             store.selection?.clear?.();
           } catch {}
         }
       };
 
       // FIXED: Use click event for better reliability
-      stage.on("click.canvas-select", handleStageClick);
+      // Only bind when in select/pan mode - let canvas tools handle their own events
+      if (selectedTool === "select" || selectedTool === "pan") {
+        stage.on("click.canvas-select", handleStageClick);
+      }
 
       // Spacing HUD drag wiring: show label between dragged node and nearest neighbor by X
       const onDragMoveHUD = (e: Konva.KonvaEventObject<DragEvent>) => {

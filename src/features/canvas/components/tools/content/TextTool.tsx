@@ -57,10 +57,6 @@ export class TextCanvasTool implements CanvasTool {
     const onStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       console.log("[TextCanvasTool] Stage click intercepted", { target: e.target });
 
-      // Prevent event propagation to stop Canvas component's handleStageClick from firing
-      e.evt.stopPropagation();
-      e.evt.preventDefault();
-
       const target = e.target;
       // Skip if clicking on existing text element
       if (target && (target as any).className === 'Text') return;
@@ -213,14 +209,15 @@ export class TextCanvasTool implements CanvasTool {
 
     const onTextDblTap = (e: Konva.KonvaEventObject<TouchEvent>) => onTextDblClick(e as any);
 
-    // Bind events to stage
-    stage.on('click', onStageClick);
-    stage.on('dblclick', onTextDblClick);
-    stage.on('dbltap', onTextDblTap);
+    // Bind events to stage with namespacing to avoid conflicts
+    // Use capture phase (true) to ensure we intercept before Canvas component
+    stage.on('click.text-tool', onStageClick);
+    stage.on('dblclick.text-tool', onTextDblClick);
+    stage.on('dbltap.text-tool', onTextDblTap);
 
-    this.handlers.push({ evt: 'click', fn: onStageClick });
-    this.handlers.push({ evt: 'dblclick', fn: onTextDblClick });
-    this.handlers.push({ evt: 'dbltap', fn: onTextDblTap });
+    this.handlers.push({ evt: 'click.text-tool', fn: onStageClick });
+    this.handlers.push({ evt: 'dblclick.text-tool', fn: onTextDblClick });
+    this.handlers.push({ evt: 'dbltap.text-tool', fn: onTextDblTap });
   }
 
   detach() {
@@ -237,10 +234,13 @@ export class TextCanvasTool implements CanvasTool {
     }
 
     if (!this.stage) return;
+
+    // Remove our event handlers
     for (const { evt, fn } of this.handlers) {
       this.stage.off(evt, fn);
     }
     this.handlers = [];
+
     this.stage = undefined;
     if (this.layer) {
       this.layer = undefined;
