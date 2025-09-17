@@ -33,7 +33,7 @@ export interface ColorPickerState {
 export interface UIModuleSlice {
   grid: GridState;
   contextualToolbar: ContextualToolbarState;
-  colors: { stroke: string; fill: string };
+  colors: { stroke: string; fill: string; stickyNote: string };
   colorPicker: ColorPickerState;
 
   // Grid controls
@@ -45,6 +45,7 @@ export interface UIModuleSlice {
   // Colors
   setStrokeColor(color: string): void;
   setFillColor(color: string): void;
+  setStickyNoteColor(color: string): void;
 
   // Color picker
   openColorPicker(target: ColorPickerTarget, anchor?: RectLike | null): void;
@@ -60,8 +61,8 @@ export interface UIModuleSlice {
 export const createUIModule: StoreSlice<UIModuleSlice> = (set, _get) => ({
   grid: {
     visible: true,
-    density: 24,
-    color: '#2C2C2C',
+    density: 20,
+    color: '#E5E5E5',
   },
 
   contextualToolbar: {
@@ -73,6 +74,7 @@ export const createUIModule: StoreSlice<UIModuleSlice> = (set, _get) => ({
   colors: {
     stroke: '#1F2937', // slate-800
     fill: '#3B82F6',   // blue-500
+    stickyNote: '#FFF59D', // light yellow (default sticky note color)
   },
 
   colorPicker: {
@@ -118,6 +120,12 @@ export const createUIModule: StoreSlice<UIModuleSlice> = (set, _get) => ({
     set((state: any) => {
       const ui = state.ui ?? state;
       ui.colors.fill = color;
+    }),
+
+  setStickyNoteColor: (color) =>
+    set((state: any) => {
+      const ui = state.ui ?? state;
+      ui.colors.stickyNote = color;
     }),
 
   // Color picker

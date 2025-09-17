@@ -3,6 +3,7 @@ import Konva from 'konva';
 export interface RendererLayers {
   background: Konva.Layer; // non-interactive grid/guides [listening=false]
   main: Konva.Layer;       // primary content
+  highlighter: Konva.Layer; // highlighter strokes (above main, below preview) [listening=false]
   preview: Konva.Layer;    // tool previews/temporary
   overlay: Konva.Layer;    // selection handles, UI overlays
 }
@@ -14,13 +15,14 @@ export interface CreateLayersOptions {
   dpr?: number;            // device pixel ratio
   listeningBackground?: boolean; // default false
   listeningMain?: boolean;       // default true
-  listeningPreview?: boolean;    // default true
+  listeningHighlighter?: boolean; // default false
+  listeningPreview?: boolean;    // default false
   listeningOverlay?: boolean;    // default true
 }
 
 /**
- * Create the four-layer pipeline and add them to the stage in z-order:
- * background -> main -> preview -> overlay.
+ * Create the five-layer pipeline and add them to the stage in z-order:
+ * background -> main -> highlighter -> preview -> overlay.
  */
 export function createRendererLayers(
   stage: Konva.Stage,
@@ -30,22 +32,25 @@ export function createRendererLayers(
     dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
     listeningBackground = false,
     listeningMain = true,
-    listeningPreview = true,
+    listeningHighlighter = false,  // Performance optimization: highlighter layer is non-interactive
+    listeningPreview = false,  // Performance optimization: preview layer is non-interactive
     listeningOverlay = true,
   } = opts;
 
   const background = new Konva.Layer({ listening: listeningBackground });
   const main = new Konva.Layer({ listening: listeningMain });
+  const highlighter = new Konva.Layer({ listening: listeningHighlighter });
   const preview = new Konva.Layer({ listening: listeningPreview });
   const overlay = new Konva.Layer({ listening: listeningOverlay });
 
   stage.add(background);
   stage.add(main);
+  stage.add(highlighter);
   stage.add(preview);
   stage.add(overlay);
 
   // Apply pixel ratio to keep HiDPI crispness
-  [background, main, preview, overlay].forEach((ly) => {
+  [background, main, highlighter, preview, overlay].forEach((ly) => {
     try {
       ly.getCanvas().setPixelRatio(dpr);
     } catch {
@@ -56,17 +61,18 @@ export function createRendererLayers(
   // Initial draws
   background.draw();
   main.draw();
+  highlighter.draw();
   preview.draw();
   overlay.draw();
 
-  return { background, main, preview, overlay };
+  return { background, main, highlighter, preview, overlay };
 }
 
 /**
  * Update pixel ratio on all layers and redraw them to avoid blurry output on HiDPI changes.
  */
 export function setLayersPixelRatio(layers: RendererLayers, dpr: number) {
-  [layers.background, layers.main, layers.preview, layers.overlay].forEach((ly) => {
+  [layers.background, layers.main, layers.highlighter, layers.preview, layers.overlay].forEach((ly) => {
     try {
       ly.getCanvas().setPixelRatio(dpr);
     } catch {
@@ -95,6 +101,7 @@ export function resizeRenderer(
   // Minimal redraw to reflect size changes
   layers.background.batchDraw();
   layers.main.batchDraw();
+  layers.highlighter.batchDraw();
   layers.preview.batchDraw();
   layers.overlay.batchDraw();
 }
@@ -114,6 +121,7 @@ export function destroyLayers(layers: RendererLayers) {
   // Destroy in reverse z-order is generally safe
   layers.overlay.destroy();
   layers.preview.destroy();
+  layers.highlighter.destroy();
   layers.main.destroy();
   layers.background.destroy();
 }

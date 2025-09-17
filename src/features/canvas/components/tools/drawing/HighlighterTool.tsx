@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
+import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 
 export interface HighlighterToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -33,6 +34,8 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
   size = DEFAULT_SIZE,
   opacity = DEFAULT_OPACITY,
 }) => {
+  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
+  const withUndo = useUnifiedCanvasStore((s) => s.withUndo);
   const previewLayerRef = useRef<Konva.Layer | null>(null);
   const lineRef = useRef<Konva.Line | null>(null);
   const drawingRef = useRef(false);
@@ -62,6 +65,39 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
         ln.moveToTop();
         st.draw();
       }
+      
+      // Also save to unified store for persistence with undo support
+      if (upsertElement && withUndo && pointsRef.current.length >= 4) {
+        const bounds = {
+          x: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
+          y: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1)),
+          width: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 0)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
+          height: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 1)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1))
+        };
+
+        withUndo('Draw with highlighter', () => {
+          upsertElement({
+            id: `highlighter-stroke-${Date.now()}`,
+            type: 'drawing',
+            subtype: 'highlighter',
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            bounds,
+            points: [...pointsRef.current],
+            style: {
+              stroke: color,
+              strokeWidth: size,
+              opacity,
+              lineCap: 'round',
+              lineJoin: 'round',
+              globalCompositeOperation: 'multiply'
+            }
+          } as any);
+        });
+      }
+      
       lineRef.current = null;
       pointsRef.current = [];
       drawingRef.current = false;

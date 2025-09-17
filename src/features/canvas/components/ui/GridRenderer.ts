@@ -1,9 +1,16 @@
 import Konva from 'konva';
-// Reuse existing caching helpers from the project
-import {
-  cacheLayerStatic,
-  clearShapeCache,
-} from '../../utils/ShapeCaching';
+// Use the canonical performance ShapeCaching
+import { ShapeCaching, CacheConfig } from '../../utils/performance/ShapeCaching';
+
+// Compatibility functions for the existing API
+const cacheLayerStatic = (layer: Konva.Layer, cfg?: CacheConfig) => {
+  ShapeCaching.cacheNode(layer, cfg);
+  return layer;
+};
+const clearShapeCache = (node: Konva.Shape | Konva.Group) => {
+  ShapeCaching.clearCache(node);
+  return node;
+};
 
 export interface GridOptions {
   spacing: number;           // world units between dots
@@ -17,9 +24,9 @@ export interface GridOptions {
 }
 
 const DEFAULTS: Required<Omit<GridOptions, 'dpr'>> = {
-  spacing: 24,
-  dotRadius: 1.5,
-  color: '#E5E7EB',
+  spacing: 20,
+  dotRadius: 0.75,
+  color: '#E5E5E5',
   opacity: 1,
   cacheLayer: true,
   recacheOnZoom: true,
@@ -102,7 +109,7 @@ export class GridRenderer {
     this.rect.opacity(this.options.opacity ?? 1);
 
     // Clear any previous cache on the rect; the layer will be cached below if requested.
-    clearShapeCache(this.rect);
+    ShapeCaching.clearCache(this.rect);
   }
 
   private recacheLayerSoon() {
@@ -112,7 +119,7 @@ export class GridRenderer {
       this.rafRecache = null;
       try {
         // Re-cache the entire background layer for faster composite under pan/zoom.
-        cacheLayerStatic(this.layer);
+        ShapeCaching.cacheNode(this.layer);
       } catch {
         // ignore cache failures
       } finally {
@@ -146,7 +153,7 @@ export class GridRenderer {
     // Cache static background layer for performance, as recommended.
     if (this.options.cacheLayer) {
       try {
-        cacheLayerStatic(this.layer);
+        ShapeCaching.cacheNode(this.layer);
       } catch {
         // ignore if unavailable
       }

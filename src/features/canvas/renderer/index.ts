@@ -8,6 +8,15 @@ import {
   setLayersPixelRatio,
 } from './layers';
 import { TransformerController, TransformerControllerOptions } from './TransformerController';
+import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import { StickyNoteModule } from './modules/StickyNoteModule';
+import { ConnectorRendererAdapter } from './modules/ConnectorRendererAdapter';
+import { TableModuleAdapter } from './modules/TableModuleAdapter';
+import { ImageRendererAdapter } from './modules/ImageRendererAdapter';
+import { MindmapRendererAdapter } from './modules/MindmapRendererAdapter';
+import { TextRenderer } from './modules/TextRenderer';
+import { ShapeRenderer } from './modules/ShapeRenderer';
+import { DrawingRenderer } from './modules/DrawingRenderer';
 
 export interface CanvasElementLike {
   id: string;
@@ -38,6 +47,39 @@ export interface CanvasRendererOptions {
 
   // Called when stage size or DPR changes for custom drawing (e.g., grid on background)
   onBackgroundDraw?: (background: Konva.Layer, stage: Konva.Stage) => void;
+}
+
+// Module registry interfaces
+export interface ModuleRendererCtx {
+  stage: Konva.Stage;
+  layers: { background: Konva.Layer; main: Konva.Layer; highlighter: Konva.Layer; preview: Konva.Layer; overlay: Konva.Layer };
+  store: typeof useUnifiedCanvasStore;
+}
+
+export interface RendererModule {
+  mount(ctx: ModuleRendererCtx): () => void; // returns dispose
+}
+
+// Setup renderer modules
+export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['layers']) {
+  const modules: RendererModule[] = [
+    new StickyNoteModule(),
+    new ConnectorRendererAdapter(),
+    new TableModuleAdapter(),
+    new ImageRendererAdapter(),
+    new MindmapRendererAdapter(),
+    new TextRenderer(),
+    new ShapeRenderer(),
+    new DrawingRenderer(),
+  ];
+
+  console.log('[Renderer] Mounting', modules.length, 'renderer modules');
+  const unsubs = modules.map(m => m.mount({ stage, layers, store: useUnifiedCanvasStore }));
+
+  return () => {
+    console.log('[Renderer] Unmounting all renderer modules');
+    unsubs.forEach(u => u && u());
+  };
 }
 
 /**
@@ -106,6 +148,7 @@ export class CanvasRenderer {
     }
     // Only draw layers that changed; callers can manage finer-grained invalidation
     this.layers.main.batchDraw();
+    this.layers.highlighter.batchDraw();
     this.layers.preview.batchDraw();
     this.layers.overlay.batchDraw();
   }

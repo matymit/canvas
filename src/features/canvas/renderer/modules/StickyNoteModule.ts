@@ -1,205 +1,179 @@
-// features/canvas/renderermodular/modules/StickyNoteModule.ts
+// features/canvas/renderer/modules/StickyNoteModule.ts
 import Konva from 'konva';
+import type { ModuleRendererCtx, RendererModule } from '../index';
 
-type ElementId = string;
+type Id = string;
 
-interface StickyNoteElement {
-  id: ElementId;
-  type: 'sticky-note' | string;
+type StickySnapshot = {
+  id: Id;
   x: number;
   y: number;
-  width: number;    // target width for wrapping
-  minHeight?: number;
-  padding?: number;
-  rotation?: number;
-  text: string;
-  style?: {
-    fill?: string;         // rect fill
-    stroke?: string;       // rect stroke
-    strokeWidth?: number;  // rect strokeWidth
-    textColor?: string;    // text fill
-    fontFamily?: string;
-    fontSize?: number;
-    fontStyle?: string;    // 'normal' | 'bold' | 'italic' | ...
-    align?: 'left' | 'center' | 'right';
-  };
-}
-
-interface RendererLayers {
-  background: Konva.Layer;
-  main: Konva.Layer;
-  preview: Konva.Layer;
-  overlay: Konva.Layer;
-}
-
-interface StoreApi {
-  getStickyNotes?: () => Map<ElementId, StickyNoteElement>;
-  onElementsChange?: (cb: () => void) => () => void;
-}
-
-interface ModuleContext {
-  layers: RendererLayers;
-  store?: StoreApi;
-  stage?: Konva.Stage;
-}
-
-type NodeBundle = {
-  group: Konva.Group;
-  rect: Konva.Rect;
-  text: Konva.Text;
+  width: number;
+  height: number;
+  fill?: string;
+  text?: string;
 };
 
-export default class StickyNoteModule {
-  readonly id = 'sticky-note-module';
+export class StickyNoteModule implements RendererModule {
+  private nodes = new Map<Id, Konva.Group>();
+  private layers?: Konva.Layer;
+  private unsubscribe?: () => void;
 
-  private layers!: RendererLayers;
-  private store?: StoreApi;
+  mount(ctx: ModuleRendererCtx): () => void {
+    console.log('[StickyNoteModule] Mounting...');
+    this.layers = ctx.layers.main;
+    
+    // Subscribe to store changes - watch only sticky-note elements
+    this.unsubscribe = ctx.store.subscribe(
+      // Selector: extract sticky-note elements
+      (state) => {
+        const stickyNotes = new Map<Id, StickySnapshot>();
+        for (const [id, element] of state.elements.entries()) {
+          if (element.type === 'sticky-note') {
+            stickyNotes.set(id, {
+              id,
+              x: element.x,
+              y: element.y,
+              width: element.width || 200,
+              height: element.height || 100,
+              fill: element.style?.fill,
+              text: element.text,
+            });
+          }
+        }
+        return stickyNotes;
+      },
+      // Callback: reconcile changes
+      (stickyNotes) => this.reconcile(stickyNotes)
+    );
 
-  private nodes = new Map<ElementId, NodeBundle>();
-  private unsubElements?: () => void;
-
-  mount(ctx: ModuleContext) {
-    this.layers = ctx.layers;
-    this.store = ctx.store;
-
-    if (this.store?.onElementsChange) {
-      this.unsubElements = this.store.onElementsChange(() => this.render());
+    // Initial render
+    const initialState = ctx.store.getState();
+    const initialStickies = new Map<Id, StickySnapshot>();
+    for (const [id, element] of initialState.elements.entries()) {
+      if (element.type === 'sticky-note') {
+        initialStickies.set(id, {
+          id,
+          x: element.x,
+          y: element.y,
+          width: element.width || 200,
+          height: element.height || 100,
+          fill: element.style?.fill,
+          text: element.text,
+        });
+      }
     }
+    this.reconcile(initialStickies);
 
-    this.render();
+    // Return cleanup function
+    return () => this.unmount();
   }
 
-  unmount() {
-    for (const [, bundle] of this.nodes) {
-      bundle.group.destroy();
+  private unmount() {
+    console.log('[StickyNoteModule] Unmounting...');
+    if (this.unsubscribe) {
+      this.unsubscribe();
+    }
+    for (const group of this.nodes.values()) {
+      group.destroy();
     }
     this.nodes.clear();
-    if (this.unsubElements) this.unsubElements();
-    this.layers.main.batchDraw();
+    if (this.layers) {
+      this.layers.batchDraw();
+    }
   }
 
-  render() {
-    const map = this.store?.getStickyNotes?.();
-    if (!map) return;
+  private reconcile(stickyNotes: Map<Id, StickySnapshot>) {
+    console.log('[StickyNoteModule] Reconciling', stickyNotes.size, 'sticky notes');
+    
+    if (!this.layers) return;
 
-    const seen = new Set<ElementId>();
+    const seen = new Set<Id>();
 
-    for (const [id, el] of map.entries()) {
+    // Add/update existing sticky notes
+    for (const [id, sticky] of stickyNotes) {
       seen.add(id);
-      let bundle = this.nodes.get(id);
-
-      if (!bundle) {
-        bundle = this.createBundle(el);
-        this.layers.main.add(bundle.group);
-        this.nodes.set(id, bundle);
+      let group = this.nodes.get(id);
+      
+      if (!group) {
+        // Create new sticky note
+        console.log('[StickyNoteModule] Creating sticky note:', id, 'fill:', sticky.fill);
+        group = this.createStickyGroup(sticky);
+        this.nodes.set(id, group);
+        this.layers.add(group);
+      } else {
+        // Update existing sticky note
+        this.updateStickyGroup(group, sticky);
       }
-
-      // Update transform/position
-      bundle.group.position({ x: el.x, y: el.y });
-      bundle.group.rotation(el.rotation ?? 0);
-
-      // Update styles and content
-      this.updateStyles(bundle, el);
-      this.updateContentAndAutosize(bundle, el);
     }
 
-    // Destroy removed notes
-    for (const [id, bundle] of this.nodes.entries()) {
+    // Remove deleted sticky notes
+    for (const [id, group] of this.nodes) {
       if (!seen.has(id)) {
-        bundle.group.destroy();
+        console.log('[StickyNoteModule] Removing sticky note:', id);
+        group.destroy();
         this.nodes.delete(id);
       }
     }
 
-    this.layers.main.batchDraw();
+    this.layers.batchDraw();
   }
 
-  private createBundle(el: StickyNoteElement): NodeBundle {
-    const padding = el.padding ?? 12;
-    const minHeight = Math.max(40, el.minHeight ?? 80);
-
+  private createStickyGroup(sticky: StickySnapshot): Konva.Group {
     const group = new Konva.Group({
-      x: el.x,
-      y: el.y,
-      rotation: el.rotation ?? 0,
-      listening: true,
-      draggable: false, // selection/transformer system should handle drag
+      x: sticky.x,
+      y: sticky.y,
+      draggable: false,
     });
 
     const rect = new Konva.Rect({
       x: 0,
       y: 0,
-      width: Math.max(80, el.width),
-      height: minHeight,
+      width: sticky.width,
+      height: sticky.height,
+      fill: sticky.fill || '#FEF08A', // Default yellow
+      stroke: '#E5E7EB',
+      strokeWidth: 1,
       cornerRadius: 8,
-      fill: el.style?.fill ?? '#FEF08A',
-      stroke: el.style?.stroke ?? '#EAB308',
-      strokeWidth: el.style?.strokeWidth ?? 1,
-      listening: false,
-      perfectDrawEnabled: false,
     });
 
     const text = new Konva.Text({
-      x: padding,
-      y: padding,
-      width: Math.max(60, el.width - padding * 2),
-      text: el.text ?? '',
-      fill: el.style?.textColor ?? '#111827',
-      fontFamily: el.style?.fontFamily ?? 'Inter, system-ui, -apple-system, Segoe UI, Roboto',
-      fontSize: el.style?.fontSize ?? 16,
-      fontStyle: el.style?.fontStyle ?? 'normal',
-      align: el.style?.align ?? 'left',
-      lineHeight: 1.2,
-      listening: false,
-      perfectDrawEnabled: false,
+      x: 12,
+      y: 12,
+      width: sticky.width - 24,
+      text: sticky.text || '',
+      fontSize: 14,
+      fontFamily: 'Arial, sans-serif',
+      fill: '#374151',
       wrap: 'word',
-      ellipsis: false,
     });
 
     group.add(rect);
     group.add(text);
 
-    const bundle = { group, rect, text };
-    // Initial autosize
-    this.updateContentAndAutosize(bundle, el);
-
-    return bundle;
+    return group;
   }
 
-  private updateStyles(bundle: NodeBundle, el: StickyNoteElement) {
-    bundle.rect.fill(el.style?.fill ?? '#FEF08A');
-    bundle.rect.stroke(el.style?.stroke ?? '#EAB308');
-    bundle.rect.strokeWidth(el.style?.strokeWidth ?? 1);
+  private updateStickyGroup(group: Konva.Group, sticky: StickySnapshot) {
+    // Update position
+    group.setAttrs({
+      x: sticky.x,
+      y: sticky.y,
+    });
 
-    bundle.text.fill(el.style?.textColor ?? '#111827');
-    bundle.text.fontFamily(el.style?.fontFamily ?? 'Inter, system-ui, -apple-system, Segoe UI, Roboto');
-    bundle.text.fontSize(el.style?.fontSize ?? 16);
-    bundle.text.fontStyle(el.style?.fontStyle ?? 'normal');
-    bundle.text.align(el.style?.align ?? 'left');
-  }
+    // Update rectangle
+    const rect = group.getChildren()[0] as Konva.Rect;
+    rect.setAttrs({
+      width: sticky.width,
+      height: sticky.height,
+      fill: sticky.fill || '#FEF08A',
+    });
 
-  private updateContentAndAutosize(bundle: NodeBundle, el: StickyNoteElement) {
-    const padding = el.padding ?? 12;
-    const minHeight = Math.max(40, el.minHeight ?? 80);
-
-    // Ensure target width is reflected on both rect and text.
-    const width = Math.max(80, el.width);
-    bundle.rect.width(width);
-    bundle.text.width(Math.max(60, width - padding * 2));
-
-    // Update text content
-    if (bundle.text.text() !== (el.text ?? '')) {
-      bundle.text.text(el.text ?? '');
-    }
-
-    // Force a text measurement by drawing the layer synchronously where possible.
-    // Konva.Text computes height after width/text changes; we then update rect height.
-    // Use getHeight() to read the actual rendered height with current font settings.
-    const measuredTextHeight = Math.max(bundle.text.getHeight(), bundle.text.height());
-
-    const targetHeight = Math.max(minHeight, measuredTextHeight + padding * 2);
-    if (Math.abs(bundle.rect.height() - targetHeight) > 0.5) {
-      bundle.rect.height(targetHeight);
-    }
+    // Update text
+    const text = group.getChildren()[1] as Konva.Text;
+    text.setAttrs({
+      width: sticky.width - 24,
+      text: sticky.text || '',
+    });
   }
 }

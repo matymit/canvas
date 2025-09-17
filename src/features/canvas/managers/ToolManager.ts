@@ -8,13 +8,17 @@ import type { UnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 // Import all tool components
 import { TableTool } from '../components/tools/content/TableTool';
 import { TextTool } from '../components/tools/content/TextTool';
+import { ImageTool } from '../components/tools/content/ImageTool';
+import { MindmapTool } from '../components/tools/content/MindmapTool';
 import { PenTool } from '../components/tools/drawing/PenTool';
 import { MarkerTool } from '../components/tools/drawing/MarkerTool';
 import { HighlighterTool } from '../components/tools/drawing/HighlighterTool';
+import { EraserTool } from '../components/tools/drawing/EraserTool';
 import { RectangleTool } from '../components/tools/shapes/RectangleTool';
+import { CircleTool } from '../components/tools/shapes/CircleTool';
 import { TriangleTool } from '../components/tools/shapes/TriangleTool';
-import { ConnectorTool } from '../components/tools/creation/ConnectorTool';
 import { StickyNoteTool } from '../components/tools/creation/StickyNoteTool';
+import { ConnectorTool } from '../components/tools/creation/ConnectorTool';
 
 export interface ToolDefinition {
   id: string;
@@ -106,7 +110,7 @@ export class ToolManager {
       category: 'drawing',
       component: HighlighterTool,
       cursor: 'crosshair',
-      shortcut: 'L',
+      shortcut: 'G',
     },
     'draw-rectangle': {
       id: 'draw-rectangle',
@@ -124,16 +128,79 @@ export class ToolManager {
       category: 'shapes',
       component: TriangleTool,
       cursor: 'crosshair',
+      shortcut: 'T',
+    },
+    'line': {
+      id: 'line',
+      name: 'Line',
+      description: 'Draw straight lines',
+      category: 'shapes',
+      component: ConnectorTool,
+      cursor: 'crosshair',
+      shortcut: 'L',
+    },
+    'arrow': {
+      id: 'arrow',
+      name: 'Arrow',
+      description: 'Draw arrows',
+      category: 'shapes',
+      component: ConnectorTool,
+      cursor: 'crosshair',
       shortcut: 'A',
     },
     'connector-line': {
       id: 'connector-line',
-      name: 'Connector',
-      description: 'Connect elements',
-      category: 'creation',
+      name: 'Connector Line',
+      description: 'Create connector lines',
+      category: 'shapes',
       component: ConnectorTool,
       cursor: 'crosshair',
+      shortcut: 'N',
+    },
+    'connector-arrow': {
+      id: 'connector-arrow',
+      name: 'Connector Arrow',
+      description: 'Create connector arrows',
+      category: 'shapes',
+      component: ConnectorTool,
+      cursor: 'crosshair',
+      shortcut: 'W',
+    },
+    'draw-circle': {
+      id: 'draw-circle',
+      name: 'Circle',
+      description: 'Draw circles',
+      category: 'shapes',
+      component: CircleTool,
+      cursor: 'crosshair',
       shortcut: 'C',
+    },
+    'eraser': {
+      id: 'eraser',
+      name: 'Eraser',
+      description: 'Erase content',
+      category: 'drawing',
+      component: EraserTool,
+      cursor: 'crosshair',
+      shortcut: 'E',
+    },
+    'image': {
+      id: 'image',
+      name: 'Image',
+      description: 'Add images',
+      category: 'content',
+      component: ImageTool,
+      cursor: 'crosshair',
+      shortcut: 'I',
+    },
+    'mindmap': {
+      id: 'mindmap',
+      name: 'Mindmap',
+      description: 'Create mindmaps',
+      category: 'content',
+      component: MindmapTool,
+      cursor: 'crosshair',
+      shortcut: 'D',
     },
     'comment': {
       id: 'comment',

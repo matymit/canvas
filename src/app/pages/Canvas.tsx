@@ -5,8 +5,12 @@ import NonReactCanvasStage from '@/features/canvas/components/NonReactCanvasStag
 import useCanvasSizing from '@/features/canvas/hooks/useCanvasSizing';
 import useViewportControls from '@/features/canvas/hooks/useViewportControls';
 import { useUnifiedCanvasStore } from '@/features/canvas/stores/unifiedCanvasStore';
+import { useTauriFileOperations } from '@/features/canvas/hooks/useTauriFileOperations';
 import { GridRenderer } from '@/features/canvas/components/ui/GridRenderer';
 import CanvasToolbar from '@/features/canvas/toolbar/CanvasToolbar';
+import { setupRenderer } from '@/features/canvas/renderer';
+import { initializeConnectorService } from '@/features/canvas/services/ConnectorService';
+import { TransformerManager } from '@/features/canvas/managers/TransformerManager';
 // Mount tool components end-to-end
 import TableTool from '@/features/canvas/components/tools/content/TableTool';
 import TextTool from '@/features/canvas/components/tools/content/TextTool';
@@ -15,48 +19,18 @@ import StickyNoteTool from '@/features/canvas/components/tools/creation/StickyNo
 import PenTool from '@/features/canvas/components/tools/drawing/PenTool';
 import MarkerTool from '@/features/canvas/components/tools/drawing/MarkerTool';
 import HighlighterTool from '@/features/canvas/components/tools/drawing/HighlighterTool';
+import EraserTool from '@/features/canvas/components/tools/drawing/EraserTool';
 import RectangleTool from '@/features/canvas/components/tools/shapes/RectangleTool';
 import TriangleTool from '@/features/canvas/components/tools/shapes/TriangleTool';
 import MindmapTool from '@/features/canvas/components/tools/content/MindmapTool';
 import ImageTool from '@/features/canvas/components/tools/content/ImageTool';
 
-function SelectionOverlay({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
-  const selected = useUnifiedCanvasStore((s: any) => Array.from(s.selectedElementIds ?? []));
-  const getEl = useUnifiedCanvasStore((s: any) => s.element?.getById);
-
-  if (!containerRef.current) return null;
-
-  return (
-    <>
-      {selected.map((id) => {
-        const el = getEl?.(id);
-        if (!el) return null;
-        const b = el.bounds || { x: el.x, y: el.y, width: el.width, height: el.height };
-        if (!b) return null;
-        return (
-          <div
-            key={id}
-            className="konva-transformer"
-            style={{
-              position: 'absolute',
-              left: b.x,
-              top: b.y,
-              width: b.width,
-              height: b.height,
-              outline: '1px solid #4F46E5',
-              pointerEvents: 'none',
-              boxShadow: '0 0 0 1px rgba(79,70,229,0.5) inset',
-            }}
-          />
-        );
-      })}
-    </>
-  );
-}
+// Removed DOM-based SelectionOverlay - now using Konva Transformer directly
 // Table renderer wiring
 import { TableRenderer } from '@/features/canvas/renderer/modules/TableModule';
 import { MindmapRenderer } from '@/features/canvas/renderer/modules/MindmapRenderer';
 import { useMindmapLiveRouting } from '@/features/canvas/renderer/modules/mindmapWire';
+import { createSpacingHUD } from '@/features/canvas/overlay/SpacingHUD';
 
 const STAGE_KEY = 'CANVAS_STAGE_KEY';
 
@@ -98,6 +72,21 @@ export default function Canvas(): JSX.Element {
     redo
   } = useUnifiedCanvasStore();
 
+  // File operations integration
+  const {
+    saveWithHistory,
+    loadWithHistory,
+    exportAsImage,
+    enableAutoSave,
+    hasUnsavedChanges,
+    currentFilePath
+  } = useTauriFileOperations();
+
+  // Enable auto-save on mount (every 2 minutes)
+  useEffect(() => {
+    enableAutoSave(120000); // 2 minutes
+  }, [enableAutoSave]);
+
   // Viewport controls
   const { zoomIn, zoomOut, resetZoom, fitToContent } = useViewportControls(stageRef, {
     enableDragPan: true,
@@ -108,6 +97,10 @@ export default function Canvas(): JSX.Element {
 
   const tableRendererRef = useRef<TableRenderer | null>(null);
   const mindmapRendererRef = useRef<MindmapRenderer | null>(null);
+  const rendererCleanupRef = useRef<(() => void) | null>(null);
+  const connectorServiceCleanupRef = useRef<(() => void) | null>(null);
+  const transformerManagerRef = useRef<TransformerManager | null>(null);
+  const spacingHUDRef = useRef<ReturnType<typeof createSpacingHUD> | null>(null);
 
   const onStageReady = useCallback((stage: Konva.Stage) => {
     stageRef.current = stage;
@@ -115,14 +108,101 @@ export default function Canvas(): JSX.Element {
     // The NonReactCanvasStage already created the layers, so we don't need to create them again
     // Just get references to the existing layers
     const layers = stage.getLayers();
+
+    // Setup renderer modules (StickyNoteModule, etc.)
+    if (layers.length >= 4) {
+      const layerRefs = {
+        background: layers[0] as Konva.Layer,
+        main: layers[1] as Konva.Layer,
+        preview: layers[2] as Konva.Layer,
+        overlay: layers[3] as Konva.Layer,
+      };
+
+      // Make stage and layers globally accessible for tools
+      (window as any).canvasStage = stage;
+      (window as any).canvasLayers = layerRefs;
+
+      // Setup renderer modules with cleanup
+      rendererCleanupRef.current = setupRenderer(stage, layerRefs);
+
+      // Initialize connector service for live routing
+      const connectorService = initializeConnectorService({
+        store: useUnifiedCanvasStore.getState() as any,
+        stage,
+        layers: layerRefs,
+      });
+      connectorServiceCleanupRef.current = () => connectorService.cleanup();
+
+      // Initialize TransformerManager for selection handling
+      transformerManagerRef.current = new TransformerManager(stage, {
+        overlayLayer: layerRefs.overlay,
+        onTransformStart: (nodes) => {
+          // Mark as transforming in store
+          useUnifiedCanvasStore.getState().beginTransform();
+        },
+        onTransform: (nodes) => {
+          // Live transform feedback - nodes are already being transformed by Konva
+          // No need to update store during transform
+        },
+        onTransformEnd: (nodes) => {
+          const store = useUnifiedCanvasStore.getState();
+          const updateElement = store.updateElement || (store as any).element?.update;
+
+          // Use withUndo for atomic transform operation
+          store.withUndo('Transform elements', () => {
+            // Normalize transforms: convert scale to width/height
+            nodes.forEach((node) => {
+              const id = node.id();
+              if (!id) return;
+
+              // Get current transform values
+              const x = node.x();
+              const y = node.y();
+              const rotation = node.rotation();
+              const scaleX = node.scaleX();
+              const scaleY = node.scaleY();
+
+              // Calculate new dimensions
+              const width = node.width() * scaleX;
+              const height = node.height() * scaleY;
+
+              // Reset scale to 1 and apply dimensions
+              node.scaleX(1);
+              node.scaleY(1);
+              node.width(width);
+              node.height(height);
+
+              // Update store with normalized values
+              updateElement(id, {
+                x,
+                y,
+                width,
+                height,
+                rotation,
+              });
+            });
+          });
+
+          // End transform
+          store.endTransform();
+
+          // Force transformer refresh
+          transformerManagerRef.current?.refresh();
+        },
+      });
+    }
+    
+    // Spacing HUD setup
+    spacingHUDRef.current = createSpacingHUD();
+
     if (layers.length >= 4 && grid.visible) {
       // Use GridRenderer from UI module for better integration
       const backgroundLayer = layers[0]; // First layer is background
 
-      // GridRenderer automatically renders when created
+      // GridRenderer automatically renders when created - FigJam style
       new GridRenderer(stage, backgroundLayer, {
         spacing: grid.density,
-        dotRadius: 1.5,
+        dotRadius: 0.75,
         color: grid.color,
         opacity: 1,
         cacheLayer: true,
@@ -130,14 +210,30 @@ export default function Canvas(): JSX.Element {
       });
     }
 
-    // Simple click-to-select based on store element bounds for E2E flows
-    const selectAtPointer = () => {
+    // Enhanced click-to-select with proper empty click handling
+    const selectAtPointer = (e?: any) => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
       const s: any = useUnifiedCanvasStore.getState();
-      const entries = Array.from(s.elements?.entries?.() || []);
       const order: string[] = Array.isArray(s.elementOrder) ? s.elementOrder.slice() : [];
-      // Find topmost by iterating order from end
+      const additive = !!(e && e.evt && (e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey));
+
+      // Check if we clicked on a Konva node first (more accurate than bounds check)
+      const clickedNode = stage.getIntersection(pos);
+      if (clickedNode && clickedNode.id()) {
+        const id = clickedNode.id();
+        try {
+          if (additive && s.selection?.toggle) {
+            s.selection.toggle(id);
+          } else {
+            s.selection?.set?.([id]);
+          }
+        } catch {}
+        return;
+      }
+
+      // Fallback to bounds check for elements without Konva nodes yet
+      let foundElement = false;
       for (let i = order.length - 1; i >= 0; i--) {
         const id = order[i];
         const el = s.elements?.get?.(id);
@@ -146,14 +242,61 @@ export default function Canvas(): JSX.Element {
         if (!b) continue;
         if (pos.x >= b.x && pos.x <= b.x + b.width && pos.y >= b.y && pos.y <= b.y + b.height) {
           try {
-            s.selection?.set?.([id]);
+            if (additive && s.selection?.toggle) {
+              s.selection.toggle(id);
+            } else {
+              s.selection?.set?.([id]);
+            }
           } catch {}
+          foundElement = true;
           break;
         }
       }
+
+      // Clear selection if clicked on empty space and not additive
+      if (!foundElement && !additive) {
+        try {
+          s.selection?.clear?.();
+        } catch {}
+      }
     };
 
-    stage.on('click.e2e-select', selectAtPointer);
+    stage.on('click.e2e-select', (ev) => selectAtPointer(ev));
+
+    // Spacing HUD drag wiring: show label between dragged node and nearest neighbor by X
+    const onDragMoveHUD = (e: Konva.KonvaEventObject<DragEvent>) => {
+      try {
+        const hud = spacingHUDRef.current;
+        if (!hud) return;
+        const overlayLayer = layers[3] as Konva.Layer;
+        const mainLayer = layers[1] as Konva.Layer;
+        const target = e.target as Konva.Node;
+        if (!overlayLayer || !mainLayer || !target || !target.getLayer() || target.getLayer() !== mainLayer) return;
+        // Find nearest neighbor by center X among main layer children
+        const children = mainLayer.getChildren((n) => n !== target && typeof (n as any).id === 'function');
+        if (children.length === 0) { hud.clear(overlayLayer); return; }
+        const tRect = target.getClientRect({ skipStroke: true, skipShadow: true });
+        const tCx = tRect.x + tRect.width / 2;
+        let best: Konva.Node | null = null;
+        let bestDx = Infinity;
+        for (const child of children) {
+          const r = child.getClientRect({ skipStroke: true, skipShadow: true });
+          const cx = r.x + r.width / 2;
+          const dx = Math.abs(cx - tCx);
+          if (dx < bestDx) { bestDx = dx; best = child; }
+        }
+        if (best) hud.showGaps(overlayLayer, target, best);
+      } catch {}
+    };
+    const onDragEndHUD = () => {
+      try {
+        const overlayLayer = layers[3] as Konva.Layer;
+        spacingHUDRef.current?.clear(overlayLayer);
+      } catch {}
+    };
+
+    stage.on('dragmove.spacinghud', onDragMoveHUD);
+    stage.on('dragend.spacinghud', onDragEndHUD);
 
     // Wire TableRenderer into render pipeline
     if (layers.length >= 4) {
@@ -197,6 +340,24 @@ export default function Canvas(): JSX.Element {
           });
           // Note: removal handling would benefit from exposing IDs from TableRenderer; skipping for now
         } catch {}
+      },
+      { fireImmediately: true }
+    );
+
+    return () => { try { unsub(); } catch {} };
+  }, []);
+
+  // Wire TransformerManager to selection changes
+  useEffect(() => {
+    if (!transformerManagerRef.current || !stageRef.current) return;
+
+    const unsub = useUnifiedCanvasStore.subscribe(
+      (s) => ({
+        selectedIds: Array.from(s.selectedElementIds || []),
+        selectionVersion: s.selectionVersion || 0,
+      }),
+      ({ selectedIds }) => {
+        transformerManagerRef.current?.attachToNodeIds(selectedIds);
       },
       { fireImmediately: true }
     );
@@ -289,12 +450,158 @@ export default function Canvas(): JSX.Element {
     try { setSelectedTool('select'); } catch {}
   }, [setSelectedTool]);
 
+  // Minimal keyboard shortcut: 's' selects the Select tool
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey || e.metaKey || e.ctrlKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 's') { e.preventDefault(); setSelectedTool('select'); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [setSelectedTool]);
+
+  // localStorage persistence
+  useEffect(() => {
+    const STORAGE_KEY = 'canvas-state';
+    
+    // Load state on mount
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const store = useUnifiedCanvasStore.getState();
+        
+        // Restore elements
+        if (parsed.elements && parsed.elementOrder) {
+          const elementsArray = Object.entries(parsed.elements).map(([id, el]: [string, any]) => ({ ...el, id }));
+          store.element?.replaceAll?.(elementsArray, parsed.elementOrder);
+        }
+        
+        // Restore selection
+        if (parsed.selectedElementIds) {
+          store.selection?.set?.(parsed.selectedElementIds);
+        }
+        
+        // Restore viewport
+        if (parsed.viewport && store.viewport) {
+          store.viewport.setPan(parsed.viewport.x || 0, parsed.viewport.y || 0);
+          store.viewport.setScale(parsed.viewport.scale || 1);
+        }
+      }
+    } catch {}
+    
+    // Save state on changes
+    const unsubscribe = useUnifiedCanvasStore.subscribe(
+      (state) => ({
+        elements: state.elements,
+        elementOrder: state.elementOrder,
+        selectedElementIds: Array.from(state.selectedElementIds || []),
+        viewport: state.viewport
+      }),
+      (state) => {
+        try {
+          const toSave = {
+            elements: Object.fromEntries(state.elements || new Map()),
+            elementOrder: state.elementOrder || [],
+            selectedElementIds: state.selectedElementIds || [],
+            viewport: {
+              x: state.viewport?.x || 0,
+              y: state.viewport?.y || 0,
+              scale: state.viewport?.scale || 1
+            }
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        } catch {}
+      }
+    );
+    
+    return () => {
+      try { unsubscribe(); } catch {}
+      // Cleanup renderer modules
+      if (rendererCleanupRef.current) {
+        try {
+          rendererCleanupRef.current();
+          rendererCleanupRef.current = null;
+        } catch {}
+      }
+      // Cleanup connector service
+      if (connectorServiceCleanupRef.current) {
+        try {
+          connectorServiceCleanupRef.current();
+          connectorServiceCleanupRef.current = null;
+        } catch {}
+      }
+      // Remove spacing HUD listeners
+      try {
+        const stage = stageRef.current;
+        stage?.off('dragmove.spacinghud');
+        stage?.off('dragend.spacinghud');
+      } catch {}
+    };
+  }, []);
+
+  // After hydration, ensure a selection exists and overlay draws
+  useEffect(() => {
+    // Try immediately, then again on next frame
+    try {
+      const s: any = useUnifiedCanvasStore.getState();
+      const ensure = () => {
+        try {
+          const ids: string[] = Array.from(useUnifiedCanvasStore.getState().selectedElementIds ?? []);
+          if (ids.length > 0 && s.selection?.set) s.selection.set(ids);
+          else {
+            const order: string[] = Array.isArray(useUnifiedCanvasStore.getState().elementOrder) ? useUnifiedCanvasStore.getState().elementOrder : [];
+            const last = order[order.length - 1] ?? order[0];
+            if (last && s.selection?.set) s.selection.set([last]);
+          }
+        } catch {}
+      };
+      ensure();
+      requestAnimationFrame(ensure);
+    } catch {}
+
+    // Also subscribe to store so when elements hydrate we pick a selection if none exists
+    const unsubscribe2 = useUnifiedCanvasStore.subscribe(
+      (st) => ({ order: st.elementOrder, selected: st.selectedElementIds }),
+      (snap) => {
+        try {
+          const order: string[] = Array.isArray(snap.order) ? snap.order : [];
+          const selected = Array.from(snap.selected ?? []);
+          if (order.length > 0 && selected.length === 0) {
+            const last = order[order.length - 1] ?? order[0];
+            const api: any = useUnifiedCanvasStore.getState().selection;
+            api?.set?.([last]);
+          }
+        } catch {}
+      },
+      { fireImmediately: true }
+    );
+    return () => {
+      try { unsubscribe2(); } catch {}
+      // Cleanup transformer manager
+      if (transformerManagerRef.current) {
+        transformerManagerRef.current.destroy();
+        transformerManagerRef.current = null;
+      }
+      // Cleanup other services
+      if (rendererCleanupRef.current) {
+        rendererCleanupRef.current();
+        rendererCleanupRef.current = null;
+      }
+      if (connectorServiceCleanupRef.current) {
+        connectorServiceCleanupRef.current();
+        connectorServiceCleanupRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div style={{
       position: 'relative',
       height: '100vh',
       width: '100%',
-      backgroundColor: '#fafafa',
+      backgroundColor: '#F7F7F7',
       overflow: 'hidden'
     }}>
       {/* Canvas surface with FigJam-style background */}
@@ -307,7 +614,7 @@ export default function Canvas(): JSX.Element {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: '#fafafa',
+          backgroundColor: '#F7F7F7',
           backgroundImage: grid.visible ? `
             radial-gradient(circle, #e5e7eb 1.5px, transparent 1.5px)
           ` : 'none',
@@ -319,16 +626,16 @@ export default function Canvas(): JSX.Element {
         <LiveAnnouncements />
         
         <NonReactCanvasStage key={STAGE_KEY} {...stageProps} />
-        {/* Selection overlay to emulate visible transformer for tests */}
-        <SelectionOverlay containerRef={containerRef} />
         {/* Mount tool components */}
         <TableTool isActive={selectedTool === 'table'} stageRef={stageRef} />
         <TextTool isActive={selectedTool === 'text'} stageRef={stageRef} />
-        <ConnectorTool isActive={selectedTool === 'connector-line'} stageRef={stageRef} />
+        <ConnectorTool isActive={selectedTool === 'line' || selectedTool === 'connector-line'} stageRef={stageRef} toolId="connector-line" />
+        <ConnectorTool isActive={selectedTool === 'arrow' || selectedTool === 'connector-arrow'} stageRef={stageRef} toolId="connector-arrow" />
         <StickyNoteTool isActive={selectedTool === 'sticky-note'} stageRef={stageRef} />
         <PenTool isActive={selectedTool === 'pen'} stageRef={stageRef} />
         <MarkerTool isActive={selectedTool === 'marker'} stageRef={stageRef} />
         <HighlighterTool isActive={selectedTool === 'highlighter'} stageRef={stageRef} />
+        <EraserTool isActive={selectedTool === 'eraser'} stageRef={stageRef} />
         <RectangleTool isActive={selectedTool === 'draw-rectangle'} stageRef={stageRef} />
         <TriangleTool isActive={selectedTool === 'draw-triangle'} stageRef={stageRef} />
         <MindmapTool isActive={selectedTool === 'mindmap'} stageRef={stageRef} />
@@ -378,7 +685,7 @@ export default function Canvas(): JSX.Element {
           onClick={() => setGridVisible(!grid.visible)}
           style={{
             padding: '8px 16px',
-            backgroundColor: grid.visible ? '#5865f2' : 'white',
+            backgroundColor: grid.visible ? '#7c3aed' : 'white',
             color: grid.visible ? 'white' : '#4b5563',
             border: 'none',
             borderRadius: '8px',

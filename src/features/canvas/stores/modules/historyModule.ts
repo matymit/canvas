@@ -53,6 +53,9 @@ export interface HistoryModuleSlice {
   endBatch(commit?: boolean): void;
   push(ops: StoreHistoryOp | StoreHistoryOp[], label?: string, mergeKey?: string): void;
 
+  // High-level operation with automatic batching
+  withUndo(description: string, mutator: () => void): void;
+
   // Compatibility shims for existing calls in modules
   record(input: any): void;  // normalize and delegate to push()
   add(input: any): void;     // alias
@@ -214,6 +217,18 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
     mergeKey: undefined,
     startedAt: null,
     ops: [],
+  },
+
+  // High-level withUndo helper for user operations
+  withUndo: (description: string, mutator: () => void) => {
+    // Begin batch for this operation
+    get().beginBatch(description);
+
+    // Execute the mutation
+    mutator();
+
+    // End batch and commit
+    get().endBatch(true);
   },
 
   beginBatch: (label, mergeKey) =>

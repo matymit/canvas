@@ -118,10 +118,12 @@ export interface ConvenienceSlice {
   strokeColor: string;
   fillColor: string;
   strokeWidth: number;
+  stickyNoteColor: string;
   setSelectedTool: (tool: string) => void;
   setStrokeColor: (color: string) => void;
   setFillColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
+  setStickyNoteColor: (color: string) => void;
 
   // History methods at root for toolbar compatibility
   undo: () => void;
@@ -133,10 +135,12 @@ export interface ConvenienceSlice {
     strokeColor: string;
     fillColor: string;
     strokeWidth: number;
+    stickyNoteColor: string;
     setSelectedTool: (tool: string) => void;
     setStrokeColor: (color: string) => void;
     setFillColor: (color: string) => void;
     setStrokeWidth: (width: number) => void;
+    setStickyNoteColor: (color: string) => void;
   };
 }
 
@@ -221,6 +225,12 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             record: (input: any) => (get() as any).record?.(input),
             push: (ops: any, label?: string, mergeKey?: string) => (get() as any).push?.(ops, label, mergeKey),
             add: (input: any) => (get() as any).add?.(input),
+            withUndo: (description: string, mutator: () => void) => historyModule.withUndo(description, mutator),
+            beginBatch: historyModule.beginBatch,
+            endBatch: historyModule.endBatch,
+            undo: historyModule.undo,
+            redo: historyModule.redo,
+            clear: historyModule.clear,
           } as any,
 
           // Add convenience properties at root level
@@ -228,6 +238,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
           strokeColor: DEFAULT_UI.strokeColor,
           fillColor: DEFAULT_UI.fillColor,
           strokeWidth: DEFAULT_UI.strokeWidth,
+          stickyNoteColor: '#FFF59D',
           setSelectedTool: (tool: string) => set((state) => {
             state.selectedTool = tool;
             if (state.ui) state.ui.selectedTool = tool;
@@ -244,6 +255,11 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             state.strokeWidth = width;
             if (state.ui) state.ui.strokeWidth = width;
           }),
+          setStickyNoteColor: (color: string) => set((state) => {
+            state.stickyNoteColor = color;
+            if (state.ui) state.ui.stickyNoteColor = color;
+            if (state.colors) state.colors.stickyNote = color;
+          }),
 
           // Add history methods at root for toolbar
           undo: () => historyModule.undo(),
@@ -255,6 +271,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             strokeColor: DEFAULT_UI.strokeColor,
             fillColor: DEFAULT_UI.fillColor,
             strokeWidth: DEFAULT_UI.strokeWidth,
+            stickyNoteColor: '#FFF59D',
             setSelectedTool: (tool: string) => set((state) => {
               state.selectedTool = tool;
               if (state.ui) state.ui.selectedTool = tool;
@@ -278,6 +295,11 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             setStrokeWidth: (width: number) => set((state) => {
               state.strokeWidth = width;
               if (state.ui) state.ui.strokeWidth = width;
+            }),
+            setStickyNoteColor: (color: string) => set((state) => {
+              state.stickyNoteColor = color;
+              if (state.ui) state.ui.stickyNoteColor = color;
+              if (state.colors) state.colors.stickyNote = color;
             }),
           },
         };

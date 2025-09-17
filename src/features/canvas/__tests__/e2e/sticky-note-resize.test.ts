@@ -27,10 +27,10 @@ test.describe('Sticky Note Auto-Resize', () => {
     // Assume visual check or check input height
     await expect(page).toHaveScreenshot('sticky-note-expanded.png');
 
-    // Commit
-    await canvas.click({ position: { x: 200, y: 200 } });
+    // Commit (keyboard is deterministic in overlay UX)
+    await noteInput.press('Enter');
 
     // Note committed with correct size
-    await expect(noteInput).not.toBeVisible();
+    await expect(noteInput).toBeHidden();
   });
 });

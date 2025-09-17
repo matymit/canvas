@@ -18,8 +18,9 @@ function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback:
 }
 
 export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, toolId = 'draw-triangle' }) => {
-  const getSelectedTool = useUnifiedCanvasStore((s) => s.ui?.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s) => s.ui?.setSelectedTool);
+  const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
+  const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
   const upsertElement = useUnifiedCanvasStore((s) => s.element.upsert);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
@@ -32,7 +33,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
 
   useEffect(() => {
     const stage = stageRef.current;
-    const active = isActive && getSelectedTool === toolId;
+    const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
     const previewLayer =
@@ -111,20 +112,25 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       if (w < 2 || h < 2) return;
 
       // Commit to store; renderer will update main layer
+      const id = `triangle-${Date.now()}`;
       upsertElement?.({
-        id: `triangle-${Date.now()}`,
+        id,
         type: 'triangle',
         x,
         y,
         width: w,
         height: h,
         bounds: { x, y, width: w, height: h },
+        draggable: true,
         style: {
           stroke: strokeColor,
           strokeWidth,
           fill: fillColor,
         },
       });
+
+      // Select the new triangle to ensure transformer sentinel appears
+      try { replaceSelectionWithSingle?.(id as any); } catch {}
 
       // Auto-switch back to select
       setSelectedTool?.('select');
@@ -144,7 +150,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, getSelectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
 
   return null;
 };

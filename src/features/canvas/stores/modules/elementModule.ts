@@ -61,9 +61,20 @@ export interface ElementModuleSlice {
 
 function __deepClone<T>(v: T): T {
   try {
-    return typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v));
+    if (typeof structuredClone === 'function') {
+      // structuredClone handles most complex objects safely
+      return structuredClone(v);
+    }
+    return JSON.parse(JSON.stringify(v as any));
   } catch {
-    return JSON.parse(JSON.stringify(v));
+    try {
+      // As a last resort, shallow clone plain objects/arrays to avoid proxy revocation issues
+      if (Array.isArray(v)) return (v.slice() as unknown) as T;
+      if (v && typeof v === 'object') return ({ ...(v as any) } as unknown) as T;
+      return v;
+    } catch {
+      return v;
+    }
   }
 }
 
@@ -261,6 +272,9 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
       const prev = map.get(id);
       if (!prev) return;
 
+      // Clone the element while still inside draft to avoid revoked proxy
+      removed = __deepClone(prev);
+
       const newMap = new Map<ElementId, CanvasElement>(map);
       newMap.delete(id);
 
@@ -310,7 +324,8 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
         const prev = newMap.get(id);
         if (prev) {
           newMap.delete(id);
-          removed.push(prev);
+          // Clone inside draft to avoid revoked proxies later
+          removed.push(__deepClone(prev));
         }
       }
 
@@ -397,27 +412,49 @@ export const createElementModule: StoreSlice<ElementModuleSlice> = (set, get) =>
       }
     }),
 
-  // Required unified interface object
+  // Required unified interface object with history tracking
   element: {
     upsert: (el: CanvasElement) => {
       const currentState = get();
-      currentState.addElement(el);
+      // Use pushHistory flag for history tracking
+      currentState.addElement(el, { pushHistory: true });
       return el.id as ElementId;
     },
     update: (id: ElementId, patch: Partial<CanvasElement>) => {
-      get().updateElement(id, patch);
+      // Use pushHistory flag for history tracking
+      get().updateElement(id, patch, { pushHistory: true });
     },
     delete: (id: ElementId) => {
-      get().removeElement(id);
+      // Use pushHistory flag for history tracking
+      get().removeElement(id, { pushHistory: true, deselect: true });
     },
     duplicate: (id: ElementId): ElementId | null => {
+      // duplicateElement already includes pushHistory internally
       return get().duplicateElement(id) ?? null;
     },
     bringToFront: (id: ElementId) => {
+      // Record before state for history
+      const beforeOrder = get().elementOrder.slice();
       get().bringToFront(id);
+      const afterOrder = get().elementOrder.slice();
+
+      // Only record if order actually changed
+      if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
+        const root = get() as any;
+        root.record?.({ op: 'reorder', before: beforeOrder, after: afterOrder });
+      }
     },
     sendToBack: (id: ElementId) => {
+      // Record before state for history
+      const beforeOrder = get().elementOrder.slice();
       get().sendToBack(id);
+      const afterOrder = get().elementOrder.slice();
+
+      // Only record if order actually changed
+      if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
+        const root = get() as any;
+        root.record?.({ op: 'reorder', before: beforeOrder, after: afterOrder });
+      }
     },
     getById: (id: ElementId) => {
       return get().getElement(id);

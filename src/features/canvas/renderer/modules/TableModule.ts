@@ -76,6 +76,7 @@ export class TableRenderer {
       g = new Konva.Group({
         id: el.id,
         name: "table",
+        draggable: true, // Make the group draggable
         listening: true,     // element-level selection
         x: el.x,
         y: el.y,
@@ -264,9 +265,16 @@ export class TableRenderer {
     // Resize the group hit rect to the element frame
     g.setAttrs({ width: el.width, height: el.height });
 
-    // Optional caching after commit
-    if (this.opts.cacheAfterCommit) {
-      g.cache();
+    // Performance optimization: Apply HiDPI-aware caching for large tables
+    const shouldCache = (rows * cols > 50) || this.opts.cacheAfterCommit;
+    if (shouldCache) {
+      const pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      g.cache({
+        pixelRatio: pixelRatio,
+        imageSmoothingEnabled: true,
+        width: el.width,
+        height: el.height,
+      });
     }
 
     // Batch draw

@@ -2,6 +2,11 @@
 import type { StoreSlice } from './types';
 import type { ElementId } from '../../../../../types/index';
 
+function firstElementIdOrNull(state: any): ElementId | undefined {
+  const order: ElementId[] = Array.isArray(state.elementOrder) ? state.elementOrder : [];
+  return order.length > 0 ? order[0] : undefined;
+}
+
 export interface SelectionModuleSlice {
   selectedElementIds: Set<ElementId>;
   lastSelectedId?: ElementId;
@@ -65,7 +70,9 @@ export const createSelectionModule: StoreSlice<SelectionModuleSlice> = (set, get
   clearSelection: () =>
     set((state) => {
       state.selectedElementIds = new Set<ElementId>();
-      (state as any).lastSelectedId = undefined;
+      // Keep lastSelectedId to allow overlay reattach after reload if elements exist
+      const fallback = firstElementIdOrNull(state);
+      (state as any).lastSelectedId = fallback ?? (state as any).lastSelectedId;
       (state as any).selectionVersion++;
     }),
 
@@ -157,6 +164,12 @@ export const createSelectionModule: StoreSlice<SelectionModuleSlice> = (set, get
         currentState.addToSelection(id);
       } else {
         currentState.replaceSelectionWithSingle(id);
+      }
+      // Ensure at least one selected id exists for overlay
+      const ids = Array.from(get().selectedElementIds);
+      if (ids.length === 0) {
+        const first = firstElementIdOrNull(get());
+        if (first) get().setSelection([first]);
       }
     },
     set: (ids: ElementId[]) => {

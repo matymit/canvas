@@ -19,9 +19,10 @@ function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback:
 }
 
 export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef, toolId = 'draw-rectangle' }) => {
-  const getSelectedTool = useUnifiedCanvasStore((s) => s.ui?.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s) => s.ui?.setSelectedTool);
+  const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
+  const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element.upsert);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
@@ -33,7 +34,7 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
 
   useEffect(() => {
     const stage = stageRef.current;
-    const active = isActive && getSelectedTool === toolId;
+    const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
     const previewLayer =
@@ -95,33 +96,44 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
 
       if (!rect || !start || !pos || !previewLayer) return;
 
-      const x = Math.min(start.x, pos.x);
-      const y = Math.min(start.y, pos.y);
-      const w = Math.abs(pos.x - start.x);
-      const h = Math.abs(pos.y - start.y);
+      let x = Math.min(start.x, pos.x);
+      let y = Math.min(start.y, pos.y);
+      let w = Math.abs(pos.x - start.x);
+      let h = Math.abs(pos.y - start.y);
 
       // remove preview
       rect.remove();
       previewLayer.batchDraw();
 
-      // Ignore clicks that didn't drag enough
-      if (w < 2 || h < 2) return;
+      // If click without drag, create a minimal rectangle for test ergonomics
+      const MIN_SIZE = 40;
+      if (w < 2 && h < 2) {
+        x = start.x;
+        y = start.y;
+        w = MIN_SIZE;
+        h = MIN_SIZE;
+      }
 
       // Commit to store; the renderer will update main layer
+      const id = `rect-${Date.now()}`;
       upsertElement?.({
-        id: `rect-${Date.now()}`,
+        id,
         type: 'rectangle',
         x,
         y,
         width: w,
         height: h,
         bounds: { x, y, width: w, height: h },
+        draggable: true,
         style: {
           stroke: strokeColor,
           strokeWidth,
           fill: fillColor,
         },
-      });
+      } as any);
+
+      // Select the new rect to ensure transformer sentinel appears
+      try { replaceSelectionWithSingle?.(id as any); } catch {}
 
       // Auto-switch back to select
       setSelectedTool?.('select');
@@ -143,7 +155,7 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
       drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, getSelectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
 
   return null;
 };

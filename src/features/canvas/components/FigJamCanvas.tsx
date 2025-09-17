@@ -43,39 +43,49 @@ const FigJamCanvas: React.FC = () => {
       overlay: overlayLayer,
     };
 
-    // Add grid pattern
+    // Add grid pattern using a single cached shape for performance
     const gridSize = 20;
-    const gridGroup = new Konva.Group();
+    const dotRadius = 1;
+    const dotColor = '#c0c0c0';
 
-    // Draw grid dots
-    const updateGrid = () => {
-      gridGroup.destroyChildren();
+    const gridShape = new Konva.Shape({
+      listening: false,
+      sceneFunc: (context, shape) => {
+        const stage = shape.getStage();
+        if (!stage) return;
 
-      const width = stage.width();
-      const height = stage.height();
-      const scale = stage.scaleX();
+        const width = stage.width();
+        const height = stage.height();
+        const scale = stage.scaleX();
+        const x = stage.x();
+        const y = stage.y();
 
-      const startX = Math.floor(-stage.x() / scale / gridSize) * gridSize;
-      const endX = Math.ceil((-stage.x() + width) / scale / gridSize) * gridSize;
-      const startY = Math.floor(-stage.y() / scale / gridSize) * gridSize;
-      const endY = Math.ceil((-stage.y() + height) / scale / gridSize) * gridSize;
+        const scaledGridSize = gridSize * scale;
+        if (scaledGridSize < 5) return; // Don't render if dots are too close
 
-      for (let x = startX; x <= endX; x += gridSize) {
-        for (let y = startY; y <= endY; y += gridSize) {
-          const dot = new Konva.Circle({
-            x: x,
-            y: y,
-            radius: 1,
-            fill: '#d0d0d0',
-            listening: false,
-          });
-          gridGroup.add(dot);
+        context.fillStyle = dotColor;
+
+        const startX = Math.floor(-x / scaledGridSize) * scaledGridSize;
+        const endX = startX + width + scaledGridSize;
+        const startY = Math.floor(-y / scaledGridSize) * scaledGridSize;
+        const endY = startY + height + scaledGridSize;
+
+        for (let i = startX; i < endX; i += scaledGridSize) {
+          for (let j = startY; j < endY; j += scaledGridSize) {
+            context.beginPath();
+            context.arc(i, j, dotRadius, 0, 2 * Math.PI);
+            context.fill();
+          }
         }
-      }
+      },
+    });
+
+    gridLayer.add(gridShape);
+
+    const updateGrid = () => {
+      if (!gridLayer) return;
       gridLayer.batchDraw();
     };
-
-    gridLayer.add(gridGroup);
     stage.add(gridLayer);
     stage.add(mainLayer);
     stage.add(overlayLayer);

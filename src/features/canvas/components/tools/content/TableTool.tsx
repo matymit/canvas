@@ -52,8 +52,7 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
 
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
-      // Create minimal preview: outer rect and inner grid lines
-      const g = new Konva.Group({ listening: false, name: "table-preview" });
+      const g = new Konva.Group({ listening: false, name: "table-preview", draggable: true });
       
       const outer = new Konva.Rect({
         x: pos.x, 
@@ -94,14 +93,12 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
         outer.position({ x, y });
         outer.size({ width: w, height: h });
         
-        // Add grid lines preview for better visual feedback
         updateGridPreview(g, w, h);
       }
       previewLayer.batchDraw();
     };
 
     const commit = (x: number, y: number, w: number, h: number) => {
-      // Create table with proper dimensions
       const tableData = createEmptyTable(x, y, w, h);
       const id = nanoid();
       
@@ -109,7 +106,6 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
         ...tableData,
         id,
         type: "table" as const,
-        // Convert to CanvasElement format
         bounds: { x, y, width: w, height: h },
         data: {
           rows: tableData.rows,
@@ -118,19 +114,17 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
           rowHeights: tableData.rowHeights,
           cells: tableData.cells,
           style: tableData.style,
-        }
+        },
+        draggable: true,
       };
       
       upsertElement?.(elementData);
 
-      // Auto-select and switch back to select tool
       if (replaceSelectionWithSingle) {
         replaceSelectionWithSingle(id);
       }
       setSelectedTool("select");
       
-      // Open first cell editor after a brief delay to ensure rendering
-      setTimeout(() => openFirstCellEditor(stage, id, tableData as TableElement), 50);
     };
 
     const onPointerUp = () => {
@@ -156,7 +150,6 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
       const w = Math.abs(pos.x - start.x);
       const h = Math.abs(pos.y - start.y);
 
-      // Click without drag -> default size
       const { minWidth, minHeight } = DEFAULT_TABLE_CONFIG;
       const finalW = w < 4 ? minWidth : Math.max(minWidth, w);
       const finalH = h < 4 ? minHeight : Math.max(minHeight, h);
@@ -164,12 +157,24 @@ export const TableTool: React.FC<TableToolProps> = ({ isActive, stageRef, toolId
       commit(x, y, finalW, finalH);
     };
 
+    const onDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const table = e.target.getParent();
+      if (table && table.name() === 'table') {
+        const pos = stage.getPointerPosition();
+        if (!pos) return;
+        const tableElement = table.attrs as TableElement;
+        openFirstCellEditor(stage, tableElement.id, tableElement, pos);
+      }
+    };
+
     stage.on('pointerdown.tabletool', onPointerDown);
+    stage.on('dblclick.tabletool', onDoubleClick);
 
     return () => {
       stage.off('pointerdown.tabletool', onPointerDown);
       stage.off('pointermove.tabletool', onPointerMove);
       stage.off('pointerup.tabletool', onPointerUp);
+      stage.off('dblclick.tabletool', onDoubleClick);
       
       const g = drawingRef.current.preview;
       if (g) {

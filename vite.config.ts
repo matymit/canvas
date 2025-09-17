@@ -46,7 +46,7 @@ export default defineConfig(async (): Promise<UserConfig> => {
 
     server: {
       port: 1420,
-      strictPort: true,
+      strictPort: false, // Allow Vite to use next available port if 1420 is taken
       host: devHost || '127.0.0.1',
       watch: {
         ignored: ['**/src-tauri/**'],
@@ -56,7 +56,12 @@ export default defineConfig(async (): Promise<UserConfig> => {
     // Pre-bundle key deps for fast dev HMR (no react-konva)
     optimizeDeps: {
       include: ['konva', 'zustand', 'immer'],
-      exclude: isProd ? ['@tauri-apps/api'] : [], // Exclude Tauri APIs in prod builds
+      // Exclude all Tauri packages from pre-bundling to prevent resolution issues
+      exclude: [
+        '@tauri-apps/api',
+        '@tauri-apps/plugin-dialog',
+        '@tauri-apps/plugin-fs',
+      ],
     },
 
     build: {
@@ -67,6 +72,19 @@ export default defineConfig(async (): Promise<UserConfig> => {
       chunkSizeWarningLimit: PERFORMANCE_BUDGETS.maxChunkSize,
       
       rollupOptions: {
+        // Mark Tauri APIs as external - they'll be available at runtime in Tauri context
+        external: (id: string) => {
+          // Only externalize in production builds for Tauri
+          if (isProd && (
+            id.startsWith('@tauri-apps/api') ||
+            id.startsWith('@tauri-apps/plugin-dialog') ||
+            id.startsWith('@tauri-apps/plugin-fs')
+          )) {
+            return true;
+          }
+          return false;
+        },
+
         output: {
           // Keep predictable chunks (no react-konva)
           manualChunks: {
@@ -75,16 +93,16 @@ export default defineConfig(async (): Promise<UserConfig> => {
             state: ['zustand', 'immer'],
           },
           entryFileNames: isProd ? 'assets/[name]-[hash].js' : 'assets/[name].js',
-          chunkFileNames: isProd ? 'assets/[name]-[hash].js' : 'assets/[name].js', 
+          chunkFileNames: isProd ? 'assets/[name]-[hash].js' : 'assets/[name].js',
           assetFileNames: isProd ? 'assets/[name]-[hash][extname]' : 'assets/[name][extname]',
-          
+
           // Asset size validation
           ...(isProd && {
             validate: true,
             compact: true,
           }),
         },
-        
+
         // Tree-shaking and dead code elimination
         treeshake: {
           moduleSideEffects: false,
