@@ -7,6 +7,7 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Implementation Maturity Levels
 
 **🟢 Stable & Complete**
+
 - Core architecture (four-layer pipeline)
 - Basic drawing tools (pen, marker, highlighter)
 - Shape creation (rectangle, circle, triangle)
@@ -16,6 +17,7 @@ This document provides an honest assessment of current Canvas limitations, known
 - Development environment setup
 
 **🟡 Partially Implemented**
+
 - Selection and transformation system
 - Connector tools (line/arrow)
 - Image upload and handling
@@ -24,6 +26,7 @@ This document provides an honest assessment of current Canvas limitations, known
 - Keyboard shortcuts
 
 **🔴 Designed but Not Implemented**
+
 - Accessibility features (WCAG compliance)
 - Advanced selection (marquee, multi-select)
 - Collaboration features
@@ -35,12 +38,15 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Critical Issues
 
 #### Canvas Rendering
+
 **Issue**: Occasional rendering glitches on transform operations
+
 - **Impact**: Visual artifacts during element rotation/scaling
 - **Workaround**: Refresh canvas or undo/redo to fix
 - **Tracking**: Konva transform normalization needs improvement
 
 **Issue**: Memory usage increases during extended drawing sessions
+
 - **Impact**: Browser may become slow after 30+ minutes of heavy use
 - **Workaround**: Refresh page periodically for long sessions
 - **Tracking**: Need better Konva node cleanup and object pooling
@@ -48,28 +54,36 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Tool System Issues
 
 #### Connector Tools
+
 **Issue**: Line and arrow tools partially implemented
+
 - **Impact**: Tools exist but lack live routing functionality
 - **Status**: Basic creation works, anchor snapping incomplete
 - **Workaround**: Use basic line shapes for connections
 
 **Issue**: Connector anchoring not reliable
+
 - **Impact**: Connections may not snap to element edges consistently
 - **Workaround**: Position connectors manually after creation
 
 #### Selection System
+
 **Issue**: Multi-select with Ctrl/Cmd not working
+
 - **Impact**: Can only select one element at a time
 - **Workaround**: Use single-element workflows
 - **Status**: Event handling exists but selection logic incomplete
 
 **Issue**: Marquee selection not implemented
+
 - **Impact**: Cannot select multiple elements by dragging rectangle
 - **Workaround**: Click individual elements
 - **Status**: Designed but not coded
 
 #### Text Editing
+
 **Issue**: Occasional cursor positioning problems
+
 - **Impact**: Text cursor may appear in wrong location during editing
 - **Workaround**: Click again to reposition cursor
 - **Status**: DOM overlay coordinate transformation edge cases
@@ -77,18 +91,23 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Performance Issues
 
 #### Large Scene Performance
+
 **Issue**: Performance degrades with 500+ elements
+
 - **Impact**: Slower interactions, potential frame drops
 - **Status**: Viewport culling designed but not fully implemented
 - **Workaround**: Limit scene complexity for now
 
 **Issue**: Drawing tool lag with fast mouse movements
+
 - **Impact**: Lines may appear choppy with rapid strokes
 - **Status**: RAF batching helps but not perfect
 - **Workaround**: Draw more slowly for smooth lines
 
 #### Memory Management
+
 **Issue**: Konva nodes not always properly cleaned up
+
 - **Impact**: Memory usage gradually increases
 - **Status**: Cleanup logic exists but has edge cases
 - **Workaround**: Restart application for long sessions
@@ -96,18 +115,23 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Browser Compatibility
 
 #### Safari Issues
+
 **Issue**: Touch events unreliable on iPad
+
 - **Impact**: Drawing tools may not work properly on touch devices
 - **Status**: Touch event handling needs improvement
 - **Workaround**: Use Chrome/Firefox on tablets if possible
 
 **Issue**: Performance slower than Chrome/Edge
+
 - **Impact**: Noticeable lag in complex scenes
 - **Status**: Safari-specific optimizations needed
 - **Workaround**: Use Chrome for better performance
 
 #### Firefox Issues
+
 **Issue**: Occasional canvas scaling problems
+
 - **Impact**: Canvas may appear blurry on high-DPI displays
 - **Status**: DPR handling edge cases
 - **Workaround**: Zoom to 100% and refresh
@@ -117,6 +141,7 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Feature Limitations
 
 #### Tool Functionality
+
 - **No eraser tool**: Designed but not implemented
 - **Limited shape options**: Only basic shapes available
 - **No image manipulation**: Upload works, editing doesn't
@@ -124,6 +149,7 @@ This document provides an honest assessment of current Canvas limitations, known
 - **No advanced text formatting**: Basic styling only
 
 #### Interaction Limitations
+
 - **Single selection only**: Multi-select not working
 - **No copy/paste**: Commands not implemented
 - **Limited keyboard shortcuts**: Many planned shortcuts missing
@@ -131,6 +157,7 @@ This document provides an honest assessment of current Canvas limitations, known
 - **No drag-and-drop**: File drops not supported
 
 #### Canvas Limitations
+
 - **Fixed canvas size**: No infinite canvas or dynamic sizing
 - **No layers panel**: Four layers are fixed and hidden from user
 - **No zoom limits**: Can zoom too far in/out causing issues
@@ -140,18 +167,21 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Technical Limitations
 
 #### State Management
+
 - **No collaboration state**: Store designed for single user
 - **Limited history depth**: Undo stack may get large
 - **No auto-save**: Manual save only (when implemented)
 - **No export formats**: Save/load not implemented
 
 #### Performance Constraints
+
 - **Node count limits**: Performance drops with 1000+ elements
 - **Memory bounds**: 500MB limit not enforced
 - **No background processing**: All operations block UI
 - **No worker threads**: CPU-intensive tasks run on main thread
 
 #### Desktop Integration
+
 - **Basic Tauri integration**: Advanced native features not used
 - **No native menus**: All UI in web view
 - **Limited file associations**: Can't open canvas files from OS
@@ -162,12 +192,14 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Performance Workarounds
 
 #### For Large Scenes
+
 1. **Limit element count** to under 500 for best performance
 2. **Use simple shapes** instead of complex drawings when possible
 3. **Avoid rapid-fire operations** (give RAF batching time to work)
 4. **Restart application** after extended use sessions
 
 #### For Drawing Performance
+
 1. **Draw at moderate speed** for smoothest lines
 2. **Use shorter strokes** rather than long continuous lines
 3. **Avoid drawing while zoomed very far in/out**
@@ -176,16 +208,19 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Tool Usage Workarounds
 
 #### Selection Workflow
+
 1. **Select one element at a time** (multi-select not working)
 2. **Use toolbar exclusively** (no right-click context menu)
 3. **Transform elements individually** (group transforms not available)
 
 #### Text Editing Tips
+
 1. **Click precisely** on text to avoid cursor positioning issues
 2. **Keep text short** for better performance
 3. **Use Enter sparingly** (multi-line support is basic)
 
 #### Table Usage
+
 1. **Create simple tables** (complex layouts may have issues)
 2. **Edit cells individually** (batch editing not supported)
 3. **Keep cell content short** for better rendering
@@ -193,6 +228,7 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Development Workarounds
 
 #### For Contributors
+
 1. **Test changes thoroughly** (limited automated testing)
 2. **Check performance impact** manually (no automated budgets)
 3. **Verify in multiple browsers** (compatibility varies)
@@ -203,6 +239,7 @@ This document provides an honest assessment of current Canvas limitations, known
 ### High Priority Missing Features
 
 #### Core Functionality
+
 - **Save/Load system**: File persistence not implemented
 - **Export capabilities**: No SVG, PNG, or PDF export
 - **Import support**: Cannot import existing files
@@ -210,6 +247,7 @@ This document provides an honest assessment of current Canvas limitations, known
 - **Keyboard shortcuts**: Most shortcuts planned but not working
 
 #### Tool Completeness
+
 - **Eraser tool**: Deletion by drawing over elements
 - **Advanced shapes**: More geometric shapes and custom shapes
 - **Image editing**: Crop, rotate, filter images after upload
@@ -217,6 +255,7 @@ This document provides an honest assessment of current Canvas limitations, known
 - **Freehand selection**: Lasso-style selection tool
 
 #### User Experience
+
 - **Contextual menus**: Right-click actions for elements
 - **Property panels**: Detailed control over element properties
 - **Layer management**: User-visible layer controls
@@ -226,18 +265,21 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Medium Priority Missing Features
 
 #### Collaboration
+
 - **Real-time collaboration**: Multiple users editing simultaneously
 - **Comments and annotations**: Discussion features
 - **Version history**: Branching and merging changes
 - **Presence indicators**: See where other users are working
 
 #### Advanced Canvas
+
 - **Infinite canvas**: Seamless panning beyond boundaries
 - **Canvas backgrounds**: Textures, colors, custom images
 - **Zoom-dependent rendering**: Level-of-detail based on zoom
 - **Advanced viewport**: Minimap, zoom controls, fit-to-content
 
 #### Accessibility
+
 - **Screen reader support**: ARIA labels and live regions
 - **Keyboard navigation**: Full keyboard operation
 - **High contrast mode**: Accessibility color schemes
@@ -246,12 +288,14 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Low Priority Missing Features
 
 #### Advanced Tools
+
 - **Vector drawing**: Bezier curves and path editing
 - **Advanced text**: Rich formatting, text effects
 - **Animation**: Simple animations and transitions
 - **Filters and effects**: Blur, shadow, transparency effects
 
 #### Integration
+
 - **Plugin system**: Third-party tool extensions
 - **External integrations**: Cloud storage, other apps
 - **Advanced export**: Vector formats, high-resolution rasters
@@ -262,18 +306,21 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Test Coverage Gaps
 
 #### Unit Testing
+
 - **Store modules**: ~60% coverage (should be 80%+)
 - **Tool implementations**: ~40% coverage (should be 70%+)
 - **Utility functions**: ~70% coverage (adequate)
 - **Components**: ~30% coverage (needs improvement)
 
 #### Integration Testing
+
 - **Tool workflows**: Limited automated testing
 - **Store interactions**: Basic tests only
 - **Canvas operations**: Manual testing primarily
 - **Performance**: No automated performance testing
 
 #### Browser Testing
+
 - **Chrome**: Primary development and testing
 - **Firefox**: Basic compatibility testing
 - **Safari**: Limited testing, known issues
@@ -282,6 +329,7 @@ This document provides an honest assessment of current Canvas limitations, known
 ### Manual Testing Needs
 
 #### Before Each Release
+
 1. **Core tool functionality** in all major browsers
 2. **Performance testing** with large scenes
 3. **Memory usage monitoring** during extended use
@@ -291,18 +339,21 @@ This document provides an honest assessment of current Canvas limitations, known
 ## 🔮 Roadmap and Priorities
 
 ### Short Term (Current Sprint)
+
 1. **Fix critical rendering bugs** (transform artifacts)
 2. **Complete connector tool implementation** (live routing)
 3. **Improve selection system** (multi-select, marquee)
 4. **Performance optimization** (viewport culling)
 
 ### Medium Term (Next 2-3 Months)
+
 1. **Implement save/load system** with file persistence
 2. **Add missing keyboard shortcuts** and menu system
 3. **Complete accessibility features** for WCAG compliance
 4. **Comprehensive testing suite** with automated performance
 
 ### Long Term (6+ Months)
+
 1. **Collaboration features** with real-time editing
 2. **Advanced tool ecosystem** with plugin support
 3. **Production deployment** with security hardening
@@ -311,18 +362,21 @@ This document provides an honest assessment of current Canvas limitations, known
 ## 💡 For Users
 
 ### What to Expect
+
 - **Core drawing functionality works well** for basic use cases
 - **Some advanced features missing** or partially implemented
 - **Performance adequate** for moderate complexity scenes
 - **Active development** with regular improvements
 
 ### When to Use Canvas
+
 - **Prototyping and sketches**: Core drawing tools are solid
 - **Simple diagrams**: Basic shapes and text work well
 - **Learning and experimentation**: Good for understanding canvas concepts
 - **Development contributions**: Architecture is well-documented
 
 ### When to Use Alternatives
+
 - **Production work**: Missing features may block workflows
 - **Large, complex diagrams**: Performance limitations may impact usability
 - **Collaboration required**: No real-time features yet
@@ -333,6 +387,7 @@ This document provides an honest assessment of current Canvas limitations, known
 ## 📞 Reporting Issues
 
 ### How to Report Bugs
+
 1. **Check this document** to see if the issue is already known
 2. **Search existing issues** in the repository
 3. **Create detailed bug report** with reproduction steps
@@ -340,6 +395,7 @@ This document provides an honest assessment of current Canvas limitations, known
 5. **Provide screenshots/videos** when helpful
 
 ### What Information to Include
+
 - **Steps to reproduce** the issue
 - **Expected vs actual behavior**
 - **Browser and OS information**
