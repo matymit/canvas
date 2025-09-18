@@ -544,12 +544,11 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
       />
       <UnifiedColorPicker
         open={stickyNoteColorsOpen}
-        mode="palette"
+        mode="figma-horizontal"
         anchorRect={stickyNoteAnchorRect}
         onClose={() => setStickyNoteColorsOpen(false)}
         onChange={handleSelectStickyColor}
         color={store.stickyNoteColor || store.colors?.stickyNote || "#FDE68A"}
-        title="Sticky Color"
       />
     </>
   );

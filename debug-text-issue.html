@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Issue Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .debug-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .store-state {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .console-logs {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            height: 200px;
+            overflow-y: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text Creation Debug Tool</h1>
+
+    <div class="debug-panel">
+        <h2>Debugging Steps</h2>
+        <div class="step">
+            <strong>1. Check if text elements are being added to store:</strong>
+            <button onclick="testStoreAddition()">Test Store Addition</button>
+            <span id="store-test-result"></span>
+        </div>
+
+        <div class="step">
+            <strong>2. Verify TextRenderer subscription:</strong>
+            <button onclick="testRendererSubscription()">Test Renderer Subscription</button>
+            <span id="renderer-test-result"></span>
+        </div>
+
+        <div class="step">
+            <strong>3. Simulate text tool commit:</strong>
+            <button onclick="simulateTextCommit()">Simulate Text Commit</button>
+            <span id="commit-test-result"></span>
+        </div>
+
+        <div class="step">
+            <strong>4. Check store withUndo method:</strong>
+            <button onclick="testWithUndo()">Test withUndo</button>
+            <span id="undo-test-result"></span>
+        </div>
+    </div>
+
+    <div class="debug-panel">
+        <h2>Current Store State</h2>
+        <div class="store-state" id="store-state">
+            Click "Refresh Store State" to see current store contents
+        </div>
+        <button onclick="refreshStoreState()">Refresh Store State</button>
+        <button onclick="clearStore()">Clear Store</button>
+    </div>
+
+    <div class="debug-panel">
+        <h2>Console Logs</h2>
+        <div class="console-logs" id="console-logs"></div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script>
+        // Mock store for testing (replace with actual store in real environment)
+        let mockStore = {
+            elements: new Map(),
+            elementOrder: [],
+            selectedElementIds: new Set(),
+            withUndo: null,
+            addElement: null
+        };
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString().substr(11, 12);
+            const logElement = document.getElementById('console-logs');
+            const color = type === 'error' ? '#ff4444' : type === 'success' ? '#44ff44' : '#00ff00';
+            logElement.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[DEBUG] ${message}`);
+        }
+
+        function clearLogs() {
+            document.getElementById('console-logs').innerHTML = '';
+        }
+
+        function refreshStoreState() {
+            const stateElement = document.getElementById('store-state');
+
+            // In real environment, replace with actual store
+            const storeData = {
+                elements: `Map(${mockStore.elements.size}) {${Array.from(mockStore.elements.entries()).map(([k,v]) => `\n  "${k}" => ${JSON.stringify(v, null, 2)}`).join('')}\n}`,
+                elementOrder: JSON.stringify(mockStore.elementOrder),
+                selectedElementIds: `Set(${mockStore.selectedElementIds.size}) {${Array.from(mockStore.selectedElementIds).join(', ')}}`,
+                hasWithUndo: typeof mockStore.withUndo === 'function',
+                hasAddElement: typeof mockStore.addElement === 'function'
+            };
+
+            stateElement.textContent = JSON.stringify(storeData, null, 2);
+        }
+
+        function clearStore() {
+            mockStore.elements.clear();
+            mockStore.elementOrder = [];
+            mockStore.selectedElementIds.clear();
+            refreshStoreState();
+            log('Store cleared', 'info');
+        }
+
+        function testStoreAddition() {
+            const resultElement = document.getElementById('store-test-result');
+
+            try {
+                // Create a test text element
+                const testElement = {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    x: 100,
+                    y: 100,
+                    width: 200,
+                    height: 30,
+                    text: 'Test Text Element',
+                    style: {
+                        fill: '#000000',
+                        fontFamily: 'Inter, system-ui, sans-serif',
+                        fontSize: 18
+                    }
+                };
+
+                // Add to mock store
+                mockStore.elements.set(testElement.id, testElement);
+                mockStore.elementOrder.push(testElement.id);
+
+                resultElement.textContent = '✅ Store addition works';
+                resultElement.style.color = 'green';
+                log(`Test element added to store: ${testElement.id}`, 'success');
+                refreshStoreState();
+
+            } catch (error) {
+                resultElement.textContent = '❌ Store addition failed';
+                resultElement.style.color = 'red';
+                log(`Store addition failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testRendererSubscription() {
+            const resultElement = document.getElementById('renderer-test-result');
+
+            // This would test if TextRenderer subscription is working
+            // In real environment, you'd check if TextRenderer is mounted and subscribed
+
+            resultElement.textContent = '⚠️ Manual check needed - see console for TextRenderer logs';
+            resultElement.style.color = 'orange';
+            log('TextRenderer subscription test - check browser console for [TextRenderer] logs', 'info');
+        }
+
+        function simulateTextCommit() {
+            const resultElement = document.getElementById('commit-test-result');
+
+            try {
+                // Simulate the exact text commit flow from TextTool
+                const worldPos = { x: 150, y: 150 };
+                const value = 'Simulated Commit Text';
+                const fontSize = 18;
+                const fontFamily = 'Inter, system-ui, sans-serif';
+                const fillColor = '#000000';
+
+                // Calculate text dimensions (simplified)
+                const width = Math.max(10, Math.ceil(value.length * fontSize * 0.6));
+                const height = Math.round(fontSize * 1.2);
+
+                const elementId = crypto.randomUUID();
+                const textElement = {
+                    id: elementId,
+                    type: 'text',
+                    x: worldPos.x,
+                    y: worldPos.y,
+                    width,
+                    height,
+                    text: value,
+                    style: {
+                        fill: fillColor,
+                        fontFamily,
+                        fontSize
+                    }
+                };
+
+                log(`Creating text element: ${JSON.stringify(textElement)}`, 'info');
+
+                // Test withUndo flow
+                if (typeof mockStore.withUndo === 'function') {
+                    mockStore.withUndo('Add text', () => {
+                        if (typeof mockStore.addElement === 'function') {
+                            mockStore.addElement(textElement, { select: true, pushHistory: false });
+                        } else {
+                            // Fallback
+                            mockStore.elements.set(elementId, textElement);
+                            mockStore.elementOrder.push(elementId);
+                        }
+                    });
+                } else {
+                    // Direct addition
+                    mockStore.elements.set(elementId, textElement);
+                    mockStore.elementOrder.push(elementId);
+                }
+
+                resultElement.textContent = '✅ Text commit simulation completed';
+                resultElement.style.color = 'green';
+                log(`Text element committed: ${elementId}`, 'success');
+                refreshStoreState();
+
+            } catch (error) {
+                resultElement.textContent = '❌ Text commit simulation failed';
+                resultElement.style.color = 'red';
+                log(`Text commit simulation failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testWithUndo() {
+            const resultElement = document.getElementById('undo-test-result');
+
+            // Test if withUndo method is available and working
+            if (typeof mockStore.withUndo === 'function') {
+                try {
+                    mockStore.withUndo('Test operation', () => {
+                        log('Inside withUndo callback', 'info');
+                    });
+                    resultElement.textContent = '✅ withUndo method works';
+                    resultElement.style.color = 'green';
+                    log('withUndo test passed', 'success');
+                } catch (error) {
+                    resultElement.textContent = '❌ withUndo method failed';
+                    resultElement.style.color = 'red';
+                    log(`withUndo test failed: ${error.message}`, 'error');
+                }
+            } else {
+                resultElement.textContent = '❌ withUndo method not available';
+                resultElement.style.color = 'red';
+                log('withUndo method not found in store', 'error');
+            }
+        }
+
+        // Initialize
+        refreshStoreState();
+        log('Debug tool initialized', 'info');
+        log('To use with real app:', 'info');
+        log('1. Run: npm run dev', 'info');
+        log('2. Open browser console', 'info');
+        log('3. Try creating text and watch for [TextRenderer] and [TextCanvasTool] logs', 'info');
+    </script>
+</body>
+</html>

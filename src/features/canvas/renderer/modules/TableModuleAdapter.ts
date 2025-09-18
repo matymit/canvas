@@ -13,8 +13,8 @@ export class TableModuleAdapter implements RendererModule {
   mount(ctx: ModuleRendererCtx): () => void {
     console.log("[TableModuleAdapter] Mounting...");
 
-    // Create TableRenderer instance
-    this.renderer = new TableRenderer(ctx.layers);
+    // Create TableRenderer instance with store context
+    this.renderer = new TableRenderer(ctx.layers, {}, ctx);
 
     // Subscribe to store changes - watch table elements
     this.unsubscribe = ctx.store.subscribe(
@@ -32,6 +32,25 @@ export class TableModuleAdapter implements RendererModule {
       (tables) => {
         this.reconcile(tables);
       },
+      // Options: prevent unnecessary reconciliation with equality check
+      {
+        fireImmediately: true,
+        equalityFn: (a, b) => {
+          if (a.size !== b.size) return false;
+          for (const [id, element] of a) {
+            const other = b.get(id);
+            if (!other ||
+                other.x !== element.x ||
+                other.y !== element.y ||
+                other.width !== element.width ||
+                other.height !== element.height ||
+                JSON.stringify(other.cells) !== JSON.stringify(element.cells)) {
+              return false;
+            }
+          }
+          return true;
+        }
+      }
     );
 
     // Initial render
@@ -53,10 +72,10 @@ export class TableModuleAdapter implements RendererModule {
     if (this.unsubscribe) {
       this.unsubscribe();
     }
-    // Cleanup tables manually
+    // Cleanup tables manually using correct name
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find(".table").forEach((node: Konva.Node) => node.destroy());
+      layer.find(".table-group").forEach((node: Konva.Node) => node.destroy());
       layer.batchDraw();
     }
   }
@@ -77,10 +96,10 @@ export class TableModuleAdapter implements RendererModule {
       this.renderer.render(table);
     }
 
-    // Remove deleted tables manually
+    // Remove deleted tables manually using correct name
     const layer = (this.renderer as any)?.layers?.main;
     if (layer) {
-      layer.find(".table").forEach((node: Konva.Node) => {
+      layer.find(".table-group").forEach((node: Konva.Node) => {
         const nodeId = node.id();
         if (nodeId && !seen.has(nodeId)) {
           node.destroy();

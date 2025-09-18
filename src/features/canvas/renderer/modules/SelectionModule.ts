@@ -51,7 +51,7 @@ export class SelectionModule implements RendererModule {
         }
       },
       onTransform: (nodes) => {
-        // Real-time updates during transform for smoother UX
+        // Real-time updates during transform for smoother UX (all elements including tables)
         this.updateElementsFromNodes(nodes, false);
       },
       onTransformEnd: (nodes) => {
@@ -279,16 +279,34 @@ export class SelectionModule implements RendererModule {
       const rotation = node.rotation();
       const scale = node.scale();
 
+      // Check if this is a table element for special cell dimension scaling
+      const isTable = node.className === 'table-group';
+      let changes: any = {
+        x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
+        y: Math.round(pos.y * 100) / 100,
+        // Apply scale to width/height if scaled
+        width: Math.round(size.width * (scale?.x || 1) * 100) / 100,
+        height: Math.round(size.height * (scale?.y || 1) * 100) / 100,
+        rotation: Math.round(rotation * 100) / 100,
+      };
+
+      // Special handling for table elements - scale cell dimensions proportionally
+      if (isTable && scale && (scale.x !== 1 || scale.y !== 1)) {
+        const store = this.storeCtx?.store.getState();
+        const element = store?.elements?.get?.(elementId);
+        if (element && element.colWidths && element.rowHeights) {
+          changes.colWidths = element.colWidths.map((w: number) =>
+            Math.max(20, Math.round(w * scale.x * 100) / 100)
+          );
+          changes.rowHeights = element.rowHeights.map((h: number) =>
+            Math.max(16, Math.round(h * scale.y * 100) / 100)
+          );
+        }
+      }
+
       updates.push({
         id: elementId,
-        changes: {
-          x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
-          y: Math.round(pos.y * 100) / 100,
-          // Apply scale to width/height if scaled
-          width: Math.round(size.width * (scale?.x || 1) * 100) / 100,
-          height: Math.round(size.height * (scale?.y || 1) * 100) / 100,
-          rotation: Math.round(rotation * 100) / 100,
-        },
+        changes,
       });
 
       // Reset scale after applying to dimensions

@@ -18,7 +18,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-export type ColorPickerMode = 'palette' | 'picker' | 'hybrid';
+export type ColorPickerMode = 'palette' | 'picker' | 'hybrid' | 'figma-horizontal';
 
 export interface UnifiedColorPickerProps {
   // Core props
@@ -60,6 +60,20 @@ const DEFAULT_PALETTE: string[] = [
   '#F5D0FE', // Fuchsia
 ];
 
+// FigJam-style horizontal palette (exactly 10 colors)
+const FIGMA_HORIZONTAL_PALETTE: string[] = [
+  '#FEF08A', // Bright Yellow
+  '#FED7AA', // Peach
+  '#FCA5A5', // Light Red
+  '#F9A8D4', // Pink
+  '#DDA0DD', // Plum
+  '#C4B5FD', // Light Purple
+  '#93C5FD', // Light Blue
+  '#7DD3FC', // Sky Blue
+  '#86EFAC', // Light Green
+  '#BEF264', // Lime Green
+];
+
 // Additional extended palette
 const EXTENDED_PALETTE: string[] = [
   ...DEFAULT_PALETTE,
@@ -90,6 +104,19 @@ const PANEL_BASE: React.CSSProperties = {
   minWidth: 220,
 };
 
+// Figma horizontal panel style - compact and light to match toolbar
+const FIGMA_HORIZONTAL_PANEL: React.CSSProperties = {
+  position: 'fixed',
+  zIndex: 1100,
+  background: '#ffffff', // Match toolbar background
+  color: '#1a1a1a', // Dark text on light background
+  border: '1px solid #e0e0e0',
+  borderRadius: 8,
+  boxShadow: '0 10px 20px rgba(0, 0, 0, 0.15)',
+  padding: 6, // Reduced padding for compact design
+  minWidth: 'auto', // Allow natural width
+};
+
 const HEADER_STYLE: React.CSSProperties = {
   fontSize: 12,
   opacity: 0.85,
@@ -104,6 +131,14 @@ const GRID_STYLE: React.CSSProperties = {
   marginBottom: 10,
 };
 
+const FIGMA_HORIZONTAL_GRID_STYLE: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'row',
+  gap: 6, // Reduced gap for more compact design
+  marginBottom: 0, // Remove bottom margin
+  padding: 0, // Remove extra padding
+};
+
 const SWATCH_STYLE: React.CSSProperties = {
   width: 28,
   height: 28,
@@ -112,6 +147,17 @@ const SWATCH_STYLE: React.CSSProperties = {
   cursor: 'pointer',
   outline: 'none',
   transition: 'transform 0.15s ease',
+};
+
+const FIGMA_SWATCH_STYLE: React.CSSProperties = {
+  width: 28, // Slightly smaller for compact design
+  height: 28,
+  borderRadius: '50%',
+  border: '2px solid transparent',
+  cursor: 'pointer',
+  outline: 'none',
+  transition: 'all 0.15s ease',
+  flexShrink: 0,
 };
 
 const PICKER_CONTAINER: React.CSSProperties = {
@@ -146,6 +192,9 @@ const HEX_INPUT_STYLE: React.CSSProperties = {
 
 const FOCUS_OUTLINE = '0 0 0 2px rgba(59, 130, 246, 0.5)';
 const SELECTED_OUTLINE = '0 0 0 2px rgba(255, 255, 255, 0.8)';
+const FIGMA_SELECTED_BORDER = '2px solid rgba(75, 91, 255, 0.9)';
+const FIGMA_FOCUS_BORDER = '2px solid rgba(59, 130, 246, 0.6)';
+const FIGMA_DEFAULT_BORDER = '2px solid rgba(0, 0, 0, 0.15)'; // Subtle border for contrast on light background
 
 export default function UnifiedColorPicker({
   open,
@@ -167,7 +216,9 @@ export default function UnifiedColorPicker({
   // Handle backward compatibility
   const color = propColor ?? selected ?? '#FDE68A';
   const onChange = propOnChange ?? onSelect ?? (() => {});
-  const colors = customColors ?? DEFAULT_PALETTE;
+
+  // Choose palette based on mode
+  const colors = customColors ?? (mode === 'figma-horizontal' ? FIGMA_HORIZONTAL_PALETTE : DEFAULT_PALETTE);
 
   // Portal root
   const root = useMemo(() => (typeof document !== 'undefined' ? document.body : null), []);
@@ -230,7 +281,7 @@ export default function UnifiedColorPicker({
       }
 
       // Palette navigation
-      if (mode === 'palette' || mode === 'hybrid') {
+      if (mode === 'palette' || mode === 'hybrid' || mode === 'figma-horizontal') {
         if (e.key === 'Enter') {
           e.preventDefault();
           const selectedColor = colors[activeIdx] ?? color;
@@ -251,19 +302,22 @@ export default function UnifiedColorPicker({
           return;
         }
 
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          // 6 columns by default
-          const cols = 6;
-          setActiveIdx((i) => Math.min(colors.length - 1, i + cols));
-          return;
-        }
+        // Only allow up/down navigation for non-horizontal modes
+        if (mode !== 'figma-horizontal') {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            // 6 columns by default
+            const cols = 6;
+            setActiveIdx((i) => Math.min(colors.length - 1, i + cols));
+            return;
+          }
 
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          const cols = 6;
-          setActiveIdx((i) => Math.max(0, i - cols));
-          return;
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const cols = 6;
+            setActiveIdx((i) => Math.max(0, i - cols));
+            return;
+          }
         }
       }
     };
@@ -324,13 +378,13 @@ export default function UnifiedColorPicker({
       aria-label={title ?? 'Color picker'}
       className={className}
       style={{
-        ...PANEL_BASE,
+        ...(mode === 'figma-horizontal' ? FIGMA_HORIZONTAL_PANEL : PANEL_BASE),
         ...position,
       }}
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {title && <div style={HEADER_STYLE}>{title}</div>}
+      {title && mode !== 'figma-horizontal' && <div style={HEADER_STYLE}>{title}</div>}
 
       {/* Palette Mode */}
       {(mode === 'palette' || mode === 'hybrid') && (
@@ -357,6 +411,41 @@ export default function UnifiedColorPicker({
                   e.preventDefault();
                   onChange(swatch);
                   if (mode === 'palette') onClose();
+                }}
+                onMouseEnter={() => setActiveIdx(i)}
+                onFocus={() => setActiveIdx(i)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* FigJam Horizontal Mode */}
+      {mode === 'figma-horizontal' && (
+        <div style={FIGMA_HORIZONTAL_GRID_STYLE} role="listbox" aria-label="Color swatches">
+          {colors.map((swatch, i) => {
+            const isSelected = swatch.toLowerCase() === color.toLowerCase();
+            const isActive = i === activeIdx;
+
+            return (
+              <button
+                key={`${swatch}-${i}`}
+                ref={(el) => (swatchRefs.current[i] = el)}
+                role="option"
+                aria-selected={isSelected}
+                aria-label={`Color ${swatch}`}
+                title={swatch}
+                style={{
+                  ...FIGMA_SWATCH_STYLE,
+                  background: swatch,
+                  border: isSelected ? FIGMA_SELECTED_BORDER : isActive ? FIGMA_FOCUS_BORDER : FIGMA_DEFAULT_BORDER,
+                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                  boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onChange(swatch);
+                  onClose();
                 }}
                 onMouseEnter={() => setActiveIdx(i)}
                 onFocus={() => setActiveIdx(i)}

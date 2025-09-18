@@ -43,6 +43,10 @@ export interface CanvasElement {
   points?: number[]; // Direct points for line/path elements
   textColor?: string; // Direct text color for text elements
   colWidths?: number[]; // Column widths for table elements
+  rowHeights?: number[]; // Row heights for table elements
+  rows?: number; // Number of rows for table elements
+  cols?: number; // Number of columns for table elements
+  cells?: Array<{ text: string }>; // Cell data for table elements
   style?: {
     fill?: string;
     stroke?: string;

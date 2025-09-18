@@ -24,10 +24,12 @@ export class TableRenderer {
   private groupById = new Map<string, Konva.Group>();
   private pool?: KonvaNodePool;
   private opts: TableRendererOptions;
+  private storeCtx?: any; // Store context for proper store access
 
-  constructor(layers: RendererLayers, opts?: TableRendererOptions) {
+  constructor(layers: RendererLayers, opts?: TableRendererOptions, storeCtx?: any) {
     this.layers = layers;
     this.opts = opts ?? {};
+    this.storeCtx = storeCtx;
     
     if (this.opts.usePooling) {
       this.pool = new KonvaNodePool();
@@ -50,7 +52,7 @@ export class TableRenderer {
           node.setAttrs({
             x: 0, y: 0, width: 0, height: 0,
             text: '', fontFamily: '', fontSize: 12,
-            fill: '', align: 'left', verticalAlign: 'top'
+            fill: '', align: 'center', verticalAlign: 'middle'
           });
         }
       });
@@ -75,19 +77,20 @@ export class TableRenderer {
     if (!g) {
       g = new Konva.Group({
         id: el.id,
-        name: "table",
-        draggable: true, // Make the group draggable
-        listening: true,     // element-level selection
+        name: "table-group", // Clear name for SelectionModule recognition
+        draggable: true, // MUST be true for SelectionModule transformer to work
+        listening: true, // element-level selection
         x: el.x,
         y: el.y,
+        width: el.width,  // Set explicit dimensions for transformer
+        height: el.height,
       });
-      // Add dragend handler for position commit
-      g.on('dragend', (e) => {
-        const grp = e.target as Konva.Group;
-        const nx = grp.x();
-        const ny = grp.y();
-        (window as any).__canvasStore?.element?.updateElement?.(el.id, { x: nx, y: ny }, { pushHistory: true });
-      });
+
+      // FIXED: Set elementId attribute for SelectionModule integration
+      g.setAttr("elementId", el.id);
+
+      // Add interaction handlers
+      this.setupTableInteractions(g, el.id);
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
     }
@@ -128,8 +131,8 @@ export class TableRenderer {
         fontFamily: style.fontFamily,
         fontSize: style.fontSize,
         fill: style.textColor,
-        align: "left",
-        verticalAlign: "top",
+        align: "center",
+        verticalAlign: "middle",
       });
       return textNode;
     }
@@ -139,8 +142,8 @@ export class TableRenderer {
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
       fill: style.textColor,
-      align: "left",
-      verticalAlign: "top",
+      align: "center",
+      verticalAlign: "middle",
       listening: false,
       perfectDrawEnabled: false,
       name: "cell-text",
@@ -214,9 +217,14 @@ export class TableRenderer {
   // Rebuild children when geometry or content changes
   render(el: TableElement) {
     const g = this.ensureGroup(el);
-    
-    // Position and size
-    g.position({ x: el.x, y: el.y });
+
+    // Position and size - force update
+    g.setAttrs({
+      x: el.x,
+      y: el.y,
+      width: el.width,
+      height: el.height
+    });
 
     // Release pooled nodes if using pooling
     if (this.pool) {
@@ -269,8 +277,18 @@ export class TableRenderer {
     const grid = this.createGrid(el);
     g.add(grid);
 
+    // Add invisible cell click areas for double-click editing
+    this.addCellClickAreas(g, el);
+
     // Resize the group hit rect to the element frame
     g.setAttrs({ width: el.width, height: el.height });
+
+    // Ensure elementId attribute is maintained during updates
+    g.setAttr("elementId", el.id);
+
+    // Set additional attributes for better SelectionModule integration
+    g.setAttr("elementType", "table");
+    g.className = "table-group"; // Ensure className is set for SelectionModule detection
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
     const shouldCache = (rows * cols > 50) || this.opts.cacheAfterCommit;
@@ -330,16 +348,188 @@ export class TableRenderer {
     return this.groupById.get(id);
   }
 
+  // Add invisible click areas for cell editing with precise detection
+  private addCellClickAreas(group: Konva.Group, el: TableElement) {
+    // Remove existing cell interaction areas
+    group.find('.cell-clickable').forEach(node => node.destroy());
+
+    const { rows, cols, colWidths, rowHeights } = el;
+
+    let yPos = 0;
+    for (let row = 0; row < rows; row++) {
+      let xPos = 0;
+      for (let col = 0; col < cols; col++) {
+        const cellWidth = colWidths[col];
+        const cellHeight = rowHeights[row];
+
+        // Create invisible clickable area for each cell
+        const clickArea = new Konva.Rect({
+          x: xPos,
+          y: yPos,
+          width: cellWidth,
+          height: cellHeight,
+          fill: 'transparent',
+          listening: true,
+          name: 'cell-clickable',
+          perfectDrawEnabled: false,
+        });
+
+        // Double-click to edit using the tracked editor for live resize support
+        clickArea.on('dblclick', (e) => {
+          console.log(`[TableModule] Cell [${row}, ${col}] double-clicked`);
+          e.cancelBubble = true; // Prevent stage events
+
+          const stage = group.getStage();
+          if (stage) {
+            // Use the tracked version for live resize support
+            (window as any).openCellEditorWithTracking?.(stage, el.id, el, row, col);
+          }
+        });
+
+        // Visual feedback for cell interaction - keep default cursor until double-click
+        clickArea.on('mouseenter', () => {
+          const stage = group.getStage();
+          if (stage?.container()) {
+            stage.container().style.cursor = 'default';
+          }
+        });
+
+        clickArea.on('mouseleave', () => {
+          const stage = group.getStage();
+          if (stage?.container()) {
+            stage.container().style.cursor = 'default';
+          }
+        });
+
+        group.add(clickArea);
+        xPos += cellWidth;
+      }
+      yPos += rowHeights[row];
+    }
+  }
+
+  // Setup table interaction handlers
+  private setupTableInteractions(group: Konva.Group, elementId: string) {
+    // Get reference to SelectionModule for proper selection integration
+    const getSelectionModule = () => (window as any).selectionModule;
+
+    // FIXED: Simple click handler for selection - let SelectionModule handle drag/transform
+    group.on("click tap", (e) => {
+      // Don't cancel bubble if the click is on a transformer (resize handles)
+      const isTransformerClick =
+        e.target?.getParent()?.className === "Transformer" ||
+        e.target?.className === "Transformer";
+      if (!isTransformerClick) {
+        e.cancelBubble = true; // Prevent stage click
+      }
+
+      const selectionModule = getSelectionModule();
+      if (selectionModule) {
+        // Use SelectionModule for consistent selection behavior
+        const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
+        if (isAdditive) {
+          // For additive selection, we need to get current selection and toggle
+          selectionModule.selectElement(elementId); // Simplified for now
+        } else {
+          selectionModule.selectElement(elementId);
+        }
+      } else {
+        // Fallback to direct store integration
+        if (!this.storeCtx) return;
+
+        const store = this.storeCtx.store.getState();
+        const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
+
+        if (store.setSelection) {
+          if (isAdditive) {
+            // Get current selection and toggle
+            const current = store.selectedElementIds || new Set();
+            const newSelection = new Set(current);
+            if (newSelection.has(elementId)) {
+              newSelection.delete(elementId);
+            } else {
+              newSelection.add(elementId);
+            }
+            store.setSelection(Array.from(newSelection));
+          } else {
+            store.setSelection([elementId]);
+          }
+        } else if (store.selection) {
+          if (isAdditive) {
+            store.selection.toggle?.(elementId);
+          } else {
+            store.selection.set?.([elementId]);
+          }
+        }
+      }
+    });
+
+    // Transform handling is now managed by SelectionModule for consistent behavior
+    // No need for custom transform handlers - SelectionModule handles position/size updates
+
+    // Double-click handler for cell editing - use global openCellEditor
+    group.on("dblclick", (e) => {
+      e.cancelBubble = true;
+
+      if (!this.storeCtx) return;
+      const store = this.storeCtx.store.getState();
+      const element = store.elements?.get?.(elementId);
+      if (!element) return;
+
+      // Get click position relative to the table group
+      const stage = group.getStage();
+      if (!stage) return;
+
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+
+      const groupPos = group.getAbsolutePosition();
+      const relativeX = pos.x - groupPos.x;
+      const relativeY = pos.y - groupPos.y;
+
+      // Find which cell was clicked based on colWidths and rowHeights
+      const { colWidths, rowHeights } = element;
+      let cellCol = 0;
+      let cellRow = 0;
+      let cellX = 0;
+      let cellY = 0;
+
+      // Find column
+      for (let c = 0; c < colWidths.length; c++) {
+        if (relativeX >= cellX && relativeX < cellX + colWidths[c]) {
+          cellCol = c;
+          break;
+        }
+        cellX += colWidths[c];
+      }
+
+      // Find row
+      for (let r = 0; r < rowHeights.length; r++) {
+        if (relativeY >= cellY && relativeY < cellY + rowHeights[r]) {
+          cellRow = r;
+          break;
+        }
+        cellY += rowHeights[r];
+      }
+
+      console.log(`[TableModule] Table double-clicked at cell [${cellRow}, ${cellCol}]`);
+
+      // Use the tracked version for live resize support
+      (window as any).openCellEditorWithTracking?.(stage, elementId, element, cellRow, cellCol);
+    });
+  }
+
+
   // Cleanup method
   destroy() {
     if (this.pool) {
       this.pool.clear(true);
     }
-    
+
     for (const group of this.groupById.values()) {
       group.destroy();
     }
-    
+
     this.groupById.clear();
   }
 }

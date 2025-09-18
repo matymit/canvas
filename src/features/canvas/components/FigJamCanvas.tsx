@@ -6,6 +6,9 @@ import CanvasToolbar from "../toolbar/CanvasToolbar";
 import ZoomControls from "./ZoomControls";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
+// Import cell editor for table functionality
+import "../utils/editors/openCellEditorWithTracking";
+
 // Tool imports - all major tools
 import StickyNoteTool from "./tools/creation/StickyNoteTool";
 import ConnectorTool from "./tools/creation/ConnectorTool";

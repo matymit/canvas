@@ -39,10 +39,6 @@ export const TableTool: React.FC<TableToolProps> = ({
 }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
-  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore(
-    (s) => s.replaceSelectionWithSingle,
-  );
 
   const drawingRef = useRef<{
     start: { x: number; y: number } | null;
@@ -121,27 +117,25 @@ export const TableTool: React.FC<TableToolProps> = ({
       const tableData = createEmptyTable(x, y, w, h);
       const id = nanoid();
 
-      const elementData = {
+      // FIXED: Create proper TableElement structure without redundant data/bounds
+      const elementData: TableElement = {
         ...tableData,
         id,
         type: "table" as const,
-        bounds: { x, y, width: w, height: h },
-        data: {
-          rows: tableData.rows,
-          cols: tableData.cols,
-          colWidths: tableData.colWidths,
-          rowHeights: tableData.rowHeights,
-          cells: tableData.cells,
-          style: tableData.style,
-        },
-        draggable: true,
       };
 
-      upsertElement?.(elementData);
+      // Use proper store methods like other tools
+      const store = useUnifiedCanvasStore.getState();
 
-      if (replaceSelectionWithSingle) {
-        replaceSelectionWithSingle(id);
+      if (store.withUndo) {
+        store.withUndo("Add table", () => {
+          store.addElement(elementData, { select: true, pushHistory: false }); // withUndo handles history
+        });
+      } else {
+        // Fallback if withUndo not available
+        store.addElement(elementData, { select: true });
       }
+
       setSelectedTool("select");
     };
 
@@ -207,9 +201,7 @@ export const TableTool: React.FC<TableToolProps> = ({
     selectedTool,
     toolId,
     stageRef,
-    upsertElement,
     setSelectedTool,
-    replaceSelectionWithSingle,
   ]);
 
   return null;
@@ -265,91 +257,427 @@ function updateGridPreview(group: Konva.Group, width: number, height: number) {
   group.add(gridShape);
 }
 
-// Simple editor entry point for the first cell
+// Helper function to open editor for the first cell (0,0)
 function openFirstCellEditor(
   stage: Konva.Stage,
   tableId: string,
-  tableModel: TableElement,
+  tableElement: TableElement
 ) {
-  // Position at first cell's top-left with padding
-  const px = tableModel.x + tableModel.style.paddingX;
-  const py = tableModel.y + tableModel.style.paddingY;
+  openCellEditor(stage, tableId, tableElement, 0, 0);
+}
 
-  // Create a DOM textarea overlay at the cell position
+// Precise cell editor with proper coordinate calculation
+function openCellEditor(
+  stage: Konva.Stage,
+  tableId: string,
+  tableElement: TableElement,
+  row: number = 0,
+  col: number = 0
+) {
   const container = stage.container();
   const rect = container.getBoundingClientRect();
-  const stageTransform = stage.getAbsoluteTransform();
 
-  // Transform table coordinates to screen coordinates
-  const screenPos = stageTransform.point({ x: px, y: py });
-  const left = rect.left + screenPos.x;
-  const top = rect.top + screenPos.y;
+  // CRITICAL FIX: Get proper stage transform including scale and position
+  const stageAttrs = stage.attrs;
+  const stageX = stageAttrs.x || 0;
+  const stageY = stageAttrs.y || 0;
+  const scale = stage.scaleX(); // Account for zoom
 
-  const textarea = document.createElement("textarea");
+  // Calculate exact cell bounds in stage coordinates
+  let cellX = tableElement.x;
+  let cellY = tableElement.y;
+
+  // Add column widths to get to target column
+  for (let c = 0; c < col; c++) {
+    cellX += tableElement.colWidths[c];
+  }
+
+  // Add row heights to get to target row
+  for (let r = 0; r < row; r++) {
+    cellY += tableElement.rowHeights[r];
+  }
+
+  const cellWidth = tableElement.colWidths[col];
+  const cellHeight = tableElement.rowHeights[row];
+
+  // FIXED: Apply stage transform correctly (scale first, then translate)
+  const scaledCellX = cellX * scale;
+  const scaledCellY = cellY * scale;
+  const screenX = rect.left + scaledCellX + stageX;
+  const screenY = rect.top + scaledCellY + stageY;
+  const screenWidth = cellWidth * scale;
+  const screenHeight = cellHeight * scale;
+
+  console.log(`[TableTool] Opening editor for cell [${row}, ${col}] at screen pos: ${screenX}, ${screenY}`);
+
+  // Create precisely positioned editor
+  const textarea = document.createElement('textarea');
   Object.assign(textarea.style, {
-    position: "absolute",
-    left: `${left}px`,
-    top: `${top}px`,
-    minWidth: "120px",
-    minHeight: "28px",
-    padding: "4px 6px",
-    border: "2px solid #3B82F6",
-    borderRadius: "4px",
-    outline: "none",
-    resize: "none",
-    background: "#ffffff",
-    color: tableModel.style.textColor,
-    fontFamily: tableModel.style.fontFamily,
-    fontSize: `${tableModel.style.fontSize}px`,
-    lineHeight: "1.3",
-    zIndex: "1000",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    position: 'absolute',
+    left: `${screenX + 4}px`,  // Small padding inside cell
+    top: `${screenY + 4}px`,
+    width: `${Math.max(60, screenWidth - 8)}px`,  // Account for padding
+    height: `${Math.max(20, screenHeight - 8)}px`,
+    border: '2px solid #4F46E5',
+    borderRadius: '3px',
+    outline: 'none',
+    resize: 'none',
+    background: '#ffffff',
+    color: '#333333',
+    fontFamily: tableElement.style.fontFamily,
+    fontSize: `${Math.max(12, tableElement.style.fontSize * scale)}px`, // Scale font with zoom
+    lineHeight: '1.2',
+    padding: '2px 4px',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '10000',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
   } as CSSStyleDeclaration);
+
+  // Get current cell text
+  const cellIndex = row * tableElement.cols + col;
+  const currentText = tableElement.cells[cellIndex]?.text || '';
+  textarea.value = currentText;
 
   document.body.appendChild(textarea);
   textarea.focus();
   textarea.select();
 
-  const commit = (cancel: boolean) => {
-    const value = textarea.value.trim();
+  // Track if commit has already been called to prevent multiple calls
+  let isCommitted = false;
+
+  // Commit changes
+  const commit = (canceled: boolean) => {
+    if (isCommitted) return;
+    isCommitted = true;
+
+    const newText = textarea.value.trim();
+
+    // Remove textarea from DOM
     if (textarea.parentElement) {
-      textarea.parentElement.removeChild(textarea);
+      textarea.remove();
     }
 
-    if (cancel || value.length === 0) return;
+    if (!canceled && newText !== currentText) {
+      // Update cell in store
+      const store = useUnifiedCanvasStore.getState();
+      const currentElement = store.elements.get(tableId) as TableElement;
+      if (currentElement) {
+        const newCells = [...(currentElement.cells || [])];
+        while (newCells.length <= cellIndex) {
+          newCells.push({ text: "" });
+        }
+        newCells[cellIndex] = { text: newText };
 
-    // Update cell (0,0) in store via element update
-    const store = useUnifiedCanvasStore.getState();
-    const updateElement = store.element?.update;
-    if (updateElement) {
-      updateElement(tableId, {
-        data: {
-          ...store.element.getById?.(tableId)?.data,
-          cells: [
-            { text: value },
-            ...(store.element.getById?.(tableId)?.data?.cells?.slice(1) || []),
-          ],
-        },
-      });
+        if (store.withUndo) {
+          store.withUndo(`Edit cell (${row},${col})`, () => {
+            store.updateElement(tableId, { cells: newCells }, { pushHistory: false });
+          });
+        } else {
+          store.updateElement(tableId, { cells: newCells });
+        }
+      }
     }
   };
 
-  // Handle keyboard events
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  // Event handlers
+  textarea.addEventListener('keydown', (e) => {
+    // CRITICAL FIX: Stop propagation for ALL keydown events to prevent keyboard shortcuts
+    e.stopPropagation();
+
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       commit(false);
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       commit(true);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      commit(false);
+
+      // Navigate to next cell
+      const nextCol = (col + 1) % tableElement.cols;
+      const nextRow = nextCol === 0 ? row + 1 : row;
+
+      if (nextRow < tableElement.rows) {
+        setTimeout(() => {
+          openCellEditor(stage, tableId, tableElement, nextRow, nextCol);
+        }, 50);
+      }
     }
-    // Allow Shift+Enter for new lines within cell
-  };
+    // For all other keys (including 'h'), allow normal text input behavior
+    // and prevent canvas keyboard shortcuts by stopping propagation
+  });
 
-  const handleBlur = () => {
-    commit(false);
-  };
+  // Also prevent keyup events from bubbling to prevent any remaining shortcuts
+  textarea.addEventListener('keyup', (e) => {
+    e.stopPropagation();
+  });
 
-  textarea.addEventListener("keydown", handleKeyDown);
-  textarea.addEventListener("blur", handleBlur, { once: true });
+  // Prevent keypress events from bubbling as well
+  textarea.addEventListener('keypress', (e) => {
+    e.stopPropagation();
+  });
+
+  textarea.addEventListener('blur', () => {
+    // Add small delay to prevent race conditions with keydown events
+    setTimeout(() => commit(false), 10);
+  }, { once: true });
 }
+
+// Global text editor tracking for live resize support
+interface ActiveCellEditor {
+  element: HTMLTextAreaElement;
+  tableId: string;
+  row: number;
+  col: number;
+  stage: Konva.Stage;
+  cleanup: () => void;
+}
+
+(window as any).activeCellEditors = new Set<ActiveCellEditor>();
+
+// Enhanced cell editor with live resize support
+function openCellEditorWithTracking(
+  stage: Konva.Stage,
+  tableId: string,
+  tableElement: TableElement,
+  row: number = 0,
+  col: number = 0
+) {
+  // Close any existing editor for this table
+  (window as any).activeCellEditors.forEach((editor: ActiveCellEditor) => {
+    if (editor.tableId === tableId) {
+      editor.cleanup();
+      (window as any).activeCellEditors.delete(editor);
+    }
+  });
+
+  const container = stage.container();
+  const rect = container.getBoundingClientRect();
+  const scale = stage.scaleX();
+
+  // Calculate exact cell bounds
+  let cellX = tableElement.x;
+  let cellY = tableElement.y;
+
+  // Add column widths to get to target column
+  for (let c = 0; c < col; c++) {
+    cellX += tableElement.colWidths[c];
+  }
+
+  // Add row heights to get to target row
+  for (let r = 0; r < row; r++) {
+    cellY += tableElement.rowHeights[r];
+  }
+
+  const cellWidth = tableElement.colWidths[col];
+  const cellHeight = tableElement.rowHeights[row];
+
+  // Apply stage transform (zoom + pan)
+  const stageTransform = stage.getAbsoluteTransform();
+  const cellPoint = stageTransform.point({ x: cellX, y: cellY });
+  const screenX = rect.left + cellPoint.x;
+  const screenY = rect.top + cellPoint.y;
+  const screenWidth = cellWidth * scale;
+  const screenHeight = cellHeight * scale;
+
+  console.log(`[TableTool] Opening tracked editor for cell [${row}, ${col}] at screen pos: ${screenX}, ${screenY}`);
+
+  // Create precisely positioned editor
+  const textarea = document.createElement('textarea');
+
+  const updateTextareaPosition = () => {
+    // Get current table element (it may have been resized)
+    const store = useUnifiedCanvasStore.getState();
+    const currentElement = store.elements.get(tableId) as TableElement;
+    if (!currentElement) return;
+
+    // Recalculate cell position
+    let newCellX = currentElement.x;
+    let newCellY = currentElement.y;
+
+    for (let c = 0; c < col; c++) {
+      newCellX += currentElement.colWidths[c];
+    }
+
+    for (let r = 0; r < row; r++) {
+      newCellY += currentElement.rowHeights[r];
+    }
+
+    const newCellWidth = currentElement.colWidths[col];
+    const newCellHeight = currentElement.rowHeights[row];
+
+    // FIXED: Apply stage transform correctly for live updates
+    const currentStageAttrs = stage.attrs;
+    const currentStageX = currentStageAttrs.x || 0;
+    const currentStageY = currentStageAttrs.y || 0;
+    const currentScale = stage.scaleX();
+    const scaledNewCellX = newCellX * currentScale;
+    const scaledNewCellY = newCellY * currentScale;
+    const newScreenX = rect.left + scaledNewCellX + currentStageX;
+    const newScreenY = rect.top + scaledNewCellY + currentStageY;
+    const newScreenWidth = newCellWidth * currentScale;
+    const newScreenHeight = newCellHeight * currentScale;
+
+    // Update textarea position and size
+    Object.assign(textarea.style, {
+      left: `${newScreenX + 4}px`,
+      top: `${newScreenY + 4}px`,
+      width: `${Math.max(60, newScreenWidth - 8)}px`,
+      height: `${Math.max(20, newScreenHeight - 8)}px`,
+      fontSize: `${Math.max(12, currentElement.style.fontSize * currentScale)}px`,
+    });
+  };
+
+  // Initial positioning
+  Object.assign(textarea.style, {
+    position: 'absolute',
+    left: `${screenX + 4}px`,
+    top: `${screenY + 4}px`,
+    width: `${Math.max(60, screenWidth - 8)}px`,
+    height: `${Math.max(20, screenHeight - 8)}px`,
+    border: '2px solid #4F46E5',
+    borderRadius: '3px',
+    outline: 'none',
+    resize: 'none',
+    background: '#ffffff',
+    color: '#333333',
+    fontFamily: tableElement.style.fontFamily,
+    fontSize: `${Math.max(12, tableElement.style.fontSize * scale)}px`,
+    lineHeight: '1.2',
+    padding: '2px 4px',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '10000',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+  } as CSSStyleDeclaration);
+
+  // Get current cell text
+  const cellIndex = row * tableElement.cols + col;
+  const currentText = tableElement.cells[cellIndex]?.text || '';
+  textarea.value = currentText;
+
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  // Track if commit has already been called to prevent multiple calls
+  let isCommitted = false;
+
+  // Commit changes
+  const commit = (canceled: boolean) => {
+    if (isCommitted) return;
+    isCommitted = true;
+
+    const newText = textarea.value.trim();
+
+    // Remove textarea from DOM
+    if (textarea.parentElement) {
+      textarea.remove();
+    }
+
+    // Remove from tracking
+    (window as any).activeCellEditors.forEach((editor: ActiveCellEditor) => {
+      if (editor.element === textarea) {
+        (window as any).activeCellEditors.delete(editor);
+      }
+    });
+
+    if (!canceled && newText !== currentText) {
+      // Update cell in store
+      const store = useUnifiedCanvasStore.getState();
+      const currentElement = store.elements.get(tableId) as TableElement;
+      if (currentElement) {
+        const newCells = [...(currentElement.cells || [])];
+        while (newCells.length <= cellIndex) {
+          newCells.push({ text: "" });
+        }
+        newCells[cellIndex] = { text: newText };
+
+        if (store.withUndo) {
+          store.withUndo(`Edit cell (${row},${col})`, () => {
+            store.updateElement(tableId, { cells: newCells }, { pushHistory: false });
+          });
+        } else {
+          store.updateElement(tableId, { cells: newCells });
+        }
+      }
+    }
+  };
+
+  const cleanup = () => {
+    if (textarea.parentElement) {
+      textarea.remove();
+    }
+  };
+
+  // Event handlers
+  textarea.addEventListener('keydown', (e) => {
+    // CRITICAL FIX: Stop propagation for ALL keydown events to prevent keyboard shortcuts
+    e.stopPropagation();
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commit(false);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      commit(true);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      commit(false);
+
+      // Navigate to next cell
+      const nextCol = (col + 1) % tableElement.cols;
+      const nextRow = nextCol === 0 ? row + 1 : row;
+
+      if (nextRow < tableElement.rows) {
+        setTimeout(() => {
+          openCellEditorWithTracking(stage, tableId, tableElement, nextRow, nextCol);
+        }, 50);
+      }
+    }
+    // For all other keys (including 'h'), allow normal text input behavior
+    // and prevent canvas keyboard shortcuts by stopping propagation
+  });
+
+  // Also prevent keyup events from bubbling to prevent any remaining shortcuts
+  textarea.addEventListener('keyup', (e) => {
+    e.stopPropagation();
+  });
+
+  // Prevent keypress events from bubbling as well
+  textarea.addEventListener('keypress', (e) => {
+    e.stopPropagation();
+  });
+
+  textarea.addEventListener('blur', () => {
+    // Add small delay to prevent race conditions with keydown events
+    setTimeout(() => commit(false), 10);
+  }, { once: true });
+
+  // Add to tracking system
+  const editorData: ActiveCellEditor = {
+    element: textarea,
+    tableId,
+    row,
+    col,
+    stage,
+    cleanup
+  };
+
+  (window as any).activeCellEditors.add(editorData);
+
+  // Set up live position updates (expose update function)
+  (editorData as any).updatePosition = updateTextareaPosition;
+}
+
+// Expose both the original and tracked versions
+(window as any).openCellEditor = openCellEditor;
+(window as any).openCellEditorWithTracking = openCellEditorWithTracking;
