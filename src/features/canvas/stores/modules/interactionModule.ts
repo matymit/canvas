@@ -370,7 +370,6 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
   bumpSelectionVersion: () =>
     set((state: any) => {
       state.selectionVersion = (state.selectionVersion || 0) + 1;
-      console.log('[InteractionModule] Selection version bumped to:', state.selectionVersion);
     }),
 });
 

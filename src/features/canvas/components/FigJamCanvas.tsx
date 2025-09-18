@@ -70,9 +70,6 @@ const FigJamCanvas: React.FC = () => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    console.log("[FigJamCanvas] Initializing stage and renderer system");
-    console.log("[FigJamCanvas] SINGLE KONVA.STAGE CREATION - This should be the ONLY stage creation");
-
     // Create Konva stage - THIS IS THE ONLY PLACE WHERE KONVA.STAGE SHOULD BE CREATED
     const stage = new Konva.Stage({
       container: containerRef.current,
@@ -80,8 +77,6 @@ const FigJamCanvas: React.FC = () => {
       height: window.innerHeight,
       draggable: false,
     });
-
-    console.log("[FigJamCanvas] Konva.Stage created successfully:", stage.id());
 
     stageRef.current = stage;
 
@@ -122,8 +117,6 @@ const FigJamCanvas: React.FC = () => {
     gridRendererRef.current = gridRenderer;
 
     // Setup renderer system - this is the KEY integration
-    console.log("[FigJamCanvas] Setting up renderer modules - SINGLE setupRenderer() CALL");
-    console.log("[FigJamCanvas] This is the ONLY place setupRenderer() should be called");
     const rendererDispose = setupRenderer(stage, {
       background: backgroundLayer,
       main: mainLayer,
@@ -132,10 +125,8 @@ const FigJamCanvas: React.FC = () => {
       overlay: overlayLayer,
     });
     rendererDisposeRef.current = rendererDispose;
-    console.log("[FigJamCanvas] Renderer modules setup complete");
 
     // Setup ToolManager with proper lifecycle
-    console.log("[FigJamCanvas] Setting up ToolManager");
     const toolManager = new ToolManager({
       stage,
       mainLayer,
@@ -162,25 +153,11 @@ const FigJamCanvas: React.FC = () => {
       const clickedNode = e.target;
       let elementId = clickedNode.getAttr("elementId") || clickedNode.id();
 
-      console.log('[FigJamCanvas] Node clicked:', {
-        className: clickedNode.className,
-        name: clickedNode.name(),
-        elementId,
-        hasParent: !!clickedNode.parent
-      });
-
       // If no elementId on the clicked node, check its parent (for clicking on child nodes like image bitmaps)
       if (!elementId && clickedNode.parent) {
         const parent = clickedNode.parent;
         elementId = parent.getAttr("elementId") || parent.id();
-        console.log('[FigJamCanvas] Checking parent node:', {
-          parentClassName: parent.className,
-          parentName: parent.name(),
-          parentElementId: elementId
-        });
       }
-
-      console.log('[FigJamCanvas] Final elementId:', elementId, 'exists in elements:', elements.has(elementId));
 
       if (elementId && elements.has(elementId)) {
         if (e.evt.ctrlKey || e.evt.metaKey) {
@@ -222,27 +199,9 @@ const FigJamCanvas: React.FC = () => {
 
     stage.on("wheel", handleWheel);
 
-    // Add stage-level contextmenu debugging
+    // Add stage-level contextmenu handling
     const handleStageContextMenu = (e: Konva.KonvaEventObject<MouseEvent>) => {
-      console.log('[FigJamCanvas] STAGE-LEVEL contextmenu event detected:', {
-        target: e.target,
-        targetName: e.target?.name?.(),
-        targetClassName: e.target?.className,
-        targetId: e.target?.id?.(),
-        evt: e.evt,
-        cancelBubble: e.cancelBubble,
-        preventDefault: e.evt?.defaultPrevented
-      });
-
-      // Log the hierarchy of the clicked element
-      let current = e.target;
-      let depth = 0;
-      console.log('[FigJamCanvas] Target hierarchy:');
-      while (current && depth < 10) {
-        console.log(`  ${depth}: ${current.name?.()} (${current.className}) id: ${current.id?.()}`);
-        current = current.getParent() as any;
-        depth++;
-      }
+      // Handle context menu events
     };
 
     stage.on("contextmenu", handleStageContextMenu);
@@ -286,7 +245,6 @@ const FigJamCanvas: React.FC = () => {
 
     // Cleanup
     return () => {
-      console.log("[FigJamCanvas] Cleaning up stage and renderer");
       window.removeEventListener("resize", handleResize);
 
       // Clean up stage event handlers
@@ -393,32 +351,24 @@ const FigJamCanvas: React.FC = () => {
   useEffect(() => {
     // Renderer modules subscribe to store changes automatically
     // This effect ensures React stays in sync with store changes
-    console.log(`[FigJamCanvas] Elements changed: ${elements.size} total`);
   }, [elements]);
 
   // Keyboard shortcuts implementation
   useKeyboardShortcuts(
     {
       onDelete: () => {
-        console.log('[FigJamCanvas] Delete key pressed, selected elements:', selectedElementIds.size);
-
         // Only delete if there are selected elements
         if (selectedElementIds.size === 0) {
-          console.log('[FigJamCanvas] No elements selected, nothing to delete');
           return;
         }
-
-        console.log('[FigJamCanvas] Attempting to delete selected elements:', Array.from(selectedElementIds));
 
         // Use withUndo for proper history integration
         if (withUndo && deleteSelected) {
           withUndo("Delete selected elements", () => {
             deleteSelected();
-            console.log('[FigJamCanvas] Elements deleted via deleteSelected()');
           });
         } else {
           // Fallback: direct element deletion
-          console.log('[FigJamCanvas] Using fallback deletion method');
           const store = useUnifiedCanvasStore.getState();
 
           // Try multiple deletion methods
@@ -426,13 +376,11 @@ const FigJamCanvas: React.FC = () => {
             const selectedIds = Array.from(selectedElementIds);
             store.removeElements(selectedIds);
             store.clearSelection?.();
-            console.log('[FigJamCanvas] Elements deleted via removeElements()');
           } else if (store.element?.delete) {
             selectedElementIds.forEach(id => {
               store.element.delete(id);
             });
             store.clearSelection?.();
-            console.log('[FigJamCanvas] Elements deleted via element.delete()');
           } else {
             console.error('[FigJamCanvas] No deletion method available!');
           }

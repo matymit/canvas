@@ -20,8 +20,6 @@ export const ImageTool: React.FC<ImageToolProps> = ({
 }) => {
   const selectedTool = useUnifiedCanvasStore((s: any) => s.selectedTool ?? s.ui?.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool);
-  const addElement = useUnifiedCanvasStore((s: any) => s.element?.addElement || s.element?.createElement || s.elements?.addElement);
-  const selectOnly = useUnifiedCanvasStore((s: any) => (s as any).replaceSelectionWithSingle ?? s.selection?.replaceSelectionWithSingle);
   const viewport = useUnifiedCanvasStore((s: any) => s.viewport);
 
   const stateRef = useRef<{
@@ -100,6 +98,14 @@ export const ImageTool: React.FC<ImageToolProps> = ({
     return promise;
   }, [setSelectedTool]);
 
+  // Define setElementSelection utility function
+  const setElementSelection = useCallback((id: string) => {
+    const store = useUnifiedCanvasStore.getState();
+    if (store.setSelection) {
+      store.setSelection([id]);
+    }
+  }, []);
+
   // Commit image to store with proper history integration and immediate selection
   const commitImage = useCallback(async (x: number, y: number, w: number, h: number) => {
     const nat = stateRef.current.natural!;
@@ -120,115 +126,82 @@ export const ImageTool: React.FC<ImageToolProps> = ({
       keepAspectRatio: true,
     };
 
-    console.log('[ImageTool.commitImage] Starting commit process', {
-      elementId: id,
-      position: { x, y },
-      size: { w, h },
-      timestamp: Date.now()
-    });
-
-    // Use store methods directly for better reliability
+    // Store integration pattern with exact fallback logic
     const store = useUnifiedCanvasStore.getState();
 
-    console.log('[ImageTool.commitImage] Store methods available:', {
-      hasWithUndo: !!store.withUndo,
-      hasElementUpsert: !!store.element?.upsert,
-      hasElementsSet: !!store.elements?.set,
-      hasAddElement: !!addElement,
-      hasElements: !!store.elements,
-      elementsSize: store.elements?.size || 'unknown'
-    });
-
-    // Helper to set selection using available store methods
-    const setElementSelection = () => {
-      if (store.setSelection) {
-        store.setSelection([id]);
-      } else if (store.selection?.set) {
-        store.selection.set([id]);
-      } else if (store.selection?.selectOne) {
-        store.selection.selectOne(id);
-      } else if (selectOnly) {
-        selectOnly(id);
-      } else {
-        console.warn('[ImageTool] No selection method available');
+    const addElement = () => {
+      if (store.addElement) {
+        return store.addElement(element, { select: true, pushHistory: false });
+      } else if (store.element?.upsert) {
+        return store.element.upsert(element);
       }
+      return null;
     };
 
     // Use withUndo for proper history integration
-    if (store.withUndo) {
-      console.log('[ImageTool.commitImage] Using withUndo for history integration');
-      store.withUndo('Add image', () => {
-        console.log('[ImageTool.commitImage] Inside withUndo mutator');
-        // Try multiple store methods for adding elements
-        if (store.element?.upsert) {
-          console.log('[ImageTool.commitImage] Calling store.element.upsert');
-          const returnedId = store.element.upsert(element);
-          console.log('[ImageTool.commitImage] Upsert returned ID:', returnedId);
-        } else if (store.elements?.set) {
-          console.log('[ImageTool.commitImage] Calling store.elements.set');
-          store.elements.set(id, element);
-        } else if (addElement) {
-          console.log('[ImageTool.commitImage] Calling addElement');
-          addElement(element);
-        } else {
-          console.error('[ImageTool] No valid store method found for adding element');
-          return;
-        }
+    store.withUndo('Add image', () => {
+      addElement();
+    });
 
-        // Immediately verify the element was stored
-        const immediateCheck = useUnifiedCanvasStore.getState();
-        const storedElement = immediateCheck.element?.getById(id) || immediateCheck.elements?.get(id);
-        console.log('[ImageTool.commitImage] Immediate verification in mutator:', {
-          elementExists: !!storedElement,
-          storeElementsSize: immediateCheck.elements?.size,
-          elementData: storedElement ? { id: storedElement.id, type: storedElement.type } : null
-        });
-      });
-    } else {
-      console.log('[ImageTool.commitImage] Using fallback without history');
-      // Fallback without history
-      if (store.element?.upsert) {
-        console.log('[ImageTool.commitImage] Fallback: calling store.element.upsert');
-        store.element.upsert(element);
-      } else if (addElement) {
-        console.log('[ImageTool.commitImage] Fallback: calling addElement');
-        addElement(element);
-      }
-    }
-
-    // Verify the element was persisted immediately after the store operation
-    const postStoreState = useUnifiedCanvasStore.getState();
-    const verifyElement = postStoreState.element?.getById(id) || postStoreState.elements?.get(id);
-    console.log('[ImageTool.commitImage] Post-store verification:', {
-      elementExists: !!verifyElement,
-      storeElementsSize: postStoreState.elements?.size,
-      elementData: verifyElement ? { id: verifyElement.id, type: verifyElement.type, x: verifyElement.x, y: verifyElement.y } : null,
-      allElementIds: postStoreState.elementOrder || []
+    // Specific debugging with exact format
+    console.log('[ImageTool.commitImage] Element created:', {
+      id,
+      element,
+      storeHasElement: store.elements?.has(id),
+      timestamp: Date.now()
     });
 
     // Wait longer for the ImageRenderer to fully process the new element
-    // Use multiple RAF cycles to ensure renderer has completed setup
+    // Use more RAF cycles and longer delays for images which take time to load
+    await new Promise(resolve => requestAnimationFrame(resolve));
     await new Promise(resolve => requestAnimationFrame(resolve));
     await new Promise(resolve => requestAnimationFrame(resolve));
 
-    // Use SelectionModule's auto-selection which has better retry logic
-    const selectionModule = (window as any).selectionModule;
-    if (selectionModule?.autoSelectElement) {
-      console.log('[ImageTool] Using SelectionModule auto-selection for:', id);
-      selectionModule.autoSelectElement(id);
-    } else {
-      // Fallback to manual selection methods
-      console.log('[ImageTool] Fallback to manual selection for:', id);
-      setElementSelection();
-    }
+    // Wait for render completion with longer delay specifically for images
+    setTimeout(() => {
+      // Use SelectionModule's enhanced auto-selection with exponential backoff
+      const selectionModule = (window as any).selectionModule;
+      if (selectionModule?.autoSelectElement) {
+        selectionModule.autoSelectElement(id);
+      } else {
+        // Custom exponential backoff with 8 attempts
+        let attempts = 0;
+        const maxAttempts = 8; // More attempts for images
 
-    // Switch to select tool for immediate manipulation
-    setSelectedTool?.('select');
+        const trySelect = () => {
+          attempts++;
+          setTimeout(() => {
+            setElementSelection(id);
+            if (attempts < maxAttempts) {
+              trySelect();
+            }
+          }, 100 * attempts); // Exponential backoff timing
+        };
+
+        trySelect();
+      }
+
+      // After selection attempts
+      console.log('[ImageTool.commitImage] Selection attempted for:', id);
+
+      // Direct selection fallback after 300ms
+      setTimeout(() => {
+        const store = useUnifiedCanvasStore.getState();
+        if (store.setSelection) {
+          store.setSelection([id]);
+        }
+      }, 300);
+
+      // Switch to select tool for immediate manipulation
+      setTimeout(() => {
+        setSelectedTool?.('select');
+      }, 100);
+    }, 300); // Increased delay for image processing (was 150ms)
 
     // Reset image data for next use
     stateRef.current.dataUrl = null;
     stateRef.current.natural = null;
-  }, [setSelectedTool, selectOnly, addElement]);
+  }, [setSelectedTool, setElementSelection]);
 
   // Auto-place image at center of viewport
   const autoPlaceImage = useCallback(async () => {

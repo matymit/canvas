@@ -203,3 +203,13 @@ The application enforces strict performance budgets:
 - ALWAYS, ALWAYS USE THE SEQUENTIAL THINKING SERVER FOR ANY RESPONSE, THOUGHT, ACTION, OR PLANNING. ALWAYS! USE IT TO BREAK THE AFOREMENTIONED INTO MULTI-STEP SEQUENCES.
 - claude code and all coding agents, e.g. canvas engineer, should always use sequential thinking MCP server to order and structure thoughts and plan actions. Break thoughts into MULTIPLE steps. NEVER JUST ONE THOUGHT!
 - delegate all tasks to the canvas engineer
+- Before Starting:
+1. Check agent-specific docs
+2. Read architecture docs
+3. Check known issues
+4. Review implementation progress -- this applies to agents, too.
+- After Completing Work:
+1. Update implementation progress
+2. Update known issues
+3. Update changelog
+4. Run validation: npm run type-check && npm run lint -- this applies to agents too

@@ -101,11 +101,6 @@ export class TransformerManager {
     // Wire events to callbacks and snapping behavior
     this.transformer!.on("transformstart", () => {
       const nodes = this.transformer!.nodes();
-      console.log("[TransformerManager] *** TRANSFORM START EVENT FIRED ***", nodes.length, "nodes");
-      nodes.forEach((node, i) => {
-        console.log(`[TransformerManager] Transform start node ${i}: ${node.id() || node.getAttr('elementId')}, draggable: ${node.draggable()}`);
-      });
-
       this.opts.onTransformStart?.(nodes);
     });
 
@@ -133,34 +128,15 @@ export class TransformerManager {
       });
 
       this.opts.onTransform?.(nodes);
-      console.log("[TransformerManager] *** TRANSFORM EVENT FIRED ***, updating", nodes.length, "nodes");
       this.overlay.batchDraw();
     };
 
     this.transformer!.on("transform", onTransform);
 
-    // DEBUG: Add mouse event logging to see if transformer is receiving events
-    this.transformer!.on("mousedown", () => {
-      console.log("[TransformerManager] *** TRANSFORMER MOUSEDOWN ***");
-    });
-
-    this.transformer!.on("dragstart", () => {
-      console.log("[TransformerManager] *** TRANSFORMER DRAGSTART ***");
-    });
-
-    this.transformer!.on("dragmove", () => {
-      console.log("[TransformerManager] *** TRANSFORMER DRAGMOVE ***");
-    });
-
-    this.transformer!.on("dragend", () => {
-      console.log("[TransformerManager] *** TRANSFORMER DRAGEND ***");
-    });
 
     this.transformer!.on("transformend", () => {
       const tr = this.transformer!;
       if (!tr) return;
-
-      console.log("[TransformerManager] *** TRANSFORM END EVENT FIRED ***");
 
       // Rotation snapping on transform end (optional)
       if (this.opts.rotationSnapDeg && this.opts.rotateEnabled !== false) {
@@ -173,8 +149,6 @@ export class TransformerManager {
       }
 
       const nodes = tr.nodes();
-      console.log("[TransformerManager] Calling onTransformEnd for", nodes.length, "nodes");
-
       this.opts.onTransformEnd?.(nodes);
 
       // FIXED: Clean overlay draw to prevent duplicate frames
@@ -235,25 +209,13 @@ export class TransformerManager {
           node.setAttr('_originalDraggable', node.draggable());
         }
         // Enable dragging so transformer can move the node
-        console.log(`[TransformerManager] Setting node ${node.id() || node.getAttr('elementId')} draggable from ${node.draggable()} to true`);
         node.draggable(true);
-        console.log(`[TransformerManager] Node ${node.id() || node.getAttr('elementId')} draggable is now: ${node.draggable()}`);
       });
 
       this.transformer.nodes(live);
       this.transformer.visible(true);
       this.overlay.batchDraw();
 
-      // Debug: Check if transformer actually has nodes after attachment
-      setTimeout(() => {
-        if (this.transformer) {
-          const attachedNodes = this.transformer.nodes();
-
-          if (attachedNodes.length === 0) {
-          }
-        }
-      }, 50);
-    } else {
     }
   }
 

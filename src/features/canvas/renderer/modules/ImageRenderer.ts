@@ -57,7 +57,6 @@ export class ImageRenderer {
       // CRITICAL: Also set the bitmap to have the elementId for click detection
       // FIXED: Removed cancelBubble to allow proper event propagation for selection in FigJamCanvas
       g.on('click', () => {
-        console.log('[ImageRenderer] Group clicked, elementId:', el.id, 'listening:', g.listening(), 'visible:', g.visible());
         // Allow event to bubble up to stage click handler for selection
       });
 
@@ -68,7 +67,6 @@ export class ImageRenderer {
     }
 
     // Update group transform properties
-    console.log(`[ImageRenderer] Updating image ${el.id} position to (${el.x}, ${el.y})`);
     g.position({ x: el.x, y: el.y });
     g.rotation(el.rotation ?? 0);
     g.opacity(el.opacity ?? 1);
@@ -95,7 +93,6 @@ export class ImageRenderer {
       bitmap.setAttr('elementId', el.id);
       // FIXED: Removed cancelBubble to allow proper event propagation for selection in FigJamCanvas
       bitmap.on('click', () => {
-        console.log('[ImageRenderer] Bitmap clicked, elementId:', el.id, 'listening:', bitmap.listening(), 'visible:', bitmap.visible());
         // Allow event to bubble up to stage click handler for selection
       });
       g.add(bitmap);
@@ -112,10 +109,6 @@ export class ImageRenderer {
     const safeHeight = Math.max(MIN_SIZE, el.height);
 
     bitmap.size({ width: safeWidth, height: safeHeight });
-
-    // DEBUG: Verify final position after update
-    const finalPos = g.position();
-    console.log(`[ImageRenderer] Final Konva position for ${el.id}: (${finalPos.x}, ${finalPos.y})`);
 
     this.layers.main.batchDraw();
   }

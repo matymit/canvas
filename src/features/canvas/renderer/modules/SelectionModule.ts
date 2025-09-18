@@ -9,12 +9,10 @@ export class SelectionModule implements RendererModule {
   private unsubscribeVersion?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[SelectionModule] Mounting...");
     this.storeCtx = ctx;
 
     // FIXED: Make module globally accessible for tool integration
     (window as any).selectionModule = this;
-    console.log("[SelectionModule] Module registered globally");
 
     // Create transformer manager on overlay layer with aspect ratio locking
     this.transformerManager = new TransformerManager(ctx.stage, {
@@ -40,11 +38,6 @@ export class SelectionModule implements RendererModule {
       keepRatioKey: "Shift", // FIXED: Enable aspect ratio locking with Shift key
       rotationSnapDeg: 15,
       onTransformStart: (nodes) => {
-        console.log(
-          "[SelectionModule] Transform start:",
-          nodes.length,
-          "nodes",
-        );
         // Begin transform in store if available
         const store = this.storeCtx?.store.getState();
         if (store?.beginTransform) {
@@ -56,15 +49,6 @@ export class SelectionModule implements RendererModule {
         this.updateElementsFromNodes(nodes, false);
       },
       onTransformEnd: (nodes) => {
-        console.log("[SelectionModule] Transform end, committing changes for", nodes.length, "nodes");
-
-        // DEBUG: Log node positions before update
-        nodes.forEach((node, i) => {
-          const pos = node.position();
-          const elementId = node.getAttr("elementId") || node.id();
-          console.log(`[SelectionModule] Node ${i} (${elementId}) final position: (${pos.x}, ${pos.y})`);
-        });
-
         this.updateElementsFromNodes(nodes, true); // Commit with history
 
         // End transform in store if available
@@ -77,9 +61,6 @@ export class SelectionModule implements RendererModule {
         setTimeout(() => {
           if (this.transformerManager) {
             this.transformerManager.refresh();
-            console.log(
-              "[SelectionModule] Transformer refreshed after transform end",
-            );
           }
         }, 10);
       },
@@ -107,7 +88,6 @@ export class SelectionModule implements RendererModule {
       (state) => state.selectionVersion || 0,
       // Callback: refresh transformer for current selection
       (version) => {
-        console.log("[SelectionModule] Selection version changed to:", version, "- refreshing transformer");
         if (this.transformerManager && this.storeCtx) {
           // Get current selection and refresh transformer
           const currentState = this.storeCtx.store.getState();
@@ -126,7 +106,6 @@ export class SelectionModule implements RendererModule {
   }
 
   private unmount() {
-    console.log("[SelectionModule] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = undefined;
@@ -147,13 +126,6 @@ export class SelectionModule implements RendererModule {
   }
 
   private updateSelection(selectedIds: Set<string>) {
-    console.log(
-      "[SelectionModule] Selection updated:",
-      selectedIds.size,
-      "elements",
-      Array.from(selectedIds),
-    );
-
     if (!this.transformerManager || !this.storeCtx) return;
 
     if (selectedIds.size === 0) {
@@ -167,27 +139,6 @@ export class SelectionModule implements RendererModule {
       const nodes = this.resolveElementsToNodes(selectedIds);
 
       if (nodes.length > 0) {
-        console.log(
-          "[SelectionModule] Attaching transformer to",
-          nodes.length,
-          "nodes",
-        );
-
-        // Debug: Log node properties to ensure they're transformable
-        nodes.forEach((node, index) => {
-          const size = node.size();
-          const pos = node.position();
-          console.log(`[SelectionModule] Node ${index}:`, {
-            id: node.id() || node.getAttr("elementId"),
-            className: node.className,
-            size: size,
-            position: pos,
-            visible: node.visible(),
-            listening: node.listening(),
-            draggable: node.draggable(),
-          });
-        });
-
         // FIXED: Detach first to prevent any lingering transformers, then attach
         this.transformerManager?.detach();
         this.transformerManager?.attachToNodes(nodes);
@@ -266,12 +217,6 @@ export class SelectionModule implements RendererModule {
           if (selectedNode) {
             nodes.push(selectedNode);
             found = true;
-            console.log(
-              "[SelectionModule] Found node for element",
-              elementId,
-              ":",
-              group ? "Group" : selectedNode.className || "Unknown",
-            );
           } else {
             console.warn(
               "[SelectionModule] Found candidates but selectedNode is null for element:",
@@ -378,31 +323,13 @@ export class SelectionModule implements RendererModule {
           ? "Transform element"
           : `Transform ${updates.length} elements`;
 
-      console.log(`[SelectionModule] Committing ${updates.length} updates with history:`, updates.map(u => ({ id: u.id, x: u.changes.x, y: u.changes.y })));
-
       // Use withUndo to wrap all updates in a single history entry
       withUndo(actionName, () => {
         for (const { id, changes } of updates) {
           try {
-            // DEBUG: Log store state before update
-            const storeState = this.storeCtx!.store.getState();
-            const elementBefore = storeState.elements?.get?.(id) || storeState.element?.getById?.(id);
-            console.log(`[SelectionModule] BEFORE UPDATE - Element ${id}:`, {
-              current: elementBefore ? { x: elementBefore.x, y: elementBefore.y } : 'not found',
-              newChanges: { x: changes.x, y: changes.y }
-            });
-
             // Use the store's updateElement directly without pushHistory since we're already in withUndo
+            const storeState = this.storeCtx!.store.getState();
             storeState.updateElement(id, changes, { pushHistory: false });
-
-            // DEBUG: Verify store state after update
-            const elementAfter = storeState.elements?.get?.(id) || storeState.element?.getById?.(id);
-            console.log(`[SelectionModule] AFTER UPDATE - Element ${id}:`, {
-              stored: elementAfter ? { x: elementAfter.x, y: elementAfter.y } : 'not found',
-              expected: { x: changes.x, y: changes.y },
-              match: elementAfter && Math.abs(elementAfter.x - changes.x) < 0.01 && Math.abs(elementAfter.y - changes.y) < 0.01
-            });
-
           } catch (error) {
             console.error(
               "[SelectionModule] Failed to update element",
@@ -415,14 +342,10 @@ export class SelectionModule implements RendererModule {
       });
     } else {
       // For non-history updates (during transform), use updateElement directly
-      console.log(`[SelectionModule] Real-time updates (no history) for ${updates.length} elements`);
       for (const { id, changes } of updates) {
         try {
           const storeState = this.storeCtx!.store.getState();
           storeState.updateElement(id, changes, { pushHistory: false });
-          if (commitWithHistory === false) {
-            console.log(`[SelectionModule] Real-time update for element ${id} to position (${changes.x}, ${changes.y})`);
-          }
         } catch (error) {
           console.error(
             "[SelectionModule] Failed to update element",
@@ -445,26 +368,21 @@ export class SelectionModule implements RendererModule {
     }
 
     const store = this.storeCtx.store.getState();
-    console.log("[SelectionModule] Selecting element via store:", elementId);
 
     // Try different store selection methods with proper error handling
     try {
       if (store.setSelection) {
         store.setSelection([elementId]);
-        console.log("[SelectionModule] Selection set via setSelection method");
       } else if (store.selection?.set) {
         store.selection.set([elementId]);
-        console.log("[SelectionModule] Selection set via selection.set method");
       } else if (store.selectedElementIds) {
         // Handle Set-based selection
         if (store.selectedElementIds instanceof Set) {
           store.selectedElementIds.clear();
           store.selectedElementIds.add(elementId);
-          console.log("[SelectionModule] Selection set via Set manipulation");
         } else if (Array.isArray(store.selectedElementIds)) {
           (store.selectedElementIds as string[]).length = 0;
           (store.selectedElementIds as string[]).push(elementId);
-          console.log("[SelectionModule] Selection set via Array manipulation");
         }
         // Trigger state update if using Zustand
         this.storeCtx.store.setState?.({
@@ -482,8 +400,6 @@ export class SelectionModule implements RendererModule {
 
   // FIXED: Enhanced auto-select element with better timing and error recovery
   autoSelectElement(elementId: string) {
-    console.log("[SelectionModule] Auto-selecting element:", elementId);
-
     // Immediate selection attempt
     this.selectElement(elementId);
 
@@ -501,9 +417,6 @@ export class SelectionModule implements RendererModule {
         const nodes = this.resolveElementsToNodes(new Set([elementId]));
 
         if (nodes.length > 0) {
-          console.log(
-            `[SelectionModule] Element found on attempt ${attempts}, selection successful`,
-          );
           // FIXED: Force clean transformer state and attach
           if (this.transformerManager) {
             this.transformerManager.detach();
@@ -516,9 +429,6 @@ export class SelectionModule implements RendererModule {
         }
 
         if (attempts < maxAttempts) {
-          console.log(
-            `[SelectionModule] Attempt ${attempts} failed, retrying in ${delay}ms...`,
-          );
           // Retry selection in store as element might not be rendered yet
           this.selectElement(elementId);
           attemptSelection(); // Recursive retry
@@ -559,13 +469,6 @@ export class SelectionModule implements RendererModule {
 
   // Private method to refresh transformer for current selection (used when selection version changes)
   private refreshTransformerForSelection(selectedIds: Set<string>) {
-    console.log(
-      "[SelectionModule] Refreshing transformer for selection:",
-      selectedIds.size,
-      "elements",
-      Array.from(selectedIds),
-    );
-
     if (!this.transformerManager || !this.storeCtx) return;
 
     if (selectedIds.size === 0) {
@@ -579,18 +482,11 @@ export class SelectionModule implements RendererModule {
       const nodes = this.resolveElementsToNodes(selectedIds);
 
       if (nodes.length > 0) {
-        console.log(
-          "[SelectionModule] Refreshing transformer with",
-          nodes.length,
-          "nodes after version bump",
-        );
-
         // Force detach and reattach to recalculate bounds
         this.transformerManager?.detach();
         setTimeout(() => {
           this.transformerManager?.attachToNodes(nodes);
           this.transformerManager?.show();
-          console.log("[SelectionModule] Transformer refreshed and bounds recalculated");
         }, 10);
       } else {
         console.warn(

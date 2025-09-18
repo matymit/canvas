@@ -79,11 +79,9 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
     new SelectionModule(),
   ];
 
-  console.log('[Renderer] Mounting', modules.length, 'renderer modules');
   const unsubs = modules.map(m => m.mount({ stage, layers, store: useUnifiedCanvasStore }));
 
   return () => {
-    console.log('[Renderer] Unmounting all renderer modules');
     unsubs.forEach(u => u && u());
   };
 }

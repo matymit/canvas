@@ -22,7 +22,6 @@ export class DrawingRenderer implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[DrawingRenderer] Mounting...");
     this.mainLayer = ctx.layers.main;
     this.highlighterLayer = ctx.layers.highlighter;
 
@@ -67,7 +66,6 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private unmount() {
-    console.log("[DrawingRenderer] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -84,14 +82,6 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private reconcile(drawings: Map<Id, DrawingElement>) {
-    // Only log when there are actual drawings to reconcile (reduce console spam)
-    if (drawings.size > 0) {
-      console.log(
-        "[DrawingRenderer] Reconciling",
-        drawings.size,
-        "drawing elements",
-      );
-    }
 
     if (!this.mainLayer || !this.highlighterLayer) return;
 
@@ -121,7 +111,6 @@ export class DrawingRenderer implements RendererModule {
     // Remove deleted drawing elements
     for (const [id, node] of this.drawingNodes) {
       if (!seen.has(id)) {
-        console.log("[DrawingRenderer] Removing drawing:", id);
         node.destroy();
         this.drawingNodes.delete(id);
       }

@@ -5,6 +5,5 @@
 import FigJamCanvas from "../../features/canvas/components/FigJamCanvas";
 
 export default function Canvas(): JSX.Element {
-  console.log("[Canvas] Page component initialized - delegating to FigJamCanvas");
   return <FigJamCanvas />;
 }

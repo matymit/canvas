@@ -12,8 +12,6 @@ export class ConnectorRendererAdapter implements RendererModule {
   private elementNodes = new Map<Id, Konva.Group>();
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[ConnectorRendererAdapter] Mounting...");
-
     // Create renderer with node resolver
     this.renderer = new ConnectorRenderer(ctx.layers, {
       getNodeById: (id: string) => {
@@ -70,7 +68,6 @@ export class ConnectorRendererAdapter implements RendererModule {
   }
 
   private unmount() {
-    console.log("[ConnectorRendererAdapter] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -90,13 +87,6 @@ export class ConnectorRendererAdapter implements RendererModule {
     elements: Map<Id, any>,
   ) {
     // Only log when there are actual connectors to reconcile (reduce console spam)
-    if (connectors.size > 0) {
-      console.log(
-        "[ConnectorRendererAdapter] Reconciling",
-        connectors.size,
-        "connectors",
-      );
-    }
 
     if (!this.renderer) return;
 
