@@ -89,6 +89,8 @@ export function useTableKeyboard(
     if (disabled || !tableElement || !isWithinTable) return false;
 
     const { rows, cols } = tableElement;
+    if (rows === undefined || cols === undefined) return false;
+
     let { row, col } = activeCell || { row: 0, col: 0 };
 
     switch (e.key) {
@@ -268,8 +270,8 @@ export function useTableCellEditor(
 
   // Start editing a cell
   const startEdit = useCallback((row: number, col: number) => {
-    if (!tableElement) return;
-    
+    if (!tableElement || tableElement.cols === undefined || !tableElement.cells) return;
+
     const cellIndex = getCellIndex(row, col, tableElement.cols);
     const currentText = tableElement.cells[cellIndex]?.text || '';
     

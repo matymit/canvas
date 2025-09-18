@@ -390,11 +390,30 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
     },
 
     updateElement: (id, patch, opts) => {
+      // DEBUG: Log all updateElement calls for position changes
+      const patchObj = typeof patch === 'function' ? '[function]' : patch;
+      if (patchObj && typeof patchObj === 'object' && ('x' in patchObj || 'y' in patchObj)) {
+        console.log(`[coreModule.updateElement] Position update for ${id}:`, {
+          patch: patchObj,
+          pushHistory: opts?.pushHistory,
+          timestamp: Date.now()
+        });
+      }
+
       // Capture plain "before" outside of immer draft
       const beforeOriginal = __deepClone(
         (get() as any).getElement?.(id) ??
           (get() as any).element?.getById?.(id),
       );
+
+      // DEBUG: Log element state before update
+      if (beforeOriginal && ('x' in beforeOriginal || 'y' in beforeOriginal)) {
+        console.log(`[coreModule.updateElement] BEFORE - Element ${id} position:`, {
+          x: beforeOriginal.x,
+          y: beforeOriginal.y
+        });
+      }
+
       set((state) => {
         const prev =
           state.elements?.get(id) ??
@@ -406,6 +425,15 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
             : { ...prev, ...patch },
         );
 
+        // DEBUG: Log the calculated next state
+        if ('x' in next || 'y' in next) {
+          console.log(`[coreModule.updateElement] CALCULATED next state for ${id}:`, {
+            prev: { x: prev.x, y: prev.y },
+            next: { x: next.x, y: next.y },
+            changed: prev.x !== next.x || prev.y !== next.y
+          });
+        }
+
         // map immutable write
         const map: Map<ElementId, CanvasElement> =
           state.elements ??
@@ -416,7 +444,26 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         if ("elements" in state) state.elements = newMap;
         else if ((state as any).element && "elements" in (state as any).element)
           (state as any).element.elements = newMap;
+
+        // DEBUG: Verify the element was actually stored
+        const stored = newMap.get(id);
+        if (stored && ('x' in stored || 'y' in stored)) {
+          console.log(`[coreModule.updateElement] STORED in map for ${id}:`, {
+            x: stored.x,
+            y: stored.y
+          });
+        }
       });
+      // DEBUG: Verify final state after update
+      const finalElement = (get() as any).getElement?.(id) ?? (get() as any).element?.getById?.(id);
+      if (finalElement && ('x' in finalElement || 'y' in finalElement)) {
+        console.log(`[coreModule.updateElement] FINAL STATE for ${id}:`, {
+          x: finalElement.x,
+          y: finalElement.y,
+          timestamp: Date.now()
+        });
+      }
+
       if (opts?.pushHistory && beforeOriginal) {
         const afterOriginal = __deepClone(
           (get() as any).getElement?.(id) ??

@@ -219,10 +219,16 @@ export class TableRenderer {
   render(el: TableElement) {
     const g = this.ensureGroup(el);
 
-    // Position and size - force update
+    // CRITICAL: Preserve position - only update x/y if they are defined and different
+    // This prevents position jumping during structure changes
+    const currentPos = g.position();
+    const newX = el.x !== undefined ? el.x : currentPos.x;
+    const newY = el.y !== undefined ? el.y : currentPos.y;
+
+    // Position and size - force update with defensive position preservation
     g.setAttrs({
-      x: el.x,
-      y: el.y,
+      x: newX,
+      y: newY,
       width: el.width,
       height: el.height
     });
@@ -290,6 +296,11 @@ export class TableRenderer {
     // Set additional attributes for better SelectionModule integration
     g.setAttr("elementType", "table");
     g.className = "table-group"; // Ensure className is set for SelectionModule detection
+
+    // Log position for debugging table jumping issues
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[TableModule] Rendered table ${el.id} at position (${newX}, ${newY}), size (${el.width}, ${el.height})`);
+    }
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
     const shouldCache = (rows * cols > 50) || this.opts.cacheAfterCommit;
@@ -375,6 +386,10 @@ export class TableRenderer {
           perfectDrawEnabled: false,
         });
 
+        // CRITICAL FIX: Remove contextmenu handler from cell areas entirely
+        // Let all contextmenu events bubble up to the table group and stage
+        // This ensures the TableContextMenuManager receives the events properly
+
         // Double-click to edit using the tracked editor for live resize support
         clickArea.on('dblclick', (e) => {
           console.log(`[TableModule] Cell [${row}, ${col}] double-clicked`);
@@ -419,6 +434,20 @@ export class TableRenderer {
   private setupTableInteractions(group: Konva.Group, elementId: string) {
     // Get reference to SelectionModule for proper selection integration
     const getSelectionModule = () => (window as any).selectionModule;
+
+    // CRITICAL: Add contextmenu handler to the table group for debugging
+    group.on('contextmenu', (e) => {
+      console.log('[TableModule] Table group contextmenu event:', {
+        elementId,
+        target: e.target,
+        currentTarget: e.currentTarget,
+        targetName: e.target?.name?.(),
+        groupName: group.name(),
+        groupId: group.id(),
+        evt: e.evt
+      });
+      // Allow the event to continue bubbling to the stage
+    });
 
     // FIXED: Simple click handler for selection - let SelectionModule handle drag/transform
     group.on("click tap", (e) => {

@@ -125,10 +125,19 @@ export interface AnimationModuleSlice {
 }
 
 // ============================================================================
+// SELECTION VERSION MODULE TYPES AND IMPLEMENTATION
+// ============================================================================
+
+export interface SelectionVersionModuleSlice {
+  selectionVersion: number;  // Incremented whenever selected elements change dimensions
+  bumpSelectionVersion(): void;
+}
+
+// ============================================================================
 // COMBINED INTERACTION MODULE SLICE
 // ============================================================================
 
-export interface InteractionModuleSlice extends UIModuleSlice, GuidesModuleSlice, AnimationModuleSlice {}
+export interface InteractionModuleSlice extends UIModuleSlice, GuidesModuleSlice, AnimationModuleSlice, SelectionVersionModuleSlice {}
 
 // ============================================================================
 // INTERACTION MODULE CREATOR
@@ -351,6 +360,17 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
     set((state: any) => {
       const s = state.animation ?? state;
       delete s.easingPresets[name];
+    }),
+
+  // ========================================================================
+  // SELECTION VERSION MODULE IMPLEMENTATION
+  // ========================================================================
+  selectionVersion: 0,
+
+  bumpSelectionVersion: () =>
+    set((state: any) => {
+      state.selectionVersion = (state.selectionVersion || 0) + 1;
+      console.log('[InteractionModule] Selection version bumped to:', state.selectionVersion);
     }),
 });
 

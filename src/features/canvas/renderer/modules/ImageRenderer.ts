@@ -45,26 +45,37 @@ export class ImageRenderer {
         id: el.id,
         name: 'image',
         listening: true, // element-level interactions
-        draggable: true,  // enable element-level drag
+        draggable: false,  // FIXED: Dragging handled by selection/transformer, not element directly
         x: el.x,
         y: el.y,
       });
-      // Commit x/y on dragend
-      g.on('dragend', (e) => {
-        const grp = e.target as Konva.Group;
-        const nx = grp.x();
-        const ny = grp.y();
-        // store facade via global bridge
-        (window as any).__canvasStore?.element?.updateElement?.(el.id, { x: nx, y: ny }, { pushHistory: true });
+
+      // CRITICAL FIX: Set both elementId attribute AND className for SelectionModule integration
+      g.setAttr('elementId', el.id);
+      g.className = 'image-group'; // Ensure className is set for proper recognition
+
+      // CRITICAL: Also set the bitmap to have the elementId for click detection
+      // FIXED: Removed cancelBubble to allow proper event propagation for selection in FigJamCanvas
+      g.on('click', () => {
+        console.log('[ImageRenderer] Group clicked, elementId:', el.id, 'listening:', g.listening(), 'visible:', g.visible());
+        // Allow event to bubble up to stage click handler for selection
       });
+
+      // FIXED: Removed dragend handler - dragging is now handled by transformer/selection system
+
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
     }
 
     // Update group transform properties
+    console.log(`[ImageRenderer] Updating image ${el.id} position to (${el.x}, ${el.y})`);
     g.position({ x: el.x, y: el.y });
     g.rotation(el.rotation ?? 0);
     g.opacity(el.opacity ?? 1);
+
+    // CRITICAL FIX: Ensure elementId attribute is maintained during updates
+    g.setAttr('elementId', el.id);
+    g.className = 'image-group';
 
     let bitmap = this.imageNodeById.get(el.id);
     if (!bitmap || !bitmap.getLayer()) {
@@ -79,13 +90,32 @@ export class ImageRenderer {
         name: 'image-bitmap',
         image: undefined, // will be set by ensureBitmap
       });
+
+      // CRITICAL: Set elementId on bitmap too for click detection
+      bitmap.setAttr('elementId', el.id);
+      // FIXED: Removed cancelBubble to allow proper event propagation for selection in FigJamCanvas
+      bitmap.on('click', () => {
+        console.log('[ImageRenderer] Bitmap clicked, elementId:', el.id, 'listening:', bitmap.listening(), 'visible:', bitmap.visible());
+        // Allow event to bubble up to stage click handler for selection
+      });
       g.add(bitmap);
       this.imageNodeById.set(el.id, bitmap);
     }
 
     // Load bitmap asynchronously and update size
     await this.ensureBitmap(el, bitmap);
-    bitmap.size({ width: el.width, height: el.height });
+
+    // CRITICAL FIX: Ensure image dimensions are always positive
+    // This prevents images from disappearing when dimensions become 0 or negative
+    const MIN_SIZE = 1; // Minimum 1px to keep image visible
+    const safeWidth = Math.max(MIN_SIZE, el.width);
+    const safeHeight = Math.max(MIN_SIZE, el.height);
+
+    bitmap.size({ width: safeWidth, height: safeHeight });
+
+    // DEBUG: Verify final position after update
+    const finalPos = g.position();
+    console.log(`[ImageRenderer] Final Konva position for ${el.id}: (${finalPos.x}, ${finalPos.y})`);
 
     this.layers.main.batchDraw();
   }

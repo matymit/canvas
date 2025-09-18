@@ -90,6 +90,7 @@ export class TransformerManager {
       anchorFill: this.opts.anchorFill,
       ignoreStroke: this.opts.ignoreStroke,
       listening: true,
+      draggable: false, // CRITICAL FIX: Transformer should not be draggable itself - transforms should happen through anchors
       // FIXED: Set default aspect ratio behavior
       keepRatio: this.opts.lockAspectRatio || false,
     });
@@ -100,6 +101,10 @@ export class TransformerManager {
     // Wire events to callbacks and snapping behavior
     this.transformer!.on("transformstart", () => {
       const nodes = this.transformer!.nodes();
+      console.log("[TransformerManager] *** TRANSFORM START EVENT FIRED ***", nodes.length, "nodes");
+      nodes.forEach((node, i) => {
+        console.log(`[TransformerManager] Transform start node ${i}: ${node.id() || node.getAttr('elementId')}, draggable: ${node.draggable()}`);
+      });
 
       this.opts.onTransformStart?.(nodes);
     });
@@ -109,15 +114,53 @@ export class TransformerManager {
       const tr = this.transformer!;
       if (!tr) return;
       const nodes = tr.nodes();
+
+      // CRITICAL FIX: Prevent transformer from allowing zero or negative dimensions
+      // This helps prevent images from disappearing during resize
+      nodes.forEach(node => {
+        const scale = node.scale();
+        if (scale) {
+          // Ensure scale never goes to exactly 0 (which would make element invisible)
+          // Allow negative for flipping but with a minimum absolute value
+          const MIN_SCALE = 0.01;
+          if (Math.abs(scale.x) < MIN_SCALE) {
+            node.scaleX(scale.x < 0 ? -MIN_SCALE : MIN_SCALE);
+          }
+          if (Math.abs(scale.y) < MIN_SCALE) {
+            node.scaleY(scale.y < 0 ? -MIN_SCALE : MIN_SCALE);
+          }
+        }
+      });
+
       this.opts.onTransform?.(nodes);
+      console.log("[TransformerManager] *** TRANSFORM EVENT FIRED ***, updating", nodes.length, "nodes");
       this.overlay.batchDraw();
     };
 
     this.transformer!.on("transform", onTransform);
 
+    // DEBUG: Add mouse event logging to see if transformer is receiving events
+    this.transformer!.on("mousedown", () => {
+      console.log("[TransformerManager] *** TRANSFORMER MOUSEDOWN ***");
+    });
+
+    this.transformer!.on("dragstart", () => {
+      console.log("[TransformerManager] *** TRANSFORMER DRAGSTART ***");
+    });
+
+    this.transformer!.on("dragmove", () => {
+      console.log("[TransformerManager] *** TRANSFORMER DRAGMOVE ***");
+    });
+
+    this.transformer!.on("dragend", () => {
+      console.log("[TransformerManager] *** TRANSFORMER DRAGEND ***");
+    });
+
     this.transformer!.on("transformend", () => {
       const tr = this.transformer!;
       if (!tr) return;
+
+      console.log("[TransformerManager] *** TRANSFORM END EVENT FIRED ***");
 
       // Rotation snapping on transform end (optional)
       if (this.opts.rotationSnapDeg && this.opts.rotateEnabled !== false) {
@@ -130,6 +173,7 @@ export class TransformerManager {
       }
 
       const nodes = tr.nodes();
+      console.log("[TransformerManager] Calling onTransformEnd for", nodes.length, "nodes");
 
       this.opts.onTransformEnd?.(nodes);
 
@@ -183,6 +227,19 @@ export class TransformerManager {
 
     // Attach directly without delay to prevent timing issues
     if (this.transformer && live.length > 0) {
+      // CRITICAL FIX: Enable dragging on attached nodes for transformer to work
+      // Store original draggable state and enable dragging
+      live.forEach(node => {
+        // Store original draggable state if not already stored
+        if (!node.hasOwnProperty('_originalDraggable')) {
+          node.setAttr('_originalDraggable', node.draggable());
+        }
+        // Enable dragging so transformer can move the node
+        console.log(`[TransformerManager] Setting node ${node.id() || node.getAttr('elementId')} draggable from ${node.draggable()} to true`);
+        node.draggable(true);
+        console.log(`[TransformerManager] Node ${node.id() || node.getAttr('elementId')} draggable is now: ${node.draggable()}`);
+      });
+
       this.transformer.nodes(live);
       this.transformer.visible(true);
       this.overlay.batchDraw();
@@ -212,6 +269,17 @@ export class TransformerManager {
 
   detach() {
     if (!this.transformer) return;
+
+    // FIXED: Restore original draggable state when detaching
+    const nodes = this.transformer.nodes();
+    nodes.forEach(node => {
+      const originalDraggable = node.getAttr('_originalDraggable');
+      if (originalDraggable !== undefined) {
+        node.draggable(originalDraggable);
+        // Clean up the temporary attribute
+        node.setAttr('_originalDraggable', undefined);
+      }
+    });
 
     this.transformer.nodes([]);
     this.transformer.visible(false);

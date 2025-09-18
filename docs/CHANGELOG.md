@@ -5,6 +5,27 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2025-01-18
+
+### 🎯 Table Transformer Auto-Resize Fix
+
+#### Critical Selection System Enhancement
+- **Fixed Table Transformer Resize**: Resolved issue where resize frame (transformer handles) didn't update when rows/columns were added or deleted
+- **Implemented Selection Version System**: Added `selectionVersion` state and `bumpSelectionVersion()` function in InteractionModule
+- **Enhanced SelectionModule**: Added subscription to selection version changes to automatically refresh transformer bounds
+- **Improved Table Operations**: All table structure changes now properly trigger transformer updates via version bumping
+
+#### Technical Implementation Details
+- **New State Management**: Added `selectionVersion` counter that increments when selected elements change dimensions
+- **Automatic Transformer Refresh**: SelectionModule now listens to version changes and recalculates transformer bounds
+- **Proper Timing**: Implemented delay mechanism to ensure table rendering completes before transformer refresh
+- **Comprehensive Coverage**: All table operations (add/delete rows/columns) now trigger version bump
+
+#### User Experience Improvements
+- **Seamless Resizing**: Transformer handles now automatically adjust to new table dimensions after structure changes
+- **Visual Consistency**: Resize frame always encompasses the complete table including new rows/columns
+- **Proper Selection State**: Table remains selected with updated bounds after add/delete operations
+
 ## [2.4.0] - 2025-01-18
 
 ### 🎯 Major Table Cell Editing Improvements

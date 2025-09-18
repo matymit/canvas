@@ -30,6 +30,7 @@ export class ImageRendererAdapter implements RendererModule {
       },
       // Callback: reconcile changes
       (images) => {
+        console.log("[ImageRendererAdapter] Store subscription triggered with", images.size, "images");
         this.reconcile(images);
       },
     );
@@ -65,7 +66,14 @@ export class ImageRendererAdapter implements RendererModule {
     // Only log when there are actual images to reconcile (reduce console spam)
     if (images.size > 0) {
       console.log("[ImageRendererAdapter] Reconciling", images.size, "images");
+      // Log position details for debugging position updates
+      for (const [id, image] of images) {
+        console.log(`[ImageRendererAdapter] Image ${id} at position (${image.x}, ${image.y})`);
+      }
     }
+
+    // DEBUG: Track timing of reconcile calls
+    const reconcileStart = performance.now();
 
     if (!this.renderer) return;
 
@@ -74,8 +82,11 @@ export class ImageRendererAdapter implements RendererModule {
     // Render/update images (async due to image loading)
     for (const [id, image] of images) {
       seen.add(id);
+      console.log(`[ImageRendererAdapter] Calling renderer.render() for image ${id} at (${image.x}, ${image.y})`);
       // Fire and forget async rendering
-      this.renderer.render(image).catch((err) => {
+      this.renderer.render(image).then(() => {
+        console.log(`[ImageRendererAdapter] Successfully rendered image ${id}`);
+      }).catch((err) => {
         console.error(
           "[ImageRendererAdapter] Failed to render image:",
           id,
@@ -83,6 +94,10 @@ export class ImageRendererAdapter implements RendererModule {
         );
       });
     }
+
+    // DEBUG: Log timing
+    const reconcileEnd = performance.now();
+    console.log(`[ImageRendererAdapter] Reconcile took ${reconcileEnd - reconcileStart}ms`);
 
     // Remove deleted images manually
     const layer = (this.renderer as any)?.layers?.main;

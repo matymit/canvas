@@ -6,6 +6,7 @@ export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
   private storeCtx?: ModuleRendererCtx;
   private unsubscribe?: () => void;
+  private unsubscribeVersion?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
     console.log("[SelectionModule] Mounting...");
@@ -55,7 +56,15 @@ export class SelectionModule implements RendererModule {
         this.updateElementsFromNodes(nodes, false);
       },
       onTransformEnd: (nodes) => {
-        console.log("[SelectionModule] Transform end, committing changes");
+        console.log("[SelectionModule] Transform end, committing changes for", nodes.length, "nodes");
+
+        // DEBUG: Log node positions before update
+        nodes.forEach((node, i) => {
+          const pos = node.position();
+          const elementId = node.getAttr("elementId") || node.id();
+          console.log(`[SelectionModule] Node ${i} (${elementId}) final position: (${pos.x}, ${pos.y})`);
+        });
+
         this.updateElementsFromNodes(nodes, true); // Commit with history
 
         // End transform in store if available
@@ -92,6 +101,27 @@ export class SelectionModule implements RendererModule {
       { fireImmediately: true },
     );
 
+    // Subscribe to selection version changes to refresh transformer when selected elements change dimensions
+    this.unsubscribeVersion = ctx.store.subscribe(
+      // Selector: get selection version
+      (state) => state.selectionVersion || 0,
+      // Callback: refresh transformer for current selection
+      (version) => {
+        console.log("[SelectionModule] Selection version changed to:", version, "- refreshing transformer");
+        if (this.transformerManager && this.storeCtx) {
+          // Get current selection and refresh transformer
+          const currentState = this.storeCtx.store.getState();
+          const selectedIds = currentState.selectedElementIds || new Set<string>();
+          if (selectedIds.size > 0) {
+            // Force refresh the transformer with current selection
+            this.refreshTransformerForSelection(selectedIds);
+          }
+        }
+      },
+      // Don't fire immediately - only when version actually changes
+      { fireImmediately: false },
+    );
+
     return () => this.unmount();
   }
 
@@ -100,6 +130,10 @@ export class SelectionModule implements RendererModule {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = undefined;
+    }
+    if (this.unsubscribeVersion) {
+      this.unsubscribeVersion();
+      this.unsubscribeVersion = undefined;
     }
     if (this.transformerManager) {
       this.transformerManager.destroy();
@@ -218,7 +252,14 @@ export class SelectionModule implements RendererModule {
 
         if (candidates.length > 0) {
           // Prefer groups over individual shapes for better transform experience
-          const group = candidates.find((n) => n.className === "Group");
+          // Check for various group types: Group, table-group, image-group, etc.
+          const group = candidates.find((n) =>
+            n.className === "Group" ||
+            n.className === "table-group" ||
+            n.className === "image-group" ||
+            n.name() === "table-group" ||
+            n.name() === "image"
+          );
           const selectedNode = group || candidates[0];
 
           // FIXED: Ensure only one node per element ID to prevent duplicate frames
@@ -260,8 +301,9 @@ export class SelectionModule implements RendererModule {
   ) {
     if (!this.storeCtx) return;
 
-    const updateElement = this.storeCtx.store.getState().element?.update;
-    const withUndo = this.storeCtx.store.getState().withUndo;
+    const store = this.storeCtx.store.getState();
+    const updateElement = store.element?.update;
+    const withUndo = store.withUndo;
 
     if (!updateElement) {
       console.error("[SelectionModule] No element update method available");
@@ -281,25 +323,35 @@ export class SelectionModule implements RendererModule {
 
       // Check if this is a table element for special cell dimension scaling
       const isTable = node.className === 'table-group';
+
+      // CRITICAL FIX: Ensure dimensions never become 0 or negative
+      // Use absolute values of scale to handle negative scaling (flipping)
+      // and enforce minimum dimensions to prevent disappearing elements
+      const MIN_WIDTH = 10;  // Minimum width in pixels
+      const MIN_HEIGHT = 10; // Minimum height in pixels
+
+      const scaledWidth = size.width * Math.abs(scale?.x || 1);
+      const scaledHeight = size.height * Math.abs(scale?.y || 1);
+
       let changes: any = {
         x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
         y: Math.round(pos.y * 100) / 100,
-        // Apply scale to width/height if scaled
-        width: Math.round(size.width * (scale?.x || 1) * 100) / 100,
-        height: Math.round(size.height * (scale?.y || 1) * 100) / 100,
+        // Apply scale to width/height with minimum bounds
+        width: Math.max(MIN_WIDTH, Math.round(scaledWidth * 100) / 100),
+        height: Math.max(MIN_HEIGHT, Math.round(scaledHeight * 100) / 100),
         rotation: Math.round(rotation * 100) / 100,
       };
 
       // Special handling for table elements - scale cell dimensions proportionally
       if (isTable && scale && (scale.x !== 1 || scale.y !== 1)) {
-        const store = this.storeCtx?.store.getState();
         const element = store?.elements?.get?.(elementId);
         if (element && element.colWidths && element.rowHeights) {
+          // Use absolute values of scale to handle negative scaling properly
           changes.colWidths = element.colWidths.map((w: number) =>
-            Math.max(20, Math.round(w * scale.x * 100) / 100)
+            Math.max(20, Math.round(w * Math.abs(scale.x) * 100) / 100)
           );
           changes.rowHeights = element.rowHeights.map((h: number) =>
-            Math.max(16, Math.round(h * scale.y * 100) / 100)
+            Math.max(16, Math.round(h * Math.abs(scale.y) * 100) / 100)
           );
         }
       }
@@ -319,11 +371,58 @@ export class SelectionModule implements RendererModule {
       }
     }
 
-    // Apply all updates
-    const applyUpdates = () => {
+    // CRITICAL FIX: Apply updates correctly for history tracking
+    if (commitWithHistory && withUndo && updates.length > 0) {
+      const actionName =
+        updates.length === 1
+          ? "Transform element"
+          : `Transform ${updates.length} elements`;
+
+      console.log(`[SelectionModule] Committing ${updates.length} updates with history:`, updates.map(u => ({ id: u.id, x: u.changes.x, y: u.changes.y })));
+
+      // Use withUndo to wrap all updates in a single history entry
+      withUndo(actionName, () => {
+        for (const { id, changes } of updates) {
+          try {
+            // DEBUG: Log store state before update
+            const storeState = this.storeCtx!.store.getState();
+            const elementBefore = storeState.elements?.get?.(id) || storeState.element?.getById?.(id);
+            console.log(`[SelectionModule] BEFORE UPDATE - Element ${id}:`, {
+              current: elementBefore ? { x: elementBefore.x, y: elementBefore.y } : 'not found',
+              newChanges: { x: changes.x, y: changes.y }
+            });
+
+            // Use the store's updateElement directly without pushHistory since we're already in withUndo
+            storeState.updateElement(id, changes, { pushHistory: false });
+
+            // DEBUG: Verify store state after update
+            const elementAfter = storeState.elements?.get?.(id) || storeState.element?.getById?.(id);
+            console.log(`[SelectionModule] AFTER UPDATE - Element ${id}:`, {
+              stored: elementAfter ? { x: elementAfter.x, y: elementAfter.y } : 'not found',
+              expected: { x: changes.x, y: changes.y },
+              match: elementAfter && Math.abs(elementAfter.x - changes.x) < 0.01 && Math.abs(elementAfter.y - changes.y) < 0.01
+            });
+
+          } catch (error) {
+            console.error(
+              "[SelectionModule] Failed to update element",
+              id,
+              ":",
+              error,
+            );
+          }
+        }
+      });
+    } else {
+      // For non-history updates (during transform), use updateElement directly
+      console.log(`[SelectionModule] Real-time updates (no history) for ${updates.length} elements`);
       for (const { id, changes } of updates) {
         try {
-          updateElement(id, changes);
+          const storeState = this.storeCtx!.store.getState();
+          storeState.updateElement(id, changes, { pushHistory: false });
+          if (commitWithHistory === false) {
+            console.log(`[SelectionModule] Real-time update for element ${id} to position (${changes.x}, ${changes.y})`);
+          }
         } catch (error) {
           console.error(
             "[SelectionModule] Failed to update element",
@@ -333,16 +432,6 @@ export class SelectionModule implements RendererModule {
           );
         }
       }
-    };
-
-    if (commitWithHistory && withUndo && updates.length > 0) {
-      const actionName =
-        updates.length === 1
-          ? "Transform element"
-          : `Transform ${updates.length} elements`;
-      withUndo(actionName, applyUpdates);
-    } else {
-      applyUpdates();
     }
   }
 
@@ -466,5 +555,50 @@ export class SelectionModule implements RendererModule {
         selectedElementIds: store.selectedElementIds,
       });
     }
+  }
+
+  // Private method to refresh transformer for current selection (used when selection version changes)
+  private refreshTransformerForSelection(selectedIds: Set<string>) {
+    console.log(
+      "[SelectionModule] Refreshing transformer for selection:",
+      selectedIds.size,
+      "elements",
+      Array.from(selectedIds),
+    );
+
+    if (!this.transformerManager || !this.storeCtx) return;
+
+    if (selectedIds.size === 0) {
+      this.transformerManager.detach();
+      return;
+    }
+
+    // Small delay to ensure elements are fully re-rendered after dimension changes
+    setTimeout(() => {
+      // Find Konva nodes for selected elements across all layers
+      const nodes = this.resolveElementsToNodes(selectedIds);
+
+      if (nodes.length > 0) {
+        console.log(
+          "[SelectionModule] Refreshing transformer with",
+          nodes.length,
+          "nodes after version bump",
+        );
+
+        // Force detach and reattach to recalculate bounds
+        this.transformerManager?.detach();
+        setTimeout(() => {
+          this.transformerManager?.attachToNodes(nodes);
+          this.transformerManager?.show();
+          console.log("[SelectionModule] Transformer refreshed and bounds recalculated");
+        }, 10);
+      } else {
+        console.warn(
+          "[SelectionModule] Could not find nodes for refresh:",
+          Array.from(selectedIds),
+        );
+        this.transformerManager?.detach();
+      }
+    }, 50); // Slightly longer delay to ensure table rendering is complete
   }
 }

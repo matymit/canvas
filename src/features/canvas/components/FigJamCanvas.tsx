@@ -5,9 +5,13 @@ import { setupRenderer } from "../renderer";
 import CanvasToolbar from "../toolbar/CanvasToolbar";
 import ZoomControls from "./ZoomControls";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
+import GridRenderer from "./GridRenderer";
 
 // Import cell editor for table functionality
 import "../utils/editors/openCellEditorWithTracking";
+
+// Import table context menu manager
+import { TableContextMenuManager } from "./table/TableContextMenuManager";
 
 // Tool imports - all major tools
 import StickyNoteTool from "./tools/creation/StickyNoteTool";
@@ -40,6 +44,7 @@ const FigJamCanvas: React.FC = () => {
   });
   const rendererDisposeRef = useRef<(() => void) | null>(null);
   const toolManagerRef = useRef<ToolManager | null>(null);
+  const gridRendererRef = useRef<GridRenderer | null>(null);
 
   // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
@@ -102,45 +107,19 @@ const FigJamCanvas: React.FC = () => {
     stage.add(previewLayer);
     stage.add(overlayLayer); // Always on top
 
-    // Setup grid on background layer
-    const gridSize = 20;
-    const dotRadius = 1;
-    const dotColor = "#c0c0c0";
-
-    const gridShape = new Konva.Shape({
-      listening: false,
-      sceneFunc: (context, shape) => {
-        const stage = shape.getStage();
-        if (!stage) return;
-
-        const width = stage.width();
-        const height = stage.height();
-        const scale = stage.scaleX();
-        const x = stage.x();
-        const y = stage.y();
-
-        const scaledGridSize = gridSize * scale;
-        if (scaledGridSize < 5) return; // Don't render if dots are too close
-
-        context.fillStyle = dotColor;
-
-        const startX = Math.floor(-x / scaledGridSize) * scaledGridSize;
-        const endX = startX + width + scaledGridSize;
-        const startY = Math.floor(-y / scaledGridSize) * scaledGridSize;
-        const endY = startY + height + scaledGridSize;
-
-        for (let i = startX; i < endX; i += scaledGridSize) {
-          for (let j = startY; j < endY; j += scaledGridSize) {
-            context.beginPath();
-            context.arc(i, j, dotRadius, 0, 2 * Math.PI);
-            context.fill();
-          }
-        }
-      },
+    // Setup FigJam-style grid on background layer
+    // Match the CSS styling: radial-gradient(circle at 1px 1px, #d0d0d0 1px, transparent 1px)
+    const gridRenderer = new GridRenderer(stage, backgroundLayer, {
+      spacing: 20,           // 20px spacing to match CSS background-size
+      dotRadius: 0.75,       // Slightly smaller than 1px for better visual match
+      color: '#d0d0d0',      // Exact color from CSS
+      opacity: 1,
+      cacheLayer: true,      // Cache for performance
+      recacheOnZoom: true,   // Recache on zoom for crisp dots
+      hugeRectSize: 100000   // Large coverage area
     });
 
-    backgroundLayer.add(gridShape);
-    backgroundLayer.batchDraw();
+    gridRendererRef.current = gridRenderer;
 
     // Setup renderer system - this is the KEY integration
     console.log("[FigJamCanvas] Setting up renderer modules - SINGLE setupRenderer() CALL");
@@ -181,7 +160,27 @@ const FigJamCanvas: React.FC = () => {
 
       // If clicking on an element, select it (renderer modules should set element IDs on nodes)
       const clickedNode = e.target;
-      const elementId = clickedNode.getAttr("elementId") || clickedNode.id();
+      let elementId = clickedNode.getAttr("elementId") || clickedNode.id();
+
+      console.log('[FigJamCanvas] Node clicked:', {
+        className: clickedNode.className,
+        name: clickedNode.name(),
+        elementId,
+        hasParent: !!clickedNode.parent
+      });
+
+      // If no elementId on the clicked node, check its parent (for clicking on child nodes like image bitmaps)
+      if (!elementId && clickedNode.parent) {
+        const parent = clickedNode.parent;
+        elementId = parent.getAttr("elementId") || parent.id();
+        console.log('[FigJamCanvas] Checking parent node:', {
+          parentClassName: parent.className,
+          parentName: parent.name(),
+          parentElementId: elementId
+        });
+      }
+
+      console.log('[FigJamCanvas] Final elementId:', elementId, 'exists in elements:', elements.has(elementId));
 
       if (elementId && elements.has(elementId)) {
         if (e.evt.ctrlKey || e.evt.metaKey) {
@@ -215,11 +214,38 @@ const FigJamCanvas: React.FC = () => {
       stage.scale({ x: viewport.scale, y: viewport.scale });
       stage.position({ x: viewport.x, y: viewport.y });
 
-      // Redraw grid
-      backgroundLayer.batchDraw();
+      // Redraw grid with proper GridRenderer
+      if (gridRendererRef.current) {
+        gridRendererRef.current.updateOptions({ dpr: window.devicePixelRatio });
+      }
     };
 
     stage.on("wheel", handleWheel);
+
+    // Add stage-level contextmenu debugging
+    const handleStageContextMenu = (e: Konva.KonvaEventObject<MouseEvent>) => {
+      console.log('[FigJamCanvas] STAGE-LEVEL contextmenu event detected:', {
+        target: e.target,
+        targetName: e.target?.name?.(),
+        targetClassName: e.target?.className,
+        targetId: e.target?.id?.(),
+        evt: e.evt,
+        cancelBubble: e.cancelBubble,
+        preventDefault: e.evt?.defaultPrevented
+      });
+
+      // Log the hierarchy of the clicked element
+      let current = e.target;
+      let depth = 0;
+      console.log('[FigJamCanvas] Target hierarchy:');
+      while (current && depth < 10) {
+        console.log(`  ${depth}: ${current.name?.()} (${current.className}) id: ${current.id?.()}`);
+        current = current.getParent() as any;
+        depth++;
+      }
+    };
+
+    stage.on("contextmenu", handleStageContextMenu);
 
     // Pan handling when pan tool is active
     let isPanning = false;
@@ -234,7 +260,7 @@ const FigJamCanvas: React.FC = () => {
       if (isPanning) {
         const pos = stage.position();
         viewport.setPan(pos.x, pos.y);
-        backgroundLayer.batchDraw();
+        // Grid updates automatically via GridRenderer zoom listeners
       }
     };
 
@@ -253,7 +279,7 @@ const FigJamCanvas: React.FC = () => {
     const handleResize = () => {
       stage.width(window.innerWidth);
       stage.height(window.innerHeight);
-      backgroundLayer.batchDraw();
+      // Grid updates automatically via GridRenderer
     };
 
     window.addEventListener("resize", handleResize);
@@ -262,6 +288,15 @@ const FigJamCanvas: React.FC = () => {
     return () => {
       console.log("[FigJamCanvas] Cleaning up stage and renderer");
       window.removeEventListener("resize", handleResize);
+
+      // Clean up stage event handlers
+      stage.off("contextmenu", handleStageContextMenu);
+
+      // Destroy grid renderer
+      if (gridRendererRef.current) {
+        gridRendererRef.current.destroy();
+        gridRendererRef.current = null;
+      }
 
       // Destroy tool manager
       if (toolManagerRef.current) {
@@ -289,8 +324,7 @@ const FigJamCanvas: React.FC = () => {
     stage.scale({ x: viewport.scale, y: viewport.scale });
     stage.position({ x: viewport.x, y: viewport.y });
 
-    // Redraw background for grid updates
-    layersRef.current.background?.batchDraw();
+    // Grid updates automatically via GridRenderer zoom listeners
   }, [viewport.scale, viewport.x, viewport.y]);
 
   // Update cursor and activate tools based on selected tool
@@ -547,6 +581,9 @@ const FigJamCanvas: React.FC = () => {
 
       {/* Render active tool components - these handle stage interactions */}
       {renderActiveTool()}
+
+      {/* Table context menu system */}
+      <TableContextMenuManager stageRef={stageRef} />
     </div>
   );
 };
