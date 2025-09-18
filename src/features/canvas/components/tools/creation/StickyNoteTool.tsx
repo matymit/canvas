@@ -69,9 +69,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         style: {
           fill: actualFill,
           fontSize,
-          fontFamily: "Inter, sans-serif",
-          textColor: "#333333",
-          padding: 12,
+          fontFamily: "Inter, sans-serif"
         },
       };
 

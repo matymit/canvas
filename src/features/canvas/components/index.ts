@@ -1,8 +1,8 @@
 // Barrel export for canvas components
-export { default as CanvasContainer } from './CanvasContainer';
+// Note: CanvasContainer archived - using FigJamCanvas instead
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as CanvasToolbar } from '../toolbar/CanvasToolbar';
-export { default as NonReactCanvasStage } from './NonReactCanvasStage';
+// Note: NonReactCanvasStage archived - using direct Konva integration
 export { default as PerformanceDashboard } from './PerformanceDashboard';
 export { default as PerformanceOverlayHUD } from './PerformanceOverlayHUD';
 

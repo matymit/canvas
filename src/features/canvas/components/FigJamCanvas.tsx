@@ -56,6 +56,7 @@ const FigJamCanvas: React.FC = () => {
   const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
   const undo = useUnifiedCanvasStore((state) => state.undo);
   const redo = useUnifiedCanvasStore((state) => state.redo);
+  const setSelectedTool = useUnifiedCanvasStore((state) => state.setSelectedTool);
 
   // Initialize stage and renderer system
   useEffect(() => {
@@ -503,7 +504,12 @@ const FigJamCanvas: React.FC = () => {
   return (
     <div className="canvas-wrapper">
       <div className="toolbar-container">
-        <CanvasToolbar />
+        <CanvasToolbar
+          selectedTool={selectedTool}
+          onSelectTool={setSelectedTool}
+          onUndo={undo}
+          onRedo={redo}
+        />
       </div>
       <div ref={containerRef} className="konva-stage-container" />
       <ZoomControls />

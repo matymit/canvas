@@ -13,7 +13,7 @@ export interface TextToolProps {
   toolId?: string; // default: 'text'
 }
 
-function createTextarea(screenX: number, screenY: number, fontSize: number, color: string, fontFamily: string): HTMLTextAreaElement {
+function createTextarea(screenX: number, screenY: number, fontSize: number, fontFamily: string): HTMLTextAreaElement {
   const ta = document.createElement('textarea');
   ta.setAttribute('data-testid', 'text-portal-input');
   ta.style.position = 'absolute';
@@ -113,7 +113,7 @@ export class TextCanvasTool implements CanvasTool {
       const screenX = containerRect.left + pointerPos.x;
       const screenY = containerRect.top + pointerPos.y;
 
-      const ta = createTextarea(screenX, screenY, fontSize, fillColor, fontFamily);
+      const ta = createTextarea(screenX, screenY, fontSize, fontFamily);
       document.body.appendChild(ta);
       this.activeEditor = ta;
 
@@ -158,10 +158,7 @@ export class TextCanvasTool implements CanvasTool {
             style: {
               fill: fillColor,
               fontFamily,
-              fontSize,
-              fontStyle: 'normal',
-              fontWeight: 'normal',
-              textDecoration: ''
+              fontSize
             }
           };
 
