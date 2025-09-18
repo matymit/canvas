@@ -104,7 +104,7 @@ export class TextCanvasTool implements CanvasTool {
 
       // Get current UI state from store
       const currentStore = useUnifiedCanvasStore.getState();
-      const fillColor = currentStore.fillColor ?? '#111827';
+      const fillColor = currentStore.fillColor ?? '#000000'; // Use black for maximum visibility
       const fontSize = 18;
       const fontFamily = 'Inter, system-ui, sans-serif';
 
@@ -164,16 +164,32 @@ export class TextCanvasTool implements CanvasTool {
 
           console.log('[TextCanvasTool] Creating text element:', textElement);
 
-          console.log('[TextCanvasTool] Creating text element:', textElement);
-
           // Use withUndo for proper history tracking and the new Phase 2 pattern
-          if (currentStore.withUndo) {
-            currentStore.withUndo('Add text', () => {
-              currentStore.addElement(textElement, { select: true, pushHistory: false }); // withUndo handles history
-            });
-          } else {
-            // Fallback if withUndo not available
-            currentStore.addElement(textElement, { select: true });
+          try {
+            if (currentStore.withUndo) {
+              currentStore.withUndo('Add text', () => {
+                currentStore.addElement(textElement, { select: true, pushHistory: false }); // withUndo handles history
+              });
+              console.log('[TextCanvasTool] Text element added via withUndo');
+            } else {
+              // Fallback if withUndo not available
+              currentStore.addElement(textElement, { select: true });
+              console.log('[TextCanvasTool] Text element added via direct addElement');
+            }
+
+            // Double-check that element was added to store
+            setTimeout(() => {
+              const storeState = useUnifiedCanvasStore.getState();
+              const addedElement = storeState.elements.get(elementId);
+              if (addedElement) {
+                console.log('[TextCanvasTool] ✅ Text element confirmed in store:', addedElement);
+              } else {
+                console.error('[TextCanvasTool] ❌ Text element NOT found in store after addition!');
+              }
+            }, 100);
+
+          } catch (error) {
+            console.error('[TextCanvasTool] Error adding text element to store:', error);
           }
 
           console.log('[TextCanvasTool] Text element added to store');

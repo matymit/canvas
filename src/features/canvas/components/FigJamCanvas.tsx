@@ -363,14 +363,42 @@ const FigJamCanvas: React.FC = () => {
   useKeyboardShortcuts(
     {
       onDelete: () => {
+        console.log('[FigJamCanvas] Delete key pressed, selected elements:', selectedElementIds.size);
+
         // Only delete if there are selected elements
-        if (selectedElementIds.size === 0) return;
+        if (selectedElementIds.size === 0) {
+          console.log('[FigJamCanvas] No elements selected, nothing to delete');
+          return;
+        }
+
+        console.log('[FigJamCanvas] Attempting to delete selected elements:', Array.from(selectedElementIds));
 
         // Use withUndo for proper history integration
         if (withUndo && deleteSelected) {
           withUndo("Delete selected elements", () => {
             deleteSelected();
+            console.log('[FigJamCanvas] Elements deleted via deleteSelected()');
           });
+        } else {
+          // Fallback: direct element deletion
+          console.log('[FigJamCanvas] Using fallback deletion method');
+          const store = useUnifiedCanvasStore.getState();
+
+          // Try multiple deletion methods
+          if (store.removeElements) {
+            const selectedIds = Array.from(selectedElementIds);
+            store.removeElements(selectedIds);
+            store.clearSelection?.();
+            console.log('[FigJamCanvas] Elements deleted via removeElements()');
+          } else if (store.element?.delete) {
+            selectedElementIds.forEach(id => {
+              store.element.delete(id);
+            });
+            store.clearSelection?.();
+            console.log('[FigJamCanvas] Elements deleted via element.delete()');
+          } else {
+            console.error('[FigJamCanvas] No deletion method available!');
+          }
         }
       },
       onUndo: () => {
@@ -403,7 +431,7 @@ const FigJamCanvas: React.FC = () => {
         setSelectedTool(toolId);
       },
     },
-    containerRef.current,
+    window, // Use window for global keyboard shortcuts instead of container
   );
 
   // Render tools based on active tool - these handle stage interactions

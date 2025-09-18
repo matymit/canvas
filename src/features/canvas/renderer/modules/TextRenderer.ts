@@ -37,7 +37,7 @@ export class TextRenderer implements RendererModule {
     this.stage = ctx.stage;
     this.store = ctx.store;
 
-    // Subscribe to store changes - watch text elements
+    // Subscribe to store changes - watch text elements with shallow equality
     this.unsubscribe = ctx.store.subscribe(
       // Selector: extract text elements
       (state) => {
@@ -54,19 +54,25 @@ export class TextRenderer implements RendererModule {
       },
       // Callback: reconcile changes
       (texts) => this.reconcile(texts),
-      // Ensure immediate fire to get initial state
-      { fireImmediately: true }
-    );
-
-    // Initial render
-    const initialState = ctx.store.getState();
-    const initialTexts = new Map<Id, TextElement>();
-    for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === "text") {
-        initialTexts.set(id, element as TextElement);
+      // Options: ensure immediate fire but use simpler equality
+      {
+        fireImmediately: true,
+        // Custom equality to prevent unnecessary reconciliation
+        equalityFn: (a, b) => {
+          if (a.size !== b.size) return false;
+          for (const [id, element] of a) {
+            const other = b.get(id);
+            if (!other ||
+                other.text !== element.text ||
+                other.x !== element.x ||
+                other.y !== element.y) {
+              return false;
+            }
+          }
+          return true;
+        }
       }
-    }
-    this.reconcile(initialTexts);
+    );
 
     // Return cleanup function
     return () => this.unmount();
@@ -88,10 +94,10 @@ export class TextRenderer implements RendererModule {
 
   private reconcile(texts: Map<Id, TextElement>) {
     // Always log reconciliation attempts for debugging
-    console.log("[TextRenderer] Reconciling", texts.size, "text elements", Array.from(texts.keys()));
+    console.log("[TextRenderer] 🔄 Reconciling", texts.size, "text elements", Array.from(texts.keys()));
 
     if (!this.layer) {
-      console.error('[TextRenderer] No layer available for reconciliation');
+      console.error('[TextRenderer] ❌ No layer available for reconciliation');
       return;
     }
 
@@ -102,16 +108,33 @@ export class TextRenderer implements RendererModule {
       seen.add(id);
       let node = this.textNodes.get(id);
 
-      if (!node) {
+      if (!node || (node && (node as any).isDestroyed?.() === true)) {
+        // Remove destroyed node from tracking if it exists
+        if (node && (node as any).isDestroyed?.() === true) {
+          console.log('[TextRenderer] 🗑️ Removing destroyed node from tracking:', id);
+          this.textNodes.delete(id);
+        }
+
         // Create new text node
-        console.log('[TextRenderer] Creating new text node for:', { id, text: text.text, fill: text.style?.fill });
-        node = this.createTextNode(text);
-        this.textNodes.set(id, node);
-        this.layer.add(node);
-        console.log('[TextRenderer] Added text node to layer:', { id, nodeCount: this.textNodes.size });
+        console.log('[TextRenderer] ✨ Creating new text node for:', { id, text: text.text, fill: text.style?.fill });
+        try {
+          node = this.createTextNode(text);
+          this.textNodes.set(id, node);
+
+          // Check if node is already in layer to prevent duplicates
+          if (!node.getParent()) {
+            this.layer.add(node);
+            console.log('[TextRenderer] ✅ Added text node to layer:', { id, nodeCount: this.textNodes.size, layerChildren: this.layer.children.length });
+          } else {
+            console.warn('[TextRenderer] ⚠️ Node already has parent, not adding to layer:', id);
+          }
+        } catch (error) {
+          console.error('[TextRenderer] ❌ Error creating text node:', error);
+          continue;
+        }
       } else {
         // Update existing text node
-        console.log('[TextRenderer] Updating existing text node:', { id, text: text.text });
+        console.log('[TextRenderer] 🔄 Updating existing text node:', { id, text: text.text });
         this.updateTextNode(node, text);
       }
     }
@@ -119,14 +142,24 @@ export class TextRenderer implements RendererModule {
     // Remove deleted text elements
     for (const [id, node] of this.textNodes) {
       if (!seen.has(id)) {
-        console.log("[TextRenderer] Removing text:", id);
-        node.destroy();
+        console.log("[TextRenderer] 🗑️ Removing deleted text:", id);
+        try {
+          node.destroy();
+        } catch (error) {
+          console.warn('[TextRenderer] ⚠️ Error destroying node:', error);
+        }
         this.textNodes.delete(id);
       }
     }
 
-    console.log('[TextRenderer] Calling batchDraw on layer with', this.textNodes.size, 'text nodes');
-    this.layer.batchDraw();
+    console.log('[TextRenderer] 🎨 Calling batchDraw on layer with', this.textNodes.size, 'text nodes, layer children:', this.layer.children.length);
+
+    try {
+      this.layer.batchDraw();
+      console.log('[TextRenderer] ✅ BatchDraw completed successfully');
+    } catch (error) {
+      console.error('[TextRenderer] ❌ Error during batchDraw:', error);
+    }
   }
 
   private createTextNode(text: TextElement): Konva.Text {
@@ -142,7 +175,7 @@ export class TextRenderer implements RendererModule {
       fontSize: text.style?.fontSize || 18,
       fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
       fontStyle: text.style?.fontWeight || 'normal',
-      fill: text.style?.fill || '#111827',
+      fill: '#000000', // Force black text for maximum visibility
       align: text.style?.align || 'left',
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
@@ -154,8 +187,9 @@ export class TextRenderer implements RendererModule {
       shadowForStrokeEnabled: false,
     });
 
-    // Set element ID for selection system
+    // Set element ID for selection system - use both methods for compatibility
     node.setAttr('elementId', text.id);
+    node.setAttr('nodeType', 'text'); // Additional attribute to help with identification
 
     // Add event handlers
     this.addEventHandlers(node, text);
@@ -185,33 +219,51 @@ export class TextRenderer implements RendererModule {
   }
 
   private updateTextNode(node: Konva.Text, text: TextElement) {
-    node.setAttrs({
-      x: text.x,
-      y: text.y,
-      width: text.width,
-      text: text.text,
-      fontSize: text.style?.fontSize || 18,
-      fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
-      fontStyle: text.style?.fontWeight || 'normal',
-      fill: text.style?.fill || '#111827',
-      align: text.style?.align || 'left',
-      rotation: text.rotation || 0,
-      opacity: text.opacity || 1,
-      // Performance optimizations
-      perfectDrawEnabled: false,
-      shadowForStrokeEnabled: false,
-    });
+    // Safety check: ensure node exists and hasn't been destroyed
+    if (!node || (node && (node as any).isDestroyed?.() === true)) {
+      console.warn('[TextRenderer] Attempted to update destroyed or null text node:', text.id);
+      return;
+    }
 
-    // Set element ID for selection system
-    node.setAttr('elementId', text.id);
+    try {
+      node.setAttrs({
+        x: text.x,
+        y: text.y,
+        width: text.width,
+        text: text.text,
+        fontSize: text.style?.fontSize || 18,
+        fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
+        fontStyle: text.style?.fontWeight || 'normal',
+        fill: '#000000', // Force black text for maximum visibility
+        align: text.style?.align || 'left',
+        rotation: text.rotation || 0,
+        opacity: text.opacity || 1,
+        // Performance optimizations
+        perfectDrawEnabled: false,
+        shadowForStrokeEnabled: false,
+      });
 
-    // Fixed-height content-hugging: adjust height based on text content
-    if (!text.height) {
-      // Auto-size height to content
-      const textHeight = node.height();
-      node.height(textHeight);
-    } else {
-      node.height(text.height);
+      // Set element ID for selection system - use both methods for compatibility
+      node.setAttr('elementId', text.id);
+      node.setAttr('nodeType', 'text');
+
+      // Fixed-height content-hugging: adjust height based on text content
+      if (!text.height) {
+        // Auto-size height to content
+        const textHeight = node.height();
+        node.height(textHeight);
+      } else {
+        node.height(text.height);
+      }
+    } catch (error) {
+      console.error('[TextRenderer] Error updating text node:', error, { textId: text.id });
+      // Remove the corrupted node from our tracking
+      this.textNodes.delete(text.id);
+      try {
+        node.destroy();
+      } catch (destroyError) {
+        console.warn('[TextRenderer] Error destroying corrupted node:', destroyError);
+      }
     }
   }
 
@@ -250,11 +302,21 @@ export class TextRenderer implements RendererModule {
     });
 
     // Handle dragging to update position
+    node.on('dragstart', (e) => {
+      console.log('[TextRenderer] Text drag started:', text.id);
+      // Set dragStatus for compatibility with transformer
+      const textNode = e.target as Konva.Text;
+      (textNode as any).dragStatus = 'started';
+    });
+
     node.on('dragend', (e) => {
       const textNode = e.target as Konva.Text;
       const nx = textNode.x();
       const ny = textNode.y();
       console.log('[TextRenderer] Updating text position:', { id: text.id, x: nx, y: ny });
+
+      // Clear dragStatus
+      (textNode as any).dragStatus = undefined;
 
       this.updateTextInStore(text.id, { x: nx, y: ny });
     });
