@@ -467,56 +467,7 @@ export class TableRenderer {
     // Transform handling is now managed by SelectionModule for consistent behavior
     // No need for custom transform handlers - SelectionModule handles position/size updates
 
-    // Double-click handler for cell editing - use global openCellEditor
-    group.on("dblclick", (e) => {
-      e.cancelBubble = true;
-
-      if (!this.storeCtx) return;
-      const store = this.storeCtx.store.getState();
-      const element = store.elements?.get?.(elementId);
-      if (!element) return;
-
-      // Get click position relative to the table group
-      const stage = group.getStage();
-      if (!stage) return;
-
-      const pos = stage.getPointerPosition();
-      if (!pos) return;
-
-      const groupPos = group.getAbsolutePosition();
-      const relativeX = pos.x - groupPos.x;
-      const relativeY = pos.y - groupPos.y;
-
-      // Find which cell was clicked based on colWidths and rowHeights
-      const { colWidths, rowHeights } = element;
-      let cellCol = 0;
-      let cellRow = 0;
-      let cellX = 0;
-      let cellY = 0;
-
-      // Find column
-      for (let c = 0; c < colWidths.length; c++) {
-        if (relativeX >= cellX && relativeX < cellX + colWidths[c]) {
-          cellCol = c;
-          break;
-        }
-        cellX += colWidths[c];
-      }
-
-      // Find row
-      for (let r = 0; r < rowHeights.length; r++) {
-        if (relativeY >= cellY && relativeY < cellY + rowHeights[r]) {
-          cellRow = r;
-          break;
-        }
-        cellY += rowHeights[r];
-      }
-
-      console.log(`[TableModule] Table double-clicked at cell [${cellRow}, ${cellCol}]`);
-
-      // Use the tracked version for live resize support
-      (window as any).openCellEditorWithTracking?.(stage, elementId, element, cellRow, cellCol);
-    });
+    // Double-click handler removed - cell editing is handled by precise cell click areas only
   }
 
 

@@ -195,3 +195,4 @@ The application enforces strict performance budgets:
 8. **Disable listening** on static layers
 - ALWAYS, ALWAYS USE THE SEQUENTIAL THINKING SERVER FOR ANY RESPONSE, THOUGHT, ACTION, OR PLANNING. ALWAYS! USE IT TO BREAK THE AFOREMENTIONED INTO MULTI-STEP SEQUENCES.
 - claude code and all coding agents, e.g. canvas engineer, should always use sequential thinking MCP server to order and structure thoughts and plan actions. Break thoughts into MULTIPLE steps. NEVER JUST ONE THOUGHT!
+- delegate all tasks to the canvas engineer
