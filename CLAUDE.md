@@ -127,9 +127,16 @@ const stage = new Konva.Stage({ container: 'canvas' });
 ### Store Operations with History
 ```typescript
 // Always use withUndo for user actions
-canvasStore.getState().history.withUndo('Add shape', () => {
-  canvasStore.getState().element.upsert(newElement);
+const store = useUnifiedCanvasStore.getState();
+store.history.withUndo('Add shape', () => {
+  store.element.upsert(newElement);
 });
+
+// Access element by ID
+const element = store.element.getById(elementId);
+
+// Update element properties
+store.element.update(elementId, { cells: updatedCells });
 ```
 
 ### Performance-Critical Updates

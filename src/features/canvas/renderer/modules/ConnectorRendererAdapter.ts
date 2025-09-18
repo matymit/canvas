@@ -2,7 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { ConnectorRenderer } from "./ConnectorRenderer";
-import type { ConnectorElement } from "../../types/elements/connector";
+import type { ConnectorElement } from "../../types/connector";
 
 type Id = string;
 

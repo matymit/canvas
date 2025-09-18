@@ -5,7 +5,7 @@ import { MindmapRenderer } from "./MindmapRenderer";
 import type {
   MindmapNodeElement,
   MindmapEdgeElement,
-} from "../../types/elements/mindmap";
+} from "../../types/mindmap";
 
 type Id = string;
 

@@ -1,8 +1,8 @@
 // Table transform helper for proportional resize handling
 // Used by TransformerManager when table elements are resized
 
-import type { TableElement } from "../../types/elements/table";
-import { DEFAULT_TABLE_CONFIG } from "../../types/elements/table";
+import type { TableElement } from "../../types/table";
+import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 
 /**
  * Apply proportional resize to a table element

@@ -1,6 +1,6 @@
 // Live rerouting integration for connector drag/transform events
 import Konva from 'konva';
-import type ConnectorElement from '../../types/elements/connector';
+import type ConnectorElement from '../../types/connector';
 import { ConnectorRenderer } from './ConnectorRenderer';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
 

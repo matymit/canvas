@@ -1,4 +1,4 @@
-import type { CanvasElement } from '../../../../types/canvas';
+import type { CanvasElement } from '../../../../types';
 
 export interface TextElement extends CanvasElement {
   type: 'text';

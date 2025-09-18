@@ -4,13 +4,14 @@
 import React, { useEffect, useRef } from "react";
 import Konva from "konva";
 import { nanoid } from "nanoid";
-import type { TableElement } from "../../../types/elements/table";
+import type { TableElement } from "../../../types/table";
 import {
   createEmptyTable,
   DEFAULT_TABLE_STYLE,
   DEFAULT_TABLE_CONFIG,
-} from "../../../types/elements/table";
+} from "../../../types/table";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import { openCellEditorWithTracking } from "../../../utils/editors/openCellEditorWithTracking";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -263,7 +264,13 @@ function openFirstCellEditor(
   tableId: string,
   tableElement: TableElement
 ) {
-  (window as any).openCellEditorWithTracking?.(stage, tableId, tableElement, 0, 0);
+  openCellEditorWithTracking({
+    stage,
+    elementId: tableId,
+    element: tableElement,
+    row: 0,
+    col: 0
+  });
 }
 
 // Cell editing is now handled by the centralized openCellEditorWithTracking utility

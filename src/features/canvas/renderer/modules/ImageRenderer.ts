@@ -1,6 +1,6 @@
 // Image renderer module for main layer rendering with async bitmap loading
 import Konva from 'konva';
-import type ImageElement from '../../types/elements/image';
+import type ImageElement from '../../types/image';
 
 export interface RendererLayers {
   background: Konva.Layer;

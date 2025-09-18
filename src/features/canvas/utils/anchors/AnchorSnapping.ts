@@ -1,5 +1,5 @@
 import Konva from 'konva';
-import type { AnchorSide } from '../../types/elements/connector';
+import type { AnchorSide } from '../../types/connector';
 
 export interface AnchorPoint {
   x: number;

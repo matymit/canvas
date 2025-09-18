@@ -2,7 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { ImageRenderer } from "./ImageRenderer";
-import type ImageElement from "../../types/elements/image";
+import type ImageElement from "../../types/image";
 
 type Id = string;
 

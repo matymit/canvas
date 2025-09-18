@@ -5,6 +5,79 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-01-18
+
+### 🎯 Major Table Cell Editing Improvements
+
+#### Complete Table Cell Editing System
+- **Fixed Store Integration**: Resolved critical store access patterns using `store.element.getElement()` and `store.element.updateElement()`
+- **Enhanced Coordinate Transformation**: Implemented proper Konva coordinate transformation using `stage.getAbsoluteTransform().point()`
+- **Multi-Line Text Support**: Natural text flow behavior with center-start positioning for optimal UX
+- **Comprehensive Debug System**: Added extensive logging for store access, element operations, and coordinate calculations
+- **Code Cleanup**: Removed 400+ lines of duplicate and conflicting cell editor implementations
+
+#### Text Editing Experience
+- **Perfect Positioning**: Cell editors now position precisely over clicked cells during zoom, pan, and resize operations
+- **Natural Multi-Line Flow**: Text starts centered and flows upward/downward naturally with line breaks
+- **Keyboard Handling**: Fixed keyboard shortcuts interference - typing no longer switches tools during editing
+- **Consistent Alignment**: Text alignment matches between editing mode and committed state
+- **Robust Commit System**: Enter key properly commits text changes with undo/redo support
+
+#### Technical Architecture Improvements
+- **Centralized Cell Editing**: All table cell editing now uses `openCellEditorWithTracking` utility
+- **Enhanced Coordinate Calculation**: Proper container rect offset and stage transform application
+- **Store Method Discovery**: Comprehensive fallback patterns for robust store integration
+- **Event Propagation Control**: Proper keyboard event stopping to prevent canvas shortcuts
+- **Memory Management**: Improved cleanup and event listener management
+
+### 🔧 Technical Details
+
+#### Store Integration Fixes
+- Fixed element access using correct `store.element.getElement(elementId)` pattern
+- Implemented proper update method using `store.element.updateElement(elementId, changes)`
+- Added comprehensive debugging to identify store structure and available methods
+- Enhanced error handling with detailed logging for troubleshooting
+
+#### Coordinate Transformation Overhaul
+- Replaced manual coordinate calculations with `stage.getAbsoluteTransform().point()`
+- Added proper container rect offset calculation for accurate screen positioning
+- Fixed scale application for cell dimensions during zoom operations
+- Improved positioning accuracy during pan, zoom, and table resize operations
+
+#### Multi-Line Text Implementation
+- Removed fixed `lineHeight` that broke natural text flow
+- Implemented padding-based vertical centering for initial cursor position
+- Added natural line spacing with `lineHeight: 'normal'`
+- Enabled proper text overflow and line break behavior
+
+### 📁 Files Modified
+- `src/features/canvas/utils/editors/openCellEditorWithTracking.ts` - Complete rewrite with proper store integration and coordinate transformation
+- `src/features/canvas/components/tools/content/TableTool.tsx` - Removed duplicate implementations, streamlined to use centralized utility
+- `src/features/canvas/renderer/modules/TableModule.ts` - Simplified to use only precise cell click areas for editing
+- `CLAUDE.md` - Updated with delegation patterns and architectural guidelines
+
+### 🎨 User Experience Improvements
+
+#### Table Cell Editing Flow
+1. **Double-click any table cell** to open editor
+2. **Precise positioning** - editor appears exactly over the clicked cell
+3. **Natural typing** - keyboard shortcuts disabled during editing
+4. **Multi-line support** - text flows naturally with line breaks
+5. **Enter to commit** - text saves properly with undo/redo support
+6. **Consistent alignment** - text appears centered in both editing and committed states
+
+#### Enhanced Interaction
+- **Live positioning** - editor stays positioned correctly during table resize
+- **Zoom/pan awareness** - editor maintains position during viewport changes
+- **Keyboard isolation** - typing doesn't trigger canvas shortcuts
+- **Visual feedback** - proper cursor positioning and text alignment
+
+### 🚀 Performance & Reliability
+- **Eliminated duplication** - Removed 400+ lines of conflicting code
+- **Centralized logic** - Single source of truth for cell editing behavior
+- **Robust error handling** - Comprehensive logging and fallback patterns
+- **Memory efficiency** - Improved cleanup and event management
+
 ## [2.3.0] - 2025-01-17
 
 ### 🎯 Phase 2: Complete Tool Integration

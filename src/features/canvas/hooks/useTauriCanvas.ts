@@ -8,7 +8,7 @@ import {
   configureStaticLayer,
   getFourLayersByIndex,
   rafBatchDraw,
-} from '../tauri/TauriCanvasOptimizations';
+} from '../services/TauriCanvasOptimizations';
 
 // Tauri v1 vs v2 compatibility for current window
 // - v1: import { appWindow } from '@tauri-apps/api/window'

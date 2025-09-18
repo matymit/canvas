@@ -74,7 +74,7 @@ describe.skip('Layer Contract (migrated to visual tests)', () => {
 
   beforeEach(async () => {
     const K = (await import('konva')).default;
-    const { CanvasLayerManager } = await import('../../layers/CanvasLayerManager');
+    const { CanvasLayerManager } = await import('../../plugins/CanvasLayerManager');
     stage = new (vi.mocked(K.Stage as any))();
     manager = new CanvasLayerManager(stage, {
       backgroundListening: false,

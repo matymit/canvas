@@ -1,5 +1,5 @@
 import Konva from "konva";
-import type { ConnectorElement } from "../../types/elements/connector";
+import type { ConnectorElement } from "../../types/connector";
 
 export interface RendererLayers {
   background: Konva.Layer;

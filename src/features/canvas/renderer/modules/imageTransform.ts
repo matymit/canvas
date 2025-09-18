@@ -1,5 +1,5 @@
 // Transform-end normalization helper for image elements
-import type ImageElement from '../../types/elements/image';
+import type ImageElement from '../../types/image';
 
 /**
  * Apply transform scale normalization to image element

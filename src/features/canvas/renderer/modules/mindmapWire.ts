@@ -3,8 +3,8 @@
 
 import Konva from "konva";
 import React from "react";
-import type { MindmapEdgeElement, MindmapNodeElement } from "../../types/elements/mindmap";
-import { getNodeConnectionPoint } from "../../types/elements/mindmap";
+import type { MindmapEdgeElement, MindmapNodeElement } from "../../types/mindmap";
+import { getNodeConnectionPoint } from "../../types/mindmap";
 import { MindmapRenderer } from "./MindmapRenderer";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 

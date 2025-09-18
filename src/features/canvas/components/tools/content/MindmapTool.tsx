@@ -6,14 +6,14 @@ import Konva from "konva";
 import { nanoid } from "nanoid";
 import type {
   MindmapNodeElement
-} from "../../../types/elements/mindmap";
+} from "../../../types/mindmap";
 import {
   createMindmapNode,
   createMindmapEdge,
   calculateChildPosition,
   MINDMAP_CONFIG,
   DEFAULT_NODE_STYLE
-} from "../../../types/elements/mindmap";
+} from "../../../types/mindmap";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 
 type StageRef = React.RefObject<Konva.Stage | null>;

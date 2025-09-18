@@ -2,7 +2,15 @@
 
 ## 🎯 Executive Summary
 
-A production-ready FigJam-style collaborative canvas built with **React 19**, **TypeScript**, **vanilla Konva.js** (not react-konva), **Zustand**, and **Tauri 2.x** for secure desktop runtime. The system delivers 60fps performance at scale through a strict four-layer Konva pipeline, sophisticated RAF-batched updates, advanced memory management, viewport culling, and comprehensive performance monitoring.
+A FigJam-style collaborative canvas application built with **React 19**, **TypeScript**, **vanilla Konva.js** (not react-konva), **Zustand**, and **Tauri 2.x** for secure desktop runtime. The system is designed with a strict four-layer Konva pipeline, RAF-batched updates, and performance-oriented architecture.
+
+### Current Status vs Goals
+
+**✅ Implemented**: Core architecture, basic drawing tools, shape creation, text editing, table functionality
+**🚧 In Progress**: Tool integration, advanced features, performance optimization
+**⏳ Planned**: Production deployment, advanced collaboration features
+
+> **Note**: This is an active development project. Many architectural features are designed but may be in various stages of implementation.
 
 ## 🏗️ Architecture Overview
 
@@ -202,12 +210,19 @@ A production-ready FigJam-style collaborative canvas built with **React 19**, **
 
 - Click → default 2×3 table.
 - Drag → ghost sized by pointer, commits on release.
-- Commit → autoselect + opens first cell in DOM overlay editor.
+- Commit → autoselect, ready for editing.
+- **Cell Editing**:
+  - Double-click any cell to open DOM overlay editor
+  - Multi-line text support with natural text flow
+  - Center-aligned text with automatic vertical padding
+  - Precise positioning using `stage.getAbsoluteTransform().point()`
+  - Live position updates during pan/zoom/resize operations
+  - Enter to commit, Shift+Enter for new line, Escape to cancel
 - Table = one selectable element with Transformer.
 - Transform-end scales column widths + row heights proportionally.
 - Crisp grid + cell padding preserved.
 - Navigation: arrows, Enter, Tab.
-- Cell edits → DOM overlay, history batched.
+- Cell edits → DOM overlay with proper coordinate transformation, history batched.
 
 #### Mindmap Tool
 
@@ -295,26 +310,29 @@ Stage
 
 ```typescript
 UnifiedCanvasStore
-├── CoreModule
+├── ElementSlice
 │   ├── elements: Map<ElementId, CanvasElement>  // O(1) lookup
 │   ├── elementOrder: ElementId[]                // Draw order
-│   ├── CRUD operations
-│   └── Element lifecycle management
+│   ├── element.getById(id)                      // Get element by ID
+│   ├── element.update(id, patch)                // Update element
+│   ├── element.upsert(el)                       // Insert or update
+│   ├── element.delete(id)                       // Delete element
+│   └── element.duplicate(id)                    // Duplicate element
 │
-├── HistoryModule
-│   ├── Memory-aware undo/redo with pruning
-│   ├── Operation deltas with merge heuristics
-│   ├── Transaction batching
-│   └── Persistence integration
+├── HistorySlice
+│   ├── history.past: StateSnapshot[]            // Undo stack
+│   ├── history.future: StateSnapshot[]          // Redo stack
+│   ├── history.withUndo(desc, mutator)          // Execute with undo
+│   ├── history.undo()                           // Undo last action
+│   ├── history.redo()                           // Redo next action
+│   └── history.beginBatch/endBatch              // Batch operations
 │
-└── InteractionModule
-    ├── Selection state (selectedElementIds: Set<ElementId>)
-    ├── Viewport controls (pan, scale, transforms)
-    ├── Tool configuration and state
-    ├── Guide and snapping settings
-    ├── Animation state management
-    ├── Contextual toolbar state
-    └── Drawing/interaction state
+└── SelectionSlice & ViewportSlice
+    ├── selectedElementIds: Set<ElementId>       // Current selection
+    ├── selection.selectOne(id, additive?)       // Select element
+    ├── viewport.setPan(x, y)                    // Set pan position
+    ├── viewport.setScale(scale)                 // Set zoom level
+    └── viewport.worldToStage/stageToWorld       // Coordinate transforms
 ```
 
 ### State Principles
@@ -423,7 +441,13 @@ Each tool implements `ToolEventHandler` interface with pointer-first design and 
 #### Table System
 
 - **Structure**: 2×N grid with white cells and gray borders
-- **Creation**: Single-click placement with immediate editing
+- **Creation**: Single-click placement, ready for cell editing
+- **Cell Editing**: Double-click opens centralized editor with:
+  - Multi-line text support with proper text wrapping
+  - Precise coordinate transformation using Konva's built-in methods
+  - Live tracking during pan/zoom/transform operations
+  - Proper store integration using `element.getById()` and `element.update()`
+  - History support with `history.withUndo()` for undo/redo
 - **Navigation**: Keyboard navigation (Tab, arrows) with accessibility
 - **Transform**: Proportional resize maintaining aspect ratio
 
@@ -773,6 +797,7 @@ Serialization
 | **ShapeModule**          | Basic shape rendering (rect, circle, triangle)    | `/renderer/modules/ShapeModule.ts`              |
 | **StickyModule**         | Sticky note rendering and management              | `/renderer/modules/StickyModule.ts`             |
 | **MindmapWire**          | Live edge updates for mindmap transforms          | `/renderer/modules/mindmapWire.ts`              |
+| **openCellEditorWithTracking** | Centralized table cell editor with coordinate transformation | `/utils/editors/openCellEditorWithTracking.ts` |
 
 ## 📊 Performance Monitoring
 
@@ -824,26 +849,25 @@ PerformanceHUD
 
 ## 🎯 Success Metrics
 
-### Key Performance Indicators
+### Implementation Status
 
-| KPI                        | Target                                           | Status         |
-| -------------------------- | ------------------------------------------------ | -------------- |
-| **Frame Rate**             | 60 FPS sustained with emergency systems          | ✅ Achieved    |
-| **Memory**                 | <500MB peak with automatic cleanup               | ✅ Optimized   |
-| **Bundle Size**            | <4MB compressed with analysis                    | ✅ Met         |
-| **Accessibility**          | WCAG 2.1 AA with keyboard navigation             | ✅ Compliant   |
-| **Security**               | OWASP ASVS Level 2 with CSP hardening            | ✅ Verified    |
-| **Test Coverage**          | >80% with performance budgets                    | ✅ Covered     |
-| **Element Systems**        | Complete ecosystem with 22 renderers             | ✅ Complete    |
-| **Live Routing**           | Dynamic connection updates with RAF batching     | ✅ Implemented |
-| **Anchor Snapping**        | 12px threshold with spatial optimization         | ✅ Implemented |
-| **Text Tool**              | Fixed-height content-hugging with DOM overlay    | ✅ Implemented |
-| **File Handling**          | Portable data URL storage with Tauri integration | ✅ Integrated  |
-| **Performance Monitoring** | Real-time metrics with budget enforcement        | ✅ Implemented |
-| **Memory Management**      | Automatic pruning with emergency recovery        | ✅ Implemented |
-| **Tauri Integration**      | Desktop optimizations with native APIs           | ✅ Implemented |
-| **Advanced UI**            | Contextual toolbar with color picker             | ✅ Implemented |
-| **Animation System**       | Easing presets with reduced motion               | ✅ Implemented |
+| Component                  | Design Status | Implementation Status | Notes |
+| -------------------------- | ------------- | -------------------- | ----- |
+| **Core Architecture**      | ✅ Complete   | ✅ Implemented      | Four-layer pipeline, store modules |
+| **Basic Drawing Tools**    | ✅ Complete   | ✅ Implemented      | Pen, marker, highlighter working |
+| **Shape Tools**            | ✅ Complete   | ✅ Implemented      | Rectangle, circle, triangle |
+| **Text Tool**              | ✅ Complete   | ✅ Implemented      | Fixed-height, content-hugging |
+| **Table System**           | ✅ Complete   | ✅ Implemented      | Grid creation, cell editing |
+| **Selection & Transform**  | ✅ Complete   | 🚧 Partial          | Basic selection working |
+| **Connector Tools**        | ✅ Complete   | 🚧 In Progress      | Line/arrow tools designed |
+| **Mindmap Tools**          | ✅ Complete   | 🚧 In Progress      | Node creation, branching |
+| **Image Handling**         | ✅ Complete   | 🚧 Partial          | Basic upload working |
+| **Performance Optimization** | ✅ Complete | 🚧 In Progress      | Some optimizations implemented |
+| **Accessibility**          | ✅ Complete   | ⏳ Planned          | Keyboard navigation designed |
+| **Tauri Integration**      | ✅ Complete   | 🚧 Basic            | Desktop framework setup |
+| **Production Features**    | 🚧 Partial   | ⏳ Planned          | Security, monitoring needed |
+
+> **Legend**: ✅ Complete | 🚧 In Progress | ⏳ Planned
 
 ## 🔄 Development Workflow
 
@@ -903,30 +927,41 @@ Canvas Page
 
 ## 🎬 Conclusion
 
-This architecture delivers a **production-ready FigJam-style canvas** with:
+This architecture provides a **well-designed foundation for a FigJam-style canvas** with:
 
-- **Deterministic four-layer pipeline** for predictable performance with highlights layer
-- **Advanced Zustand-driven state** with 3-module architecture and memory management
-- **Event-delegated tools** with sophisticated priority-based routing
-- **Direct Konva drawing** without react-konva overhead and advanced optimizations
-- **Smart guides & snapping** with spatial indexing and precision alignment
-- **Crisp HiDPI rendering** with per-layer DPR control and viewport culling
-- **Production-grade practices** for security, performance, and accessibility with monitoring
-- **Complete element ecosystem** with 22 specialized renderers and comprehensive tool support
-- **Live re-routing systems** with RAF batching and dynamic connection updates
-- **Advanced file handling** with portable data URL storage and Tauri integration
-- **Sophisticated endpoint snapping** with 12px anchor detection and spatial optimization
-- **Hierarchical structures** with parent-child relationships and live updates
-- **Performance monitoring** with real-time metrics and budget enforcement
-- **Memory management** with automatic pruning and emergency recovery systems
-- **Desktop integration** with Tauri optimizations and native API access
-- **Advanced UI components** with contextual toolbar and comprehensive color management
-- **Animation system** with easing presets and reduced motion support
+### ✅ Implemented Core Features
+- **Four-layer Konva pipeline** for predictable rendering
+- **Zustand store architecture** with modular design
+- **Direct Konva integration** without react-konva
+- **Basic drawing tools** (pen, marker, highlighter)
+- **Shape creation tools** (rectangle, circle, triangle)
+- **Text editing system** with content-hugging behavior
+- **Table functionality** with cell editing
+- **Event management** with tool-based routing
 
-The blueprint ensures new contributors can locate responsibilities, reason about performance, and extend functionality without re-architecting the system. The implementation exceeds the documented architecture with sophisticated optimizations, comprehensive monitoring, and production-ready quality that handles complex scenarios and large-scale usage.
+### 🚧 Advanced Features in Development
+- **Smart guides & snapping** (designed, implementing)
+- **Connector tools** with live routing (in progress)
+- **Mindmap system** with hierarchical nodes (in progress)
+- **Image handling** with upload support (partial)
+- **Performance optimizations** (ongoing)
+- **Selection & transformation** (basic working)
+
+### ⏳ Future Production Features
+- **Accessibility compliance** (WCAG 2.1 AA)
+- **Security hardening** (CSP, OWASP standards)
+- **Performance monitoring** with real-time metrics
+- **Advanced UI components** and contextual toolbars
+- **Desktop optimizations** via Tauri
+- **Memory management** with automatic cleanup
+
+### 🎯 Project Goals
+The architecture is designed to support a full-featured collaborative canvas application. The modular design allows for incremental development and ensures new contributors can understand the system structure and extend functionality systematically.
+
+> **Current Focus**: Completing tool integration and core feature implementation before advancing to production-grade optimizations.
 
 ---
 
-_Last Updated: September 2025_
+_Last Updated: January 2025_
 
-_Version: 3.0.0 - Production-Ready Architecture with Advanced Performance Systems_
+_Version: 3.1.0 - Production-Ready Architecture with Table Cell Editing Enhancements_

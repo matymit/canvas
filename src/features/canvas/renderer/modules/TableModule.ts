@@ -2,8 +2,9 @@
 // Follows existing four-layer architecture and performance patterns
 
 import Konva from "konva";
-import type { TableElement } from "../../types/elements/table";
+import type { TableElement } from "../../types/table";
 import KonvaNodePool from "../../utils/KonvaNodePool";
+import { openCellEditorWithTracking } from "../../utils/editors/openCellEditorWithTracking";
 
 // Re-use existing RendererLayers interface from the codebase
 export interface RendererLayers {
@@ -382,7 +383,13 @@ export class TableRenderer {
           const stage = group.getStage();
           if (stage) {
             // Use the tracked version for live resize support
-            (window as any).openCellEditorWithTracking?.(stage, el.id, el, row, col);
+            openCellEditorWithTracking({
+              stage,
+              elementId: el.id,
+              element: el,
+              row,
+              col
+            });
           }
         });
 

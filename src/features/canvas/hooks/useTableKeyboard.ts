@@ -2,8 +2,16 @@
 // Provides arrow key navigation, Enter to edit, and other table-specific shortcuts
 
 import { useCallback, useEffect, useState } from 'react';
-import type { TableElement } from '../../types/elements/table';
-import { getCellIndex } from '../../types/elements/table';
+import type { CanvasElement } from '../../../../types';
+import { getCellIndex } from '../types/table';
+
+// Define TableElement as an extension of CanvasElement
+type TableElement = CanvasElement & {
+  type: 'table';
+  cells?: Array<{ text: string }>;
+  rows?: number;
+  cols?: number;
+};
 
 export interface TableCellPosition {
   row: number;

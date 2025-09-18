@@ -2,7 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { TableRenderer } from "./TableModule";
-import type { TableElement } from "../../types/elements/table";
+import type { TableElement } from "../../types/table";
 
 type Id = string;
 

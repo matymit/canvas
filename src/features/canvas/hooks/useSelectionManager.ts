@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import Konva from 'konva';
 // Store imports are kept defensive, adapt to your store facade
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
-import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '../interactions/interaction/TransformCommit';
+import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '../managers/interaction/TransformCommit';
 
 type ElementId = string;
 

@@ -2,7 +2,7 @@
 // Follows established renderer patterns with vanilla Konva integration
 
 import Konva from "konva";
-import type { MindmapNodeElement, MindmapEdgeElement } from "../../types/elements/mindmap";
+import type { MindmapNodeElement, MindmapEdgeElement } from "../../types/mindmap";
 import { rightwardControls, buildTaperedRibbonPoints } from "./mindmapRouting";
 
 // Re-use existing RendererLayers interface

@@ -2,7 +2,7 @@ import Konva from 'konva';
 import type { UnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 import { ConnectorRenderer, type RendererLayers } from '../renderer/modules/ConnectorRenderer';
 import { LiveRoutingManager } from '../utils/connectors/LiveRouting';
-import type { ConnectorElement } from '../types/elements/connector';
+import type { ConnectorElement } from '../types/connector';
 
 export interface ConnectorServiceDeps {
   store: UnifiedCanvasStore;

@@ -2,8 +2,8 @@
 import React, { useEffect, useRef } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
-import type { AnchorSide } from "../../../types/elements/connector";
-import type { ConnectorElement } from "../../../types/elements/connector";
+import type { AnchorSide } from "../../../types/connector";
+import type { ConnectorElement } from "../../../types/connector";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
 
 type StageRef = React.RefObject<Konva.Stage>;

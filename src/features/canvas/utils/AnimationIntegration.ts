@@ -1,7 +1,7 @@
 // features/canvas/utils/AnimationIntegration.ts
 import Konva from 'konva';
 import type { InteractionModuleSlice, EasingName } from '../stores/modules/interactionModule';
-import { animateAppear, animateTransform, animatePulse } from '../interactions/animation/ElementAnimations';
+import { animateAppear, animateTransform, animatePulse } from '../managers/animation/ElementAnimations';
 
 /**
  * Utility to integrate the animation module with existing ElementAnimations
