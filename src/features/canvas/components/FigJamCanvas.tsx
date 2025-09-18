@@ -13,6 +13,9 @@ import "../utils/editors/openCellEditorWithTracking";
 // Import table context menu manager
 import { TableContextMenuManager } from "./table/TableContextMenuManager";
 
+// Import ImageDragHandler for image drag functionality
+import ImageDragHandler from "./tools/selection/ImageDragHandler";
+
 // Tool imports - all major tools
 import StickyNoteTool from "./tools/creation/StickyNoteTool";
 import ConnectorTool from "./tools/creation/ConnectorTool";
@@ -45,6 +48,7 @@ const FigJamCanvas: React.FC = () => {
   const rendererDisposeRef = useRef<(() => void) | null>(null);
   const toolManagerRef = useRef<ToolManager | null>(null);
   const gridRendererRef = useRef<GridRenderer | null>(null);
+  const imageDragHandlerRef = useRef<ImageDragHandler | null>(null);
 
   // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
@@ -138,6 +142,10 @@ const FigJamCanvas: React.FC = () => {
     const textCanvasTool = new TextCanvasTool();
     toolManager.registerCanvasTool('text', textCanvasTool);
 
+    // Setup ImageDragHandler for image drag functionality
+    const imageDragHandler = new ImageDragHandler(stage);
+    imageDragHandlerRef.current = imageDragHandler;
+
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       // Skip if not in select mode
@@ -200,7 +208,7 @@ const FigJamCanvas: React.FC = () => {
     stage.on("wheel", handleWheel);
 
     // Add stage-level contextmenu handling
-    const handleStageContextMenu = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const handleStageContextMenu = (_e: Konva.KonvaEventObject<MouseEvent>) => {
       // Handle context menu events
     };
 
@@ -260,6 +268,12 @@ const FigJamCanvas: React.FC = () => {
       if (toolManagerRef.current) {
         toolManagerRef.current.destroy();
         toolManagerRef.current = null;
+      }
+
+      // Clean up image drag handler
+      if (imageDragHandlerRef.current) {
+        imageDragHandlerRef.current.cleanup();
+        imageDragHandlerRef.current = null;
       }
 
       // Dispose renderer modules

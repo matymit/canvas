@@ -1,6 +1,7 @@
 // Image renderer module for main layer rendering with async bitmap loading
 import Konva from 'konva';
 import type ImageElement from '../../types/image';
+import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
 
 export interface RendererLayers {
   background: Konva.Layer;
@@ -23,16 +24,21 @@ export class ImageRenderer {
    */
   private async ensureBitmap(el: ImageElement, node: Konva.Image): Promise<void> {
     if (node.getAttr('src') === el.src && node.image()) return;
-    
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const tag = new Image();
-      tag.onload = () => resolve(tag);
-      tag.onerror = (e) => reject(e);
-      tag.src = el.src;
-    });
-    
-    node.setAttr('src', el.src);
-    node.image(img);
+
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const tag = new Image();
+        tag.onload = () => resolve(tag);
+        tag.onerror = (e) => reject(e);
+        tag.src = el.src;
+      });
+
+      node.setAttr('src', el.src);
+      node.image(img);
+    } catch (error) {
+      console.error('Failed to load image:', error);
+      // Set a placeholder or handle error gracefully
+    }
   }
 
   /**
@@ -44,36 +50,35 @@ export class ImageRenderer {
       g = new Konva.Group({
         id: el.id,
         name: 'image',
-        listening: true, // element-level interactions
-        draggable: false,  // FIXED: Dragging handled by selection/transformer, not element directly
+        listening: true,
+        // REMOVED: draggable: true - this was causing conflicts with selection system
         x: el.x,
         y: el.y,
       });
 
-      // CRITICAL FIX: Set both elementId attribute AND className for SelectionModule integration
+      // FIXED: Set elementId attribute for selection detection
       g.setAttr('elementId', el.id);
-      g.className = 'image-group'; // Ensure className is set for proper recognition
 
-      // CRITICAL: Also set the bitmap to have the elementId for click detection
-      // FIXED: Removed cancelBubble to allow proper event propagation for selection in FigJamCanvas
-      g.on('click', () => {
-        // Allow event to bubble up to stage click handler for selection
+      // FIXED: Add click handler that properly integrates with selection
+      g.on('click', (e) => {
+        e.cancelBubble = true; // Prevent event from bubbling to stage
+        const store = useUnifiedCanvasStore.getState();
+        if (store.setSelection) {
+          store.setSelection([el.id]);
+        }
       });
-
-      // FIXED: Removed dragend handler - dragging is now handled by transformer/selection system
 
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
     }
 
-    // Update group transform properties
+    // FIXED: Always sync position from store (prevents snap-back)
     g.position({ x: el.x, y: el.y });
     g.rotation(el.rotation ?? 0);
     g.opacity(el.opacity ?? 1);
 
-    // CRITICAL FIX: Ensure elementId attribute is maintained during updates
+    // Ensure elementId is maintained
     g.setAttr('elementId', el.id);
-    g.className = 'image-group';
 
     let bitmap = this.imageNodeById.get(el.id);
     if (!bitmap || !bitmap.getLayer()) {
@@ -89,12 +94,16 @@ export class ImageRenderer {
         image: undefined, // will be set by ensureBitmap
       });
 
-      // CRITICAL: Set elementId on bitmap too for click detection
+      // Set elementId on bitmap for click detection
       bitmap.setAttr('elementId', el.id);
-      // FIXED: Removed cancelBubble to allow proper event propagation for selection in FigJamCanvas
-      bitmap.on('click', () => {
-        // Allow event to bubble up to stage click handler for selection
+      bitmap.on('click', (e) => {
+        e.cancelBubble = true;
+        const store = useUnifiedCanvasStore.getState();
+        if (store.setSelection) {
+          store.setSelection([el.id]);
+        }
       });
+
       g.add(bitmap);
       this.imageNodeById.set(el.id, bitmap);
     }
@@ -102,12 +111,9 @@ export class ImageRenderer {
     // Load bitmap asynchronously and update size
     await this.ensureBitmap(el, bitmap);
 
-    // CRITICAL FIX: Ensure image dimensions are always positive
-    // This prevents images from disappearing when dimensions become 0 or negative
-    const MIN_SIZE = 1; // Minimum 1px to keep image visible
-    const safeWidth = Math.max(MIN_SIZE, el.width);
-    const safeHeight = Math.max(MIN_SIZE, el.height);
-
+    // Ensure dimensions are valid
+    const safeWidth = Math.max(1, el.width);
+    const safeHeight = Math.max(1, el.height);
     bitmap.size({ width: safeWidth, height: safeHeight });
 
     this.layers.main.batchDraw();

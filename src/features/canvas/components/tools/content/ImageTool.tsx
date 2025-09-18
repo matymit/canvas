@@ -12,7 +12,6 @@ export interface ImageToolProps {
   toolId?: string; // default: 'image'
 }
 
-
 export const ImageTool: React.FC<ImageToolProps> = ({
   isActive,
   stageRef,
@@ -75,9 +74,14 @@ export const ImageTool: React.FC<ImageToolProps> = ({
           stateRef.current.natural = { w: naturalWidth, h: naturalHeight };
 
           // Image loaded successfully, ready for auto-placement
+          console.log('[ImageTool] Image loaded successfully:', {
+            naturalWidth,
+            naturalHeight,
+            dataUrl: dataUrl.substring(0, 50) + '...'
+          });
           resolve();
         } catch (error) {
-          console.error('Failed to load image:', error);
+          console.error('[ImageTool] Failed to load image:', error);
           setSelectedTool?.('select');
           reject(error);
         } finally {
@@ -126,77 +130,53 @@ export const ImageTool: React.FC<ImageToolProps> = ({
       keepAspectRatio: true,
     };
 
-    // Store integration pattern with exact fallback logic
+    console.log('[ImageTool.commitImage] Creating element:', {
+      id,
+      position: { x, y },
+      size: { width: w, height: h },
+      natural: nat,
+    });
+
+    // Store integration with better error handling
     const store = useUnifiedCanvasStore.getState();
 
-    const addElement = () => {
-      if (store.addElement) {
-        return store.addElement(element, { select: true, pushHistory: false });
-      } else if (store.element?.upsert) {
-        return store.element.upsert(element);
-      }
-      return null;
-    };
-
-    // Use withUndo for proper history integration
-    store.withUndo('Add image', () => {
-      addElement();
-    });
-
-    // Specific debugging with exact format
-    console.log('[ImageTool.commitImage] Element created:', {
-      id,
-      element,
-      storeHasElement: store.elements?.has(id),
-      timestamp: Date.now()
-    });
-
-    // Wait longer for the ImageRenderer to fully process the new element
-    // Use more RAF cycles and longer delays for images which take time to load
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    await new Promise(resolve => requestAnimationFrame(resolve));
-
-    // Wait for render completion with longer delay specifically for images
-    setTimeout(() => {
-      // Use SelectionModule's enhanced auto-selection with exponential backoff
-      const selectionModule = (window as any).selectionModule;
-      if (selectionModule?.autoSelectElement) {
-        selectionModule.autoSelectElement(id);
-      } else {
-        // Custom exponential backoff with 8 attempts
-        let attempts = 0;
-        const maxAttempts = 8; // More attempts for images
-
-        const trySelect = () => {
-          attempts++;
-          setTimeout(() => {
-            setElementSelection(id);
-            if (attempts < maxAttempts) {
-              trySelect();
-            }
-          }, 100 * attempts); // Exponential backoff timing
-        };
-
-        trySelect();
-      }
-
-      // After selection attempts
-      console.log('[ImageTool.commitImage] Selection attempted for:', id);
-
-      // Direct selection fallback after 300ms
-      setTimeout(() => {
-        const store = useUnifiedCanvasStore.getState();
-        if (store.setSelection) {
-          store.setSelection([id]);
+    try {
+      // Use withUndo for proper history integration
+      store.withUndo('Add image', () => {
+        if (store.addElement) {
+          store.addElement(element, { select: true, pushHistory: false });
+        } else if (store.element?.upsert) {
+          store.element.upsert(element);
+        } else {
+          console.error('[ImageTool] No element creation method available');
+          return;
         }
-      }, 300);
+      });
 
-      // Switch to select tool for immediate manipulation
+      console.log('[ImageTool.commitImage] Element added to store:', {
+        id,
+        hasElement: store.elements?.has(id),
+        elementsCount: store.elements?.size,
+      });
+
+      // Wait for rendering with improved timing
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      // Delayed selection with better timing
       setTimeout(() => {
-        setSelectedTool?.('select');
-      }, 100);
-    }, 300); // Increased delay for image processing (was 150ms)
+        console.log('[ImageTool.commitImage] Attempting selection:', id);
+        setElementSelection(id);
+
+        // Switch to select tool for immediate manipulation
+        setTimeout(() => {
+          setSelectedTool?.('select');
+        }, 100);
+      }, 200);
+
+    } catch (error) {
+      console.error('[ImageTool.commitImage] Error creating element:', error);
+    }
 
     // Reset image data for next use
     stateRef.current.dataUrl = null;
@@ -206,6 +186,11 @@ export const ImageTool: React.FC<ImageToolProps> = ({
   // Auto-place image at center of viewport
   const autoPlaceImage = useCallback(async () => {
     if (!stateRef.current.dataUrl || !stateRef.current.natural || !stageRef.current) {
+      console.log('[ImageTool.autoPlaceImage] Missing requirements:', {
+        hasDataUrl: !!stateRef.current.dataUrl,
+        hasNatural: !!stateRef.current.natural,
+        hasStage: !!stageRef.current,
+      });
       return;
     }
 
@@ -241,6 +226,14 @@ export const ImageTool: React.FC<ImageToolProps> = ({
     const x = worldX - width / 2;
     const y = worldY - height / 2;
 
+    console.log('[ImageTool.autoPlaceImage] Placing image:', {
+      stageCenter: { x: centerX, y: centerY },
+      worldCenter: { x: worldX, y: worldY },
+      finalPosition: { x, y },
+      size: { width, height },
+      natural: nat,
+    });
+
     // Commit the image and wait for completion
     await commitImage(x, y, width, height);
   }, [stageRef, viewport, commitImage]);
@@ -249,6 +242,8 @@ export const ImageTool: React.FC<ImageToolProps> = ({
   useEffect(() => {
     const active = isActive && selectedTool === toolId;
     if (!active || hasTriggeredPickerRef.current) return;
+
+    console.log('[ImageTool] Auto-triggering file picker');
 
     // Trigger file picker immediately when tool is selected
     const autoTrigger = async () => {
@@ -259,7 +254,7 @@ export const ImageTool: React.FC<ImageToolProps> = ({
           await autoPlaceImage();
         }
       } catch (error) {
-        console.error('Failed to auto-trigger image picker:', error);
+        console.error('[ImageTool] Failed to auto-trigger image picker:', error);
       }
     };
 

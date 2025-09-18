@@ -37,7 +37,7 @@ export class SelectionModule implements RendererModule {
       ignoreStroke: false,
       keepRatioKey: "Shift", // FIXED: Enable aspect ratio locking with Shift key
       rotationSnapDeg: 15,
-      onTransformStart: (nodes) => {
+      onTransformStart: (_nodes) => {
         // Begin transform in store if available
         const store = this.storeCtx?.store.getState();
         if (store?.beginTransform) {
@@ -87,7 +87,7 @@ export class SelectionModule implements RendererModule {
       // Selector: get selection version
       (state) => state.selectionVersion || 0,
       // Callback: refresh transformer for current selection
-      (version) => {
+      (_version) => {
         if (this.transformerManager && this.storeCtx) {
           // Get current selection and refresh transformer
           const currentState = this.storeCtx.store.getState();
