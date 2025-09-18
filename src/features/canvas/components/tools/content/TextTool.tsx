@@ -3,6 +3,7 @@ import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { measureText } from "../../../utils/text/TextMeasurement";
 import type { CanvasTool } from "../../../managers/ToolManager";
+import type { CanvasElement, ElementId } from "../../../../../../types/index";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -28,7 +29,7 @@ function createTextarea(screenX: number, screenY: number, fontSize: number, colo
   ta.style.resize = 'none';
   ta.style.cursor = 'text';
   ta.style.background = 'rgba(255, 255, 255, 0.95)';
-  ta.style.color = color;
+  ta.style.color = '#111827'; // Always use dark color for visibility during editing
   ta.style.fontFamily = fontFamily;
   ta.style.fontSize = `${fontSize}px`;
   ta.style.lineHeight = '1.2';
@@ -58,16 +59,35 @@ export class TextCanvasTool implements CanvasTool {
       console.log("[TextCanvasTool] Stage click intercepted", { target: e.target });
 
       const target = e.target;
+
+      // Debug logging for all conditions
+      console.log("[TextCanvasTool] Debug - target:", target);
+      console.log("[TextCanvasTool] Debug - target.className:", (target as any).className);
+      console.log("[TextCanvasTool] Debug - target === stage:", target === stage);
+      console.log("[TextCanvasTool] Debug - activeEditor:", !!this.activeEditor);
+
       // Skip if clicking on existing text element
-      if (target && (target as any).className === 'Text') return;
-      // Skip if clicking on the stage background (not main layer)
-      if (target === stage) return;
+      if (target && (target as any).className === 'Text') {
+        console.log("[TextCanvasTool] Returning early: clicked on existing Text element");
+        return;
+      }
+
+      // Skip if clicking on non-text canvas elements (but allow stage clicks for new text creation)
+      if (target !== stage && target && (target as any).className && (target as any).className !== 'Text') {
+        console.log("[TextCanvasTool] Returning early: clicked on non-text element with className:", (target as any).className);
+        return;
+      }
+
       // Skip if there's already an active editor
-      if (this.activeEditor) return;
+      if (this.activeEditor) {
+        console.log("[TextCanvasTool] Returning early: activeEditor already exists");
+        return;
+      }
 
       const pointerPos = stage.getPointerPosition();
+      console.log("[TextCanvasTool] Debug - pointerPos:", pointerPos);
       if (!pointerPos) {
-        console.warn('[TextCanvasTool] No pointer position available');
+        console.warn('[TextCanvasTool] Returning early: No pointer position available');
         return;
       }
 
@@ -79,6 +99,8 @@ export class TextCanvasTool implements CanvasTool {
       const worldX = (pointerPos.x - stagePos.x) / stageScale;
       const worldY = (pointerPos.y - stagePos.y) / stageScale;
       const worldPos = { x: worldX, y: worldY };
+
+      console.log('[TextCanvasTool] World position:', worldPos);
 
       // Get current UI state from store
       const currentStore = useUnifiedCanvasStore.getState();
@@ -124,8 +146,9 @@ export class TextCanvasTool implements CanvasTool {
           const width = Math.max(10, Math.ceil(m.width + 8));
           const height = Math.round(fontSize * 1.2);
 
-          const textElement = {
-            id: crypto.randomUUID(),
+          const elementId = crypto.randomUUID() as ElementId;
+          const textElement: CanvasElement = {
+            id: elementId,
             type: 'text' as const,
             x: worldPos.x,
             y: worldPos.y,
@@ -139,24 +162,24 @@ export class TextCanvasTool implements CanvasTool {
               fontStyle: 'normal',
               fontWeight: 'normal',
               textDecoration: ''
-            },
-            bounds: {
-              x: worldPos.x,
-              y: worldPos.y,
-              width,
-              height
             }
           };
 
-          const commitFn = () => {
-            currentStore.element?.upsert?.(textElement);
-          };
+          console.log('[TextCanvasTool] Creating text element:', textElement);
 
+          console.log('[TextCanvasTool] Creating text element:', textElement);
+
+          // Use withUndo for proper history tracking and the new Phase 2 pattern
           if (currentStore.withUndo) {
-            currentStore.withUndo('Add text', commitFn);
+            currentStore.withUndo('Add text', () => {
+              currentStore.addElement(textElement, { select: true, pushHistory: false }); // withUndo handles history
+            });
           } else {
-            commitFn();
+            // Fallback if withUndo not available
+            currentStore.addElement(textElement, { select: true });
           }
+
+          console.log('[TextCanvasTool] Text element added to store');
         }
 
         // Switch back to select tool

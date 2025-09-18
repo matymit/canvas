@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
+import type { CanvasElement, ElementId } from '../../../../../../types/index';
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -21,8 +22,6 @@ function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback:
 export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, toolId = 'draw-circle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
-  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
@@ -37,12 +36,16 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
+    console.log('[CircleTool] Tool activated, adding stage listener');
+
     const previewLayer =
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
     const onPointerDown = () => {
       const pos = stage.getPointerPosition();
       if (!pos || !previewLayer) return;
+
+      console.log('[CircleTool] Pointer down at:', pos);
 
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
@@ -113,38 +116,50 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
         h = MIN_SIZE;
       }
 
-      // Commit to store; the renderer will update main layer
-      const id = `ellipse-${Date.now()}`;
-      const elementId = upsertElement?.({
-        id,
+      // Commit to store using the new Phase 2 pattern
+      const elementId = crypto.randomUUID() as ElementId;
+
+      const circleElement: CanvasElement = {
+        id: elementId,
         type: 'ellipse',
         x,
         y,
         width: w,
         height: h,
-        bounds: { x, y, width: w, height: h },
-        draggable: true,
         style: {
           stroke: strokeColor,
           strokeWidth,
           fill: fillColor,
         },
-      } as any);
+      };
 
-      // Select the new ellipse to ensure transformer sentinel appears
-      try { replaceSelectionWithSingle?.(id as any); } catch {}
+      console.log('[CircleTool] Creating circle element:', circleElement);
+
+      // Use the store's addElement method with auto-selection
+      const store = useUnifiedCanvasStore.getState();
+
+      // Use withUndo for proper history tracking
+      store.withUndo('Add circle', () => {
+        store.addElement(circleElement, { select: true, pushHistory: false }); // withUndo handles history
+      });
+
+      console.log('[CircleTool] Circle element added to store');
 
       // Auto-switch back to select and open text editor
-      setSelectedTool?.('select');
-      if (elementId && stage) {
-        openShapeTextEditor(stage, id, { padding: 10, fontSize: 18, lineHeight: 1.3 });
-      }
+      setTimeout(() => {
+        setSelectedTool?.('select');
+        if (stage) {
+          openShapeTextEditor(stage, elementId, { padding: 10, fontSize: 18, lineHeight: 1.3 });
+        }
+        console.log('[CircleTool] Switched back to select tool and opened text editor');
+      }, 100);
     };
 
     // Attach handlers on stage
     stage.on('pointerdown.circletool', onPointerDown);
 
     return () => {
+      console.log('[CircleTool] Tool deactivated, removing stage listener');
       stage.off('pointerdown.circletool');
       stage.off('pointermove.circletool');
       stage.off('pointerup.circletool');
@@ -157,7 +172,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, setSelectedTool]);
 
   return null;
 };

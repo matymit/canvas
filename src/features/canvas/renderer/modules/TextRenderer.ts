@@ -41,16 +41,21 @@ export class TextRenderer implements RendererModule {
     this.unsubscribe = ctx.store.subscribe(
       // Selector: extract text elements
       (state) => {
+        console.log('[TextRenderer] Store subscription triggered, total elements:', state.elements.size);
         const texts = new Map<Id, TextElement>();
         for (const [id, element] of state.elements.entries()) {
           if (element.type === "text") {
+            console.log('[TextRenderer] Found text element in store:', { id, text: element.text });
             texts.set(id, element as TextElement);
           }
         }
+        console.log('[TextRenderer] Selector returning', texts.size, 'text elements');
         return texts;
       },
       // Callback: reconcile changes
       (texts) => this.reconcile(texts),
+      // Ensure immediate fire to get initial state
+      { fireImmediately: true }
     );
 
     // Initial render
@@ -82,12 +87,13 @@ export class TextRenderer implements RendererModule {
   }
 
   private reconcile(texts: Map<Id, TextElement>) {
-    // Only log when there are actual text elements to reconcile (reduce console spam)
-    if (texts.size > 0) {
-      console.log("[TextRenderer] Reconciling", texts.size, "text elements");
-    }
+    // Always log reconciliation attempts for debugging
+    console.log("[TextRenderer] Reconciling", texts.size, "text elements", Array.from(texts.keys()));
 
-    if (!this.layer) return;
+    if (!this.layer) {
+      console.error('[TextRenderer] No layer available for reconciliation');
+      return;
+    }
 
     const seen = new Set<Id>();
 
@@ -98,12 +104,14 @@ export class TextRenderer implements RendererModule {
 
       if (!node) {
         // Create new text node
+        console.log('[TextRenderer] Creating new text node for:', { id, text: text.text, fill: text.style?.fill });
         node = this.createTextNode(text);
         this.textNodes.set(id, node);
         this.layer.add(node);
-        console.log('[TextRenderer] Created text node:', { id, text: text.text });
+        console.log('[TextRenderer] Added text node to layer:', { id, nodeCount: this.textNodes.size });
       } else {
         // Update existing text node
+        console.log('[TextRenderer] Updating existing text node:', { id, text: text.text });
         this.updateTextNode(node, text);
       }
     }
@@ -117,10 +125,13 @@ export class TextRenderer implements RendererModule {
       }
     }
 
+    console.log('[TextRenderer] Calling batchDraw on layer with', this.textNodes.size, 'text nodes');
     this.layer.batchDraw();
   }
 
   private createTextNode(text: TextElement): Konva.Text {
+    console.log('[TextRenderer] Creating text node:', { id: text.id, text: text.text, style: text.style });
+
     const node = new Konva.Text({
       id: text.id,
       name: `text-${text.id}`,
@@ -158,6 +169,18 @@ export class TextRenderer implements RendererModule {
       node.height(text.height);
     }
 
+    console.log('[TextRenderer] Text node created with attributes:', {
+      id: node.id(),
+      elementId: node.getAttr('elementId'),
+      x: node.x(),
+      y: node.y(),
+      text: node.text(),
+      fill: node.fill(),
+      fontSize: node.fontSize(),
+      listening: node.listening(),
+      draggable: node.draggable()
+    });
+
     return node;
   }
 
@@ -193,6 +216,39 @@ export class TextRenderer implements RendererModule {
   }
 
   private addEventHandlers(node: Konva.Text, text: TextElement) {
+    // Handle single click for selection
+    node.on('click', (e) => {
+      console.log('[TextRenderer] Text clicked for selection:', text.id);
+      e.cancelBubble = true; // Prevent event bubbling
+
+      // Select this text element via the global selection module
+      const selectionModule = (window as any).selectionModule;
+      if (selectionModule?.selectElement) {
+        selectionModule.selectElement(text.id);
+      } else {
+        // Fallback to store-based selection
+        if (this.store) {
+          const state = this.store.getState();
+          if (state.setSelection) {
+            state.setSelection([text.id]);
+          } else if (state.selection?.set) {
+            state.selection.set([text.id]);
+          }
+        }
+      }
+    });
+
+    // Handle tap for mobile selection
+    node.on('tap', (e) => {
+      console.log('[TextRenderer] Text tapped for selection:', text.id);
+      e.cancelBubble = true;
+
+      const selectionModule = (window as any).selectionModule;
+      if (selectionModule?.selectElement) {
+        selectionModule.selectElement(text.id);
+      }
+    });
+
     // Handle dragging to update position
     node.on('dragend', (e) => {
       const textNode = e.target as Konva.Text;
@@ -204,14 +260,16 @@ export class TextRenderer implements RendererModule {
     });
 
     // Handle double-click for text editing
-    node.on('dblclick', () => {
+    node.on('dblclick', (e) => {
       console.log('[TextRenderer] Text double-clicked for editing:', text.id);
+      e.cancelBubble = true; // Prevent event bubbling
       this.startTextEditing(node, text);
     });
 
     // Handle double-tap for mobile
-    node.on('dbltap', () => {
+    node.on('dbltap', (e) => {
       console.log('[TextRenderer] Text double-tapped for editing:', text.id);
+      e.cancelBubble = true;
       this.startTextEditing(node, text);
     });
   }

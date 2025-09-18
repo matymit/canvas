@@ -197,6 +197,44 @@ The canvas application is now fully functional with all tools, renderers, and sy
 
 ---
 
+## POST-REFACTORING WORK (September 2025)
+
+After the major architectural changes from Phases 1-3 refactoring, critical post-implementation work was required to restore functionality and polish the user interface.
+
+### 🎯 Critical Tasks Addressed
+
+#### ✅ COMPLETED: Toolbar Visibility & Positioning
+- **Issue**: Toolbar was hard to see and not properly positioned at bottom center
+- **Solution**:
+  - Updated `FigJamCanvas.tsx` to wrap `CanvasToolbar` with proper `.toolbar-container` class
+  - Replaced inline styles with CSS classes (`.toolbar-group`, `.tool-button`)
+  - Leveraged existing FigJam theme CSS for professional appearance
+- **Result**: Toolbar now properly centered at bottom with excellent visibility and contrast
+
+#### ✅ COMPLETED: Integration Test Fixes
+- **Issue**: Store state reference problems causing test failures (elements.size always 0)
+- **Solution**: Updated tests to use fresh `useUnifiedCanvasStore.getState()` calls instead of stale references
+- **Result**: 3/4 integration tests now passing (keyboard deletion workflow functional)
+- **Remaining**: 1 undo/redo test still failing due to history system integration
+
+#### 📊 Test Suite Status (Current)
+- **Before**: 15 failed tests, 257 passed
+- **After**: 12 failed tests, 260 passed
+- **Improvement**: 3 additional tests now passing
+- **Remaining Issues**:
+  - Geometry helper tests (data structure changes)
+  - E2E tests (missing Konva elements)
+  - History system undo/redo integration
+
+### 🔧 Outstanding Work
+- Update remaining tool tests for rewritten implementations
+- Fix integration tests for new store-renderer workflows
+- Add tests for Phase 2 store-renderer pipeline
+- Resolve geometry helper test data structure mismatches
+- Complete undo/redo history system integration
+
+---
+
 ## ADDENDUM: Architecture Refinement (Phases 7-10)
 
 ### Context

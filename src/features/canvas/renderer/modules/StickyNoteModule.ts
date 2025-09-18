@@ -47,7 +47,7 @@ export class StickyNoteModule implements RendererModule {
               y: element.y || 0,
               width: element.width || 240,
               height: element.height || 180,
-              fill: element.style?.fill || element.fill,
+              fill: element.fill || element.style?.fill || "#FFF59D", // Check fill first, then style.fill
               text: element.text || element.data?.text || "",
             });
           }

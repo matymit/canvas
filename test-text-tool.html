@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text Tool Test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        background-color: #f5f5f5;
+      }
+      .instructions {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        max-width: 300px;
+      }
+      .instructions h3 {
+        margin: 0 0 10px 0;
+        color: #333;
+      }
+      .instructions ol {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .instructions li {
+        margin-bottom: 5px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="instructions">
+      <h3>Text Tool Test</h3>
+      <ol>
+        <li>Open browser dev tools (F12)</li>
+        <li>Go to the canvas app running on localhost:1425</li>
+        <li>Select the Text tool (T icon)</li>
+        <li>Click anywhere on the canvas</li>
+        <li>A text input should appear</li>
+        <li>Type some text and press Enter</li>
+        <li>Text element should be created</li>
+      </ol>
+    </div>
+    <script>
+      console.log("Text Tool Test Page Loaded");
+      console.log(
+        "Please navigate to http://localhost:1425 to test the text tool",
+      );
+    </script>
+  </body>
+</html>

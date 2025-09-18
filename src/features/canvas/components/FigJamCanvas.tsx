@@ -62,14 +62,17 @@ const FigJamCanvas: React.FC = () => {
     if (!containerRef.current) return;
 
     console.log("[FigJamCanvas] Initializing stage and renderer system");
+    console.log("[FigJamCanvas] SINGLE KONVA.STAGE CREATION - This should be the ONLY stage creation");
 
-    // Create Konva stage
+    // Create Konva stage - THIS IS THE ONLY PLACE WHERE KONVA.STAGE SHOULD BE CREATED
     const stage = new Konva.Stage({
       container: containerRef.current,
       width: window.innerWidth,
       height: window.innerHeight,
       draggable: false,
     });
+
+    console.log("[FigJamCanvas] Konva.Stage created successfully:", stage.id());
 
     stageRef.current = stage;
 
@@ -136,7 +139,8 @@ const FigJamCanvas: React.FC = () => {
     backgroundLayer.batchDraw();
 
     // Setup renderer system - this is the KEY integration
-    console.log("[FigJamCanvas] Setting up renderer modules");
+    console.log("[FigJamCanvas] Setting up renderer modules - SINGLE setupRenderer() CALL");
+    console.log("[FigJamCanvas] This is the ONLY place setupRenderer() should be called");
     const rendererDispose = setupRenderer(stage, {
       background: backgroundLayer,
       main: mainLayer,
@@ -145,6 +149,7 @@ const FigJamCanvas: React.FC = () => {
       overlay: overlayLayer,
     });
     rendererDisposeRef.current = rendererDispose;
+    console.log("[FigJamCanvas] Renderer modules setup complete");
 
     // Setup ToolManager with proper lifecycle
     console.log("[FigJamCanvas] Setting up ToolManager");
@@ -497,7 +502,9 @@ const FigJamCanvas: React.FC = () => {
 
   return (
     <div className="canvas-wrapper">
-      <CanvasToolbar />
+      <div className="toolbar-container">
+        <CanvasToolbar />
+      </div>
       <div ref={containerRef} className="konva-stage-container" />
       <ZoomControls />
 

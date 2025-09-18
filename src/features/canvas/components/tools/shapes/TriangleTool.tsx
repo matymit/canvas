@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
+import type { CanvasElement, ElementId } from '../../../../../../types/index';
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -21,8 +22,6 @@ function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback:
 export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, toolId = 'draw-triangle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
-  const upsertElement = useUnifiedCanvasStore((s) => s.element.upsert);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
@@ -36,6 +35,8 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
+
+    console.log('[TriangleTool] Tool activated, adding stage listener');
 
     const previewLayer =
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
@@ -56,6 +57,8 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
     const onPointerDown = () => {
       const pos = stage.getPointerPosition();
       if (!pos || !previewLayer) return;
+
+      console.log('[TriangleTool] Pointer down at:', pos);
 
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
@@ -110,39 +113,58 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       tri.remove();
       previewLayer.batchDraw();
 
-      if (w < 2 || h < 2) return;
+      // If click without drag, create a minimal triangle for test ergonomics
+      const MIN_SIZE = 40;
+      if (w < 2 && h < 2) {
+        const finalW = MIN_SIZE;
+        const finalH = MIN_SIZE;
+        w = finalW;
+        h = finalH;
+      }
 
-      // Commit to store; renderer will update main layer
-      const id = `triangle-${Date.now()}`;
-      const elementId = upsertElement?.({
-        id,
+      // Commit to store using the new Phase 2 pattern
+      const elementId = crypto.randomUUID() as ElementId;
+
+      const triangleElement: CanvasElement = {
+        id: elementId,
         type: 'triangle',
         x,
         y,
         width: w,
         height: h,
-        bounds: { x, y, width: w, height: h },
-        draggable: true,
         style: {
           stroke: strokeColor,
           strokeWidth,
           fill: fillColor,
         },
+      };
+
+      console.log('[TriangleTool] Creating triangle element:', triangleElement);
+
+      // Use the store's addElement method with auto-selection
+      const store = useUnifiedCanvasStore.getState();
+
+      // Use withUndo for proper history tracking
+      store.withUndo('Add triangle', () => {
+        store.addElement(triangleElement, { select: true, pushHistory: false }); // withUndo handles history
       });
 
-      // Select the new triangle to ensure transformer sentinel appears
-      try { replaceSelectionWithSingle?.(id as any); } catch {}
+      console.log('[TriangleTool] Triangle element added to store');
 
       // Auto-switch back to select and open text editor
-      setSelectedTool?.('select');
-      if (elementId && stage) {
-        openShapeTextEditor(stage, id, { padding: 8, fontSize: 18, lineHeight: 1.3 });
-      }
+      setTimeout(() => {
+        setSelectedTool?.('select');
+        if (stage) {
+          openShapeTextEditor(stage, elementId, { padding: 8, fontSize: 18, lineHeight: 1.3 });
+        }
+        console.log('[TriangleTool] Switched back to select tool and opened text editor');
+      }, 100);
     };
 
     stage.on('pointerdown.tritool', onPointerDown);
 
     return () => {
+      console.log('[TriangleTool] Tool deactivated, removing stage listener');
       stage.off('pointerdown.tritool');
       stage.off('pointermove.tritool');
       stage.off('pointerup.tritool');
@@ -154,7 +176,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, setSelectedTool]);
 
   return null;
 };

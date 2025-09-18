@@ -201,41 +201,18 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     setStickyNoteColorsOpen(false);
   }, []);
 
-  const buttonStyle = (isActive: boolean, withIndicator?: boolean) => ({
-    width: "40px",
-    height: "40px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: isActive ? "rgba(139, 92, 246, 1)" : "transparent",
-    border: "none",
-    borderRadius: "10px",
-    color: isActive ? "#ffffff" : "#cbd5e1",
-    cursor: "pointer",
-    transition: "all 0.2s",
-    position: (withIndicator ? "relative" : "static") as "relative" | "static",
-  });
+  // Removed buttonStyle - now using CSS classes
 
   const toolBtn = (id: string, title: string) => (
     <button
       key={id}
       type="button"
-      style={buttonStyle(currentTool === id)}
+      className={`tool-button ${currentTool === id ? 'active' : ''}`}
       aria-pressed={currentTool === id}
       aria-label={title}
       title={title}
       data-testid={`tool-${id === "draw-rectangle" ? "rectangle" : id}`}
       onClick={() => handleToolSelect(id)}
-      onMouseEnter={(e) => {
-        if (currentTool !== id) {
-          e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.12)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (currentTool !== id) {
-          e.currentTarget.style.backgroundColor = "transparent";
-        }
-      }}
     >
       {getIcon(id)}
     </button>
@@ -251,13 +228,6 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     color: "#e5e7eb",
     borderRadius: 6,
     cursor: "pointer",
-  };
-
-  const dividerStyle = {
-    width: "1px",
-    height: "24px",
-    backgroundColor: "rgba(226, 232, 240, 0.15)",
-    margin: "0 6px",
   };
 
   // Distribute action handlers
@@ -321,39 +291,26 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
   );
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+    <>
       {/* Core tools */}
-      <div style={{ display: "flex", gap: "2px" }}>
+      <div className="toolbar-group">
         {toolBtn("select", "Select")}
         {toolBtn("pan", "Pan")}
       </div>
 
-      <div style={dividerStyle} />
-
       {/* Content tools */}
-      <div style={{ display: "flex", gap: "2px" }}>
+      <div className="toolbar-group">
         {/* Sticky Note with color dropdown */}
         <button
           type="button"
           ref={stickyNoteBtnRef}
-          style={buttonStyle(currentTool === "sticky-note", true)}
+          className={`tool-button ${currentTool === "sticky-note" ? 'active' : ''}`}
           aria-expanded={stickyNoteColorsOpen}
           aria-haspopup="menu"
           aria-label="Sticky Note Colors"
           title="Sticky Note"
           data-testid="tool-sticky-note"
           onClick={handleStickyClick}
-          onMouseEnter={(e) => {
-            if (currentTool !== "sticky-note") {
-              e.currentTarget.style.backgroundColor =
-                "rgba(255, 255, 255, 0.12)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (currentTool !== "sticky-note") {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }
-          }}
         >
           {getIcon("sticky-note")}
           <div
@@ -378,19 +335,12 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         <button
           type="button"
           ref={shapesBtnRef}
-          style={buttonStyle(false)}
+          className="tool-button"
           aria-expanded={shapesOpen}
           aria-haspopup="menu"
           aria-label="Shapes"
           title="Shapes"
           onClick={() => setShapesOpen((v) => !v)}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "rgba(255, 255, 255, 0.12)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
         >
           {getIcon("shapes")}
         </button>
@@ -401,25 +351,16 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         >
           <button
             type="button"
-            style={buttonStyle(
+            className={`tool-button ${
               currentTool === "connector-line" ||
-                currentTool === "connector-arrow",
-            )}
+              currentTool === "connector-arrow"
+                ? 'active'
+                : ''
+            }`}
             aria-haspopup="menu"
             aria-label="Connector"
             title="Connector"
             onClick={() => setConnectorsOpen((v) => !v)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor =
-                "rgba(255, 255, 255, 0.12)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor =
-                currentTool === "connector-line" ||
-                currentTool === "connector-arrow"
-                  ? "rgba(139, 92, 246, 1)"
-                  : "transparent")
-            }
           >
             {getIcon("mindmap")}
           </button>
@@ -465,10 +406,8 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         </div>
       </div>
 
-      <div style={dividerStyle} />
-
       {/* Drawing tools */}
-      <div style={{ display: "flex", gap: "2px" }}>
+      <div className="toolbar-group">
         {toolBtn("pen", "Pen")}
         {toolBtn("marker", "Marker")}
         {toolBtn("highlighter", "Highlighter")}
@@ -480,19 +419,12 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           <button
             type="button"
             ref={distributeBtnRef}
-            style={buttonStyle(false)}
+            className="tool-button"
             aria-haspopup="menu"
             aria-expanded={distributeOpen}
             aria-label="Distribute"
             title="Distribute"
             onClick={() => setDistributeOpen((v) => !v)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor =
-                "rgba(255, 255, 255, 0.12)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
             data-testid="distribute-menu"
           >
             ≋
@@ -553,90 +485,51 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         </div>
       </div>
 
-      <div style={dividerStyle} />
-
       {/* Zoom controls for tests */}
-      <div style={{ display: "flex", gap: "2px" }}>
+      <div className="toolbar-group">
         <button
           type="button"
-          style={buttonStyle(false)}
+          className="tool-button"
           title="Zoom In"
           data-testid="zoom-in"
           onClick={onZoomIn}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "rgba(255, 255, 255, 0.12)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
         >
           +
         </button>
         <button
           type="button"
-          style={buttonStyle(false)}
+          className="tool-button"
           title="Zoom Out"
           data-testid="zoom-out"
           onClick={onZoomOut}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "rgba(255, 255, 255, 0.12)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
         >
           -
         </button>
       </div>
 
-      <div style={dividerStyle} />
-
       {/* Undo/Redo/Clear */}
-      <div style={{ display: "flex", gap: "2px" }}>
+      <div className="toolbar-group">
         <button
           type="button"
-          style={buttonStyle(false)}
+          className="tool-button"
           title="Undo"
           onClick={handleUndo}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "rgba(255, 255, 255, 0.12)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
         >
           {getIcon("undo")}
         </button>
         <button
           type="button"
-          style={buttonStyle(false)}
+          className="tool-button"
           title="Redo"
           onClick={handleRedo}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "rgba(255, 255, 255, 0.12)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
         >
           {getIcon("redo")}
         </button>
         <button
           type="button"
-          style={buttonStyle(false)}
+          className="tool-button"
           title="Clear Canvas"
           onClick={handleClearCanvas}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "rgba(255, 255, 255, 0.12)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
         >
           {getIcon("clear")}
         </button>
@@ -658,7 +551,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         color={store.stickyNoteColor || store.colors?.stickyNote || "#FDE68A"}
         title="Sticky Color"
       />
-    </div>
+    </>
   );
 };
 
