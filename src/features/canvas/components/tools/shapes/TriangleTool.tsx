@@ -11,36 +11,45 @@ export interface TriangleToolProps {
   toolId?: string; // default: 'draw-triangle'
 }
 
-function getPreviewLayer(stage: Konva.Stage): Konva.Layer | null {
+function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
+  const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
+  if (named && named instanceof Konva.Layer) return named;
   const layers = stage.getLayers();
-  return (layers[layers.length - 2] as Konva.Layer) ?? null; // background, main, preview, overlay
+  return layers[indexFallback] ?? null;
 }
 
-const MIN = 8;
+// FigJam-like default sizes (matches sticky note sizing)
+const FIGJAM_TRIANGLE_SIZE = { width: 160, height: 140 }; // Slightly taller than wide for triangle
+
+// Safety limits to prevent extreme dimensions
+const MAX_DIMENSION = 5000;
+const MIN_DIMENSION = 10;
+const MIN_SCALE = 0.01; // Prevent division by extremely small scale values
+
 
 export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, toolId = 'draw-triangle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  const ref = useRef<{
+  const drawingRef = useRef<{
+    triangle: Konva.Line | null;
     start: { x: number; y: number } | null;
-    node: Konva.Line | null;
-  }>({ start: null, node: null });
+  }>({ triangle: null, start: null });
 
   useEffect(() => {
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
-
     if (!stage || !active) return;
 
-    const previewLayer = getPreviewLayer(stage);
-    if (!previewLayer) return;
+    const previewLayer =
+      getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
-    const makePoints = (sx: number, sy: number, ex: number, ey: number): number[] => {
+    const makeTrianglePoints = (sx: number, sy: number, ex: number, ey: number): number[] => {
       const x = Math.min(sx, ex);
       const y = Math.min(sy, ey);
       const w = Math.abs(ex - sx);
@@ -53,16 +62,20 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       return [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y];
     };
 
-    const onDown = () => {
-      const p = stage.getPointerPosition();
-      if (!p) return;
+    const onPointerDown = () => {
+      const pos = stage.getPointerPosition();
+      if (!pos || !previewLayer) return;
 
-      ref.current.start = { x: p.x, y: p.y };
+      drawingRef.current.start = { x: pos.x, y: pos.y };
 
-      const node = new Konva.Line({
-        points: [p.x, p.y, p.x, p.y, p.x, p.y],
+      // Size accounting for current zoom level
+      const scale = stage.scaleX();
+      const strokeWidthScaled = strokeWidth / scale;
+
+      const triangle = new Konva.Line({
+        points: [pos.x, pos.y, pos.x, pos.y, pos.x, pos.y],
         stroke: strokeColor,
-        strokeWidth,
+        strokeWidth: strokeWidthScaled,
         fill: fillColor,
         closed: true,
         listening: false,
@@ -70,94 +83,123 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
         name: 'tool-preview-triangle',
       });
 
-      ref.current.node = node;
-      previewLayer.add(node);
+      drawingRef.current.triangle = triangle;
+      previewLayer.add(triangle);
       previewLayer.batchDraw();
+
+      stage.on('pointermove.triangletool', onPointerMove);
+      stage.on('pointerup.triangletool', onPointerUp);
     };
 
-    const onMove = () => {
-      const start = ref.current.start;
-      const node = ref.current.node;
-      if (!start || !node) return;
+    const onPointerMove = () => {
+      const pos = stage.getPointerPosition();
+      const layer = previewLayer;
+      const triangle = drawingRef.current.triangle;
+      const start = drawingRef.current.start;
+      if (!pos || !layer || !triangle || !start) return;
 
-      const p = stage.getPointerPosition();
-      if (!p) return;
-
-      node.points(makePoints(start.x, start.y, p.x, p.y));
-      previewLayer.batchDraw();
+      triangle.points(makeTrianglePoints(start.x, start.y, pos.x, pos.y));
+      layer.batchDraw();
     };
 
-    const onUp = () => {
-      const start = ref.current.start;
-      const node = ref.current.node;
-      ref.current.start = null;
+    const onPointerUp = () => {
+      stage.off('pointermove.triangletool');
+      stage.off('pointerup.triangletool');
 
-      if (!node || !start) return;
+      const triangle = drawingRef.current.triangle;
+      const start = drawingRef.current.start;
+      const pos = stage.getPointerPosition();
+      drawingRef.current.triangle = null;
+      drawingRef.current.start = null;
 
-      const p = stage.getPointerPosition() || start;
-      const x = Math.min(start.x, p.x);
-      const y = Math.min(start.y, p.y);
-      const w = Math.max(MIN, Math.abs(p.x - start.x));
-      const h = Math.max(MIN, Math.abs(p.y - start.y));
+      if (!triangle || !start || !pos || !previewLayer) return;
 
-      node.remove();
-      node.destroy();
-      ref.current.node = null;
+      let x = Math.min(start.x, pos.x);
+      let y = Math.min(start.y, pos.y);
+      let w = Math.abs(pos.x - start.x);
+      let h = Math.abs(pos.y - start.y);
+
+      // Remove preview
+      triangle.remove();
       previewLayer.batchDraw();
 
-      // Ignore taps without drag - place a default triangle (FigJam-style size)
-      const finalW = (w < MIN && h < MIN) ? 240 : w;
-      const finalH = (w < MIN && h < MIN) ? 240 : h;
+      // If click without drag, create default FigJam-sized triangle
+      // Scale size inversely with zoom to maintain consistent visual size
+      const scale = Math.max(MIN_SCALE, stage.scaleX()); // Prevent division by tiny values
+      const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_TRIANGLE_SIZE.width / scale);
+      const visualHeight = Math.min(MAX_DIMENSION, FIGJAM_TRIANGLE_SIZE.height / scale);
 
-      // Commit to store (assume upsertElement returns id)
-      const id = upsertElement?.({
-        id: crypto.randomUUID(),
-        type: 'triangle',
-        x,
-        y,
-        width: finalW,
-        height: finalH,
-        style: {
-          fill: fillColor,
-          stroke: strokeColor,
-          strokeWidth,
-        },
-      });
-
-      // Immediately open overlay text editor
-      if (id) {
-        setSelectedTool?.('select');
-        openShapeTextEditor(stage, id, {
-          padding: 10,
-          fontSize: 18,
-          lineHeight: 1.3,
-        });
+      if (w < 8 && h < 8) {
+        // Single click - center the shape at click point
+        x = start.x - visualWidth / 2;
+        y = start.y - visualHeight / 2;
+        w = visualWidth;
+        h = visualHeight;
       } else {
+        // Dragged - use actual dimensions but ensure minimum size
+        const minSize = Math.max(MIN_DIMENSION, 40 / scale);
+        w = Math.max(minSize, Math.min(MAX_DIMENSION, w));
+        h = Math.max(minSize, Math.min(MAX_DIMENSION, h));
+      }
+
+      // Create element in store
+      const id = `triangle-${Date.now()}`;
+      if (upsertElement) {
+        upsertElement({
+          id,
+          type: 'triangle',
+          x,
+          y,
+          width: w,
+          height: h,
+          bounds: { x, y, width: w, height: h },
+          draggable: true,
+          text: '', // Start with empty text
+          data: { text: '' },
+          style: {
+            stroke: strokeColor,
+            strokeWidth,
+            fill: fillColor,
+          },
+        } as any);
+
+        // Select the new triangle
+        try {
+          console.log('[TriangleTool] Attempting to select element:', id);
+          replaceSelectionWithSingle?.(id as any);
+          console.log('[TriangleTool] Selection successful');
+        } catch (e) {
+          console.error('[TriangleTool] Selection failed:', e);
+        }
+
+        // Auto-switch to select tool and open text editor
         setSelectedTool?.('select');
+
+        // Small delay to ensure element is rendered before opening editor
+        setTimeout(() => {
+          console.log('[TriangleTool] Opening text editor for:', id);
+          openShapeTextEditor(stage, id);
+        }, 100);
       }
     };
 
-    stage.on('pointerdown.triangletool', onDown);
-    stage.on('pointermove.triangletool', onMove);
-    stage.on('pointerup.triangletool', onUp);
+    // Attach handlers
+    stage.on('pointerdown.triangletool', onPointerDown);
 
     return () => {
-      stage.off('pointerdown.triangletool', onDown);
-      stage.off('pointermove.triangletool', onMove);
-      stage.off('pointerup.triangletool', onUp);
+      stage.off('pointerdown.triangletool');
+      stage.off('pointermove.triangletool');
+      stage.off('pointerup.triangletool');
 
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      const currentRef = ref.current;
-      try {
-        currentRef.node?.destroy();
-      } catch {
-        // ignore
+      // Cleanup preview
+      if (drawingRef.current.triangle) {
+        drawingRef.current.triangle.destroy();
+        drawingRef.current.triangle = null;
       }
-      currentRef.node = null;
-      currentRef.start = null;
+      drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
 
   return null;
 };

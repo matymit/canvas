@@ -205,7 +205,7 @@ export class TransformerManager {
       // Store original draggable state and enable dragging
       live.forEach(node => {
         // Store original draggable state if not already stored
-        if (!node.hasOwnProperty('_originalDraggable')) {
+        if (!Object.prototype.hasOwnProperty.call(node, '_originalDraggable')) {
           node.setAttr('_originalDraggable', node.draggable());
         }
         // Enable dragging so transformer can move the node

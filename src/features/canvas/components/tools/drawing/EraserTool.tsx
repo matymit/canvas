@@ -106,7 +106,10 @@ const EraserTool: React.FC<EraserToolProps> = ({
 
       // Do not move preview stroke to main to avoid duplicate nodes.
       // Rely on DrawingRenderer to reconcile from store and create the persistent line.
-      try { committed.destroy(); } catch {}
+      try { committed.destroy(); } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[EraserTool] Cleanup error:', error);
+      }
       previewLayer?.batchDraw();
 
       const commitFn = () => {
@@ -135,8 +138,14 @@ const EraserTool: React.FC<EraserToolProps> = ({
       stage.off('pointerup.eraser', onUp);
       stage.off('mouseleave.eraser', onUp);
       const overlay = layers[layers.length - 1] as Konva.Layer | undefined;
-      try { overlay?.find('.eraser-cursor').forEach(n => n.destroy()); overlay?.batchDraw(); } catch {}
-      try { previewLayer?.removeChildren(); previewLayer?.draw(); } catch {}
+      try { overlay?.find('.eraser-cursor').forEach(n => n.destroy()); overlay?.batchDraw(); } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[EraserTool] Cleanup error:', error);
+      }
+      try { previewLayer?.removeChildren(); previewLayer?.draw(); } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[EraserTool] Cleanup error:', error);
+      }
       ref.current = { drawing: false, points: [] };
     };
   }, [stageRef, isActive, size, opacity, selectedTool, setSelectedTool, withUndo, upsertElement]);

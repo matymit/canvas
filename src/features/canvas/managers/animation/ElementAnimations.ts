@@ -46,7 +46,10 @@ function stopTween(node: Konva.Node, key: string) {
   const map = getTweens(node);
   const tw = map.get(key);
   if (tw) {
-    try { tw.pause(); tw.destroy(); } catch {}
+    try { tw.pause(); tw.destroy(); } catch (error) {
+      // Ignore cleanup errors
+      console.debug('[ElementAnimations] Cleanup error:', error);
+    }
     map.delete(key);
   }
 }
@@ -58,7 +61,10 @@ function setTween(node: Konva.Node, key: string, tween: Konva.Tween) {
 }
 
 function batchDraw(layer?: Konva.Layer | null) {
-  try { layer?.batchDraw(); } catch {}
+  try { layer?.batchDraw(); } catch (error) {
+    // Ignore cleanup errors
+    console.debug('[ElementAnimations] Cleanup error:', error);
+  }
 }
 
 export function animateAppear(node: Konva.Node, opts?: AppearOptions): Konva.Tween {
@@ -151,7 +157,10 @@ export function animatePulse(node: Konva.Node, options?: PulseOptions): Promise<
 export function stopAllAnimations(node: Konva.Node) {
   const map = getTweens(node);
   for (const [k, t] of map) {
-    try { t.pause(); t.destroy(); } catch {}
+    try { t.pause(); t.destroy(); } catch (error) {
+      // Ignore cleanup errors
+      console.debug('[ElementAnimations] Cleanup error:', error);
+    }
     map.delete(k);
   }
 }

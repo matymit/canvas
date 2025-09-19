@@ -46,7 +46,7 @@ export class ShapeTextRenderer implements RendererModule {
       // Prefer Konva's native id selector
       return (
         (main.findOne(`#${id}`) as Konva.Node | null) ||
-        (main.findOne(`[id=\"${id}\"]`) as Konva.Node | null) ||
+        (main.findOne(`[id="${id}"]`) as Konva.Node | null) ||
         null
       );
     };
@@ -108,7 +108,7 @@ export class ShapeTextRenderer implements RendererModule {
     const padding = el.data?.padding ?? 8;
     const fontFamily = el.style?.fontFamily ?? 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial';
     const fontSize = el.style?.fontSize ?? 18;
-    const fill = el.style?.textColor ?? '#111827';
+    const fill = el.textColor ?? el.style?.textColor ?? '#111827';
     const align = el.style?.textAlign ?? 'center';
     const w = Math.max(0, (el.width ?? 0) - padding * 2);
     const h = Math.max(0, (el.height ?? 0) - padding * 2);

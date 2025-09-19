@@ -48,31 +48,49 @@ export function openShapeTextEditor(
   // Compute the inner text area for the shape
   const innerBox = computeShapeInnerBox(element as BaseShape, padding);
 
-  // Create contentEditable DIV with centered text alignment
+  // Create contentEditable DIV with proper centering for all shape types
   const editor = document.createElement('div');
   editor.contentEditable = 'true';
   editor.setAttribute('data-shape-text-editor', elementId);
+
+  // Determine if this is a triangle (needs line breaks) or circle (needs perfect centering)
+  const isTriangle = element.type === 'triangle';
+  const isCircle = element.type === 'circle';
+
   editor.style.cssText = `
     position: absolute;
     z-index: 1000;
     min-width: 40px;
     min-height: ${fontSize * lineHeight}px;
     outline: none;
-    border: 2px solid #4F46E5;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.98);
+    border: none;
+    border-radius: 0;
+    background: transparent;
     color: ${textColor};
     font-family: ${fontFamily};
     font-size: ${fontSize}px;
     line-height: ${lineHeight};
-    text-align: center;
     padding: 8px;
     box-sizing: border-box;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: none;
     transition: width 0.2s ease, height 0.2s ease;
     overflow: hidden;
-    white-space: nowrap;
     cursor: text;
+    ${isCircle ? `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      white-space: nowrap;
+    ` : isTriangle ? `
+      text-align: center;
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    ` : `
+      text-align: center;
+      white-space: nowrap;
+    `}
   `;
 
   // Set initial content
@@ -139,10 +157,19 @@ export function openShapeTextEditor(
       const newWidth = Math.max(element?.width || 0, (measuredWidth + padding * 2) / stageScale);
       const newHeight = Math.max(element?.height || 0, (measuredHeight + padding * 2) / stageScale);
 
-      // Update element in store with smooth resizing
+      console.log('[ShapeTextEditor] Auto-resizing shape:', elementId, 'from', element?.width, 'x', element?.height, 'to', newWidth, 'x', newHeight);
+
+      // CRITICAL FIX: Update element in store with proper geometry recalculation
+      // For triangles, the ShapeRenderer will automatically recalculate points based on new width/height
       store.element.update(elementId, {
         width: newWidth,
-        height: newHeight
+        height: newHeight,
+        bounds: {
+          x: element?.x || 0,
+          y: element?.y || 0,
+          width: newWidth,
+          height: newHeight
+        }
       });
 
       // Update editor size
@@ -189,11 +216,11 @@ export function openShapeTextEditor(
             text: newText,
             padding,
           },
+          textColor: textColor, // Use direct textColor property
           style: {
             ...element?.style,
             fontSize,
             fontFamily,
-            fill: textColor, // Use 'fill' instead of 'textColor'
             textAlign: 'center' as const
           }
         });

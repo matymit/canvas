@@ -43,9 +43,19 @@ export default function PerformanceOverlayHUD(): JSX.Element | null {
   }; // Mock data
 
   const enabled = perf?.perfEnabled ?? perf?.enabled ?? false;
+  const metrics = perf?.metrics ?? {};
+  const layers = metrics.layers ?? {};
+
+  const layerSummary = useMemo(() => {
+    const bg = layers.background?.count ?? layers.background ?? undefined;
+    const main = layers.main?.count ?? layers.main ?? undefined;
+    const prev = layers.preview?.count ?? layers.preview ?? undefined;
+    const over = layers.overlay?.count ?? layers.overlay ?? undefined;
+    return { bg, main, prev, over };
+  }, [layers]);
+
   if (!enabled) return null;
 
-  const metrics = perf?.metrics ?? {};
   const fps = metrics.fps as MaybeNumber;
   const frameMs = metrics.frameTimeMs as MaybeNumber;
 
@@ -58,15 +68,6 @@ export default function PerformanceOverlayHUD(): JSX.Element | null {
 
   const memUsedMB = metrics.memory?.usedMB as MaybeNumber;
   const memPressure = (metrics.memory?.pressure as string | undefined) ?? "normal";
-
-  const layers = metrics.layers ?? {};
-  const layerSummary = useMemo(() => {
-    const bg = layers.background?.count ?? layers.background ?? undefined;
-    const main = layers.main?.count ?? layers.main ?? undefined;
-    const prev = layers.preview?.count ?? layers.preview ?? undefined;
-    const over = layers.overlay?.count ?? layers.overlay ?? undefined;
-    return { bg, main, prev, over };
-  }, [layers]);
 
   return (
     <div className="pointer-events-none select-none">

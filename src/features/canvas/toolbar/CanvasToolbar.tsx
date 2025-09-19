@@ -143,7 +143,10 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           ly.batchDraw();
         }
       }
-    } catch {}
+    } catch (error) {
+      // Ignore cleanup errors
+      console.debug('[CanvasToolbar] Cleanup error:', error);
+    }
 
     // Force a render by nudging selection version if present
     const set = s as any;
@@ -315,7 +318,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           {getIcon("sticky-note")}
           <div
             style={{
-              position: "absolute" as "absolute",
+              position: "absolute" as const,
               bottom: "2px",
               right: "2px",
               width: "8px",
@@ -347,7 +350,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
         {/* Connector dropdown */}
         <div
-          style={{ position: "relative" as "relative", display: "inline-flex" }}
+          style={{ position: "relative" as const, display: "inline-flex" }}
         >
           <button
             type="button"
@@ -368,7 +371,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
             <div
               role="menu"
               style={{
-                position: "absolute" as "absolute",
+                position: "absolute" as const,
                 bottom: "48px",
                 left: 0,
                 background: "#111827",
@@ -414,7 +417,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         {toolBtn("eraser", "Eraser")}
         {/* Distribute menu */}
         <div
-          style={{ position: "relative" as "relative", display: "inline-flex" }}
+          style={{ position: "relative" as const, display: "inline-flex" }}
         >
           <button
             type="button"
@@ -433,7 +436,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
             <div
               role="menu"
               style={{
-                position: "absolute" as "absolute",
+                position: "absolute" as const,
                 bottom: "48px",
                 left: 0,
                 background: "#111827",

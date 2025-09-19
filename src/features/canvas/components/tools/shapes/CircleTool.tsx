@@ -11,148 +11,224 @@ export interface CircleToolProps {
   toolId?: string; // default: 'draw-circle'
 }
 
-function getPreviewLayer(stage: Konva.Stage): Konva.Layer | null {
+function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
+  const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
+  if (named && named instanceof Konva.Layer) return named;
   const layers = stage.getLayers();
-  return (layers[layers.length - 2] as Konva.Layer) ?? null; // background, main, preview, overlay
+  return layers[indexFallback] ?? null;
 }
 
-const MIN = 8;
+// FigJam-like default sizes (matches sticky note sizing)
+const FIGJAM_CIRCLE_SIZE = { width: 160, height: 160 }; // Same as your sticky note reference
+
+// Safety limits to prevent extreme dimensions
+const MAX_DIMENSION = 5000;
+const MIN_DIMENSION = 10;
+const MIN_SCALE = 0.01; // Prevent division by extremely small scale values
+
 
 export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, toolId = 'draw-circle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  const ref = useRef<{
+  // Debug logging
+  console.log('[CircleTool] Tool state:', {
+    isActive,
+    selectedTool,
+    toolId,
+    hasStageRef: !!stageRef.current,
+    hasUpsertElement: !!upsertElement,
+    hasReplaceSelection: !!replaceSelectionWithSingle
+  });
+
+  const drawingRef = useRef<{
+    circle: Konva.Ellipse | null;
     start: { x: number; y: number } | null;
-    node: Konva.Ellipse | null;
-  }>({ start: null, node: null });
+  }>({ circle: null, start: null });
 
   useEffect(() => {
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
-
     if (!stage || !active) return;
 
-    const previewLayer = getPreviewLayer(stage);
-    if (!previewLayer) return;
+    const previewLayer =
+      getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
-    const onDown = () => {
-      const p = stage.getPointerPosition();
-      if (!p) return;
+    const onPointerDown = () => {
+      console.log('[CircleTool] Pointer down triggered');
+      const pos = stage.getPointerPosition();
+      if (!pos || !previewLayer) {
+        console.warn('[CircleTool] Missing pointer position or preview layer:', { pos, previewLayer });
+        return;
+      }
 
-      ref.current.start = { x: p.x, y: p.y };
+      console.log('[CircleTool] Starting circle creation at:', pos);
+      drawingRef.current.start = { x: pos.x, y: pos.y };
 
-      const node = new Konva.Ellipse({
-        x: p.x,
-        y: p.y,
+      // Size accounting for current zoom level
+      const scale = stage.scaleX();
+      const strokeWidthScaled = strokeWidth / scale;
+
+      const circle = new Konva.Ellipse({
+        x: pos.x,
+        y: pos.y,
         radiusX: 0,
         radiusY: 0,
         stroke: strokeColor,
-        strokeWidth,
+        strokeWidth: strokeWidthScaled,
         fill: fillColor,
         listening: false,
         perfectDrawEnabled: false,
         name: 'tool-preview-circle',
       });
 
-      ref.current.node = node;
-      previewLayer.add(node);
+      drawingRef.current.circle = circle;
+      previewLayer.add(circle);
       previewLayer.batchDraw();
+
+      stage.on('pointermove.circletool', onPointerMove);
+      stage.on('pointerup.circletool', onPointerUp);
     };
 
-    const onMove = () => {
-      const start = ref.current.start;
-      const node = ref.current.node;
-      if (!start || !node) return;
+    const onPointerMove = () => {
+      const pos = stage.getPointerPosition();
+      const layer = previewLayer;
+      const circle = drawingRef.current.circle;
+      const start = drawingRef.current.start;
+      if (!pos || !layer || !circle || !start) return;
 
-      const p = stage.getPointerPosition();
-      if (!p) return;
+      const x = Math.min(start.x, pos.x);
+      const y = Math.min(start.y, pos.y);
+      const w = Math.max(8, Math.abs(pos.x - start.x));
+      const h = Math.max(8, Math.abs(pos.y - start.y));
 
-      const x = Math.min(start.x, p.x);
-      const y = Math.min(start.y, p.y);
-      const w = Math.max(MIN, Math.abs(p.x - start.x));
-      const h = Math.max(MIN, Math.abs(p.y - start.y));
+      // For perfect circles, use the larger dimension for both radiusX and radiusY
+      const maxDimension = Math.max(w, h);
+      const radius = maxDimension / 2;
 
-      node.position({ x: x + w / 2, y: y + h / 2 });
-      node.radius({ x: w / 2, y: h / 2 });
-      previewLayer.batchDraw();
+      circle.position({ x: x + maxDimension / 2, y: y + maxDimension / 2 });
+      circle.radius({ x: radius, y: radius });
+      layer.batchDraw();
     };
 
-    const onUp = () => {
-      const start = ref.current.start;
-      const node = ref.current.node;
-      ref.current.start = null;
+    const onPointerUp = () => {
+      stage.off('pointermove.circletool');
+      stage.off('pointerup.circletool');
 
-      if (!node || !start) return;
+      const circle = drawingRef.current.circle;
+      const start = drawingRef.current.start;
+      const pos = stage.getPointerPosition();
+      drawingRef.current.circle = null;
+      drawingRef.current.start = null;
 
-      const p = stage.getPointerPosition() || start;
-      const x = Math.min(start.x, p.x);
-      const y = Math.min(start.y, p.y);
-      const w = Math.max(MIN, Math.abs(p.x - start.x));
-      const h = Math.max(MIN, Math.abs(p.y - start.y));
+      if (!circle || !start || !pos || !previewLayer) return;
 
-      node.remove();
-      node.destroy();
-      ref.current.node = null;
+      let x = Math.min(start.x, pos.x);
+      let y = Math.min(start.y, pos.y);
+      let w = Math.abs(pos.x - start.x);
+      let h = Math.abs(pos.y - start.y);
+
+      // Remove preview
+      circle.remove();
       previewLayer.batchDraw();
 
-      // Ignore taps without drag - place a default circle (FigJam-style size)
-      const finalW = (w < MIN && h < MIN) ? 240 : w;
-      const finalH = (w < MIN && h < MIN) ? 240 : h;
+      // If click without drag, create default FigJam-sized circle
+      // Scale size inversely with zoom to maintain consistent visual size
+      const scale = Math.max(MIN_SCALE, stage.scaleX()); // Prevent division by tiny values
+      const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.width / scale);
+      const visualHeight = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.height / scale);
 
-      // Commit to store (assume upsertElement returns id)
-      const id = upsertElement?.({
-        id: crypto.randomUUID(),
-        type: 'circle',
-        x,
-        y,
-        width: finalW,
-        height: finalH,
-        style: {
-          fill: fillColor,
-          stroke: strokeColor,
-          strokeWidth,
-        },
-      });
-
-      // Immediately open overlay text editor
-      if (id) {
-        setSelectedTool?.('select');
-        openShapeTextEditor(stage, id, {
-          padding: 10,
-          fontSize: 18,
-          lineHeight: 1.3,
-        });
+      if (w < 8 && h < 8) {
+        // Single click - center the shape at click point
+        x = start.x - visualWidth / 2;
+        y = start.y - visualHeight / 2;
+        w = visualWidth;
+        h = visualWidth; // Use same dimension for perfect circle
       } else {
-        setSelectedTool?.('select');
+        // Dragged - use larger dimension for perfect circle
+        const minSize = Math.max(MIN_DIMENSION, 40 / scale);
+        const maxDimension = Math.max(w, h, minSize);
+        const safeDimension = Math.min(MAX_DIMENSION, maxDimension);
+        w = safeDimension;
+        h = safeDimension;
+        // Adjust position to center the circle
+        x = Math.min(start.x, pos.x) + (Math.abs(pos.x - start.x) - safeDimension) / 2;
+        y = Math.min(start.y, pos.y) + (Math.abs(pos.y - start.y) - safeDimension) / 2;
+      }
+
+      // Create element in store
+      const id = `circle-${Date.now()}`;
+      console.log('[CircleTool] Creating circle element:', { id, x, y, w, h });
+
+      if (upsertElement) {
+        try {
+          const element = upsertElement({
+            id,
+            type: 'circle',
+            x,
+            y,
+            width: w,
+            height: h,
+            bounds: { x, y, width: w, height: h },
+            draggable: true,
+            text: '', // Start with empty text
+            data: { text: '' },
+            style: {
+              stroke: strokeColor,
+              strokeWidth,
+              fill: fillColor,
+            },
+          } as any);
+
+          console.log('[CircleTool] Element created:', element);
+
+          // Select the new circle
+          try {
+            console.log('[CircleTool] Attempting to select element:', id);
+            replaceSelectionWithSingle?.(id as any);
+            console.log('[CircleTool] Selection successful');
+          } catch (e) {
+            console.error('[CircleTool] Selection failed:', e);
+          }
+
+          // Auto-switch to select tool and open text editor
+          setSelectedTool?.('select');
+
+          // Longer delay to ensure element is fully rendered and selected before opening editor
+          setTimeout(() => {
+            console.log('[CircleTool] Opening text editor for:', id);
+            openShapeTextEditor(stage, id);
+          }, 200);
+        } catch (error) {
+          console.error('[CircleTool] Error creating element:', error);
+        }
+      } else {
+        console.error('[CircleTool] No upsertElement function available!');
       }
     };
 
-    stage.on('pointerdown.circletool', onDown);
-    stage.on('pointermove.circletool', onMove);
-    stage.on('pointerup.circletool', onUp);
+    // Attach handlers
+    stage.on('pointerdown.circletool', onPointerDown);
 
     return () => {
-      stage.off('pointerdown.circletool', onDown);
-      stage.off('pointermove.circletool', onMove);
-      stage.off('pointerup.circletool', onUp);
+      stage.off('pointerdown.circletool');
+      stage.off('pointermove.circletool');
+      stage.off('pointerup.circletool');
 
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      const currentRef = ref.current;
-      try {
-        currentRef.node?.destroy();
-      } catch {
-        // ignore
+      // Cleanup preview
+      if (drawingRef.current.circle) {
+        drawingRef.current.circle.destroy();
+        drawingRef.current.circle = null;
       }
-      currentRef.node = null;
-      currentRef.start = null;
+      drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
 
   return null;
 };

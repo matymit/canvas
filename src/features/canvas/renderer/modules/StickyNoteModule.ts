@@ -625,7 +625,10 @@ export class StickyNoteModule implements RendererModule {
     // Remove editor
     try {
       this.activeEditor.remove();
-    } catch {}
+    } catch (error) {
+      // Ignore cleanup errors
+      console.debug('[StickyNoteModule] Cleanup error:', error);
+    }
 
     this.activeEditor = null;
     this.editorElementId = null;

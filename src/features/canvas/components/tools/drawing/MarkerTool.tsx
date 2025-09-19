@@ -101,7 +101,10 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
       pointsRef.current = [];
       drawingRef.current = false;
       rafPendingRef.current = false;
-      try { previewLayerRef.current?.batchDraw(); } catch {}
+      try { previewLayerRef.current?.batchDraw(); } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[MarkerTool] Cleanup error:', error);
+      }
     };
 
     const onPointerDown = () => {
@@ -172,7 +175,10 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
 
       try {
         lineRef.current?.destroy();
-      } catch {}
+      } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[MarkerTool] Cleanup error:', error);
+      }
       lineRef.current = null;
 
       previewLayerRef.current = null;

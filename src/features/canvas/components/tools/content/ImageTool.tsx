@@ -278,7 +278,10 @@ export const ImageTool: React.FC<ImageToolProps> = ({
     if (ghost) {
       try {
         ghost.destroy();
-      } catch {}
+      } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[ImageTool] Ghost cleanup error:', error);
+      }
       stateRef.current.preview = null;
       previewLayer.batchDraw();
     }

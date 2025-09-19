@@ -56,7 +56,7 @@ export function useCanvasEvents(): CanvasEventContextValue {
 
 type HandlersMap = Map<CanvasEventType, Set<CanvasEventHandler>>;
 
-export const CanvasEventProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
+export const CanvasEventProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const stageRef = useRef<Konva.Stage | null>(null);
   const layersRef = useRef<CanvasLayers | null>(null);
 

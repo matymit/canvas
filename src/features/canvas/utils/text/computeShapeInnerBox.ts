@@ -39,14 +39,26 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
     };
   }
 
-  // Triangle: use its bounding box minus padding (approximation).
+  // Triangle: position text in lower visual mass with proper width constraints
   // Assumes isosceles triangle with top tip and flat base created by tool.
+  // Position text editor in the lower 60% area where triangle is widest
   if (el.type === 'triangle' && el.width && el.height) {
-    const w = Math.max(0, el.width - px * 2);
     const h = Math.max(0, el.height - px * 2);
-    const x = el.x + px;
-    const y = el.y + px + h * 0.05; // lift a hair to avoid tip
-    return { x, y, width: w, height: Math.max(0, h - h * 0.05) };
+
+    // Position text area in lower 60% of triangle (where most visual mass is)
+    const textAreaTop = 0.3; // Start 30% down from top
+    const textAreaHeight = 0.6; // Use 60% of height
+    const textAreaWidth = 0.7; // Use 70% of width at the center for better fit
+
+    // Calculate actual dimensions
+    const textWidth = Math.max(0, el.width * textAreaWidth);
+    const textHeight = Math.max(0, h * textAreaHeight);
+
+    // Center horizontally and position vertically in lower area
+    const x = el.x + (el.width - textWidth) / 2;
+    const y = el.y + px + (h * textAreaTop);
+
+    return { x, y, width: textWidth, height: textHeight };
   }
 
   // Fallback: treat as rectangle-like

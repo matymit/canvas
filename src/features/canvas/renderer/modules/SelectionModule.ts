@@ -278,7 +278,7 @@ export class SelectionModule implements RendererModule {
       const scaledWidth = size.width * Math.abs(scale?.x || 1);
       const scaledHeight = size.height * Math.abs(scale?.y || 1);
 
-      let changes: any = {
+      const changes: any = {
         x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
         y: Math.round(pos.y * 100) / 100,
         // Apply scale to width/height with minimum bounds

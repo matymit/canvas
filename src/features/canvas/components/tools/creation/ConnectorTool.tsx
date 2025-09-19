@@ -229,7 +229,10 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         if (ghost) {
           try {
             ghost.destroy();
-          } catch {}
+          } catch (error) {
+            // Ignore cleanup errors
+            console.debug('[ConnectorTool] Ghost cleanup error:', error);
+          }
           ref.current.preview = null;
           previewLayer.batchDraw();
         }
@@ -253,7 +256,10 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       if (ghost) {
         try {
           ghost.destroy();
-        } catch {}
+        } catch (error) {
+          // Ignore cleanup errors
+          console.debug('[ConnectorTool] Ghost cleanup error:', error);
+        }
         ref.current.preview = null;
         previewLayer.batchDraw();
       }
@@ -276,7 +282,10 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         if (g) {
           try {
             g.destroy();
-          } catch {}
+          } catch (error) {
+            // Ignore cleanup errors
+            console.debug('[ConnectorTool] Escape cleanup error:', error);
+          }
           ref.current.preview = null;
           previewLayer.batchDraw();
         }
@@ -297,7 +306,10 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       if (g) {
         try {
           g.destroy();
-        } catch {}
+        } catch (error) {
+          // Ignore cleanup errors
+          console.debug('[ConnectorTool] Cleanup error:', error);
+        }
         ref.current.preview = null;
         previewLayer.batchDraw();
       }

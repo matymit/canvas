@@ -226,7 +226,10 @@ function __sanitize<T extends Record<string, any>>(v: T): T {
       }
       return copy as T;
     }
-  } catch {}
+  } catch (error) {
+    // Ignore sanitization errors
+    console.debug('[CoreModule] Sanitization error:', error);
+  }
   return v;
 }
 
@@ -1050,7 +1053,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
           maxY = -Infinity;
 
         entries.forEach((entry) => {
-          const [_, el] = entry as [any, any];
+          const [, el] = entry as [any, any];
           const b = getElementBounds(el as any);
           if (!b) return;
           minX = Math.min(minX, b.x);

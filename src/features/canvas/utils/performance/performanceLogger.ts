@@ -44,7 +44,7 @@ export class PerformanceLogger {
   mark(name: string, meta?: Record<string, unknown>) {
     const ts = this.now();
     if (typeof performance !== 'undefined' && performance.mark) {
-      try { performance.mark(name); } catch {}
+      try { performance.mark(name); } catch { console.debug('Performance mark failed'); }
     }
     this.push({ type: 'mark', name, ts, meta });
     return ts;
@@ -54,7 +54,7 @@ export class PerformanceLogger {
     const t1 = end ?? this.now();
     const duration = t1 - start;
     if (typeof performance !== 'undefined' && performance.measure) {
-      try { performance.measure(name, { start, end: t1 }); } catch {}
+      try { performance.measure(name, { start, end: t1 }); } catch { console.debug('Performance measure failed'); }
     }
     this.push({ type: 'measure', name, duration, start, end: t1, meta });
     return duration;

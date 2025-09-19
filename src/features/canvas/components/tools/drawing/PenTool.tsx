@@ -104,7 +104,10 @@ export const PenTool: React.FC<PenToolProps> = ({
       pointsRef.current = [];
       drawingRef.current = false;
       rafPendingRef.current = false;
-      try { previewLayerRef.current?.batchDraw(); } catch {}
+      try { previewLayerRef.current?.batchDraw(); } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[PenTool] Cleanup error:', error);
+      }
     };
 
     const onPointerDown = () => {
@@ -175,7 +178,10 @@ export const PenTool: React.FC<PenToolProps> = ({
       // Cleanup transient resources
       try {
         lineRef.current?.destroy();
-      } catch {}
+      } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[PenTool] Cleanup error:', error);
+      }
       lineRef.current = null;
 
       // Do not destroy shared preview layer

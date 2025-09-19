@@ -13,7 +13,7 @@ function isTauriContext(): boolean {
   if (typeof window === 'undefined') return false;
 
   // Check for Tauri v2 patterns
-  // @ts-ignore - These are runtime checks
+  // @ts-expect-error - Tauri globals are not typed but available at runtime
   return !!(window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI__);
 }
 

@@ -138,29 +138,33 @@ function estimateElementSize(element: CanvasElement): number {
   
   // Add size estimates based on element type
   switch (element.type) {
-    case 'drawing':
+    case 'drawing': {
       // Drawing elements can be large due to stroke points
       const points = (element.data as any)?.points || [];
       size += points.length * 16; // x,y coordinates
       break;
+    }
       
-    case 'image':
+    case 'image': {
       // Images store data URLs which can be very large
       const dataUrl = (element.data as any)?.dataUrl || '';
       size += dataUrl.length * 2; // Rough estimate for string storage
       break;
+    }
       
-    case 'table':
+    case 'table': {
       // Tables store cell data
       const cells = (element.data as any)?.cells || [];
       size += cells.length * 100; // Estimate per cell
       break;
+    }
       
-    case 'mindmap-node':
+    case 'mindmap-node': {
       // Text content
       const text = (element.data as any)?.text || '';
       size += text.length * 2;
       break;
+    }
       
     default:
       // Basic elements (shapes, text, etc.)
@@ -430,7 +434,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
 
       // drop redo tail if not at end
       const end = h.index + 1;
-      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
 
       const prev = base[base.length - 1];
       if (shouldMerge(prev, label, mergeKey, h.mergeWindowMs)) {
@@ -483,7 +487,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
 
       // drop redo tail if not at end
       const end = h.index + 1;
-      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
 
       const prev = base[base.length - 1];
       if (shouldMerge(prev, label, mergeKey, h.mergeWindowMs)) {
@@ -564,7 +568,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
         return;
       }
       const end = h.index + 1;
-      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
       const prev = base[base.length - 1];
       const label = input?.label;
       const mergeKey = input?.mergeKey;
@@ -598,7 +602,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
         return;
       }
       const end = h.index + 1;
-      let base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
+      const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
       const entry: HistoryEntry = {
         id: idGen(),
         ts: now(),

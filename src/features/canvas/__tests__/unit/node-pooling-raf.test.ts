@@ -690,7 +690,7 @@ describe('Node Pooling and RAF Batching Unit Tests', () => {
       nodePool.warmUp('Rect', 10);
       nodePool.warmUp('Circle', 10);
       
-      let initialStats = nodePool.getStats();
+      const initialStats = nodePool.getStats();
       expect(initialStats.totalPooledNodes).toBe(30);
       
       // Clear all pools

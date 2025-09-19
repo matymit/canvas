@@ -18,7 +18,7 @@ class Layer extends Group {
   _drawCount = 0;
   batchDraw() { this._drawCount++; }
   findOne(selector: string) {
-    const m = selector.match(/\[id=\"(.+?)\"\]/);
+    const m = selector.match(/\[id="(.+?)"\]/);
     const id = m?.[1];
     if (!id) return null;
     const dfs = (n: any): any => {

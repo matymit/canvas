@@ -175,7 +175,7 @@ export class TextRenderer implements RendererModule {
       fontSize: text.style?.fontSize || 18,
       fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
       fontStyle: text.style?.fontWeight || 'normal',
-      fill: '#000000', // Force black text for maximum visibility
+      fill: text.style?.fill || '#111827', // Use element's fill color
       align: text.style?.align || 'left',
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
@@ -234,7 +234,7 @@ export class TextRenderer implements RendererModule {
         fontSize: text.style?.fontSize || 18,
         fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
         fontStyle: text.style?.fontWeight || 'normal',
-        fill: '#000000', // Force black text for maximum visibility
+        fill: text.style?.fill || '#111827', // Use element's fill color
         align: text.style?.align || 'left',
         rotation: text.rotation || 0,
         opacity: text.opacity || 1,

@@ -50,7 +50,7 @@ function konvaFactory() {
     let _draggable = false;
 
     const layers: any[] = [];
-    const listeners = new Map<string, Function[]>();
+    const listeners = new Map<string, (() => unknown)[]>();
 
     const containerEl = {
       style: { cursor: 'default' as string },
@@ -104,13 +104,13 @@ function konvaFactory() {
       draggable: vi.fn((v?: boolean) => (typeof v === 'boolean' ? (_draggable = v) : _draggable)),
 
       // events
-      on: vi.fn((evt: string, cb: Function) => {
+      on: vi.fn((evt: string, cb: () => unknown) => {
         const arr = listeners.get(evt) ?? [];
         arr.push(cb);
         listeners.set(evt, arr);
         return stage;
       }),
-      off: vi.fn((evt?: string, cb?: Function) => {
+      off: vi.fn((evt?: string, cb?: () => unknown) => {
         if (!evt) { listeners.clear(); return stage; }
         if (!cb) { listeners.delete(evt); return stage; }
         const arr = listeners.get(evt) ?? [];
@@ -218,7 +218,7 @@ function konvaFactory() {
       _attrs: { ...(config || {}) },
       setAttrs: vi.fn((attrs: any) => Object.assign(shape._attrs, attrs)),
       name: vi.fn(() => shape._attrs?.name),
-      sceneFunc: vi.fn((fn?: Function) => { if (typeof fn === 'function') shape._sceneFunc = fn; return shape; }),
+      sceneFunc: vi.fn((fn?: () => unknown) => { if (typeof fn === 'function') shape._sceneFunc = fn; return shape; }),
       clearCache: vi.fn(),
       destroy: vi.fn(),
     };
@@ -231,10 +231,10 @@ function konvaFactory() {
     let _width = config?.width ?? 0;
     let _height = config?.height ?? 0;
     let _text = config?.text ?? '';
-    let _fontFamily = config?.fontFamily ?? 'sans-serif';
-    let _fontSize = config?.fontSize ?? 12;
-    let _fill = config?.fill ?? '#000';
-    let _align = config?.align ?? 'left';
+    const _fontFamily = config?.fontFamily ?? 'sans-serif';
+    const _fontSize = config?.fontSize ?? 12;
+    const _fill = config?.fill ?? '#000';
+    const _align = config?.align ?? 'left';
     const node: any = {
       setAttrs: vi.fn((attrs: any) => {
         Object.assign(node, attrs);

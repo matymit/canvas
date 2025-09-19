@@ -102,7 +102,10 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
       pointsRef.current = [];
       drawingRef.current = false;
       rafPendingRef.current = false;
-      try { previewLayerRef.current?.batchDraw(); } catch {}
+      try { previewLayerRef.current?.batchDraw(); } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[HighlighterTool] Cleanup error:', error);
+      }
     };
 
     const onPointerDown = () => {
@@ -174,7 +177,10 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
 
       try {
         lineRef.current?.destroy();
-      } catch {}
+      } catch (error) {
+        // Ignore cleanup errors
+        console.debug('[HighlighterTool] Cleanup error:', error);
+      }
       lineRef.current = null;
 
       previewLayerRef.current = null;
