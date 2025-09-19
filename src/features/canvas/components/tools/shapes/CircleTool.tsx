@@ -32,6 +32,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
   const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
+  const bumpSelectionVersion = useUnifiedCanvasStore((s: any) => s.bumpSelectionVersion);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
@@ -192,7 +193,8 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
             text: '', // Start with empty text
             data: {
               text: '',
-              radius: radius // CRITICAL: Store radius in data for proper text positioning
+              radius: radius, // CRITICAL: Store radius in data for proper text positioning
+              padding: 0
             },
             style: {
               stroke: strokeColor,
@@ -207,6 +209,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
           try {
             console.log('[CircleTool] Attempting to select element:', id);
             replaceSelectionWithSingle?.(id as any);
+            bumpSelectionVersion?.();
             console.log('[CircleTool] Selection successful');
           } catch (e) {
             console.error('[CircleTool] Selection failed:', e);
@@ -215,11 +218,26 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
           // Auto-switch to select tool and open text editor
           setSelectedTool?.('select');
 
-          // Longer delay to ensure element is fully rendered and selected before opening editor
-          setTimeout(() => {
-            console.log('[CircleTool] Opening text editor for:', id);
-            openShapeTextEditor(stage, id);
-          }, 200);
+          const openEditorWhenReady = (attempt: number) => {
+            const state = useUnifiedCanvasStore.getState();
+            const selectedIds: Set<string> = state.selectedElementIds ?? new Set();
+            const isSelected = selectedIds.has(id);
+
+            if (isSelected || attempt >= 6) {
+              requestAnimationFrame(() => {
+                console.log('[CircleTool] Opening text editor for:', id, {
+                  attempt,
+                  isSelected
+                });
+                openShapeTextEditor(stage, id);
+              });
+              return;
+            }
+
+            requestAnimationFrame(() => openEditorWhenReady(attempt + 1));
+          };
+
+          openEditorWhenReady(0);
         } catch (error) {
           console.error('[CircleTool] Error creating element:', error);
         }

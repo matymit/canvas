@@ -2,13 +2,19 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
-import { computeShapeInnerBox, computeCircleTextBox, measureTextHeight, type BaseShape } from "../../utils/text/computeShapeInnerBox";
+import { computeShapeInnerBox, measureTextHeight, type BaseShape } from "../../utils/text/computeShapeInnerBox";
 
 type Id = string;
 
 // Safety limits to prevent extreme dimensions
 const MAX_DIMENSION = 5000;
 const MIN_DIMENSION = 1;
+
+interface ShapeTextAttachment {
+  text: Konva.Text;
+  primaryNode: Konva.Group | Konva.Text;
+  container?: Konva.Group;
+}
 
 interface ShapeElement {
   id: Id;
@@ -37,7 +43,7 @@ interface ShapeElement {
 
 export class ShapeRenderer implements RendererModule {
   private shapeNodes = new Map<Id, Konva.Shape>();
-  private textNodes = new Map<Id, Konva.Text>(); // Track text nodes for shapes
+  private textNodes = new Map<Id, ShapeTextAttachment>(); // Track text nodes for shapes
   private layer?: Konva.Layer;
   private unsubscribe?: () => void;
 
@@ -96,8 +102,8 @@ export class ShapeRenderer implements RendererModule {
     this.shapeNodes.clear();
 
     // Clean up text nodes
-    for (const textNode of this.textNodes.values()) {
-      textNode.destroy();
+    for (const attachment of this.textNodes.values()) {
+      attachment.primaryNode.destroy();
     }
     this.textNodes.clear();
 
@@ -199,10 +205,10 @@ export class ShapeRenderer implements RendererModule {
     }
 
     // Remove deleted text nodes
-    for (const [id, textNode] of this.textNodes) {
+    for (const [id, attachment] of this.textNodes) {
       if (!seen.has(id)) {
         console.log("[ShapeRenderer] Removing shape text:", id);
-        textNode.destroy();
+        attachment.primaryNode.destroy();
         this.textNodes.delete(id);
       }
     }
@@ -254,19 +260,27 @@ export class ShapeRenderer implements RendererModule {
           calculatedRadius: radius
         });
 
-        return new Konva.Circle({
+        const circleNode = new Konva.Circle({
           ...commonAttrs,
           radius: radius, // Use proper radius for Konva.Circle
           // Note: Konva.Circle uses x,y as center point, which matches our element positioning
         });
+
+        circleNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, circleNode));
+
+        return circleNode;
       }
 
       case "ellipse":
-        return new Konva.Ellipse({
+        const ellipseNode = new Konva.Ellipse({
           ...commonAttrs,
           radiusX: safeWidth / 2,
           radiusY: safeHeight / 2,
         });
+
+        ellipseNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, ellipseNode));
+
+        return ellipseNode;
 
       case "triangle": {
         // Create isosceles triangle using Shape with sceneFunc for proper geometry
@@ -291,6 +305,8 @@ export class ShapeRenderer implements RendererModule {
             context.fillStrokeShape(shape);
           }
         });
+
+        triangleShape.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, triangleShape));
 
         return triangleShape;
       }
@@ -322,6 +338,9 @@ export class ShapeRenderer implements RendererModule {
         width: safeWidth,
         height: safeHeight,
       });
+
+      node.off('dragmove.text-follow');
+      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
     } else if (shape.type === "circle" && node instanceof Konva.Circle) {
       // FIXED: Handle circle updates with proper radius calculation from data
       let radius: number;
@@ -344,12 +363,18 @@ export class ShapeRenderer implements RendererModule {
         ...commonAttrs,
         radius: radius, // Use proper radius for Konva.Circle updates
       });
+
+      node.off('dragmove.text-follow');
+      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
     } else if (shape.type === "ellipse" && node instanceof Konva.Ellipse) {
       node.setAttrs({
         ...commonAttrs,
         radiusX: safeWidth / 2,
         radiusY: safeHeight / 2,
       });
+
+      node.off('dragmove.text-follow');
+      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
     } else if (shape.type === "triangle" && node instanceof Konva.Shape) {
       // Update triangle dimensions - sceneFunc will automatically recalculate geometry
       node.setAttrs({
@@ -357,6 +382,9 @@ export class ShapeRenderer implements RendererModule {
         width: safeWidth,
         height: safeHeight,
       });
+
+      node.off('dragmove.text-follow');
+      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
 
       // The sceneFunc will automatically redraw with new dimensions
       // No need to manually recalculate points - this prevents deformation
@@ -398,214 +426,204 @@ export class ShapeRenderer implements RendererModule {
     const hasText = shape.data?.text && shape.data.text.trim().length > 0;
 
     if (hasText) {
-      // Shape has text - create or update text node
-      let textNode = this.textNodes.get(id);
+      // Shape has text - create or update text attachment
+      let attachment = this.textNodes.get(id);
 
-      if (!textNode) {
+      if (!attachment) {
         // Create new text node for this shape
-        textNode = this.createShapeTextNode(shape);
-        if (textNode) {
-          this.textNodes.set(id, textNode);
-          this.layer?.add(textNode);
+        attachment = this.createShapeTextAttachment(shape);
+        if (attachment) {
+          this.textNodes.set(id, attachment);
+          this.layer?.add(attachment.primaryNode);
           console.log('[ShapeRenderer] Created text node for shape:', id, shape.data?.text);
         }
       } else {
         // Update existing text node
-        this.updateShapeTextNode(textNode, shape);
+        this.updateShapeTextAttachment(attachment, shape);
       }
     } else {
       // Shape has no text - remove text node if it exists
       const existingTextNode = this.textNodes.get(id);
       if (existingTextNode) {
         console.log('[ShapeRenderer] Removing text node for shape (no text):', id);
-        existingTextNode.destroy();
+        existingTextNode.primaryNode.destroy();
         this.textNodes.delete(id);
       }
     }
   }
 
-  private createShapeTextNode(shape: ShapeElement): Konva.Text | undefined {
+  private createShapeTextAttachment(shape: ShapeElement): ShapeTextAttachment | undefined {
     if (!shape.data?.text || !this.layer) return undefined;
 
     try {
-      // Get text styling from shape
       const fontSize = shape.style?.fontSize || 18;
       const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
       const textColor = shape.textColor || '#111827';
+      const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
+      const lineHeight = (shape.data as { textLineHeight?: number } | undefined)?.textLineHeight ?? 1.3;
 
-      // EXACT SPECIFICATION: Use precise geometry calculation
-      let boxX: number, boxY: number, boxSize: number, measuredTextHeight: number;
+      const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
+      const measuredTextHeight = measureTextHeight(shape.data.text, {
+        fontSize,
+        fontFamily,
+        width: innerBox.width,
+        lineHeight,
+      });
 
-      if (shape.type === 'circle') {
-        // Get radius from data or fallback calculation
-        let radius: number;
-        if (shape.data?.radius !== undefined) {
-          radius = shape.data.radius;
-        } else if (shape.width && shape.height) {
-          radius = Math.min(shape.width, shape.height) / 2;
-        } else {
-          radius = 50;
-        }
+      const verticalOffset = Math.max(0, (innerBox.height - measuredTextHeight) / 2);
 
-        // Use EXACT computeCircleTextBox function as specified
-        const textBox = computeCircleTextBox({ x: shape.x, y: shape.y, radius });
-        boxX = textBox.x;
-        boxY = textBox.y;
-        boxSize = textBox.size;
+      const circlePadding = shape.type === 'circle' ? innerBox.circlePadding ?? 0 : 0;
+      const circleContainerSide = shape.type === 'circle' ? innerBox.circleContainerSide ?? innerBox.width : undefined;
 
-        // Measure text height using the exact function
-        measuredTextHeight = measureTextHeight(shape.data.text, {
-          fontSize,
-          fontFamily,
-          width: boxSize,
-          lineHeight: 1.2
-        });
-
-        console.log('[DEBUG] Circle text EXACT SPECIFICATION (renderer):', {
-          elementId: shape.id,
-          elementPosition: { x: shape.x, y: shape.y },
-          calculatedRadius: radius,
-          exactTextBox: textBox,
-          measuredTextHeight,
-          finalCoords: { boxX, boxY, boxSize }
-        });
-      } else {
-        // For non-circles, use existing calculation
-        const innerBox = computeShapeInnerBox(shape as BaseShape, shape.data.padding || 8);
-        boxX = innerBox.x;
-        boxY = innerBox.y;
-        boxSize = Math.min(innerBox.width, innerBox.height);
-
-        measuredTextHeight = measureTextHeight(shape.data.text, {
-          fontSize,
-          fontFamily,
-          width: boxSize,
-          lineHeight: 1.2
-        });
-      }
-
-      // EXACT SPECIFICATION: Create Konva.Text using the exact positioning formula
       const textNode = new Konva.Text({
         id: `${shape.id}-text`,
         name: `shape-text-${shape.id}`,
-        x: boxX,
-        y: boxY + (boxSize - measuredTextHeight) / 2, // EXACT formula as specified
-        width: boxSize,
-        height: boxSize,
+        x: shape.type === 'circle' ? circlePadding : innerBox.x,
+        y: shape.type === 'circle' ? circlePadding + verticalOffset : innerBox.y + verticalOffset,
+        width: innerBox.width,
+        height: innerBox.height,
         text: shape.data.text,
         fontSize,
         fontFamily,
         fill: textColor,
-        align: 'center', // EXACT specification
-        lineHeight: 1.2,
+        align: 'center',
+        lineHeight,
         wrap: 'word',
-        listening: false, // Text should not interfere with shape interactions
+        listening: false,
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,
       });
 
-      // Set element ID for debugging/selection
       textNode.setAttr('elementId', shape.id);
       textNode.setAttr('nodeType', 'shape-text');
 
-      console.log('[DEBUG] EXACT SPECIFICATION Konva.Text created:', {
+      let primaryNode: Konva.Group | Konva.Text = textNode;
+      let container: Konva.Group | undefined;
+
+      if (shape.type === 'circle' && circleContainerSide) {
+        container = new Konva.Group({
+          id: `${shape.id}-text-container`,
+          name: `shape-text-container-${shape.id}`,
+          x: shape.x - circleContainerSide / 2,
+          y: shape.y - circleContainerSide / 2,
+          width: circleContainerSide,
+          height: circleContainerSide,
+          listening: false,
+        });
+
+        container.clipFunc((ctx) => {
+          ctx.beginPath();
+          ctx.arc(circleContainerSide / 2, circleContainerSide / 2, circleContainerSide / 2, 0, Math.PI * 2, false);
+          ctx.closePath();
+        });
+
+        container.add(textNode);
+        primaryNode = container;
+      }
+
+      const relativeDX = primaryNode.x() - shape.x;
+      const relativeDY = primaryNode.y() - shape.y;
+      primaryNode.setAttr('relativeDX', relativeDX);
+      primaryNode.setAttr('relativeDY', relativeDY);
+      primaryNode.setAttr('elementId', shape.id);
+      primaryNode.setAttr('nodeType', 'shape-text-root');
+
+      console.log('[DEBUG] Shape text node created:', {
         elementId: shape.id,
         textNodePosition: { x: textNode.x(), y: textNode.y() },
         textNodeSize: { width: textNode.width(), height: textNode.height() },
-        boxCoords: { boxX, boxY, boxSize },
+        innerBox,
         measuredTextHeight,
-        verticalOffset: (boxSize - measuredTextHeight) / 2,
+        lineHeight,
+        verticalOffset,
+        relativeOffsets: { relativeDX, relativeDY },
         text: shape.data.text
       });
 
-      return textNode;
+      return { text: textNode, primaryNode, container };
     } catch (error) {
       console.error('[ShapeRenderer] Error creating text node for shape:', shape.id, error);
       return undefined;
     }
   }
 
-  private updateShapeTextNode(textNode: Konva.Text, shape: ShapeElement) {
+  private updateShapeTextAttachment(attachment: ShapeTextAttachment, shape: ShapeElement) {
     if (!shape.data?.text) return;
 
     try {
-      // Get updated text styling
       const fontSize = shape.style?.fontSize || 18;
       const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
       const textColor = shape.textColor || '#111827';
+      const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
+      const lineHeight = (shape.data as { textLineHeight?: number } | undefined)?.textLineHeight ?? 1.3;
 
-      // EXACT SPECIFICATION: Recalculate using precise geometry
-      let boxX: number, boxY: number, boxSize: number, measuredTextHeight: number;
+      const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
+      const measuredTextHeight = measureTextHeight(shape.data.text, {
+        fontSize,
+        fontFamily,
+        width: innerBox.width,
+        lineHeight,
+      });
 
-      if (shape.type === 'circle') {
-        // Get radius from data or fallback calculation
-        let radius: number;
-        if (shape.data?.radius !== undefined) {
-          radius = shape.data.radius;
-        } else if (shape.width && shape.height) {
-          radius = Math.min(shape.width, shape.height) / 2;
-        } else {
-          radius = 50;
-        }
+      const verticalOffset = Math.max(0, (innerBox.height - measuredTextHeight) / 2);
 
-        // Use EXACT computeCircleTextBox function as specified
-        const textBox = computeCircleTextBox({ x: shape.x, y: shape.y, radius });
-        boxX = textBox.x;
-        boxY = textBox.y;
-        boxSize = textBox.size;
+      const { text: textNode, primaryNode, container } = attachment;
+      const circlePadding = shape.type === 'circle' ? innerBox.circlePadding ?? 0 : 0;
+      const circleContainerSide = shape.type === 'circle' ? innerBox.circleContainerSide ?? innerBox.width : undefined;
 
-        // Measure text height using the exact function
-        measuredTextHeight = measureTextHeight(shape.data.text, {
-          fontSize,
-          fontFamily,
-          width: boxSize,
-          lineHeight: 1.2
+      if (shape.type === 'circle' && container && circleContainerSide) {
+        container.position({
+          x: shape.x - circleContainerSide / 2,
+          y: shape.y - circleContainerSide / 2,
+        });
+        container.setAttrs({ width: circleContainerSide, height: circleContainerSide });
+        container.clipFunc((ctx) => {
+          ctx.beginPath();
+          ctx.arc(circleContainerSide / 2, circleContainerSide / 2, circleContainerSide / 2, 0, Math.PI * 2, false);
+          ctx.closePath();
         });
 
-        console.log('[DEBUG] Circle text EXACT SPECIFICATION update (renderer):', {
-          elementId: shape.id,
-          elementPosition: { x: shape.x, y: shape.y },
-          calculatedRadius: radius,
-          exactTextBox: textBox,
-          measuredTextHeight,
-          finalCoords: { boxX, boxY, boxSize }
+        textNode.setAttrs({
+          x: circlePadding,
+          y: circlePadding + verticalOffset,
+          width: innerBox.width,
+          height: innerBox.height,
+          text: shape.data.text,
+          fontSize,
+          fontFamily,
+          fill: textColor,
+          align: 'center',
+          lineHeight,
         });
       } else {
-        // For non-circles, use existing calculation
-        const innerBox = computeShapeInnerBox(shape as BaseShape, shape.data.padding || 8);
-        boxX = innerBox.x;
-        boxY = innerBox.y;
-        boxSize = Math.min(innerBox.width, innerBox.height);
-
-        measuredTextHeight = measureTextHeight(shape.data.text, {
+        textNode.setAttrs({
+          x: innerBox.x,
+          y: innerBox.y + verticalOffset,
+          width: innerBox.width,
+          height: innerBox.height,
+          text: shape.data.text,
           fontSize,
           fontFamily,
-          width: boxSize,
-          lineHeight: 1.2
+          fill: textColor,
+          align: 'center',
+          lineHeight,
         });
       }
 
-      // EXACT SPECIFICATION: Update using the exact positioning formula
-      textNode.setAttrs({
-        x: boxX,
-        y: boxY + (boxSize - measuredTextHeight) / 2, // EXACT formula as specified
-        width: boxSize,
-        height: boxSize,
-        text: shape.data.text,
-        fontSize,
-        fontFamily,
-        fill: textColor,
-        align: 'center', // EXACT specification
-        lineHeight: 1.2,
-      });
+      const relativeDX = primaryNode.x() - shape.x;
+      const relativeDY = primaryNode.y() - shape.y;
+      primaryNode.setAttr('relativeDX', relativeDX);
+      primaryNode.setAttr('relativeDY', relativeDY);
 
-      console.log('[DEBUG] EXACT SPECIFICATION Konva.Text updated:', {
+      console.log('[DEBUG] Shape text node updated:', {
         elementId: shape.id,
         textNodePosition: { x: textNode.x(), y: textNode.y() },
         textNodeSize: { width: textNode.width(), height: textNode.height() },
-        boxCoords: { boxX, boxY, boxSize },
+        innerBox,
         measuredTextHeight,
-        verticalOffset: (boxSize - measuredTextHeight) / 2,
+        lineHeight,
+        verticalOffset,
+        relativeOffsets: { relativeDX, relativeDY },
         text: shape.data.text,
         stagePosition: this.layer?.getStage()?.position(),
         stageScale: this.layer?.getStage()?.scaleX()
@@ -613,5 +631,18 @@ export class ShapeRenderer implements RendererModule {
     } catch (error) {
       console.error('[ShapeRenderer] Error updating text node for shape:', shape.id, error);
     }
+  }
+
+  private syncTextFollower(id: Id, node: Konva.Shape) {
+    const attachment = this.textNodes.get(id);
+    if (!attachment) return;
+
+    const dx = attachment.primaryNode.getAttr('relativeDX');
+    const dy = attachment.primaryNode.getAttr('relativeDY');
+
+    if (typeof dx !== 'number' || typeof dy !== 'number') return;
+
+    attachment.primaryNode.position({ x: node.x() + dx, y: node.y() + dy });
+    attachment.primaryNode.getLayer()?.batchDraw();
   }
 }
