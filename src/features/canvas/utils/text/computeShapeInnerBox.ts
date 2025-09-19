@@ -21,32 +21,50 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
     return { x: el.x + px, y: el.y + px, width: w, height: h };
   }
 
-  // Circle: use maximal axis-aligned inscribed square
-  // For a circle with diameter D, the inscribed square has side length D/√2
-  if (el.type === 'circle' && el.width && el.height) {
-    const diameter = Math.min(el.width, el.height); // Use smaller dimension for true circle
-    const centerX = el.x + el.width / 2;
-    const centerY = el.y + el.height / 2;
+  // Circle: FIXED - Use proper radius-based calculation
+  // Konva.Circle is positioned by center (x, y) and uses radius property
+  if (el.type === 'circle') {
+    // Get the actual radius - prefer radius property, fallback to width/height
+    let radius: number;
+    if (el.radius !== undefined) {
+      radius = el.radius;
+    } else if (el.width !== undefined && el.height !== undefined) {
+      // Fallback: use smaller dimension to ensure perfect circle
+      radius = Math.min(el.width, el.height) / 2;
+    } else {
+      // Default fallback
+      radius = 50;
+    }
 
-    // Inscribed square side length = diameter / √2
-    const inscribedSize = diameter / Math.sqrt(2);
-    const innerSize = Math.max(0, inscribedSize - px * 2);
+    // Circle is positioned at its center (x, y)
+    const centerX = el.x;
+    const centerY = el.y;
+
+    // Calculate maximal inscribed square with padding
+    // For a circle with radius R, inscribed square has side = R * √2
+    const maxInscribedSide = (radius * Math.sqrt(2));
+    const paddedSide = Math.max(0, maxInscribedSide - (px * 2));
+
+    // Position the square centered within the circle
+    const squareX = centerX - (paddedSide / 2);
+    const squareY = centerY - (paddedSide / 2);
 
     const result = {
-      x: centerX - innerSize / 2,
-      y: centerY - innerSize / 2,
-      width: innerSize,
-      height: innerSize,
+      x: squareX,
+      y: squareY,
+      width: paddedSide,
+      height: paddedSide,
     };
 
-    console.log('[DEBUG] Circle text positioning:', {
+    console.log('[DEBUG] Circle text positioning (FIXED):', {
       elementId: el.id,
+      inputElement: { x: el.x, y: el.y, radius: el.radius, width: el.width, height: el.height },
+      calculatedRadius: radius,
       circleCenter: { centerX, centerY },
-      diameter,
-      inscribedSize,
-      innerSize,
-      finalPosition: { x: result.x, y: result.y },
-      dimensions: { width: innerSize, height: innerSize }
+      maxInscribedSide: maxInscribedSide,
+      paddedSide: paddedSide,
+      finalInnerBox: result,
+      padding: px
     });
 
     return result;
