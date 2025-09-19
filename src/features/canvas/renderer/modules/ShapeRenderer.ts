@@ -161,7 +161,7 @@ export class ShapeRenderer implements RendererModule {
           radius: shape.radius || shape.width ? shape.width! / 2 : 50,
         });
 
-      case "triangle":
+      case "triangle": {
         const width = shape.width || 100;
         const height = shape.height || 100;
         return new Konva.RegularPolygon({
@@ -169,6 +169,7 @@ export class ShapeRenderer implements RendererModule {
           sides: 3,
           radius: Math.min(width, height) / 2,
         });
+      }
 
       default:
         console.warn("[ShapeRenderer] Unknown shape type:", shape.type);

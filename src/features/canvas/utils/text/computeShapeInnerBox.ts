@@ -3,7 +3,7 @@ export type InnerBox = { x: number; y: number; width: number; height: number };
 
 export interface BaseShape {
   id: string;
-  type: 'rectangle' | 'circle' | 'ellipse' | 'triangle';
+  type: 'rectangle' | 'circle' | 'triangle';
   x: number;
   y: number;
   width?: number;
@@ -22,8 +22,8 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
   }
 
   // Circle/Ellipse: use maximal axis-aligned inscribed rect
-  // For ellipse radii rx, ry, maximal rect is width=√2*rx, height=√2*ry; apply padding.
-  if ((el.type === 'circle' || el.type === 'ellipse') && el.width && el.height) {
+  // For circle radii rx, ry, maximal rect is width=√2*rx, height=√2*ry; apply padding.
+  if (el.type === 'circle' && el.width && el.height) {
     const rx = el.width / 2;
     const ry = el.height / 2;
     // Maximal inscribed rect (axis-aligned) is width/√2 by height/√2. Apply padding uniformly.

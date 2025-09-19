@@ -1,7 +1,7 @@
 // Text renderer module for rendering text elements
 import Konva from 'konva';
 import type { ModuleRendererCtx, RendererModule } from '../index';
-import { openShapeTextEditor } from '../../utils/editors/openShapeTextEditor';
+import { openKonvaTextEditor } from '../../utils/editors/openShapeTextEditor';
 
 type Id = string;
 
@@ -367,7 +367,7 @@ export class TextRenderer implements RendererModule {
 
     console.log('[TextRenderer] Opening text editor for:', text.id);
 
-    openShapeTextEditor({
+    openKonvaTextEditor({
       stage: this.stage,
       layer: this.layer,
       shape: node,

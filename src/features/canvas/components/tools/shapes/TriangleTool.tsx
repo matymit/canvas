@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
-// import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor'; // TODO: Fix call signature
-import type { CanvasElement, ElementId } from '../../../../../../types/index';
+import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -12,34 +11,34 @@ export interface TriangleToolProps {
   toolId?: string; // default: 'draw-triangle'
 }
 
-function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
-  const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
-  if (named && named instanceof Konva.Layer) return named;
+function getPreviewLayer(stage: Konva.Stage): Konva.Layer | null {
   const layers = stage.getLayers();
-  return layers[indexFallback] ?? null;
+  return (layers[layers.length - 2] as Konva.Layer) ?? null; // background, main, preview, overlay
 }
+
+const MIN = 8;
 
 export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, toolId = 'draw-triangle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
+  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  const drawingRef = useRef<{
-    tri: Konva.Line | null;
+  const ref = useRef<{
     start: { x: number; y: number } | null;
-  }>({ tri: null, start: null });
+    node: Konva.Line | null;
+  }>({ start: null, node: null });
 
   useEffect(() => {
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
+
     if (!stage || !active) return;
 
-    console.log('[TriangleTool] Tool activated, adding stage listener');
-
-    const previewLayer =
-      getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
+    const previewLayer = getPreviewLayer(stage);
+    if (!previewLayer) return;
 
     const makePoints = (sx: number, sy: number, ex: number, ey: number): number[] => {
       const x = Math.min(sx, ex);
@@ -54,16 +53,14 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       return [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y];
     };
 
-    const onPointerDown = () => {
-      const pos = stage.getPointerPosition();
-      if (!pos || !previewLayer) return;
+    const onDown = () => {
+      const p = stage.getPointerPosition();
+      if (!p) return;
 
-      console.log('[TriangleTool] Pointer down at:', pos);
+      ref.current.start = { x: p.x, y: p.y };
 
-      drawingRef.current.start = { x: pos.x, y: pos.y };
-
-      const tri = new Konva.Line({
-        points: [pos.x, pos.y, pos.x, pos.y, pos.x, pos.y],
+      const node = new Konva.Line({
+        points: [p.x, p.y, p.x, p.y, p.x, p.y],
         stroke: strokeColor,
         strokeWidth,
         fill: fillColor,
@@ -73,111 +70,94 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
         name: 'tool-preview-triangle',
       });
 
-      drawingRef.current.tri = tri;
-      previewLayer.add(tri);
+      ref.current.node = node;
+      previewLayer.add(node);
       previewLayer.batchDraw();
-
-      stage.on('pointermove.tritool', onPointerMove);
-      stage.on('pointerup.tritool', onPointerUp);
     };
 
-    const onPointerMove = () => {
-      const pos = stage.getPointerPosition();
-      const layer = previewLayer;
-      const tri = drawingRef.current.tri;
-      const start = drawingRef.current.start;
-      if (!pos || !layer || !tri || !start) return;
+    const onMove = () => {
+      const start = ref.current.start;
+      const node = ref.current.node;
+      if (!start || !node) return;
 
-      tri.points(makePoints(start.x, start.y, pos.x, pos.y));
-      layer.batchDraw();
+      const p = stage.getPointerPosition();
+      if (!p) return;
+
+      node.points(makePoints(start.x, start.y, p.x, p.y));
+      previewLayer.batchDraw();
     };
 
-    const onPointerUp = () => {
-      stage.off('pointermove.tritool');
-      stage.off('pointerup.tritool');
+    const onUp = () => {
+      const start = ref.current.start;
+      const node = ref.current.node;
+      ref.current.start = null;
 
-      const tri = drawingRef.current.tri;
-      const start = drawingRef.current.start;
-      const pos = stage.getPointerPosition();
-      drawingRef.current.tri = null;
-      drawingRef.current.start = null;
+      if (!node || !start) return;
 
-      if (!tri || !start || !pos || !previewLayer) return;
+      const p = stage.getPointerPosition() || start;
+      const x = Math.min(start.x, p.x);
+      const y = Math.min(start.y, p.y);
+      const w = Math.max(MIN, Math.abs(p.x - start.x));
+      const h = Math.max(MIN, Math.abs(p.y - start.y));
 
-      const x = Math.min(start.x, pos.x);
-      const y = Math.min(start.y, pos.y);
-      let w = Math.abs(pos.x - start.x);
-      let h = Math.abs(pos.y - start.y);
-
-      // remove preview
-      tri.remove();
+      node.remove();
+      node.destroy();
+      ref.current.node = null;
       previewLayer.batchDraw();
 
-      // If click without drag, create a minimal triangle for test ergonomics
-      const MIN_SIZE = 40;
-      if (w < 2 && h < 2) {
-        const finalW = MIN_SIZE;
-        const finalH = MIN_SIZE;
-        w = finalW;
-        h = finalH;
-      }
+      // Ignore taps without drag - place a default triangle (FigJam-style size)
+      const finalW = (w < MIN && h < MIN) ? 240 : w;
+      const finalH = (w < MIN && h < MIN) ? 240 : h;
 
-      // Commit to store using the new Phase 2 pattern
-      const elementId = crypto.randomUUID() as ElementId;
-
-      const triangleElement: CanvasElement = {
-        id: elementId,
+      // Commit to store (assume upsertElement returns id)
+      const id = upsertElement?.({
+        id: crypto.randomUUID(),
         type: 'triangle',
         x,
         y,
-        width: w,
-        height: h,
+        width: finalW,
+        height: finalH,
         style: {
+          fill: fillColor,
           stroke: strokeColor,
           strokeWidth,
-          fill: fillColor,
         },
-      };
-
-      console.log('[TriangleTool] Creating triangle element:', triangleElement);
-
-      // Use the store's addElement method with auto-selection
-      const store = useUnifiedCanvasStore.getState();
-
-      // Use withUndo for proper history tracking
-      store.withUndo('Add triangle', () => {
-        store.addElement(triangleElement, { select: true, pushHistory: false }); // withUndo handles history
       });
 
-      console.log('[TriangleTool] Triangle element added to store');
-
-      // Auto-switch back to select and open text editor
-      setTimeout(() => {
+      // Immediately open overlay text editor
+      if (id) {
         setSelectedTool?.('select');
-        // TODO: Fix openShapeTextEditor call signature
-        // if (stage) {
-        //   openShapeTextEditor(stage, elementId, { padding: 8, fontSize: 18, lineHeight: 1.3 });
-        // }
-        console.log('[TriangleTool] Switched back to select tool and opened text editor');
-      }, 100);
+        openShapeTextEditor(stage, id, {
+          padding: 10,
+          fontSize: 18,
+          lineHeight: 1.3,
+        });
+      } else {
+        setSelectedTool?.('select');
+      }
     };
 
-    stage.on('pointerdown.tritool', onPointerDown);
+    stage.on('pointerdown.triangletool', onDown);
+    stage.on('pointermove.triangletool', onMove);
+    stage.on('pointerup.triangletool', onUp);
 
     return () => {
-      console.log('[TriangleTool] Tool deactivated, removing stage listener');
-      stage.off('pointerdown.tritool');
-      stage.off('pointermove.tritool');
-      stage.off('pointerup.tritool');
+      stage.off('pointerdown.triangletool', onDown);
+      stage.off('pointermove.triangletool', onMove);
+      stage.off('pointerup.triangletool', onUp);
 
-      if (drawingRef.current.tri) {
-        drawingRef.current.tri.destroy();
-        drawingRef.current.tri = null;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const currentRef = ref.current;
+      try {
+        currentRef.node?.destroy();
+      } catch {
+        // ignore
       }
-      drawingRef.current.start = null;
+      currentRef.node = null;
+      currentRef.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
 
   return null;
 };

@@ -325,9 +325,12 @@ const FigJamCanvas: React.FC = () => {
         cursor = "crosshair";
         break;
       case "rectangle":
+      case "draw-rectangle":
       case "ellipse":
       case "circle":
+      case "draw-circle":
       case "triangle":
+      case "draw-triangle":
       case "line":
         cursor = "crosshair";
         break;
@@ -442,6 +445,8 @@ const FigJamCanvas: React.FC = () => {
     // Normalize tool names (handle both old and new naming)
     const normalizedTool = selectedTool.toLowerCase();
 
+    console.log('[FigJamCanvas] Rendering tool:', selectedTool, '-> normalized:', normalizedTool);
+
     try {
       switch (normalizedTool) {
         // Content tools
@@ -464,6 +469,7 @@ const FigJamCanvas: React.FC = () => {
 
         // Shape tools
         case "rectangle":
+        case "draw-rectangle":
           return (
             <RectangleTool
               key="rectangle-tool"
@@ -474,6 +480,7 @@ const FigJamCanvas: React.FC = () => {
 
         case "circle":
         case "ellipse":
+        case "draw-circle":
           return (
             <CircleTool
               key="circle-tool"
@@ -483,6 +490,7 @@ const FigJamCanvas: React.FC = () => {
           );
 
         case "triangle":
+        case "draw-triangle":
           return (
             <TriangleTool
               key="triangle-tool"

@@ -213,3 +213,4 @@ The application enforces strict performance budgets:
 2. Update known issues
 3. Update changelog
 4. Run validation: npm run type-check && npm run lint -- this applies to agents too
+- ALWAYS DELEGATE CODING TASKS TO THE CANVAS ENGINEER AND DESIGN RELATED TASKS TO THE PRODUCT DESIGN AGENT.

@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
-// import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor'; // TODO: Fix call signature
-import type { CanvasElement, ElementId } from '../../../../../../types/index';
+import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -12,47 +11,44 @@ export interface RectangleToolProps {
   toolId?: string; // default: 'draw-rectangle'
 }
 
-function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
-  // Try by name or id; fallback to index if not named
-  const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
-  if (named && named instanceof Konva.Layer) return named;
+function getPreviewLayer(stage: Konva.Stage): Konva.Layer | null {
   const layers = stage.getLayers();
-  return layers[indexFallback] ?? null;
+  return (layers[layers.length - 2] as Konva.Layer) ?? null; // background, main, preview, overlay
 }
+
+const MIN = 8;
 
 export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef, toolId = 'draw-rectangle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
+  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  const drawingRef = useRef<{
-    rect: Konva.Rect | null;
+  const ref = useRef<{
     start: { x: number; y: number } | null;
-  }>({ rect: null, start: null });
+    node: Konva.Rect | null;
+  }>({ start: null, node: null });
 
   useEffect(() => {
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
+
     if (!stage || !active) return;
 
-    console.log('[RectangleTool] Tool activated, adding stage listener');
+    const previewLayer = getPreviewLayer(stage);
+    if (!previewLayer) return;
 
-    const previewLayer =
-      getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
+    const onDown = () => {
+      const p = stage.getPointerPosition();
+      if (!p) return;
 
-    const onPointerDown = () => {
-      const pos = stage.getPointerPosition();
-      if (!pos || !previewLayer) return;
+      ref.current.start = { x: p.x, y: p.y };
 
-      console.log('[RectangleTool] Pointer down at:', pos);
-
-      drawingRef.current.start = { x: pos.x, y: pos.y };
-
-      const rect = new Konva.Rect({
-        x: pos.x,
-        y: pos.y,
+      const node = new Konva.Rect({
+        x: p.x,
+        y: p.y,
         width: 0,
         height: 0,
         stroke: strokeColor,
@@ -60,122 +56,103 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
         fill: fillColor,
         listening: false,
         perfectDrawEnabled: false,
-        name: 'tool-preview-rect',
+        name: 'tool-preview-rectangle',
       });
 
-      drawingRef.current.rect = rect;
-      previewLayer.add(rect);
+      ref.current.node = node;
+      previewLayer.add(node);
       previewLayer.batchDraw();
-
-      stage.on('pointermove.recttool', onPointerMove);
-      stage.on('pointerup.recttool', onPointerUp);
     };
 
-    const onPointerMove = () => {
-      const pos = stage.getPointerPosition();
-      const layer = previewLayer;
-      const rect = drawingRef.current.rect;
-      const start = drawingRef.current.start;
-      if (!pos || !layer || !rect || !start) return;
+    const onMove = () => {
+      const start = ref.current.start;
+      const node = ref.current.node;
+      if (!start || !node) return;
 
-      const x = Math.min(start.x, pos.x);
-      const y = Math.min(start.y, pos.y);
-      const w = Math.abs(pos.x - start.x);
-      const h = Math.abs(pos.y - start.y);
+      const p = stage.getPointerPosition();
+      if (!p) return;
 
-      rect.position({ x, y });
-      rect.size({ width: w, height: h });
-      layer.batchDraw();
+      const x = Math.min(start.x, p.x);
+      const y = Math.min(start.y, p.y);
+      const w = Math.max(MIN, Math.abs(p.x - start.x));
+      const h = Math.max(MIN, Math.abs(p.y - start.y));
+
+      node.position({ x, y });
+      node.size({ width: w, height: h });
+      previewLayer.batchDraw();
     };
 
-    const onPointerUp = () => {
-      stage.off('pointermove.recttool');
-      stage.off('pointerup.recttool');
+    const onUp = () => {
+      const start = ref.current.start;
+      const node = ref.current.node;
+      ref.current.start = null;
 
-      const rect = drawingRef.current.rect;
-      const start = drawingRef.current.start;
-      const pos = stage.getPointerPosition();
-      drawingRef.current.rect = null;
-      drawingRef.current.start = null;
+      if (!node || !start) return;
 
-      if (!rect || !start || !pos || !previewLayer) return;
+      const p = stage.getPointerPosition() || start;
+      const x = Math.min(start.x, p.x);
+      const y = Math.min(start.y, p.y);
+      const w = Math.max(MIN, Math.abs(p.x - start.x));
+      const h = Math.max(MIN, Math.abs(p.y - start.y));
 
-      let x = Math.min(start.x, pos.x);
-      let y = Math.min(start.y, pos.y);
-      let w = Math.abs(pos.x - start.x);
-      let h = Math.abs(pos.y - start.y);
-
-      // remove preview
-      rect.remove();
+      node.remove();
+      node.destroy();
+      ref.current.node = null;
       previewLayer.batchDraw();
 
-      // If click without drag, create a minimal rectangle for test ergonomics
-      const MIN_SIZE = 40;
-      if (w < 2 && h < 2) {
-        x = start.x;
-        y = start.y;
-        w = MIN_SIZE;
-        h = MIN_SIZE;
-      }
+      // Ignore taps without drag - place a default rectangle (FigJam-style size)
+      const finalW = (w < MIN && h < MIN) ? 240 : w;
+      const finalH = (w < MIN && h < MIN) ? 180 : h;
 
-      // Commit to store using the new Phase 2 pattern
-      const elementId = crypto.randomUUID() as ElementId;
-
-      const rectangleElement: CanvasElement = {
-        id: elementId,
+      // Commit to store (assume upsertElement returns id)
+      const id = upsertElement?.({
+        id: crypto.randomUUID(),
         type: 'rectangle',
         x,
         y,
-        width: w,
-        height: h,
+        width: finalW,
+        height: finalH,
         style: {
+          fill: fillColor,
           stroke: strokeColor,
           strokeWidth,
-          fill: fillColor,
         },
-      };
-
-      console.log('[RectangleTool] Creating rectangle element:', rectangleElement);
-
-      // Use the store's addElement method with auto-selection
-      const store = useUnifiedCanvasStore.getState();
-
-      // Use withUndo for proper history tracking
-      store.withUndo('Add rectangle', () => {
-        store.addElement(rectangleElement, { select: true, pushHistory: false }); // withUndo handles history
       });
 
-      console.log('[RectangleTool] Rectangle element added to store');
-
-      // Auto-switch back to select and open text editor
-      setTimeout(() => {
+      // Immediately open overlay text editor
+      if (id) {
         setSelectedTool?.('select');
-        // TODO: Fix openShapeTextEditor call signature
-        // if (stage) {
-        //   openShapeTextEditor(stage, elementId, { padding: 8, fontSize: 18, lineHeight: 1.3 });
-        // }
-        console.log('[RectangleTool] Switched back to select tool and opened text editor');
-      }, 100);
+        openShapeTextEditor(stage, id, {
+          padding: 10,
+          fontSize: 18,
+          lineHeight: 1.3,
+        });
+      } else {
+        setSelectedTool?.('select');
+      }
     };
 
-    // Attach handlers on stage
-    stage.on('pointerdown.recttool', onPointerDown);
+    stage.on('pointerdown.rectangletool', onDown);
+    stage.on('pointermove.rectangletool', onMove);
+    stage.on('pointerup.rectangletool', onUp);
 
     return () => {
-      console.log('[RectangleTool] Tool deactivated, removing stage listener');
-      stage.off('pointerdown.recttool');
-      stage.off('pointermove.recttool');
-      stage.off('pointerup.recttool');
+      stage.off('pointerdown.rectangletool', onDown);
+      stage.off('pointermove.rectangletool', onMove);
+      stage.off('pointerup.rectangletool', onUp);
 
-      // Cleanup preview if any
-      if (drawingRef.current.rect) {
-        drawingRef.current.rect.destroy();
-        drawingRef.current.rect = null;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const currentRef = ref.current;
+      try {
+        currentRef.node?.destroy();
+      } catch {
+        // ignore
       }
-      drawingRef.current.start = null;
+      currentRef.node = null;
+      currentRef.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, setSelectedTool]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool]);
 
   return null;
 };

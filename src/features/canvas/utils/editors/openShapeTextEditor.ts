@@ -1,5 +1,263 @@
 import Konva from 'konva';
+import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import { computeShapeInnerBox, type BaseShape } from '../text/computeShapeInnerBox';
+import type { ElementId } from '../../../../../types';
 
+export interface ShapeTextEditorOptions {
+  padding?: number;
+  fontSize?: number;
+  lineHeight?: number;
+  fontFamily?: string;
+  textColor?: string;
+}
+
+/**
+ * Opens a centered contentEditable text editor overlay for shape text editing.
+ * Provides FigJam-style interactions with smooth auto-resizing and centered caret.
+ */
+export function openShapeTextEditor(
+  stage: Konva.Stage,
+  elementId: ElementId,
+  options: ShapeTextEditorOptions = {}
+): () => void {
+  const store = useUnifiedCanvasStore.getState();
+  const element = store.elements.get(elementId);
+
+  if (!element || !['rectangle', 'circle', 'triangle'].includes(element.type)) {
+    console.warn('[ShapeTextEditor] Invalid element type for text editing:', element?.type);
+    return () => {};
+  }
+
+  // Element is now guaranteed to be a shape element
+
+  const container = stage.container();
+  if (!container) {
+    console.warn('[ShapeTextEditor] No stage container found');
+    return () => {};
+  }
+
+  // Default options
+  const {
+    padding = 10,
+    fontSize = 18,
+    lineHeight = 1.3,
+    fontFamily = 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial',
+    textColor = '#111827'
+  } = options;
+
+  // Compute the inner text area for the shape
+  const innerBox = computeShapeInnerBox(element as BaseShape, padding);
+
+  // Create contentEditable DIV with centered text alignment
+  const editor = document.createElement('div');
+  editor.contentEditable = 'true';
+  editor.setAttribute('data-shape-text-editor', elementId);
+  editor.style.cssText = `
+    position: absolute;
+    z-index: 1000;
+    min-width: 40px;
+    min-height: ${fontSize * lineHeight}px;
+    outline: none;
+    border: 2px solid #4F46E5;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.98);
+    color: ${textColor};
+    font-family: ${fontFamily};
+    font-size: ${fontSize}px;
+    line-height: ${lineHeight};
+    text-align: center;
+    padding: 8px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: width 0.2s ease, height 0.2s ease;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: text;
+  `;
+
+  // Set initial content
+  const currentText = element.data?.text || '';
+  editor.textContent = currentText;
+
+  // Append to document body to avoid transform issues
+  document.body.appendChild(editor);
+
+  // Position and resize functions
+  function updateEditorPosition() {
+    try {
+      const containerRect = container.getBoundingClientRect();
+      const stagePos = stage.position();
+      const stageScale = stage.scaleX();
+
+      // Convert shape coordinates to screen coordinates
+      const screenX = containerRect.left + (innerBox.x * stageScale) + stagePos.x;
+      const screenY = containerRect.top + (innerBox.y * stageScale) + stagePos.y;
+      const scaledWidth = innerBox.width * stageScale;
+      const scaledHeight = innerBox.height * stageScale;
+
+      // Position the editor
+      editor.style.left = `${screenX}px`;
+      editor.style.top = `${screenY}px`;
+      editor.style.width = `${Math.max(60, scaledWidth)}px`;
+      editor.style.height = `${Math.max(fontSize * lineHeight + 16, scaledHeight)}px`;
+      editor.style.fontSize = `${fontSize * stageScale}px`;
+    } catch (error) {
+      console.warn('[ShapeTextEditor] Error updating position:', error);
+    }
+  }
+
+  // Auto-resize function that grows the shape when content overflows
+  function autoResizeShape() {
+    const text = editor.textContent || '';
+    if (text.length === 0) return;
+
+    // Create temporary element to measure text
+    const temp = document.createElement('div');
+    temp.style.cssText = `
+      position: absolute;
+      visibility: hidden;
+      white-space: nowrap;
+      font-family: ${editor.style.fontFamily};
+      font-size: ${editor.style.fontSize};
+      line-height: ${editor.style.lineHeight};
+      padding: ${editor.style.padding};
+    `;
+    temp.textContent = text;
+    document.body.appendChild(temp);
+
+    const measuredWidth = temp.offsetWidth;
+    const measuredHeight = temp.offsetHeight;
+    document.body.removeChild(temp);
+
+    // Check if content exceeds current bounds
+    const currentWidth = parseFloat(editor.style.width);
+    const currentHeight = parseFloat(editor.style.height);
+    const stageScale = stage.scaleX();
+
+    if (measuredWidth > currentWidth || measuredHeight > currentHeight) {
+      // Calculate new shape dimensions
+      const newWidth = Math.max(element?.width || 0, (measuredWidth + padding * 2) / stageScale);
+      const newHeight = Math.max(element?.height || 0, (measuredHeight + padding * 2) / stageScale);
+
+      // Update element in store with smooth resizing
+      store.element.update(elementId, {
+        width: newWidth,
+        height: newHeight
+      });
+
+      // Update editor size
+      setTimeout(() => {
+        updateEditorPosition();
+      }, 50);
+    }
+  }
+
+  // Initial positioning
+  updateEditorPosition();
+
+  // Stage transform listeners
+  const onStageTransform = () => updateEditorPosition();
+  stage.on('dragmove.shape-text-editor', onStageTransform);
+  stage.on('scaleXChange.shape-text-editor scaleYChange.shape-text-editor', onStageTransform);
+  stage.on('xChange.shape-text-editor yChange.shape-text-editor', onStageTransform);
+
+  // Cleanup function
+  function cleanup() {
+    try {
+      editor.remove();
+    } catch (error) {
+      console.warn('[ShapeTextEditor] Error removing editor:', error);
+    }
+
+    // Remove stage listeners
+    stage.off('dragmove.shape-text-editor');
+    stage.off('scaleXChange.shape-text-editor scaleYChange.shape-text-editor');
+    stage.off('xChange.shape-text-editor yChange.shape-text-editor');
+  }
+
+  // Commit function
+  function commit(save: boolean = true) {
+    const newText = (editor.textContent || '').trim();
+    cleanup();
+
+    if (save && newText !== currentText) {
+      // Update element with new text using withUndo for history
+      store.withUndo('Edit shape text', () => {
+        store.element.update(elementId, {
+          data: {
+            ...element?.data,
+            text: newText,
+            padding,
+          },
+          style: {
+            ...element?.style,
+            fontSize,
+            fontFamily,
+            fill: textColor, // Use 'fill' instead of 'textColor'
+            textAlign: 'center' as const
+          }
+        });
+      });
+      console.log('[ShapeTextEditor] Text committed:', newText);
+    } else {
+      console.log('[ShapeTextEditor] Text edit cancelled');
+    }
+  }
+
+  // Event handlers
+  const onKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation(); // Prevent canvas shortcuts
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commit(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      commit(false);
+    }
+  };
+
+  const onInput = () => {
+    // Auto-resize on input with debouncing
+    clearTimeout((autoResizeShape as any).timeout);
+    (autoResizeShape as any).timeout = setTimeout(autoResizeShape, 150);
+  };
+
+  const onBlur = () => {
+    // Commit changes on blur
+    setTimeout(() => commit(true), 100);
+  };
+
+  // Attach event listeners
+  editor.addEventListener('keydown', onKeyDown);
+  editor.addEventListener('input', onInput);
+  editor.addEventListener('blur', onBlur);
+
+  // Focus and position caret at center
+  setTimeout(() => {
+    try {
+      editor.focus();
+
+      // Select all text to show centered caret
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    } catch (error) {
+      console.warn('[ShapeTextEditor] Error focusing editor:', error);
+    }
+  }, 10);
+
+  return cleanup;
+}
+
+/**
+ * Legacy interface for text editor - used by TextRenderer for text elements.
+ * This maintains compatibility with existing code.
+ */
 export interface TextEditorOptions {
   stage: Konva.Stage;
   layer: Konva.Layer;
@@ -12,7 +270,7 @@ export interface TextEditorOptions {
  * Opens a DOM-based text editor overlay positioned on top of a Konva.Text node
  * The editor stays in sync with canvas transforms (pan/zoom) and commits changes
  */
-export function openShapeTextEditor({ stage, layer, shape, onCommit, onCancel }: TextEditorOptions) {
+export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }: TextEditorOptions) {
   // Ensure shape is visible and drawn so we can get bounds
   layer.batchDraw();
 
