@@ -237,11 +237,30 @@ export class ShapeRenderer implements RendererModule {
           height: safeHeight,
         });
 
-      case "circle":
+      case "circle": {
+        // FIXED: Use radius property if available, otherwise calculate from dimensions
+        let radius: number;
+        if (shape.radius !== undefined) {
+          radius = Math.max(MIN_DIMENSION / 2, Math.min(MAX_DIMENSION / 2, shape.radius));
+        } else {
+          // Fallback to width/height calculation
+          radius = Math.min(safeWidth, safeHeight) / 2;
+        }
+
+        console.log('[DEBUG] Creating circle node:', {
+          elementId: shape.id,
+          position: { x: shape.x, y: shape.y },
+          radius: radius,
+          dimensions: { width: shape.width, height: shape.height },
+          calculatedRadius: radius
+        });
+
         return new Konva.Circle({
           ...commonAttrs,
-          radius: safeRadius,
+          radius: radius, // Use proper radius for Konva.Circle
+          // Note: Konva.Circle uses x,y as center point, which matches our element positioning
         });
+      }
 
       case "ellipse":
         return new Konva.Ellipse({
@@ -306,9 +325,26 @@ export class ShapeRenderer implements RendererModule {
         height: safeHeight,
       });
     } else if (shape.type === "circle" && node instanceof Konva.Circle) {
+      // FIXED: Handle circle updates with proper radius calculation
+      let radius: number;
+      if (shape.radius !== undefined) {
+        radius = Math.max(MIN_DIMENSION / 2, Math.min(MAX_DIMENSION / 2, shape.radius));
+      } else {
+        // Fallback to width/height calculation
+        radius = Math.min(safeWidth, safeHeight) / 2;
+      }
+
+      console.log('[DEBUG] Updating circle node:', {
+        elementId: shape.id,
+        position: { x: shape.x, y: shape.y },
+        radius: radius,
+        dimensions: { width: shape.width, height: shape.height },
+        calculatedRadius: radius
+      });
+
       node.setAttrs({
         ...commonAttrs,
-        radius: safeRadius,
+        radius: radius, // Use proper radius for Konva.Circle updates
       });
     } else if (shape.type === "ellipse" && node instanceof Konva.Ellipse) {
       node.setAttrs({
@@ -394,7 +430,7 @@ export class ShapeRenderer implements RendererModule {
     if (!shape.data?.text || !this.layer) return undefined;
 
     try {
-      // Use the triangle inner box calculation for positioning
+      // Use the FIXED inner box calculation for positioning
       const innerBox = computeShapeInnerBox(shape as BaseShape, shape.data.padding || 8);
 
       // Get text styling from shape
@@ -437,7 +473,7 @@ export class ShapeRenderer implements RendererModule {
     if (!shape.data?.text) return;
 
     try {
-      // Recalculate text position using inner box
+      // Recalculate text position using FIXED inner box
       const innerBox = computeShapeInnerBox(shape as BaseShape, shape.data.padding || 8);
 
       // Get updated text styling
@@ -458,9 +494,9 @@ export class ShapeRenderer implements RendererModule {
         align: textAlign,
       });
 
-      console.log('[DEBUG] ShapeRenderer text positioning:', shape.id, {
+      console.log('[DEBUG] ShapeRenderer text positioning (FIXED):', shape.id, {
         elementPosition: { x: shape.x, y: shape.y },
-        elementDimensions: { width: shape.width, height: shape.height },
+        elementDimensions: { width: shape.width, height: shape.height, radius: shape.radius },
         innerBox: innerBox,
         finalTextNodePosition: { x: innerBox.x, y: innerBox.y },
         text: shape.data.text,
