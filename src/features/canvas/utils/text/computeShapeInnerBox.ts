@@ -1,3 +1,5 @@
+import Konva from 'konva';
+
 // Returns an inner content rect (world coords) for a shape with padding.
 export type InnerBox = { x: number; y: number; width: number; height: number };
 
@@ -8,9 +10,57 @@ export interface BaseShape {
   y: number;
   width?: number;
   height?: number;
-  radius?: number; // for circle
   // Optional text props if already present
   padding?: number;
+  data?: {
+    radius?: number; // for circle - stored in data object
+    [key: string]: any;
+  };
+}
+
+/**
+ * EXACT SPECIFICATION: Computes the maximal square inscribed within a circle
+ * for perfect text centering as specified in the user's comprehensive analysis.
+ */
+export function computeCircleTextBox(circle: { x: number; y: number; radius: number }): { x: number; y: number; size: number } {
+  const size = circle.radius * Math.sqrt(2); // maximal square
+  return {
+    x: circle.x - size / 2,
+    y: circle.y - size / 2,
+    size
+  };
+}
+
+/**
+ * EXACT SPECIFICATION: Measures text height using Konva.Text for precise text positioning.
+ * Required for matching editor overlay height with Konva.Text rendering.
+ */
+export function measureTextHeight(text: string, options: {
+  fontSize: number;
+  fontFamily: string;
+  width: number;
+  lineHeight?: number;
+}): number {
+  // Create temporary Konva.Text instance for measurement
+  const tempText = new Konva.Text({
+    text: text,
+    fontSize: options.fontSize,
+    fontFamily: options.fontFamily,
+    width: options.width,
+    lineHeight: options.lineHeight || 1.2,
+    wrap: 'word'
+  });
+
+  const height = tempText.height();
+  tempText.destroy();
+
+  console.log('[DEBUG] Text height measurement:', {
+    text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+    options,
+    measuredHeight: height
+  });
+
+  return height;
 }
 
 export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
@@ -21,13 +71,13 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
     return { x: el.x + px, y: el.y + px, width: w, height: h };
   }
 
-  // Circle: Optimized for better text space utilization
+  // Circle: Use the EXACT specification from user's comprehensive analysis
   // Konva.Circle is positioned by center (x, y) and uses radius property
   if (el.type === 'circle') {
-    // Get the actual radius - prefer radius property, fallback to width/height
+    // Get the actual radius - check data.radius first, then fallback to width/height
     let radius: number;
-    if (el.radius !== undefined) {
-      radius = el.radius;
+    if (el.data?.radius !== undefined) {
+      radius = el.data.radius;
     } else if (el.width !== undefined && el.height !== undefined) {
       // Fallback: use smaller dimension to ensure perfect circle
       radius = Math.min(el.width, el.height) / 2;
@@ -36,43 +86,33 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
       radius = 50;
     }
 
-    // Circle is positioned at its center (x, y)
-    const centerX = el.x;
-    const centerY = el.y;
+    // Use the EXACT computeCircleTextBox function as specified
+    const textBox = computeCircleTextBox({ x: el.x, y: el.y, radius });
 
-    // OPTIMIZED: Use 85% of radius for much better text space utilization
-    // This gives users more space to type while keeping text well within circle bounds
-    // Mathematical note: inscribed square (radius * √2) ≈ 141% of radius, but that's too small
-    // 85% provides the sweet spot between usability and aesthetics
-    const effectiveRadius = radius * 0.85;
-    const textAreaSide = effectiveRadius * 2; // Full diameter of the text area
-    
-    // Reduce padding for circles to maximize text space
-    const circularPadding = Math.min(px, 4); // Cap padding at 4px for circles
-    const paddedSide = Math.max(20, textAreaSide - (circularPadding * 2)); // Minimum 20px text area
+    // Apply minimal padding to the textBox size, not the original calculation
+    const paddedSize = Math.max(20, textBox.size - (px * 2));
 
-    // Position the text area centered within the circle
-    const squareX = centerX - (paddedSide / 2);
-    const squareY = centerY - (paddedSide / 2);
+    // Recalculate position with padding adjustment
+    const adjustmentX = (textBox.size - paddedSize) / 2;
+    const adjustmentY = (textBox.size - paddedSize) / 2;
 
     const result = {
-      x: squareX,
-      y: squareY,
-      width: paddedSide,
-      height: paddedSide,
+      x: textBox.x + adjustmentX,
+      y: textBox.y + adjustmentY,
+      width: paddedSize,
+      height: paddedSize,
     };
 
-    console.log('[DEBUG] Circle text positioning (OPTIMIZED):', {
+    console.log('[DEBUG] Circle text positioning (EXACT SPECIFICATION):', {
       elementId: el.id,
-      inputElement: { x: el.x, y: el.y, radius: el.radius, width: el.width, height: el.height },
+      inputElement: { x: el.x, y: el.y, dataRadius: el.data?.radius, width: el.width, height: el.height },
       calculatedRadius: radius,
-      circleCenter: { centerX, centerY },
-      effectiveRadius: effectiveRadius,
-      textAreaSide: textAreaSide,
-      paddedSide: paddedSide,
+      exactTextBox: textBox,
+      paddingApplied: px,
+      paddedSize: paddedSize,
+      adjustments: { adjustmentX, adjustmentY },
       finalInnerBox: result,
-      paddingUsed: circularPadding,
-      spaceUtilization: `${Math.round((paddedSide / (radius * 2)) * 100)}% of circle diameter`
+      formula: 'size = radius * sqrt(2), perfectly centered'
     });
 
     return result;

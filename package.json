@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
@@ -11,12 +12,12 @@
     "test:watch": "vitest",
     "test:ci": "vitest run --coverage --reporter=verbose --no-color",
     "test:performance-budgets": "vitest --run --config vitest.performance.config.ts",
-    "test:bundle-size": "npm run build && node scripts/bundle-analyzer.js",
+    "test:bundle-size": "npm run build && node scripts/bundle-analyzer.cjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:desktop": "node scripts/desktop-e2e-smoke.mjs",
-    "analyze:bundle": "node scripts/bundle-analyzer.js",
+    "analyze:bundle": "node scripts/bundle-analyzer.cjs",
     "lighthouse:prod": "lighthouse http://localhost:4173 --output=html --output-path=./lighthouse-report.html",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

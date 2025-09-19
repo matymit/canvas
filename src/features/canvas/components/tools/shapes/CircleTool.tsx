@@ -127,8 +127,6 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
       if (!circle || !start || !pos || !previewLayer) return;
 
-      let x = Math.min(start.x, pos.x);
-      let y = Math.min(start.y, pos.y);
       let w = Math.abs(pos.x - start.x);
       let h = Math.abs(pos.y - start.y);
 
@@ -140,7 +138,6 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       // Scale size inversely with zoom to maintain consistent visual size
       const scale = Math.max(MIN_SCALE, stage.scaleX()); // Prevent division by tiny values
       const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.width / scale);
-      const visualHeight = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.height / scale);
 
       let centerX: number;
       let centerY: number;
@@ -185,7 +182,6 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
             // Include all dimension properties for compatibility
             width: diameter,
             height: diameter,
-            radius: radius, // CRITICAL: Add radius property for proper text positioning
             bounds: {
               x: centerX - radius, // Bounds use top-left corner
               y: centerY - radius,
@@ -194,7 +190,10 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
             },
             draggable: true,
             text: '', // Start with empty text
-            data: { text: '' },
+            data: {
+              text: '',
+              radius: radius // CRITICAL: Store radius in data for proper text positioning
+            },
             style: {
               stroke: strokeColor,
               strokeWidth,

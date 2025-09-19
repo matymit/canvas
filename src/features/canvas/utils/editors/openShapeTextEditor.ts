@@ -85,15 +85,15 @@ export function openShapeTextEditor(
     overflow: hidden;
     cursor: text;
     ${isCircle ? `
-      /* FIXED CIRCLE STYLING - prevent cut-off and positioning issues */
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
       white-space: pre-wrap;
       word-wrap: break-word;
       overflow-wrap: break-word;
-      display: block;
       padding: 4px;
       min-height: ${Math.max(fontSize * lineHeight, 24)}px;
-      /* Remove excessive flexbox centering that can cause issues */
     ` : isTriangle ? `
       text-align: center;
       white-space: pre-wrap;
@@ -616,7 +616,26 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
   setTimeout(() => {
     try {
       editor.focus();
-      editor.select();
+
+      const selection = window.getSelection();
+      if (!selection) {
+        return;
+      }
+
+      const range = document.createRange();
+      if (currentText) {
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      } else if (editor.firstChild) {
+        range.setStart(editor.firstChild, 0);
+        range.collapse(true);
+      } else {
+        range.setStart(editor, 0);
+        range.collapse(true);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
     } catch (error) {
       console.warn('[TextEditor] Error focusing editor:', error);
     }
@@ -638,3 +657,4 @@ export function computeTextBounds(text: Konva.Text): { x: number; y: number; wid
     height: Math.max(clientRect.height, 24)
   };
 }
+

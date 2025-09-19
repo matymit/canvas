@@ -16,7 +16,6 @@ import { ImageRendererAdapter } from './modules/ImageRendererAdapter';
 import { MindmapRendererAdapter } from './modules/MindmapRendererAdapter';
 import { TextRenderer } from './modules/TextRenderer';
 import { ShapeRenderer } from './modules/ShapeRenderer';
-import { ShapeTextRenderer } from './modules/ShapeTextRenderer';
 import { DrawingRenderer } from './modules/DrawingRenderer';
 import { SelectionModule } from './modules/SelectionModule';
 
@@ -73,7 +72,6 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
     new MindmapRendererAdapter(),
     new TextRenderer(),
     new ShapeRenderer(),
-    new ShapeTextRenderer(),
     new DrawingRenderer(),
     // Selection module last so it can find rendered nodes
     new SelectionModule(),
@@ -210,3 +208,4 @@ export class CanvasRenderer {
     }
   }
 }
+
