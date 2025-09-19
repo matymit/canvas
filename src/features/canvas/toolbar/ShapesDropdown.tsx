@@ -9,9 +9,7 @@ type Props = {
 };
 
 const items: Array<{ id: string; label: string; title: string }> = [
-  { id: 'draw-rectangle', label: '▭', title: 'Rectangle' },
   { id: 'draw-circle', label: '◯', title: 'Circle' },
-  { id: 'draw-triangle', label: '△', title: 'Triangle' },
   { id: 'mindmap', label: '⎇', title: 'Mindmap' },
 ];
 

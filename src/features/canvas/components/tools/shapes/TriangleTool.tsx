@@ -37,7 +37,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
   const drawingRef = useRef<{
-    triangle: Konva.Line | null;
+    triangle: Konva.Shape | null;
     start: { x: number; y: number } | null;
   }>({ triangle: null, start: null });
 
@@ -49,18 +49,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
     const previewLayer =
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
-    const makeTrianglePoints = (sx: number, sy: number, ex: number, ey: number): number[] => {
-      const x = Math.min(sx, ex);
-      const y = Math.min(sy, ey);
-      const w = Math.abs(ex - sx);
-      const h = Math.abs(ey - sy);
-
-      // Isosceles triangle: top vertex centered, base along bottom
-      const p1 = { x: x + w / 2, y };       // top
-      const p2 = { x, y: y + h };           // bottom-left
-      const p3 = { x: x + w, y: y + h };    // bottom-right
-      return [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y];
-    };
+    // Remove the makeTrianglePoints function since we'll use sceneFunc instead
 
     const onPointerDown = () => {
       const pos = stage.getPointerPosition();
@@ -72,15 +61,31 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       const scale = stage.scaleX();
       const strokeWidthScaled = strokeWidth / scale;
 
-      const triangle = new Konva.Line({
-        points: [pos.x, pos.y, pos.x, pos.y, pos.x, pos.y],
+      const triangle = new Konva.Shape({
+        x: pos.x,
+        y: pos.y,
+        width: 0,
+        height: 0,
         stroke: strokeColor,
         strokeWidth: strokeWidthScaled,
         fill: fillColor,
-        closed: true,
         listening: false,
         perfectDrawEnabled: false,
         name: 'tool-preview-triangle',
+        sceneFunc: function(context, shape) {
+          const w = shape.width();
+          const h = shape.height();
+
+          // Draw isosceles triangle with proper geometry (same as ShapeRenderer)
+          context.beginPath();
+          context.moveTo(w / 2, 0);        // top center
+          context.lineTo(0, h);            // bottom left
+          context.lineTo(w, h);            // bottom right
+          context.closePath();
+
+          // Fill and stroke the shape
+          context.fillStrokeShape(shape);
+        }
       });
 
       drawingRef.current.triangle = triangle;
@@ -98,7 +103,19 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       const start = drawingRef.current.start;
       if (!pos || !layer || !triangle || !start) return;
 
-      triangle.points(makeTrianglePoints(start.x, start.y, pos.x, pos.y));
+      // Calculate bounds
+      const x = Math.min(start.x, pos.x);
+      const y = Math.min(start.y, pos.y);
+      const w = Math.abs(pos.x - start.x);
+      const h = Math.abs(pos.y - start.y);
+
+      // Update triangle shape position and dimensions
+      triangle.setAttrs({
+        x,
+        y,
+        width: w,
+        height: h
+      });
       layer.batchDraw();
     };
 

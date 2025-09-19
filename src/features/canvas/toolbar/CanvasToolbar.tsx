@@ -21,10 +21,6 @@ import {
   Image as ImageIcon,
   Trash2,
 } from "lucide-react";
-import {
-  distributeHorizontally,
-  distributeVertically,
-} from "../utils/distribute";
 
 type ToolbarProps = {
   selectedTool?: string;
@@ -156,11 +152,9 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
   const [shapesOpen, setShapesOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
-  const [distributeOpen, setDistributeOpen] = useState(false);
   const [stickyNoteColorsOpen, setStickyNoteColorsOpen] = useState(false);
   const shapesBtnRef = useRef<HTMLButtonElement | null>(null);
   const stickyNoteBtnRef = useRef<HTMLButtonElement | null>(null);
-  const distributeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const shapeAnchorRect = useMemo(
     () => shapesBtnRef.current?.getBoundingClientRect() ?? null,
@@ -233,65 +227,6 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     cursor: "pointer",
   };
 
-  // Distribute action handlers
-  const applyDistribute = useCallback(
-    (axis: "h-gaps" | "h-centers" | "v-gaps" | "v-centers") => {
-      const st: any = useUnifiedCanvasStore.getState();
-
-      const ids: string[] =
-        st.getSelectedIds?.() ?? Array.from(st.selectedElementIds ?? []);
-      if (!ids || ids.length < 3) {
-        setDistributeOpen(false);
-        return;
-      }
-
-      const elements: any[] = ids
-        .map((id) => st.element?.getById?.(id) || st.elements?.get?.(id))
-        .filter(Boolean);
-
-      // Build Elem[]
-      const elems = elements.map((el) => ({
-        id: el.id,
-        x: el.x ?? el.bounds?.x ?? 0,
-        y: el.y ?? el.bounds?.y ?? 0,
-        w: el.width ?? el.bounds?.width ?? (el.radius ? el.radius * 2 : 0),
-        h: el.height ?? el.bounds?.height ?? (el.radius ? el.radius * 2 : 0),
-      }));
-
-      let out = elems;
-      switch (axis) {
-        case "h-gaps":
-          out = distributeHorizontally(elems, "gaps");
-          break;
-        case "h-centers":
-          out = distributeHorizontally(elems, "centers");
-          break;
-        case "v-gaps":
-          out = distributeVertically(elems, "gaps");
-          break;
-        case "v-centers":
-          out = distributeVertically(elems, "centers");
-          break;
-      }
-
-      const patchById = new Map(out.map((e) => [e.id, e] as const));
-
-      const doApply = () => {
-        patchById.forEach((e, id) => {
-          const prev = st.element?.getById?.(id) || st.elements?.get?.(id);
-          if (!prev) return;
-          const patch: any = {};
-          if (axis.startsWith("h")) patch.x = e.x;
-          if (axis.startsWith("v")) patch.y = e.y;
-          st.element?.update?.(id, patch);
-        });
-      };
-
-      st.history?.withUndo?.("Distribute", doApply) ?? doApply();
-      setDistributeOpen(false);
-    },
-    [],
-  );
 
   return (
     <>
@@ -415,77 +350,6 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         {toolBtn("marker", "Marker")}
         {toolBtn("highlighter", "Highlighter")}
         {toolBtn("eraser", "Eraser")}
-        {/* Distribute menu */}
-        <div
-          style={{ position: "relative" as const, display: "inline-flex" }}
-        >
-          <button
-            type="button"
-            ref={distributeBtnRef}
-            className="tool-button"
-            aria-haspopup="menu"
-            aria-expanded={distributeOpen}
-            aria-label="Distribute"
-            title="Distribute"
-            onClick={() => setDistributeOpen((v) => !v)}
-            data-testid="distribute-menu"
-          >
-            ≋
-          </button>
-          {distributeOpen && (
-            <div
-              role="menu"
-              style={{
-                position: "absolute" as const,
-                bottom: "48px",
-                left: 0,
-                background: "#111827",
-                color: "#e5e7eb",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 8,
-                padding: 6,
-                boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
-              }}
-            >
-              <button
-                type="button"
-                style={itemBtnStyle}
-                onClick={() => applyDistribute("h-gaps")}
-                title="Distribute Horizontally (Gaps)"
-                data-testid="distribute-h-gaps"
-              >
-                Horizontal Gaps
-              </button>
-              <button
-                type="button"
-                style={itemBtnStyle}
-                onClick={() => applyDistribute("h-centers")}
-                title="Distribute Horizontally (Centers)"
-                data-testid="distribute-h-centers"
-              >
-                Horizontal Centers
-              </button>
-              <button
-                type="button"
-                style={itemBtnStyle}
-                onClick={() => applyDistribute("v-gaps")}
-                title="Distribute Vertically (Gaps)"
-                data-testid="distribute-v-gaps"
-              >
-                Vertical Gaps
-              </button>
-              <button
-                type="button"
-                style={itemBtnStyle}
-                onClick={() => applyDistribute("v-centers")}
-                title="Distribute Vertically (Centers)"
-                data-testid="distribute-v-centers"
-              >
-                Vertical Centers
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Zoom controls for tests */}

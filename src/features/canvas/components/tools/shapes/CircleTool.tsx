@@ -47,7 +47,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
   });
 
   const drawingRef = useRef<{
-    circle: Konva.Ellipse | null;
+    circle: Konva.Circle | null;
     start: { x: number; y: number } | null;
   }>({ circle: null, start: null });
 
@@ -74,11 +74,10 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       const scale = stage.scaleX();
       const strokeWidthScaled = strokeWidth / scale;
 
-      const circle = new Konva.Ellipse({
+      const circle = new Konva.Circle({
         x: pos.x,
         y: pos.y,
-        radiusX: 0,
-        radiusY: 0,
+        radius: 0,
         stroke: strokeColor,
         strokeWidth: strokeWidthScaled,
         fill: fillColor,
@@ -107,12 +106,12 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       const w = Math.max(8, Math.abs(pos.x - start.x));
       const h = Math.max(8, Math.abs(pos.y - start.y));
 
-      // For perfect circles, use the larger dimension for both radiusX and radiusY
+      // For perfect circles, use the larger dimension for radius
       const maxDimension = Math.max(w, h);
       const radius = maxDimension / 2;
 
       circle.position({ x: x + maxDimension / 2, y: y + maxDimension / 2 });
-      circle.radius({ x: radius, y: radius });
+      circle.radius(radius); // Use single radius for Konva.Circle
       layer.batchDraw();
     };
 

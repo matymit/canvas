@@ -2,6 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
+import { computeShapeInnerBox, type BaseShape } from "../../utils/text/computeShapeInnerBox";
 
 type Id = string;
 
@@ -22,12 +23,21 @@ interface ShapeElement {
     stroke?: string;
     strokeWidth?: number;
     opacity?: number;
+    fontSize?: number;
+    fontFamily?: string;
+    textAlign?: 'left' | 'center' | 'right';
   };
+  data?: {
+    text?: string;
+    padding?: number;
+  };
+  textColor?: string;
   rotation?: number;
 }
 
 export class ShapeRenderer implements RendererModule {
   private shapeNodes = new Map<Id, Konva.Shape>();
+  private textNodes = new Map<Id, Konva.Text>(); // Track text nodes for shapes
   private layer?: Konva.Layer;
   private unsubscribe?: () => void;
 
@@ -84,6 +94,13 @@ export class ShapeRenderer implements RendererModule {
       node.destroy();
     }
     this.shapeNodes.clear();
+
+    // Clean up text nodes
+    for (const textNode of this.textNodes.values()) {
+      textNode.destroy();
+    }
+    this.textNodes.clear();
+
     if (this.layer) {
       this.layer.batchDraw();
     }
@@ -167,6 +184,9 @@ export class ShapeRenderer implements RendererModule {
         // Update existing shape node
         this.updateShapeNode(node, shape);
       }
+
+      // Handle text rendering for shapes with text
+      this.handleShapeText(shape, id);
     }
 
     // Remove deleted shape elements
@@ -175,6 +195,15 @@ export class ShapeRenderer implements RendererModule {
         console.log("[ShapeRenderer] Removing shape:", id);
         node.destroy();
         this.shapeNodes.delete(id);
+      }
+    }
+
+    // Remove deleted text nodes
+    for (const [id, textNode] of this.textNodes) {
+      if (!seen.has(id)) {
+        console.log("[ShapeRenderer] Removing shape text:", id);
+        textNode.destroy();
+        this.textNodes.delete(id);
       }
     }
 
@@ -222,32 +251,30 @@ export class ShapeRenderer implements RendererModule {
         });
 
       case "triangle": {
-        // Create isosceles triangle using Line with proper transformer compatibility
-        const points = [
-          safeWidth / 2, 0,           // top center
-          0, safeHeight,              // bottom left
-          safeWidth, safeHeight       // bottom right
-        ];
-        const line = new Konva.Line({
+        // Create isosceles triangle using Shape with sceneFunc for proper geometry
+        // This prevents deformation during resize and provides accurate bounds
+        const triangleShape = new Konva.Shape({
           ...commonAttrs,
-          points,
-          closed: true,
-          // Add proper width/height for transformer compatibility
           width: safeWidth,
           height: safeHeight,
+          sceneFunc: function(context, shape) {
+            // Get current dimensions from the shape attributes
+            const w = shape.width();
+            const h = shape.height();
+
+            // Draw isosceles triangle with proper geometry
+            context.beginPath();
+            context.moveTo(w / 2, 0);        // top center
+            context.lineTo(0, h);            // bottom left
+            context.lineTo(w, h);            // bottom right
+            context.closePath();
+
+            // Fill and stroke the shape
+            context.fillStrokeShape(shape);
+          }
         });
 
-        // Override getBBox to provide proper bounds for transformer
-        (line as any).getBBox = function() {
-          return {
-            x: 0,
-            y: 0,
-            width: safeWidth,
-            height: safeHeight
-          };
-        };
-
-        return line;
+        return triangleShape;
       }
 
       default:
@@ -289,28 +316,16 @@ export class ShapeRenderer implements RendererModule {
         radiusX: safeWidth / 2,
         radiusY: safeHeight / 2,
       });
-    } else if (shape.type === "triangle" && node instanceof Konva.Line) {
-      const points = [
-        safeWidth / 2, 0,           // top center
-        0, safeHeight,              // bottom left
-        safeWidth, safeHeight       // bottom right
-      ];
+    } else if (shape.type === "triangle" && node instanceof Konva.Shape) {
+      // Update triangle dimensions - sceneFunc will automatically recalculate geometry
       node.setAttrs({
         ...commonAttrs,
-        points,
         width: safeWidth,
         height: safeHeight,
       });
 
-      // Update getBBox for transformer compatibility
-      (node as any).getBBox = function() {
-        return {
-          x: 0,
-          y: 0,
-          width: safeWidth,
-          height: safeHeight
-        };
-      };
+      // The sceneFunc will automatically redraw with new dimensions
+      // No need to manually recalculate points - this prevents deformation
     }
   }
 
@@ -342,6 +357,119 @@ export class ShapeRenderer implements RendererModule {
       }
     } catch (error) {
       console.error('[ShapeRenderer] Error during shape selection:', error);
+    }
+  }
+
+  private handleShapeText(shape: ShapeElement, id: Id) {
+    const hasText = shape.data?.text && shape.data.text.trim().length > 0;
+
+    if (hasText) {
+      // Shape has text - create or update text node
+      let textNode = this.textNodes.get(id);
+
+      if (!textNode) {
+        // Create new text node for this shape
+        textNode = this.createShapeTextNode(shape);
+        if (textNode) {
+          this.textNodes.set(id, textNode);
+          this.layer?.add(textNode);
+          console.log('[ShapeRenderer] Created text node for shape:', id, shape.data?.text);
+        }
+      } else {
+        // Update existing text node
+        this.updateShapeTextNode(textNode, shape);
+      }
+    } else {
+      // Shape has no text - remove text node if it exists
+      const existingTextNode = this.textNodes.get(id);
+      if (existingTextNode) {
+        console.log('[ShapeRenderer] Removing text node for shape (no text):', id);
+        existingTextNode.destroy();
+        this.textNodes.delete(id);
+      }
+    }
+  }
+
+  private createShapeTextNode(shape: ShapeElement): Konva.Text | undefined {
+    if (!shape.data?.text || !this.layer) return undefined;
+
+    try {
+      // Use the triangle inner box calculation for positioning
+      const innerBox = computeShapeInnerBox(shape as BaseShape, shape.data.padding || 8);
+
+      // Get text styling from shape
+      const fontSize = shape.style?.fontSize || 18;
+      const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
+      const textAlign = shape.style?.textAlign || 'center';
+      const textColor = shape.textColor || '#111827';
+
+      const textNode = new Konva.Text({
+        id: `${shape.id}-text`,
+        name: `shape-text-${shape.id}`,
+        x: innerBox.x,
+        y: innerBox.y,
+        width: innerBox.width,
+        height: innerBox.height,
+        text: shape.data.text,
+        fontSize,
+        fontFamily,
+        fill: textColor,
+        align: textAlign,
+        verticalAlign: 'middle',
+        wrap: 'word',
+        listening: false, // Text should not interfere with shape interactions
+        perfectDrawEnabled: false,
+        shadowForStrokeEnabled: false,
+      });
+
+      // Set element ID for debugging/selection
+      textNode.setAttr('elementId', shape.id);
+      textNode.setAttr('nodeType', 'shape-text');
+
+      return textNode;
+    } catch (error) {
+      console.error('[ShapeRenderer] Error creating text node for shape:', shape.id, error);
+      return undefined;
+    }
+  }
+
+  private updateShapeTextNode(textNode: Konva.Text, shape: ShapeElement) {
+    if (!shape.data?.text) return;
+
+    try {
+      // Recalculate text position using inner box
+      const innerBox = computeShapeInnerBox(shape as BaseShape, shape.data.padding || 8);
+
+      // Get updated text styling
+      const fontSize = shape.style?.fontSize || 18;
+      const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
+      const textAlign = shape.style?.textAlign || 'center';
+      const textColor = shape.textColor || '#111827';
+
+      textNode.setAttrs({
+        x: innerBox.x,
+        y: innerBox.y,
+        width: innerBox.width,
+        height: innerBox.height,
+        text: shape.data.text,
+        fontSize,
+        fontFamily,
+        fill: textColor,
+        align: textAlign,
+      });
+
+      console.log('[DEBUG] ShapeRenderer text positioning:', shape.id, {
+        elementPosition: { x: shape.x, y: shape.y },
+        elementDimensions: { width: shape.width, height: shape.height },
+        innerBox: innerBox,
+        finalTextNodePosition: { x: innerBox.x, y: innerBox.y },
+        text: shape.data.text,
+        // Get the stage transform for comparison
+        stagePosition: this.layer?.getStage()?.position(),
+        stageScale: this.layer?.getStage()?.scaleX()
+      });
+    } catch (error) {
+      console.error('[ShapeRenderer] Error updating text node for shape:', shape.id, error);
     }
   }
 }
