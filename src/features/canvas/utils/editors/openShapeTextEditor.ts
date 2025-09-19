@@ -13,7 +13,7 @@ export interface ShapeTextEditorOptions {
 
 /**
  * Opens a centered contentEditable text editor overlay for shape text editing.
- * Provides FigJam-style interactions with smooth auto-resizing and centered caret.
+ * Provides FigJam-style interactions with smooth auto-resizing and perfect caret centering.
  */
 export function openShapeTextEditor(
   stage: Konva.Stage,
@@ -52,20 +52,21 @@ export function openShapeTextEditor(
   console.log('[DEBUG] Shape text editor initialized:', {
     elementId,
     elementType: shapeElement.type,
-    elementBounds: { x: shapeElement.x, y: shapeElement.y, width: shapeElement.width, height: shapeElement.height },
+    elementBounds: { x: shapeElement.x, y: shapeElement.y, width: shapeElement.width, height: shapeElement.height, radius: shapeElement.radius },
     computedInnerBox: innerBox,
     padding
   });
 
-  // Create contentEditable DIV with proper centering for all shape types
+  // Create contentEditable DIV with perfect centering for circles
   const editor = document.createElement('div');
   editor.contentEditable = 'true';
   editor.setAttribute('data-shape-text-editor', elementId);
 
-  // Determine if this is a triangle (needs line breaks) or circle (needs perfect centering)
+  // Determine shape type for specific styling
   const isTriangle = shapeElement.type === 'triangle';
   const isCircle = shapeElement.type === 'circle';
 
+  // FIXED: Perfect circle text centering using flexbox
   editor.style.cssText = `
     position: absolute;
     z-index: 1000;
@@ -86,12 +87,15 @@ export function openShapeTextEditor(
     overflow: hidden;
     cursor: text;
     ${isCircle ? `
+      /* PERFECT CIRCLE CENTERING */
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
       white-space: pre-wrap;
       word-wrap: break-word;
       overflow-wrap: break-word;
-      vertical-align: middle;
-      display: block;
+      flex-direction: column;
     ` : isTriangle ? `
       text-align: center;
       white-space: pre-wrap;
@@ -105,17 +109,16 @@ export function openShapeTextEditor(
     `}
   `;
 
-  // Set initial content
+  // Set initial content with proper handling for circles
   const currentText = shapeElement.data?.text || '';
 
-  // For circles, use a special approach to ensure caret centering
   if (isCircle) {
-    // Create a centered placeholder that helps position the caret
+    // For circles, create a centered content wrapper for perfect caret positioning
     if (currentText) {
       editor.textContent = currentText;
     } else {
-      // Use a zero-width space to help with caret positioning
-      editor.innerHTML = '&#8203;'; // Zero-width space
+      // Use a single space for proper caret positioning in empty circles
+      editor.innerHTML = '&nbsp;';
     }
   } else {
     editor.textContent = currentText;
@@ -130,9 +133,7 @@ export function openShapeTextEditor(
       const containerRect = container.getBoundingClientRect();
       const stageScale = stage.scaleX();
 
-      // Convert shape coordinates to screen coordinates
-      // FIXED: Use stage.getAbsoluteTransform().point() for proper coordinate transformation
-      // This is the correct Konva way that accounts for all transformations
+      // FIXED: Use stage.getAbsoluteTransform().point() for perfect coordinate transformation
       const stageTransform = stage.getAbsoluteTransform();
       const screenPoint = stageTransform.point({ x: innerBox.x, y: innerBox.y });
       const screenX = containerRect.left + screenPoint.x;
@@ -140,8 +141,7 @@ export function openShapeTextEditor(
       const scaledWidth = innerBox.width * stageScale;
       const scaledHeight = innerBox.height * stageScale;
 
-      // Debug coordinate transformation for verification
-      console.log('[DEBUG] Shape text editor positioning:', {
+      console.log('[DEBUG] Shape text editor positioning (FIXED):', {
         elementId,
         elementType: shapeElement.type,
         innerBox,
@@ -153,35 +153,35 @@ export function openShapeTextEditor(
         isCircle
       });
 
+      // Position the editor with pixel-perfect accuracy
+      editor.style.left = `${Math.round(screenX)}px`;
+      editor.style.top = `${Math.round(screenY)}px`;
+      editor.style.width = `${Math.max(60, Math.round(scaledWidth))}px`;
+      editor.style.height = `${Math.max(fontSize * lineHeight + 16, Math.round(scaledHeight))}px`;
+      editor.style.fontSize = `${Math.round(fontSize * stageScale)}px`;
 
-      // Position the editor
-      editor.style.left = `${screenX}px`;
-      editor.style.top = `${screenY}px`;
-      editor.style.width = `${Math.max(60, scaledWidth)}px`;
-      editor.style.height = `${Math.max(fontSize * lineHeight + 16, scaledHeight)}px`;
-      editor.style.fontSize = `${fontSize * stageScale}px`;
-
-      // For circles, ensure line-height centers the text properly
+      // For circles, maintain flexbox centering properties
       if (isCircle) {
-        const editorHeight = Math.max(fontSize * lineHeight + 16, scaledHeight);
-        editor.style.lineHeight = `${editorHeight}px`;
-        editor.style.paddingTop = '0px';
-        editor.style.paddingBottom = '0px';
+        // Ensure the editor remains perfectly centered
+        editor.style.lineHeight = `${lineHeight}`; // Use relative line height for flexbox
+        editor.style.display = 'flex';
+        editor.style.alignItems = 'center';
+        editor.style.justifyContent = 'center';
       }
     } catch (error) {
       console.warn('[ShapeTextEditor] Error updating position:', error);
     }
   }
 
-  // Auto-resize function that grows the shape when content overflows
+  // IMPROVED: Auto-resize function that maintains perfect circle proportions
   function autoResizeShape() {
     const text = editor.textContent || '';
     if (text.length === 0) return;
 
-    console.log('[DEBUG] Triangle auto-resize called:', {
+    console.log('[DEBUG] Auto-resize called:', {
       elementId,
       elementType: shapeElement.type,
-      isTriangle,
+      isCircle,
       textLength: text.length,
       currentText: text.substring(0, 50) + (text.length > 50 ? '...' : '')
     });
@@ -201,6 +201,14 @@ export function openShapeTextEditor(
       word-wrap: break-word;
       overflow-wrap: break-word;
       width: ${editor.style.width};
+      ${isCircle ? `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      ` : `
+        text-align: center;
+      `}
     `;
     temp.textContent = text;
     document.body.appendChild(temp);
@@ -209,62 +217,83 @@ export function openShapeTextEditor(
     const measuredHeight = temp.offsetHeight;
     document.body.removeChild(temp);
 
-    // Check if content exceeds current bounds with 90% threshold
+    // Check if content exceeds current bounds with 85% threshold for circles (tighter fit)
     const currentWidth = parseFloat(editor.style.width);
     const currentHeight = parseFloat(editor.style.height);
     const stageScale = stage.scaleX();
 
-    const widthThreshold = currentWidth * 0.9;
-    const heightThreshold = currentHeight * 0.9;
+    const widthThreshold = currentWidth * (isCircle ? 0.85 : 0.9);
+    const heightThreshold = currentHeight * (isCircle ? 0.85 : 0.9);
 
-    console.log('[DEBUG] Triangle auto-resize measurements:', {
+    console.log('[DEBUG] Auto-resize measurements:', {
       elementId,
       measuredDimensions: { measuredWidth, measuredHeight },
       currentDimensions: { currentWidth, currentHeight },
       thresholds: { widthThreshold, heightThreshold },
       shouldResize: measuredWidth > widthThreshold || measuredHeight > heightThreshold,
-      currentElementSize: { width: shapeElement.width, height: shapeElement.height }
+      currentElementSize: { width: shapeElement.width, height: shapeElement.height, radius: shapeElement.radius }
     });
 
     if (measuredWidth > widthThreshold || measuredHeight > heightThreshold) {
-      // Calculate new shape dimensions with better padding
-      const extraPadding = padding * 1.5; // Add more padding for breathing room
+      // Calculate new shape dimensions with appropriate padding
+      const extraPadding = padding * (isCircle ? 2.0 : 1.5); // More padding for circles
       let newWidth = Math.max(shapeElement.width || 0, (measuredWidth + extraPadding * 2) / stageScale);
       let newHeight = Math.max(shapeElement.height || 0, (measuredHeight + extraPadding * 2) / stageScale);
 
-      // For circles, maintain aspect ratio
+      // FIXED: For circles, maintain perfect circular proportions
       if (isCircle) {
         const maxDim = Math.max(newWidth, newHeight);
         newWidth = maxDim;
         newHeight = maxDim;
+        
+        // Calculate radius from width (diameter)
+        const newRadius = maxDim / 2;
+        
+        console.log('[DEBUG] Circle auto-resize executing:', {
+          elementId,
+          originalSize: { width: shapeElement.width, height: shapeElement.height, radius: shapeElement.radius },
+          newSize: { newWidth, newHeight, newRadius },
+          maxDim,
+          extraPadding,
+          stageScale
+        });
+
+        // Update circle with proper radius calculation
+        store.element.update(elementId, {
+          width: newWidth,
+          height: newHeight,
+          radius: newRadius, // CRITICAL: Update radius for proper rendering
+          bounds: {
+            x: shapeElement.x || 0,
+            y: shapeElement.y || 0,
+            width: newWidth,
+            height: newHeight
+          }
+        });
+      } else {
+        console.log('[DEBUG] Shape auto-resize executing:', {
+          elementId,
+          elementType: shapeElement.type,
+          originalSize: { width: shapeElement.width, height: shapeElement.height },
+          newSize: { newWidth, newHeight },
+          extraPadding,
+          stageScale
+        });
+
+        // Update other shapes normally
+        store.element.update(elementId, {
+          width: newWidth,
+          height: newHeight,
+          bounds: {
+            x: shapeElement.x || 0,
+            y: shapeElement.y || 0,
+            width: newWidth,
+            height: newHeight
+          }
+        });
       }
 
-      console.log('[DEBUG] Triangle auto-resize executing:', {
-        elementId,
-        elementType: shapeElement.type,
-        isTriangle,
-        isCircle,
-        originalSize: { width: shapeElement.width, height: shapeElement.height },
-        newSize: { newWidth, newHeight },
-        extraPadding,
-        stageScale
-      });
-
-      // Update element in store with proper geometry recalculation
-      store.element.update(elementId, {
-        width: newWidth,
-        height: newHeight,
-        bounds: {
-          x: shapeElement.x || 0,
-          y: shapeElement.y || 0,
-          width: newWidth,
-          height: newHeight
-        },
-        // For circles, also update radius using consistent dimension calculation
-        ...(isCircle && { radius: newWidth / 2 }), // Use width since we made both equal above
-      });
-
-      // Update editor size after a brief delay
+      // Update editor position after a brief delay
       setTimeout(() => {
         updateEditorPosition();
       }, 50);
@@ -296,7 +325,13 @@ export function openShapeTextEditor(
 
   // Commit function
   function commit(save: boolean = true) {
-    const newText = (editor.textContent || '').trim();
+    let newText = (editor.textContent || '').trim();
+    
+    // For circles, clean up the nbsp placeholder if it's the only content
+    if (isCircle && newText === '\u00A0') {
+      newText = '';
+    }
+    
     cleanup();
 
     if (save && newText !== currentText) {
@@ -352,15 +387,14 @@ export function openShapeTextEditor(
   editor.addEventListener('input', onInput);
   editor.addEventListener('blur', onBlur);
 
-  // Focus and position caret at center
+  // FIXED: Perfect caret positioning for circles
   setTimeout(() => {
     try {
       editor.focus();
 
       if (isCircle) {
-        // For circles, handle caret positioning specially
         if (currentText) {
-          // Select all text to show centered caret
+          // For circles with text, select all for centered editing
           const range = document.createRange();
           range.selectNodeContents(editor);
           const selection = window.getSelection();
@@ -369,10 +403,15 @@ export function openShapeTextEditor(
             selection.addRange(range);
           }
         } else {
-          // Position caret at the center for empty circles
+          // For empty circles, position caret at center by placing it after the nbsp
           const range = document.createRange();
-          range.setStart(editor, 0);
-          range.collapse(true);
+          if (editor.firstChild) {
+            range.setStart(editor.firstChild, 1); // After the nbsp character
+            range.collapse(true);
+          } else {
+            range.setStart(editor, 0);
+            range.collapse(true);
+          }
           const selection = window.getSelection();
           if (selection) {
             selection.removeAllRanges();
