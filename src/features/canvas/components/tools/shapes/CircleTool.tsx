@@ -142,38 +142,56 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.width / scale);
       const visualHeight = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.height / scale);
 
+      let centerX: number;
+      let centerY: number;
+      let diameter: number;
+
       if (w < 8 && h < 8) {
-        // Single click - center the shape at click point
-        x = start.x - visualWidth / 2;
-        y = start.y - visualHeight / 2;
-        w = visualWidth;
-        h = visualWidth; // Use same dimension for perfect circle
+        // Single click - center the circle at click point
+        centerX = start.x;
+        centerY = start.y;
+        diameter = visualWidth; // Use consistent diameter
       } else {
         // Dragged - use larger dimension for perfect circle
         const minSize = Math.max(MIN_DIMENSION, 40 / scale);
         const maxDimension = Math.max(w, h, minSize);
-        const safeDimension = Math.min(MAX_DIMENSION, maxDimension);
-        w = safeDimension;
-        h = safeDimension;
-        // Adjust position to center the circle
-        x = Math.min(start.x, pos.x) + (Math.abs(pos.x - start.x) - safeDimension) / 2;
-        y = Math.min(start.y, pos.y) + (Math.abs(pos.y - start.y) - safeDimension) / 2;
+        diameter = Math.min(MAX_DIMENSION, maxDimension);
+        // Calculate center of the dragged area
+        centerX = (start.x + pos.x) / 2;
+        centerY = (start.y + pos.y) / 2;
       }
 
-      // Create element in store
+      const radius = diameter / 2;
+      
+      // FIXED: Create element with proper center-based positioning and radius property
       const id = `circle-${Date.now()}`;
-      console.log('[CircleTool] Creating circle element:', { id, x, y, w, h });
+      console.log('[CircleTool] Creating circle element (FIXED):', {
+        id,
+        centerX,
+        centerY,
+        diameter,
+        radius,
+        positioning: 'center-based'
+      });
 
       if (upsertElement) {
         try {
           const element = upsertElement({
             id,
             type: 'circle',
-            x,
-            y,
-            width: w,
-            height: h,
-            bounds: { x, y, width: w, height: h },
+            // FIXED: Use center coordinates (Konva.Circle standard)
+            x: centerX,
+            y: centerY,
+            // Include all dimension properties for compatibility
+            width: diameter,
+            height: diameter,
+            radius: radius, // CRITICAL: Add radius property for proper text positioning
+            bounds: {
+              x: centerX - radius, // Bounds use top-left corner
+              y: centerY - radius,
+              width: diameter,
+              height: diameter
+            },
             draggable: true,
             text: '', // Start with empty text
             data: { text: '' },
@@ -184,7 +202,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
             },
           } as any);
 
-          console.log('[CircleTool] Element created:', element);
+          console.log('[CircleTool] Element created (FIXED):', element);
 
           // Select the new circle
           try {
