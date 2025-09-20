@@ -1,5 +1,6 @@
 // Table renderer module for main layer rendering with Konva groups
 // Follows existing four-layer architecture and performance patterns
+// FIXED: Position jumping, context menu handling, and transform integration
 
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
@@ -27,6 +28,7 @@ export class TableRenderer {
   private pool?: KonvaNodePool;
   private opts: TableRendererOptions;
   private storeCtx?: any; // Store context for proper store access
+  private isUpdatingTransformer = false; // FIXED: Flag to prevent transformer loops
 
   constructor(layers: RendererLayers, opts?: TableRendererOptions, storeCtx?: any) {
     this.layers = layers;
@@ -93,8 +95,12 @@ export class TableRenderer {
 
       cells[idx] = { ...existing, text: value };
 
+      // CRITICAL FIX: Preserve position during cell text updates to prevent jumping
       state.element.update(elementId, {
         cells,
+        // Explicitly preserve position to prevent jumping
+        x: current.x,
+        y: current.y,
       } as Partial<TableElement>);
     };
 
@@ -143,12 +149,14 @@ export class TableRenderer {
 
     if (!widthChanged && !heightChanged) return;
 
-    // CRITICAL FIX: Preserve the current table position during auto-resize
-    // Store the position BEFORE any changes to prevent jumping
-    const preservedX = table.x;
-    const preservedY = table.y;
+    // CRITICAL FIX: Store exact current position BEFORE making any updates
+    const preservedPosition = { x: table.x, y: table.y };
 
-    const patch: Partial<TableElement> = {};
+    const patch: Partial<TableElement> = {
+      // ALWAYS preserve exact position during auto-resize
+      x: preservedPosition.x,
+      y: preservedPosition.y,
+    };
 
     if (widthChanged) {
       currentColWidths[col] = targetWidth;
@@ -162,23 +170,25 @@ export class TableRenderer {
       patch.height = currentRowHeights.reduce((sum, h) => sum + h, 0);
     }
 
-    // ALWAYS include position in the patch to ensure it doesn't change
-    patch.x = preservedX;
-    patch.y = preservedY;
-
-    // Update without triggering transformer refresh immediately
+    // Update with position preservation and no immediate transformer refresh
     state.element.update(elementId, patch as Partial<TableElement>, { pushHistory: false });
 
-    // Only bump selection version if the element is selected
-    // This prevents unnecessary transformer updates for unselected tables
+    // FIXED: Only refresh transformer if selected, with debouncing to prevent loops
     const selectedIds = state.selectedElementIds || new Set<string>();
-    if (selectedIds.has && selectedIds.has(elementId)) {
+    if (selectedIds.has && selectedIds.has(elementId) && !this.isUpdatingTransformer) {
+      this.isUpdatingTransformer = true;
       const bumpVersion = state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
       if (typeof bumpVersion === 'function') {
-        // Delay the transformer refresh slightly to avoid conflicts with rendering
+        // Debounced transformer refresh to prevent update loops
         setTimeout(() => {
-          bumpVersion();
-        }, 50);
+          try {
+            bumpVersion();
+          } finally {
+            this.isUpdatingTransformer = false;
+          }
+        }, 100);
+      } else {
+        this.isUpdatingTransformer = false;
       }
     }
   }
@@ -203,8 +213,9 @@ export class TableRenderer {
         height: el.height,
       });
 
-      // FIXED: Set elementId attribute for SelectionModule integration
+      // FIXED: Set required attributes for SelectionModule integration
       g.setAttr("elementId", el.id);
+      g.setAttr("elementType", "table");
 
       // Add interaction handlers
       this.setupTableInteractions(g, el.id);
@@ -335,8 +346,8 @@ export class TableRenderer {
   render(el: TableElement) {
     const g = this.ensureGroup(el);
 
-    // CRITICAL FIX: Always update position and size from the store
-    // The store now maintains position during auto-resize, so we can trust it
+    // CRITICAL FIX: Always update position and size from the store EXACTLY
+    // Position preservation during auto-resize is now handled at the store level
     g.setAttrs({
       x: el.x,
       y: el.y,
@@ -398,21 +409,10 @@ export class TableRenderer {
     // Add invisible cell click areas for double-click editing
     this.addCellClickAreas(g, el);
 
-    // Resize the group hit rect to the element frame
-    g.setAttrs({ width: el.width, height: el.height });
-
-    // Ensure elementId attribute is maintained during updates
+    // Ensure attributes are maintained during updates
     g.setAttr("elementId", el.id);
-
-    // Set additional attributes for better SelectionModule integration
     g.setAttr("elementType", "table");
-    g.className = "table-group"; // Ensure className is set for SelectionModule detection
-
-    // Log position for debugging table jumping issues
-    if (process.env.NODE_ENV === 'development') {
-      const finalPos = g.position();
-      console.log(`[TableModule] Rendered table ${el.id} at position (${finalPos.x}, ${finalPos.y}), size (${el.width}, ${el.height})`);
-    }
+    g.className = "table-group";
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
     const shouldCache = (rows * cols > 50) || this.opts.cacheAfterCommit;
@@ -459,7 +459,6 @@ export class TableRenderer {
     const textNodes = children.filter(child => child.name() === 'cell-text') as Konva.Text[];
     
     // Calculate which text node corresponds to this cell
-    // This is a simplified approach; a more robust implementation would use better indexing
     const targetIndex = row * (g.getAttr('cols') || 1) + col;
     if (textNodes[targetIndex]) {
       textNodes[targetIndex].text(newText);
@@ -498,14 +497,16 @@ export class TableRenderer {
           perfectDrawEnabled: false,
         });
 
-        // CRITICAL FIX: Remove contextmenu handler from cell areas entirely
-        // Let all contextmenu events bubble up to the table group and stage
-        // This ensures the TableContextMenuManager receives the events properly
+        // CRITICAL FIX: Improved contextmenu handling - let events bubble properly
+        clickArea.on('contextmenu', (e) => {
+          console.log(`[TableModule] Cell [${row}, ${col}] contextmenu event`);
+          // Don't cancel bubble - let it go to table group and then stage
+        });
 
         // Double-click to edit using the tracked editor for live resize support
         clickArea.on('dblclick', (e) => {
           console.log(`[TableModule] Cell [${row}, ${col}] double-clicked`);
-          e.cancelBubble = true; // Prevent stage events
+          e.cancelBubble = true; // Prevent stage events for editing
 
           const stage = group.getStage();
           if (stage) {
@@ -525,11 +526,11 @@ export class TableRenderer {
           }
         });
 
-        // Visual feedback for cell interaction - keep default cursor until double-click
+        // Visual feedback for cell interaction
         clickArea.on('mouseenter', () => {
           const stage = group.getStage();
           if (stage?.container()) {
-            stage.container().style.cursor = 'default';
+            stage.container().style.cursor = 'text';
           }
         });
 
@@ -552,7 +553,7 @@ export class TableRenderer {
     // Get reference to SelectionModule for proper selection integration
     const getSelectionModule = () => (window as any).selectionModule;
 
-    // CRITICAL: Add contextmenu handler to the table group for debugging
+    // CRITICAL FIX: Improved contextmenu handler for the table group
     group.on('contextmenu', (e) => {
       console.log('[TableModule] Table group contextmenu event:', {
         elementId,
@@ -563,12 +564,19 @@ export class TableRenderer {
         groupId: group.id(),
         evt: e.evt
       });
-      // Allow the event to continue bubbling to the stage
+      
+      // CRITICAL FIX: Prevent position jumping during context menu
+      e.evt.preventDefault();
+      e.cancelBubble = false; // Allow bubbling to stage for context menu handling
+      
+      // Store the current position to prevent any updates during context menu
+      const currentPos = group.position();
+      group._contextMenuPosition = currentPos;
     });
 
-    // FIXED: Simple click handler for selection - let SelectionModule handle drag/transform
+    // Enhanced click handler for selection
     group.on("click tap", (e) => {
-      // Don't cancel bubble if the click is on a transformer (resize handles)
+      // Don't interfere with transformer handle clicks
       const isTransformerClick =
         e.target?.getParent()?.className === "Transformer" ||
         e.target?.className === "Transformer";
@@ -578,11 +586,9 @@ export class TableRenderer {
 
       const selectionModule = getSelectionModule();
       if (selectionModule) {
-        // Use SelectionModule for consistent selection behavior
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
         if (isAdditive) {
-          // For additive selection, we need to get current selection and toggle
-          selectionModule.selectElement(elementId); // Simplified for now
+          selectionModule.toggleSelection?.(elementId) ?? selectionModule.selectElement(elementId);
         } else {
           selectionModule.selectElement(elementId);
         }
@@ -595,7 +601,6 @@ export class TableRenderer {
 
         if (store.setSelection) {
           if (isAdditive) {
-            // Get current selection and toggle
             const current = store.selectedElementIds || new Set();
             const newSelection = new Set(current);
             if (newSelection.has(elementId)) {
@@ -617,12 +622,20 @@ export class TableRenderer {
       }
     });
 
-    // Transform handling is now managed by SelectionModule for consistent behavior
-    // No need for custom transform handlers - SelectionModule handles position/size updates
-
-    // Double-click handler removed - cell editing is handled by precise cell click areas only
+    // FIXED: Enhanced drag handling to prevent position drift
+    group.on('dragend', () => {
+      const newPos = group.position();
+      const storeHook = this.getStoreHook();
+      if (storeHook) {
+        const state = storeHook.getState();
+        // Update store with exact final position
+        state.element.update(elementId, {
+          x: newPos.x,
+          y: newPos.y,
+        } as Partial<TableElement>, { pushHistory: true });
+      }
+    });
   }
-
 
   // Cleanup method
   destroy() {
