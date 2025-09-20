@@ -1,5 +1,5 @@
-// COMPLETELY REWRITTEN TableTransformerController that properly handles Konva's scale system
-// This version correctly implements the scale->reset->resize pattern required for complex elements
+// CORRECTED TableTransformerController that properly handles Konva's scale system
+// Implements the correct scale→reset→resize pattern for complex table elements
 
 import Konva from 'konva';
 import { TransformerController, TransformerControllerOptions } from '../TransformerController';
@@ -15,8 +15,9 @@ export interface TableTransformerControllerOptions extends Omit<TransformerContr
  * CORRECTED TableTransformerController that properly handles Konva's scale-based transforms
  * Key principles:
  * 1. During transform: let Konva scale the visual representation
- * 2. On transform end: reset scale to 1 and update actual table dimensions
+ * 2. On transform end: reset scale to 1 and update actual table dimensions 
  * 3. Update store with new table structure
+ * 4. NEVER return oldBox from boundBoxFunc - always return constrained newBox
  */
 export class TableTransformerController extends TransformerController {
   private element: TableElement;
@@ -37,6 +38,13 @@ export class TableTransformerController extends TransformerController {
       rotateEnabled: false, // Tables shouldn't rotate
       keepRatio: false,     // Let user control with Shift key
       
+      // CRITICAL: Enable ALL horizontal and vertical anchors to prevent locking
+      enabledAnchors: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right'
+      ],
+      
       // Table-specific styling
       borderStroke: '#4F46E5',
       borderStrokeWidth: 2,
@@ -46,7 +54,8 @@ export class TableTransformerController extends TransformerController {
       anchorSize: 8,
       anchorCornerRadius: 2,
       
-      // CRITICAL: Custom bound box function that works with scale
+      // CRITICAL: Custom bound box function that NEVER returns oldBox
+      // This is the key fix for horizontal locking
       boundBoxFunc: createTableBoundBoxFunc(element),
       
       // Transform handlers that implement correct scale handling
@@ -82,16 +91,19 @@ export class TableTransformerController extends TransformerController {
 
   /**
    * Handle ongoing transform - apply live aspect ratio enforcement if needed
+   * CRITICAL: Don't modify children during transform - let Konva handle the scaling
    */
   private handleTransform(nodes: Konva.Node[]) {
     if (!this.isTransforming || nodes.length === 0) return;
     
     const node = nodes[0];
     
-    // Apply live transform logic (aspect ratio enforcement)
+    // Apply live transform logic (aspect ratio enforcement only)
     const event = window.event as KeyboardEvent | undefined;
     const shiftKey = event?.shiftKey ?? false;
     
+    // CRITICAL: Only apply aspect ratio during live transform
+    // Do NOT update children or internal arrays here
     handleTableTransformLive(this.element, node, { shiftKey });
   }
 
@@ -126,7 +138,7 @@ export class TableTransformerController extends TransformerController {
       { shiftKey, altKey, ctrlKey }
     );
     
-    // CRITICAL: Apply the reset attributes to the node
+    // CRITICAL: Apply the reset attributes to the node FIRST
     // This resets scale to 1 and updates width/height
     node.setAttrs(resetAttrs);
     
@@ -141,7 +153,7 @@ export class TableTransformerController extends TransformerController {
     // Update our internal element reference
     this.element = newElement;
     
-    // Notify the parent about the update
+    // Notify the parent about the update (this triggers store update and re-render)
     if (this.onTableUpdate) {
       this.onTableUpdate(newElement, resetAttrs);
     }
@@ -176,44 +188,50 @@ export class TableTransformerController extends TransformerController {
   attach(nodes: Konva.Node[]) {
     super.attach(nodes);
     
-    // Ensure all attached nodes have scale = 1 initially
+    // CRITICAL: Ensure all attached nodes have scale = 1 initially
+    // This prevents cumulative scaling issues
     nodes.forEach(node => {
       if (node.scaleX() !== 1 || node.scaleY() !== 1) {
         console.warn('[TableTransformerController] Node has non-1 scale, resetting:', {
           nodeId: node.id(),
           scale: { x: node.scaleX(), y: node.scaleY() }
         });
-        node.scaleX(1);
-        node.scaleY(1);
+        
+        // Calculate current actual size
+        const actualWidth = node.width() * node.scaleX();
+        const actualHeight = node.height() * node.scaleY();
+        
+        // Reset scale and set actual dimensions
+        node.setAttrs({
+          scaleX: 1,
+          scaleY: 1,
+          width: actualWidth,
+          height: actualHeight
+        });
       }
     });
   }
 
   /**
-   * Set up transform event handlers on the attached nodes
-   * This ensures proper handling even if nodes are attached externally
+   * Override to ensure proper table-specific settings
    */
-  private setupNodeTransformHandlers(node: Konva.Node) {
-    // Remove existing handlers
-    node.off('transformend.tableTransform');
+  updateStyle(options: Partial<TransformerControllerOptions>) {
+    // Always ensure critical table settings are maintained
+    const tableSpecificOptions = {
+      ...options,
+      rotateEnabled: false, // Tables should never rotate
+      enabledAnchors: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-right', 
+        'bottom-left', 'bottom-center', 'bottom-right'
+      ], // Always ensure all anchors are enabled
+    };
     
-    // Add our transform end handler
-    node.on('transformend.tableTransform', () => {
-      // Ensure scale is reset after any transform
-      if (node.scaleX() !== 1 || node.scaleY() !== 1) {
-        console.log('[TableTransformerController] Ensuring scale reset on node:', node.id());
-        
-        const newWidth = node.width() * node.scaleX();
-        const newHeight = node.height() * node.scaleY();
-        
-        node.setAttrs({
-          scaleX: 1,
-          scaleY: 1,
-          width: newWidth,
-          height: newHeight
-        });
-      }
-    });
+    super.updateStyle(tableSpecificOptions);
+    
+    // Update bound box function if element changed
+    const transformer = this.getNode();
+    transformer.boundBoxFunc(createTableBoundBoxFunc(this.element));
   }
 
   /**
