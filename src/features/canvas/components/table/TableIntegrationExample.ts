@@ -2,13 +2,21 @@
 // This demonstrates the proper setup for tables with position jump prevention,
 // aspect ratio resizing, and proper context menu handling
 
-import Konva from 'konva';
-import { TableRenderer, RendererLayers } from '../../renderer/modules/TableModule';
-import { TableTransformerController } from '../../renderer/modules/TableTransformerController';
-import { applyTableTransformResize } from '../../renderer/modules/TableTransformerController';
-import { TableContextMenuHelper } from './TableContextMenuHelper';
-import type { TableElement } from '../../types/table';
-import { applyTableResize, handleTableTransform } from '../../renderer/modules/tableTransform';
+import Konva from "konva";
+import {
+  TableRenderer,
+  RendererLayers,
+} from "../../renderer/modules/TableModule";
+import { TableTransformerController } from "../../renderer/modules/TableTransformerController";
+import { TableContextMenuHelper } from "./TableContextMenuHelper";
+import type { TableElement } from "../../types/table";
+import { handleTableTransform } from "../../renderer/modules/tableTransform";
+import {
+  addTableRow,
+  addTableColumn,
+  removeTableColumn,
+  removeTableRow,
+} from "../../renderer/modules/tableTransform";
 
 /**
  * Example integration class showing how to properly set up tables
@@ -22,23 +30,19 @@ export class TableIntegrationExample {
   private contextMenuHelper?: TableContextMenuHelper;
   private storeContext: any;
 
-  constructor(
-    stage: Konva.Stage,
-    layers: RendererLayers,
-    storeContext: any
-  ) {
+  constructor(stage: Konva.Stage, layers: RendererLayers, storeContext: any) {
     this.stage = stage;
     this.layers = layers;
     this.storeContext = storeContext;
-    
+
     // Initialize table renderer with position jump prevention
     this.tableRenderer = new TableRenderer(
       layers,
       {
         cacheAfterCommit: true, // Enable caching for performance
-        usePooling: true,       // Enable node pooling for large tables
+        usePooling: true, // Enable node pooling for large tables
       },
-      storeContext // Pass store context for proper position preservation
+      storeContext, // Pass store context for proper position preservation
     );
   }
 
@@ -46,21 +50,24 @@ export class TableIntegrationExample {
    * Render a table element with all fixes applied
    */
   renderTable(element: TableElement) {
-    console.log('[TableIntegration] Rendering table with fixes:', element.id);
-    
+    console.log("[TableIntegration] Rendering table with fixes:", element.id);
+
     // Render the table using the fixed renderer
     this.tableRenderer.render(element);
-    
+
     // Get the table group for transformer and context menu setup
     const tableGroup = this.tableRenderer.getTableGroup(element.id);
     if (!tableGroup) {
-      console.error('[TableIntegration] Failed to get table group for:', element.id);
+      console.error(
+        "[TableIntegration] Failed to get table group for:",
+        element.id,
+      );
       return;
     }
 
     // Set up transformer controller for aspect ratio resizing
     this.setupTransformerController(element, tableGroup);
-    
+
     // Set up context menu helper for position-safe right-click handling
     this.setupContextMenuHelper(element, tableGroup);
   }
@@ -68,7 +75,10 @@ export class TableIntegrationExample {
   /**
    * Set up the transformer controller with aspect ratio support
    */
-  private setupTransformerController(element: TableElement, tableGroup: Konva.Group) {
+  private setupTransformerController(
+    element: TableElement,
+    tableGroup: Konva.Group,
+  ) {
     // Clean up existing transformer
     if (this.transformerController) {
       this.transformerController.destroy();
@@ -79,15 +89,10 @@ export class TableIntegrationExample {
       stage: this.stage,
       layer: this.layers.overlay,
       element: element,
-      
-      // Handle ongoing transforms (for live preview)
-      onTableTransform: (tableElement, newBounds) => {
-        this.handleTableTransform(tableElement, newBounds, false);
-      },
-      
-      // Handle final transform (commit to store)
-      onTableTransformEnd: (tableElement, finalBounds) => {
-        this.handleTableTransform(tableElement, finalBounds, true);
+
+      // Handle table updates (both live and final transforms)
+      onTableUpdate: (tableElement: any, _resetAttrs?: any) => {
+        this.handleTableTransform(tableElement, tableElement, true);
       },
     });
 
@@ -98,25 +103,28 @@ export class TableIntegrationExample {
   /**
    * Set up context menu helper for position-safe right-click handling
    */
-  private setupContextMenuHelper(element: TableElement, tableGroup: Konva.Group) {
+  private setupContextMenuHelper(
+    element: TableElement,
+    tableGroup: Konva.Group,
+  ) {
     // Clean up existing helper
     if (this.contextMenuHelper) {
       this.contextMenuHelper.destroy();
     }
 
     // Create new context menu helper
-    this.contextMenuHelper = new TableContextMenuHelper(
-      element,
-      tableGroup,
-      {
-        onAddRow: (elementId, insertIndex) => this.handleAddRow(elementId, insertIndex),
-        onAddColumn: (elementId, insertIndex) => this.handleAddColumn(elementId, insertIndex),
-        onDeleteRow: (elementId, rowIndex) => this.handleDeleteRow(elementId, rowIndex),
-        onDeleteColumn: (elementId, columnIndex) => this.handleDeleteColumn(elementId, columnIndex),
-        onTableProperties: (elementId) => this.handleTableProperties(elementId),
-        onDelete: (elementId) => this.handleDeleteTable(elementId),
-      }
-    );
+    this.contextMenuHelper = new TableContextMenuHelper(element, tableGroup, {
+      onAddRow: (elementId, insertIndex) =>
+        this.handleAddRow(elementId, insertIndex),
+      onAddColumn: (elementId, insertIndex) =>
+        this.handleAddColumn(elementId, insertIndex),
+      onDeleteRow: (elementId, rowIndex) =>
+        this.handleDeleteRow(elementId, rowIndex),
+      onDeleteColumn: (elementId, columnIndex) =>
+        this.handleDeleteColumn(elementId, columnIndex),
+      onTableProperties: (elementId) => this.handleTableProperties(elementId),
+      onDelete: (elementId) => this.handleDeleteTable(elementId),
+    });
   }
 
   /**
@@ -125,12 +133,12 @@ export class TableIntegrationExample {
   private handleTableTransform(
     element: TableElement,
     newBounds: { x: number; y: number; width: number; height: number },
-    isCommit: boolean
+    isCommit: boolean,
   ) {
-    console.log('[TableIntegration] Handling table transform:', {
+    console.log("[TableIntegration] Handling table transform:", {
       elementId: element.id,
       newBounds,
-      isCommit
+      isCommit,
     });
 
     // Get keyboard state for aspect ratio locking
@@ -138,15 +146,11 @@ export class TableIntegrationExample {
     const shiftKey = event?.shiftKey ?? false;
 
     // Apply table-specific transform logic
-    const transformedElement = handleTableTransform(
-      element,
-      newBounds,
-      {
-        shiftKey,
-        altKey: event?.altKey ?? false,
-        ctrlKey: event?.ctrlKey ?? false,
-      }
-    );
+    const transformedElement = handleTableTransform(element, newBounds, {
+      shiftKey,
+      altKey: event?.altKey ?? false,
+      ctrlKey: event?.ctrlKey ?? false,
+    });
 
     // Update the store with the transformed element
     if (this.storeContext?.store) {
@@ -171,18 +175,17 @@ export class TableIntegrationExample {
    * Handle adding a row to the table
    */
   private handleAddRow(elementId: string, insertIndex?: number) {
-    console.log('[TableIntegration] Adding row:', { elementId, insertIndex });
-    
+    console.log("[TableIntegration] Adding row:", { elementId, insertIndex });
+
     if (!this.storeContext?.store) return;
-    
+
     const state = this.storeContext.store.getState();
     const element = state.element.getById(elementId) as TableElement;
-    if (!element || element.type !== 'table') return;
+    if (!element || element.type !== "table") return;
 
     // Use the tableTransform utility to add a row
-    const { addTableRow } = require('../../renderer/modules/tableTransform');
     const updatedElement = addTableRow(element, insertIndex);
-    
+
     // Update store with history
     state.element.update(elementId, updatedElement, { pushHistory: true });
   }
@@ -191,18 +194,20 @@ export class TableIntegrationExample {
    * Handle adding a column to the table
    */
   private handleAddColumn(elementId: string, insertIndex?: number) {
-    console.log('[TableIntegration] Adding column:', { elementId, insertIndex });
-    
+    console.log("[TableIntegration] Adding column:", {
+      elementId,
+      insertIndex,
+    });
+
     if (!this.storeContext?.store) return;
-    
+
     const state = this.storeContext.store.getState();
     const element = state.element.getById(elementId) as TableElement;
-    if (!element || element.type !== 'table') return;
+    if (!element || element.type !== "table") return;
 
     // Use the tableTransform utility to add a column
-    const { addTableColumn } = require('../../renderer/modules/tableTransform');
     const updatedElement = addTableColumn(element, insertIndex);
-    
+
     // Update store with history
     state.element.update(elementId, updatedElement, { pushHistory: true });
   }
@@ -211,18 +216,17 @@ export class TableIntegrationExample {
    * Handle deleting a row from the table
    */
   private handleDeleteRow(elementId: string, rowIndex: number) {
-    console.log('[TableIntegration] Deleting row:', { elementId, rowIndex });
-    
+    console.log("[TableIntegration] Deleting row:", { elementId, rowIndex });
+
     if (!this.storeContext?.store) return;
-    
+
     const state = this.storeContext.store.getState();
     const element = state.element.getById(elementId) as TableElement;
-    if (!element || element.type !== 'table' || element.rows <= 1) return;
+    if (!element || element.type !== "table" || element.rows <= 1) return;
 
     // Use the tableTransform utility to remove a row
-    const { removeTableRow } = require('../../renderer/modules/tableTransform');
     const updatedElement = removeTableRow(element, rowIndex);
-    
+
     // Update store with history
     state.element.update(elementId, updatedElement, { pushHistory: true });
   }
@@ -231,18 +235,20 @@ export class TableIntegrationExample {
    * Handle deleting a column from the table
    */
   private handleDeleteColumn(elementId: string, columnIndex: number) {
-    console.log('[TableIntegration] Deleting column:', { elementId, columnIndex });
-    
+    console.log("[TableIntegration] Deleting column:", {
+      elementId,
+      columnIndex,
+    });
+
     if (!this.storeContext?.store) return;
-    
+
     const state = this.storeContext.store.getState();
     const element = state.element.getById(elementId) as TableElement;
-    if (!element || element.type !== 'table' || element.cols <= 1) return;
+    if (!element || element.type !== "table" || element.cols <= 1) return;
 
     // Use the tableTransform utility to remove a column
-    const { removeTableColumn } = require('../../renderer/modules/tableTransform');
     const updatedElement = removeTableColumn(element, columnIndex);
-    
+
     // Update store with history
     state.element.update(elementId, updatedElement, { pushHistory: true });
   }
@@ -251,7 +257,7 @@ export class TableIntegrationExample {
    * Handle table properties dialog
    */
   private handleTableProperties(elementId: string) {
-    console.log('[TableIntegration] Opening table properties:', { elementId });
+    console.log("[TableIntegration] Opening table properties:", { elementId });
     // TODO: Open table properties dialog
   }
 
@@ -259,10 +265,10 @@ export class TableIntegrationExample {
    * Handle deleting the entire table
    */
   private handleDeleteTable(elementId: string) {
-    console.log('[TableIntegration] Deleting table:', { elementId });
-    
+    console.log("[TableIntegration] Deleting table:", { elementId });
+
     if (!this.storeContext?.store) return;
-    
+
     const state = this.storeContext.store.getState();
     state.element.delete(elementId, { pushHistory: true });
   }
@@ -275,8 +281,8 @@ export class TableIntegrationExample {
 
     // Find selected table groups
     const selectedTableGroups = selectedElementIds
-      .map(id => this.tableRenderer.getTableGroup(id))
-      .filter(group => group !== undefined) as Konva.Group[];
+      .map((id) => this.tableRenderer.getTableGroup(id))
+      .filter((group) => group !== undefined) as Konva.Group[];
 
     if (selectedTableGroups.length > 0) {
       // Attach transformer to selected tables
@@ -314,24 +320,24 @@ export class TableIntegrationExample {
 export function createTableIntegration(
   stage: Konva.Stage,
   layers: RendererLayers,
-  storeContext: any
+  storeContext: any,
 ): TableIntegrationExample {
   return new TableIntegrationExample(stage, layers, storeContext);
 }
 
 /**
  * Example usage in your main canvas component:
- * 
+ *
  * ```typescript
  * // In your canvas setup
  * const tableIntegration = createTableIntegration(stage, layers, storeContext);
- * 
+ *
  * // When rendering a table
  * tableIntegration.renderTable(tableElement);
- * 
+ *
  * // When selection changes
  * tableIntegration.updateSelection(selectedElementIds);
- * 
+ *
  * // Clean up when component unmounts
  * tableIntegration.destroy();
  * ```

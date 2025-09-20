@@ -359,141 +359,160 @@ export const TableContextMenuManager: React.FC<TableContextMenuManagerProps> = (
 
   // Set up right-click event handling on stage with robust initialization
   useEffect(() => {
-    // Wait for stage to be fully initialized
-    const initializeContextMenu = () => {
+    let disposed = false;
+    let contextMenuHandler: ((e: any) => void) | null = null;
+
+    const attachWhenReady = () => {
+      if (disposed) return;
+
       const stage = stageRef.current;
       if (!stage) {
         console.log('[TableContextMenuManager] Stage not ready, retrying...');
-        setTimeout(initializeContextMenu, 100);
+        setTimeout(attachWhenReady, 100);
         return;
       }
 
       console.log('[TableContextMenuManager] Setting up contextmenu event listener on stage');
 
-    const handleContextMenu = (e: any) => {
-      console.log('🔥🔥🔥 [TableContextMenuManager] CONTEXTMENU EVENT RECEIVED!!! 🔥🔥🔥');
-      console.log('[TableContextMenuManager] Right-click detected:', {
-        target: e.target,
-        targetName: e.target?.name?.(),
-        targetClassName: e.target?.className,
-        targetNodeName: e.target?.nodeType,
-        isGroup: e.target?.className === 'Group',
-        evt: e.evt,
-        eventType: e.type,
-        timeStamp: e.evt?.timeStamp || Date.now()
-      });
-
-      // Prevent browser context menu
-      e.evt?.preventDefault?.();
-
-      const target = e.target;
-      if (!target) {
-        console.log('[TableContextMenuManager] No target found');
-        return;
-      }
-
-      // Check if we clicked on a table cell or table group
-      let tableGroup = target;
-      let searchDepth = 0;
-      console.log('[TableContextMenuManager] Starting search for table-group, initial target:', {
-        name: target.name?.(),
-        className: target.className,
-        id: target.id?.()
-      });
-
-      while (tableGroup && tableGroup.name() !== 'table-group' && searchDepth < 10) {
-        tableGroup = tableGroup.getParent();
-        searchDepth++;
-        console.log(`[TableContextMenuManager] Search depth ${searchDepth}:`, {
-          name: tableGroup?.name?.(),
-          className: tableGroup?.className,
-          id: tableGroup?.id?.()
-        });
-        if (!tableGroup) {
-          console.log('[TableContextMenuManager] No parent found');
+      contextMenuHandler = (e: any) => {
+        const stageInstance = stageRef.current;
+        if (!stageInstance) {
+          console.warn('[TableContextMenuManager] Stage unavailable during contextmenu');
           return;
         }
-      }
 
-      if (!tableGroup || tableGroup.name() !== 'table-group') {
-        console.log('[TableContextMenuManager] No table-group found after search');
-        return;
-      }
-
-      console.log('[TableContextMenuManager] Found table-group:', tableGroup.id());
-
-      // Find the cell that was clicked
-      const tableId = tableGroup.id();
-      const pointerPos = stage.getPointerPosition();
-      if (!pointerPos) {
-        console.log('[TableContextMenuManager] No pointer position found');
-        return;
-      }
-
-      console.log('[TableContextMenuManager] Pointer position:', pointerPos);
-
-      // Get table element to calculate cell position
-      const tableElement = getElement(tableId);
-      if (!tableElement || tableElement.type !== 'table') {
-        console.log('[TableContextMenuManager] Table element not found or invalid type:', {
-          tableElement,
-          type: tableElement?.type
+        console.log('🔥🔥🔥 [TableContextMenuManager] CONTEXTMENU EVENT RECEIVED!!! 🔥🔥🔥');
+        console.log('[TableContextMenuManager] Right-click detected:', {
+          target: e.target,
+          targetName: e.target?.name?.(),
+          targetClassName: e.target?.className,
+          targetNodeName: e.target?.nodeType,
+          isGroup: e.target?.className === 'Group',
+          evt: e.evt,
+          eventType: e.type,
+          timeStamp: e.evt?.timeStamp || Date.now()
         });
-        return;
-      }
 
-      console.log('[TableContextMenuManager] Table element found:', {
-        id: tableElement.id,
-        width: (tableElement as any).width,
-        height: (tableElement as any).height,
-        rows: (tableElement as any).rows,
-        cols: (tableElement as any).cols
-      });
+        // Prevent browser context menu
+        e.evt?.preventDefault?.();
 
-      // Calculate which cell was clicked based on pointer position and table transform
-      const tableTransform = tableGroup.getAbsoluteTransform();
-      const localPos = tableTransform.copy().invert().point(pointerPos);
+        const target = e.target;
+        if (!target) {
+          console.log('[TableContextMenuManager] No target found');
+          return;
+        }
 
-      console.log('[TableContextMenuManager] Local position in table:', localPos);
-
-      const cellWidth = (tableElement as any).width / (tableElement as any).cols;
-      const cellHeight = (tableElement as any).height / (tableElement as any).rows;
-
-      console.log('[TableContextMenuManager] Cell dimensions:', { cellWidth, cellHeight });
-
-      const col = Math.floor(localPos.x / cellWidth);
-      const row = Math.floor(localPos.y / cellHeight);
-
-      console.log('[TableContextMenuManager] Calculated cell position:', { row, col });
-
-      // Ensure we're within bounds
-      if (row >= 0 && row < (tableElement as any).rows && col >= 0 && col < (tableElement as any).cols) {
-        // Convert stage coordinates to screen coordinates
-        const rect = stage.container().getBoundingClientRect();
-        const screenX = rect.left + pointerPos.x;
-        const screenY = rect.top + pointerPos.y;
-
-        console.log('[TableContextMenuManager] Showing context menu at screen position:', { screenX, screenY });
-        showContextMenu(screenX, screenY, tableId, row, col);
-      } else {
-        console.log('[TableContextMenuManager] Cell position out of bounds:', {
-          row, col,
-          maxRow: (tableElement as any).rows - 1,
-          maxCol: (tableElement as any).cols - 1
+        // Check if we clicked on a table cell or table group
+        let tableGroup = target;
+        let searchDepth = 0;
+        console.log('[TableContextMenuManager] Starting search for table-group, initial target:', {
+          name: target.name?.(),
+          className: target.className,
+          id: target.id?.()
         });
-      }
-    };
 
-      stage.on('contextmenu', handleContextMenu);
+        const hasTableName = (node: any) => {
+          if (!node) return false;
+          if (typeof node.hasName === 'function') return node.hasName('table-group');
+          return node.name?.() === 'table-group';
+        };
+
+        while (tableGroup && !hasTableName(tableGroup) && searchDepth < 10) {
+          tableGroup = tableGroup.getParent();
+          searchDepth++;
+          console.log(`[TableContextMenuManager] Search depth ${searchDepth}:`, {
+            name: tableGroup?.name?.(),
+            className: tableGroup?.className,
+            id: tableGroup?.id?.()
+          });
+          if (!tableGroup) {
+            console.log('[TableContextMenuManager] No parent found');
+            return;
+          }
+        }
+
+        if (!tableGroup || !hasTableName(tableGroup)) {
+          console.log('[TableContextMenuManager] No table-group found after search');
+          return;
+        }
+
+        console.log('[TableContextMenuManager] Found table-group:', tableGroup.id());
+
+        // Find the cell that was clicked
+        const tableId = tableGroup.id();
+        const pointerPos = stageInstance.getPointerPosition() ?? {
+          x: e.evt?.offsetX ?? e.evt?.layerX ?? 0,
+          y: e.evt?.offsetY ?? e.evt?.layerY ?? 0,
+        };
+
+        console.log('[TableContextMenuManager] Pointer position:', pointerPos);
+
+        // Get table element to calculate cell position
+        const tableElement = getElement(tableId);
+        if (!tableElement || tableElement.type !== 'table') {
+          console.log('[TableContextMenuManager] Table element not found or invalid type:', {
+            tableElement,
+            type: tableElement?.type
+          });
+          return;
+        }
+
+        console.log('[TableContextMenuManager] Table element found:', {
+          id: tableElement.id,
+          width: (tableElement as any).width,
+          height: (tableElement as any).height,
+          rows: (tableElement as any).rows,
+          cols: (tableElement as any).cols
+        });
+
+        // Calculate which cell was clicked based on pointer position and table transform
+        const tableTransform = tableGroup.getAbsoluteTransform();
+        const localPos = tableTransform.copy().invert().point(pointerPos);
+
+        console.log('[TableContextMenuManager] Local position in table:', localPos);
+
+        const cellWidth = (tableElement as any).width / (tableElement as any).cols;
+        const cellHeight = (tableElement as any).height / (tableElement as any).rows;
+
+        console.log('[TableContextMenuManager] Cell dimensions:', { cellWidth, cellHeight });
+
+        const col = Math.floor(localPos.x / cellWidth);
+        const row = Math.floor(localPos.y / cellHeight);
+
+        console.log('[TableContextMenuManager] Calculated cell position:', { row, col });
+
+        // Ensure we're within bounds
+        if (row >= 0 && row < (tableElement as any).rows && col >= 0 && col < (tableElement as any).cols) {
+          // Convert stage coordinates to screen coordinates
+          const rect = stageInstance.container().getBoundingClientRect();
+          const screenX = rect.left + pointerPos.x;
+          const screenY = rect.top + pointerPos.y;
+
+          console.log('[TableContextMenuManager] Showing context menu at screen position:', { screenX, screenY });
+          showContextMenu(screenX, screenY, tableId, row, col);
+        } else {
+          console.log('[TableContextMenuManager] Cell position out of bounds:', {
+            row, col,
+            maxRow: (tableElement as any).rows - 1,
+            maxCol: (tableElement as any).cols - 1
+          });
+        }
+      };
+
+      stage.on('contextmenu.table-menu', contextMenuHandler);
       console.log('[TableContextMenuManager] Event listener attached successfully');
     };
 
-    initializeContextMenu();
+    attachWhenReady();
 
     return () => {
+      disposed = true;
       const stage = stageRef.current;
       if (stage) {
-        stage.off('contextmenu');
+        if (contextMenuHandler) {
+          stage.off('contextmenu', contextMenuHandler);
+        }
+        stage.off('contextmenu.table-menu');
         console.log('[TableContextMenuManager] Event listener removed');
       }
     };

@@ -1,8 +1,8 @@
 // Table context menu helper to prevent position jumping and handle right-click events properly
 // Integrates with existing context menu system while preserving table position
 
-import Konva from 'konva';
-import type { TableElement } from '../../types/table';
+import Konva from "konva";
+import type { TableElement } from "../../types/table";
 
 export interface TableContextMenuOptions {
   onAddRow?: (elementId: string, insertIndex?: number) => void;
@@ -25,12 +25,12 @@ export class TableContextMenuHelper {
   constructor(
     element: TableElement,
     tableGroup: Konva.Group,
-    options: TableContextMenuOptions = {}
+    options: TableContextMenuOptions = {},
   ) {
     this.element = element;
     this.tableGroup = tableGroup;
     this.options = options;
-    
+
     this.setupContextMenuHandling();
   }
 
@@ -46,31 +46,37 @@ export class TableContextMenuHelper {
    */
   private setupContextMenuHandling() {
     // Handle context menu on the table group
-    this.tableGroup.on('contextmenu', (e) => {
+    this.tableGroup.on("contextmenu", (e) => {
       this.handleTableContextMenu(e);
     });
 
     // Handle context menu on cell areas (if they exist)
-    this.tableGroup.on('contextmenu', '.cell-clickable', (e) => {
-      this.handleCellContextMenu(e);
-    });
+    this.tableGroup.on(
+      "contextmenu",
+      (e: Konva.KonvaEventObject<MouseEvent>) => {
+        // Check if the target is a cell-clickable
+        if (e.target?.name() === "cell-clickable") {
+          this.handleCellContextMenu(e);
+        }
+      },
+    );
   }
 
   /**
    * Handle context menu on the table group itself
    */
   private handleTableContextMenu(e: Konva.KonvaEventObject<MouseEvent>) {
-    console.log('[TableContextMenuHelper] Table context menu triggered');
-    
+    console.log("[TableContextMenuHelper] Table context menu triggered");
+
     // CRITICAL: Preserve position before any context menu operations
     this.preservePosition();
-    
+
     // Prevent default browser context menu
     e.evt.preventDefault();
-    
+
     // Allow event to bubble to stage for global context menu handling
     e.cancelBubble = false;
-    
+
     // Set up restoration after context menu closes
     this.schedulePositionRestoration();
   }
@@ -80,33 +86,35 @@ export class TableContextMenuHelper {
    */
   private handleCellContextMenu(e: Konva.KonvaEventObject<MouseEvent>) {
     const cellNode = e.target;
-    if (!cellNode || cellNode.name() !== 'cell-clickable') return;
-    
+    if (!cellNode || cellNode.name() !== "cell-clickable") return;
+
     // Get cell coordinates from the node position
     const cellX = cellNode.x();
     const cellY = cellNode.y();
-    
+
     // Calculate which row/column this cell belongs to
     const { row, col } = this.getCellCoordinates(cellX, cellY);
-    
-    console.log(`[TableContextMenuHelper] Cell [${row}, ${col}] context menu triggered`);
-    
+
+    console.log(
+      `[TableContextMenuHelper] Cell [${row}, ${col}] context menu triggered`,
+    );
+
     // CRITICAL: Preserve position before context menu operations
     this.preservePosition();
-    
+
     // Prevent default and allow bubbling for global context menu
     e.evt.preventDefault();
     e.cancelBubble = false;
-    
+
     // Add cell-specific context menu data to the event
     (e.evt as any).tableContextData = {
       elementId: this.element.id,
-      elementType: 'table',
+      elementType: "table",
       cellRow: row,
       cellCol: col,
-      actions: this.getCellContextMenuActions(row, col)
+      actions: this.getCellContextMenuActions(row, col),
     };
-    
+
     this.schedulePositionRestoration();
   }
 
@@ -116,11 +124,11 @@ export class TableContextMenuHelper {
   private preservePosition() {
     this.preservedPosition = {
       x: this.tableGroup.x(),
-      y: this.tableGroup.y()
+      y: this.tableGroup.y(),
     };
-    
+
     // Also store in the group for external access
-    this.tableGroup.setAttr('_preservedPosition', this.preservedPosition);
+    this.tableGroup.setAttr("_preservedPosition", this.preservedPosition);
   }
 
   /**
@@ -128,28 +136,28 @@ export class TableContextMenuHelper {
    */
   private restorePosition() {
     if (!this.preservedPosition) return;
-    
+
     const currentPos = this.tableGroup.position();
     const { x: preservedX, y: preservedY } = this.preservedPosition;
-    
+
     // Check if position has drifted
-    const positionDrift = 
-      Math.abs(currentPos.x - preservedX) > 0.1 || 
+    const positionDrift =
+      Math.abs(currentPos.x - preservedX) > 0.1 ||
       Math.abs(currentPos.y - preservedY) > 0.1;
-    
+
     if (positionDrift) {
-      console.log('[TableContextMenuHelper] Restoring position from drift:', {
+      console.log("[TableContextMenuHelper] Restoring position from drift:", {
         from: currentPos,
-        to: this.preservedPosition
+        to: this.preservedPosition,
       });
-      
+
       this.tableGroup.position(this.preservedPosition);
       this.tableGroup.getLayer()?.batchDraw();
     }
-    
+
     // Clear preserved position
     this.preservedPosition = undefined;
-    this.tableGroup.setAttr('_preservedPosition', null);
+    this.tableGroup.setAttr("_preservedPosition", null);
   }
 
   /**
@@ -160,7 +168,7 @@ export class TableContextMenuHelper {
     setTimeout(() => {
       this.restorePosition();
     }, 50);
-    
+
     // Also restore on next animation frame as a backup
     requestAnimationFrame(() => {
       this.restorePosition();
@@ -170,12 +178,15 @@ export class TableContextMenuHelper {
   /**
    * Calculate row/column coordinates from pixel position
    */
-  private getCellCoordinates(x: number, y: number): { row: number; col: number } {
+  private getCellCoordinates(
+    x: number,
+    y: number,
+  ): { row: number; col: number } {
     let currentX = 0;
     let currentY = 0;
     let col = 0;
     let row = 0;
-    
+
     // Find column
     for (let c = 0; c < this.element.colWidths.length; c++) {
       if (x >= currentX && x < currentX + this.element.colWidths[c]) {
@@ -184,7 +195,7 @@ export class TableContextMenuHelper {
       }
       currentX += this.element.colWidths[c];
     }
-    
+
     // Find row
     for (let r = 0; r < this.element.rowHeights.length; r++) {
       if (y >= currentY && y < currentY + this.element.rowHeights[r]) {
@@ -193,7 +204,7 @@ export class TableContextMenuHelper {
       }
       currentY += this.element.rowHeights[r];
     }
-    
+
     return { row, col };
   }
 
@@ -205,9 +216,16 @@ export class TableContextMenuHelper {
       addRowAbove: () => this.options.onAddRow?.(this.element.id, row),
       addRowBelow: () => this.options.onAddRow?.(this.element.id, row + 1),
       addColumnLeft: () => this.options.onAddColumn?.(this.element.id, col),
-      addColumnRight: () => this.options.onAddColumn?.(this.element.id, col + 1),
-      deleteRow: this.element.rows > 1 ? () => this.options.onDeleteRow?.(this.element.id, row) : undefined,
-      deleteColumn: this.element.cols > 1 ? () => this.options.onDeleteColumn?.(this.element.id, col) : undefined,
+      addColumnRight: () =>
+        this.options.onAddColumn?.(this.element.id, col + 1),
+      deleteRow:
+        this.element.rows > 1
+          ? () => this.options.onDeleteRow?.(this.element.id, row)
+          : undefined,
+      deleteColumn:
+        this.element.cols > 1
+          ? () => this.options.onDeleteColumn?.(this.element.id, col)
+          : undefined,
       tableProperties: () => this.options.onTableProperties?.(this.element.id),
       deleteTable: () => this.options.onDelete?.(this.element.id),
     };
@@ -243,7 +261,7 @@ export class TableContextMenuHelper {
    * Clean up event handlers
    */
   destroy() {
-    this.tableGroup.off('contextmenu');
+    this.tableGroup.off("contextmenu");
     this.preservedPosition = undefined;
   }
 }
@@ -254,7 +272,7 @@ export class TableContextMenuHelper {
 export function createTableContextMenuHelper(
   element: TableElement,
   tableGroup: Konva.Group,
-  options: TableContextMenuOptions = {}
+  options: TableContextMenuOptions = {},
 ): TableContextMenuHelper {
   return new TableContextMenuHelper(element, tableGroup, options);
 }
@@ -277,19 +295,22 @@ export function getTableContextData(event: Event): {
  */
 export function withPositionPreservation<T>(
   tableGroup: Konva.Group,
-  operation: () => T
+  operation: () => T,
 ): T {
   const originalPos = tableGroup.position();
-  
+
   try {
     const result = operation();
-    
+
     // Restore position if it changed
     const newPos = tableGroup.position();
-    if (Math.abs(newPos.x - originalPos.x) > 0.1 || Math.abs(newPos.y - originalPos.y) > 0.1) {
+    if (
+      Math.abs(newPos.x - originalPos.x) > 0.1 ||
+      Math.abs(newPos.y - originalPos.y) > 0.1
+    ) {
       tableGroup.position(originalPos);
     }
-    
+
     return result;
   } catch (error) {
     // Restore position even if operation failed

@@ -2,6 +2,8 @@
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
+import type { TableElement } from "../../types/table";
+import { applyTableScaleResize } from "./tableTransform";
 
 export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
@@ -273,24 +275,26 @@ export class SelectionModule implements RendererModule {
       const size = node.size();
       const rotation = node.rotation();
       const scale = node.scale();
+      const rawScaleX = scale?.x ?? 1;
+      const rawScaleY = scale?.y ?? 1;
 
       // CRITICAL FIX: Check if this is a table element by looking at the actual element data
       const element = store?.elements?.get?.(elementId) ?? store.element?.getById?.(elementId);
       const isTable = element?.type === 'table';
 
       // Log for debugging
-      if (elementId && (scale?.x !== 1 || scale?.y !== 1)) {
+      if (elementId && (rawScaleX !== 1 || rawScaleY !== 1)) {
         console.log('[SelectionModule] Processing transform for element:', elementId, 'isTable:', isTable, 'scale:', scale);
       }
 
       // CRITICAL FIX: Ensure dimensions never become 0 or negative
       // Use absolute values of scale to handle negative scaling (flipping)
       // and enforce minimum dimensions to prevent disappearing elements
-      const MIN_WIDTH = 10;  // Minimum width in pixels
-      const MIN_HEIGHT = 10; // Minimum height in pixels
+      const MIN_WIDTH = 10;  // Minimum width in pixels for generic elements
+      const MIN_HEIGHT = 10; // Minimum height in pixels for generic elements
 
-      let scaleX = Math.abs(scale?.x || 1);
-      let scaleY = Math.abs(scale?.y || 1);
+      let scaleX = Math.abs(rawScaleX);
+      let scaleY = Math.abs(rawScaleY);
 
       const scaledWidth = size.width * scaleX;
       const scaledHeight = size.height * scaleY;
@@ -298,55 +302,83 @@ export class SelectionModule implements RendererModule {
       const changes: any = {
         x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
         y: Math.round(pos.y * 100) / 100,
-        // Apply scale to width/height with minimum bounds
-        width: Math.max(MIN_WIDTH, Math.round(scaledWidth * 100) / 100),
-        height: Math.max(MIN_HEIGHT, Math.round(scaledHeight * 100) / 100),
         rotation: Math.round(rotation * 100) / 100,
       };
 
-      // CRITICAL FIX: Special handling for table elements - scale cell dimensions proportionally
-      if (isTable && (scaleX !== 1 || scaleY !== 1)) {
-        console.log('[SelectionModule] Applying table-specific scaling to element:', elementId);
+      let tableResizeResult: TableElement | null = null;
+      let nextWidth = Math.max(MIN_WIDTH, Math.round(scaledWidth * 100) / 100);
+      let nextHeight = Math.max(MIN_HEIGHT, Math.round(scaledHeight * 100) / 100);
+      const shouldCommitSizeNow = isTable || commitWithHistory;
+
+      // CRITICAL FIX: Special handling for table elements - delegate to table transform helper
+      if (isTable) {
         if (element && element.colWidths && element.rowHeights) {
-          const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
-          
-          // Apply scaleX to column widths and scaleY to row heights
-          // This maintains the proper aspect ratio for each cell
-          const newColWidths = element.colWidths.map((w: number) =>
-            Math.max(minCellWidth, Math.round(w * scaleX * 100) / 100)
+          const tableElement = element as TableElement;
+          const keyboardEvent = (typeof window !== 'undefined' ? window.event : undefined) as KeyboardEvent | undefined;
+          const keepAspectRatio = keyboardEvent?.shiftKey ?? false;
+
+          tableResizeResult = applyTableScaleResize(
+            tableElement,
+            rawScaleX,
+            rawScaleY,
+            { keepAspectRatio }
           );
-          const newRowHeights = element.rowHeights.map((h: number) =>
-            Math.max(minCellHeight, Math.round(h * scaleY * 100) / 100)
-          );
-          
-          changes.colWidths = newColWidths;
-          changes.rowHeights = newRowHeights;
-          
-          console.log('[SelectionModule] Table dimensions scaled:', {
-            originalColWidths: element.colWidths,
-            newColWidths,
-            originalRowHeights: element.rowHeights,
-            newRowHeights,
-            scaleX,
-            scaleY
+
+          changes.width = Math.round(tableResizeResult.width * 100) / 100;
+          changes.height = Math.round(tableResizeResult.height * 100) / 100;
+          changes.colWidths = tableResizeResult.colWidths;
+          changes.rowHeights = tableResizeResult.rowHeights;
+
+          nextWidth = tableResizeResult.width;
+          nextHeight = tableResizeResult.height;
+
+          console.log('[SelectionModule] Table dimensions scaled via helper:', {
+            elementId,
+            scale: { x: rawScaleX, y: rawScaleY },
+            width: changes.width,
+            height: changes.height,
+            colWidths: changes.colWidths,
+            rowHeights: changes.rowHeights,
           });
         } else {
           console.warn('[SelectionModule] Table element missing colWidths/rowHeights:', element);
         }
       }
 
-      updates.push({
-        id: elementId,
-        changes,
-      });
+      if (shouldCommitSizeNow) {
+        changes.width = nextWidth;
+        changes.height = nextHeight;
+
+        updates.push({
+          id: elementId,
+          changes,
+        });
+      } else {
+        // For non-table elements during live transform, defer size commit
+        // to transform end to avoid jitter caused by double-normalization.
+        continue;
+      }
 
       // Reset scale after applying to dimensions
-      if (scale && (scale.x !== 1 || scale.y !== 1)) {
+      if (scale && (rawScaleX !== 1 || rawScaleY !== 1) && shouldCommitSizeNow) {
         node.scale({ x: 1, y: 1 });
         node.size({
-          width: size.width * scaleX,
-          height: size.height * scaleY,
+          width: nextWidth,
+          height: nextHeight,
         });
+        if (tableResizeResult) {
+          const minTableWidth = tableResizeResult.cols * DEFAULT_TABLE_CONFIG.minCellWidth;
+          const minTableHeight = tableResizeResult.rows * DEFAULT_TABLE_CONFIG.minCellHeight;
+          if (nextWidth < minTableWidth || nextHeight < minTableHeight) {
+            console.warn('[SelectionModule] Table size fell below minimums after transform reset', {
+              elementId,
+              nextWidth,
+              nextHeight,
+              minTableWidth,
+              minTableHeight,
+            });
+          }
+        }
       }
     }
 

@@ -30,42 +30,62 @@ export class TableRenderer {
   private storeCtx?: any; // Store context for proper store access
   private isUpdatingTransformer = false; // Flag to prevent transformer loops
 
-  constructor(layers: RendererLayers, opts?: TableRendererOptions, storeCtx?: any) {
+  constructor(
+    layers: RendererLayers,
+    opts?: TableRendererOptions,
+    storeCtx?: any,
+  ) {
     this.layers = layers;
     this.opts = opts ?? {};
     this.storeCtx = storeCtx;
-    
+
     if (this.opts.usePooling) {
       this.pool = new KonvaNodePool();
-      
+
       // Register pooled node types for table rendering
-      this.pool.register('table-cell-rect', {
-        create: () => new Konva.Rect({ listening: false, perfectDrawEnabled: false }),
+      this.pool.register("table-cell-rect", {
+        create: () =>
+          new Konva.Rect({ listening: false, perfectDrawEnabled: false }),
         reset: (node: Konva.Rect) => {
           node.setAttrs({
-            x: 0, y: 0, width: 0, height: 0,
-            fill: '', stroke: '', strokeWidth: 0,
-            cornerRadius: 0
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            fill: "",
+            stroke: "",
+            strokeWidth: 0,
+            cornerRadius: 0,
           });
-        }
+        },
       });
-      
-      this.pool.register('table-cell-text', {
-        create: () => new Konva.Text({ listening: false, perfectDrawEnabled: false }),
+
+      this.pool.register("table-cell-text", {
+        create: () =>
+          new Konva.Text({ listening: false, perfectDrawEnabled: false }),
         reset: (node: Konva.Text) => {
           node.setAttrs({
-            x: 0, y: 0, width: 0, height: 0,
-            text: '', fontFamily: '', fontSize: 12,
-            fill: '', align: 'left', verticalAlign: 'top', lineHeight: 1.4
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            text: "",
+            fontFamily: "",
+            fontSize: 12,
+            fill: "",
+            align: "left",
+            verticalAlign: "top",
+            lineHeight: 1.4,
           });
-        }
+        },
       });
-      
-      this.pool.register('table-grid', {
-        create: () => new Konva.Shape({ listening: false, perfectDrawEnabled: false }),
+
+      this.pool.register("table-grid", {
+        create: () =>
+          new Konva.Shape({ listening: false, perfectDrawEnabled: false }),
         reset: (node: Konva.Shape) => {
           node.clearCache();
-        }
+        },
       });
     }
   }
@@ -85,12 +105,14 @@ export class TableRenderer {
 
     const runUpdate = () => {
       const state = storeHook.getState();
-      const current = state.element.getById?.(elementId) as TableElement | undefined;
-      if (!current || current.type !== 'table') return;
+      const current = state.element.getById?.(elementId) as
+        | TableElement
+        | undefined;
+      if (!current || current.type !== "table") return;
 
       const idx = row * current.cols + col;
       const cells = current.cells.slice();
-      const existing = cells[idx] ?? { text: '' };
+      const existing = cells[idx] ?? { text: "" };
       if (existing.text === value) return;
 
       cells[idx] = { ...existing, text: value };
@@ -108,7 +130,7 @@ export class TableRenderer {
     const history = state.history;
 
     if (history?.withUndo) {
-      history.withUndo('Edit table cell', () => {
+      history.withUndo("Edit table cell", () => {
         runUpdate();
       });
     } else {
@@ -116,24 +138,25 @@ export class TableRenderer {
     }
   }
 
-  private handleCellAutoResize(
-    payload: {
-      elementId: string;
-      row: number;
-      col: number;
-      requiredWidth: number;
-      requiredHeight: number;
-    },
-  ) {
+  private handleCellAutoResize(payload: {
+    elementId: string;
+    row: number;
+    col: number;
+    requiredWidth: number;
+    requiredHeight: number;
+  }) {
     const storeHook = this.getStoreHook();
     if (!storeHook) return;
 
     const { elementId, row, col, requiredWidth, requiredHeight } = payload;
-    if (!Number.isFinite(requiredWidth) || !Number.isFinite(requiredHeight)) return;
+    if (!Number.isFinite(requiredWidth) || !Number.isFinite(requiredHeight))
+      return;
 
     const state = storeHook.getState();
-    const table = state.element.getById?.(elementId) as TableElement | undefined;
-    if (!table || table.type !== 'table') return;
+    const table = state.element.getById?.(elementId) as
+      | TableElement
+      | undefined;
+    if (!table || table.type !== "table") return;
 
     const currentColWidths = table.colWidths.slice();
     const currentRowHeights = table.rowHeights.slice();
@@ -141,8 +164,16 @@ export class TableRenderer {
     const minWidth = DEFAULT_TABLE_CONFIG.minCellWidth;
     const minHeight = DEFAULT_TABLE_CONFIG.minCellHeight;
 
-    const targetWidth = Math.max(currentColWidths[col] || 0, requiredWidth, minWidth);
-    const targetHeight = Math.max(currentRowHeights[row] || 0, requiredHeight, minHeight);
+    const targetWidth = Math.max(
+      currentColWidths[col] || 0,
+      requiredWidth,
+      minWidth,
+    );
+    const targetHeight = Math.max(
+      currentRowHeights[row] || 0,
+      requiredHeight,
+      minHeight,
+    );
 
     const widthChanged = targetWidth - (currentColWidths[col] || 0) > 0.5;
     const heightChanged = targetHeight - (currentRowHeights[row] || 0) > 0.5;
@@ -171,14 +202,21 @@ export class TableRenderer {
     }
 
     // Update with position preservation and no immediate transformer refresh
-    state.element.update(elementId, patch as Partial<TableElement>, { pushHistory: false });
+    state.element.update(elementId, patch as Partial<TableElement>, {
+      pushHistory: false,
+    });
 
     // Only refresh transformer if selected, with debouncing to prevent loops
     const selectedIds = state.selectedElementIds || new Set<string>();
-    if (selectedIds.has && selectedIds.has(elementId) && !this.isUpdatingTransformer) {
+    if (
+      selectedIds.has &&
+      selectedIds.has(elementId) &&
+      !this.isUpdatingTransformer
+    ) {
       this.isUpdatingTransformer = true;
-      const bumpVersion = state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
-      if (typeof bumpVersion === 'function') {
+      const bumpVersion =
+        state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
+      if (typeof bumpVersion === "function") {
         // Debounced transformer refresh to prevent update loops
         setTimeout(() => {
           try {
@@ -209,7 +247,7 @@ export class TableRenderer {
         listening: true, // element-level selection
         x: el.x,
         y: el.y,
-        width: el.width,  // Set explicit dimensions for transformer
+        width: el.width, // Set explicit dimensions for transformer
         height: el.height,
         // CRITICAL: Ensure scale is always 1 for proper transformer handling
         scaleX: 1,
@@ -229,19 +267,31 @@ export class TableRenderer {
   }
 
   // Create a cell background rectangle
-  private createCellRect(x: number, y: number, width: number, height: number, style: TableElement['style']): Konva.Rect {
+  private createCellRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    style: TableElement["style"],
+  ): Konva.Rect {
     if (this.pool) {
-      const rect = this.pool.acquire<Konva.Rect>('table-cell-rect');
+      const rect = this.pool.acquire<Konva.Rect>("table-cell-rect");
       rect.setAttrs({
-        x, y, width, height,
+        x,
+        y,
+        width,
+        height,
         fill: style.cellFill,
         cornerRadius: style.cornerRadius ?? 0,
       });
       return rect;
     }
-    
+
     return new Konva.Rect({
-      x, y, width, height,
+      x,
+      y,
+      width,
+      height,
       fill: style.cellFill,
       cornerRadius: style.cornerRadius ?? 0,
       listening: false,
@@ -252,8 +302,12 @@ export class TableRenderer {
 
   // Create cell text node
   private createCellText(
-    x: number, y: number, width: number, height: number, 
-    text: string, style: TableElement['style']
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text: string,
+    style: TableElement["style"],
   ): Konva.Text {
     const attrs = {
       x,
@@ -264,16 +318,16 @@ export class TableRenderer {
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
       fill: style.textColor,
-      align: 'left' as const,
-      verticalAlign: 'top' as const,
+      align: "left" as const,
+      verticalAlign: "top" as const,
       lineHeight: 1.4,
       listening: false,
       perfectDrawEnabled: false,
-      name: 'cell-text',
+      name: "cell-text",
     };
 
     if (this.pool) {
-      const textNode = this.pool.acquire<Konva.Text>('table-cell-text');
+      const textNode = this.pool.acquire<Konva.Text>("table-cell-text");
       textNode.setAttrs(attrs);
       return textNode;
     }
@@ -286,16 +340,32 @@ export class TableRenderer {
     const { rows, cols, colWidths, rowHeights, style, width, height } = el;
 
     if (this.pool) {
-      const grid = this.pool.acquire<Konva.Shape>('table-grid');
+      const grid = this.pool.acquire<Konva.Shape>("table-grid");
       grid.sceneFunc((ctx, shape) => {
-        this.drawGridLines(ctx, shape, { rows, cols, colWidths, rowHeights, style, width, height });
+        this.drawGridLines(ctx, shape, {
+          rows,
+          cols,
+          colWidths,
+          rowHeights,
+          style,
+          width,
+          height,
+        });
       });
       return grid;
     }
 
     return new Konva.Shape({
       sceneFunc: (ctx, shape) => {
-        this.drawGridLines(ctx, shape, { rows, cols, colWidths, rowHeights, style, width, height });
+        this.drawGridLines(ctx, shape, {
+          rows,
+          cols,
+          colWidths,
+          rowHeights,
+          style,
+          width,
+          height,
+        });
       },
       listening: false,
       perfectDrawEnabled: false,
@@ -305,23 +375,28 @@ export class TableRenderer {
 
   // Draw grid lines implementation
   private drawGridLines(
-    ctx: any, 
+    ctx: any,
     shape: Konva.Shape,
     params: {
-      rows: number; cols: number; colWidths: number[]; rowHeights: number[];
-      style: TableElement['style']; width: number; height: number;
-    }
+      rows: number;
+      cols: number;
+      colWidths: number[];
+      rowHeights: number[];
+      style: TableElement["style"];
+      width: number;
+      height: number;
+    },
   ) {
     const { rows, cols, colWidths, rowHeights, style, width, height } = params;
-    
+
     ctx.save();
     ctx.beginPath();
     ctx.strokeStyle = style.borderColor;
     ctx.lineWidth = style.borderWidth;
-    
+
     // Outer border
     ctx.rect(0, 0, width, height);
-    
+
     // Vertical lines
     let x = 0;
     for (let c = 1; c < cols; c++) {
@@ -329,7 +404,7 @@ export class TableRenderer {
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
     }
-    
+
     // Horizontal lines
     let y = 0;
     for (let r = 1; r < rows; r++) {
@@ -337,10 +412,10 @@ export class TableRenderer {
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
     }
-    
+
     ctx.stroke();
     ctx.restore();
-    
+
     // Required by Konva custom shape
     ctx.fillStrokeShape(shape);
   }
@@ -353,8 +428,10 @@ export class TableRenderer {
     // CRITICAL FIX: Always ensure proper scale and dimensions from the store
     // But don't modify if currently being transformed (scale might be temporarily != 1)
     const currentScale = { x: g.scaleX(), y: g.scaleY() };
-    const isBeingTransformed = Math.abs(currentScale.x - 1) > 0.01 || Math.abs(currentScale.y - 1) > 0.01;
-    
+    const isBeingTransformed =
+      Math.abs(currentScale.x - 1) > 0.01 ||
+      Math.abs(currentScale.y - 1) > 0.01;
+
     if (!isBeingTransformed) {
       g.setAttrs({
         x: el.x,
@@ -371,15 +448,22 @@ export class TableRenderer {
         x: el.x,
         y: el.y,
       });
-      console.log('[TableModule] Skipping child update during transform, scale:', currentScale);
+      console.log(
+        "[TableModule] Skipping child update during transform, scale:",
+        currentScale,
+      );
       return; // Don't rebuild children during transform
     }
 
     // Release pooled nodes if using pooling
     if (this.pool) {
       const children = g.getChildren();
-      children.forEach(child => {
-        if (child instanceof Konva.Shape || child instanceof Konva.Rect || child instanceof Konva.Text) {
+      children.forEach((child) => {
+        if (
+          child instanceof Konva.Shape ||
+          child instanceof Konva.Rect ||
+          child instanceof Konva.Text
+        ) {
           this.pool!.release(child);
         }
       });
@@ -397,7 +481,7 @@ export class TableRenderer {
       for (let c = 0; c < cols; c++) {
         const w = colWidths[c];
         const h = rowHeights[r];
-        
+
         // Cell background
         const cellRect = this.createCellRect(xAccum, yAccum, w, h, style);
         g.add(cellRect);
@@ -412,7 +496,7 @@ export class TableRenderer {
             Math.max(0, w - 2 * style.paddingX),
             Math.max(0, h - 2 * style.paddingY),
             text,
-            style
+            style,
           );
           g.add(textNode);
         }
@@ -435,9 +519,10 @@ export class TableRenderer {
     g.className = "table-group";
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
-    const shouldCache = (rows * cols > 50) || this.opts.cacheAfterCommit;
+    const shouldCache = rows * cols > 50 || this.opts.cacheAfterCommit;
     if (shouldCache) {
-      const pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      const pixelRatio =
+        typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       g.cache({
         pixelRatio: pixelRatio,
         imageSmoothingEnabled: true,
@@ -457,8 +542,12 @@ export class TableRenderer {
     // Release pooled nodes if using pooling
     if (this.pool) {
       const children = g.getChildren();
-      children.forEach(child => {
-        if (child instanceof Konva.Shape || child instanceof Konva.Rect || child instanceof Konva.Text) {
+      children.forEach((child) => {
+        if (
+          child instanceof Konva.Shape ||
+          child instanceof Konva.Rect ||
+          child instanceof Konva.Text
+        ) {
           this.pool!.release(child);
         }
       });
@@ -476,10 +565,12 @@ export class TableRenderer {
 
     // Find and update the text node for this cell
     const children = g.getChildren();
-    const textNodes = children.filter(child => child.name() === 'cell-text') as Konva.Text[];
-    
+    const textNodes = children.filter(
+      (child) => child.name() === "cell-text",
+    ) as Konva.Text[];
+
     // Calculate which text node corresponds to this cell
-    const targetIndex = row * (g.getAttr('cols') || 1) + col;
+    const targetIndex = row * (g.getAttr("cols") || 1) + col;
     if (textNodes[targetIndex]) {
       textNodes[targetIndex].text(newText);
       this.layers.main.batchDraw();
@@ -492,18 +583,22 @@ export class TableRenderer {
   }
 
   // CRITICAL: Method to handle transform updates from TableTransformerController
-  handleTransformUpdate(elementId: string, newElement: TableElement, resetAttrs?: any) {
-    console.log('[TableRenderer] Handling transform update:', {
+  handleTransformUpdate(
+    elementId: string,
+    newElement: TableElement,
+    resetAttrs?: any,
+  ) {
+    console.log("[TableRenderer] Handling transform update:", {
       elementId,
       newElement: { width: newElement.width, height: newElement.height },
-      resetAttrs
+      resetAttrs,
     });
 
     // Get the group and apply reset attributes if provided
     const group = this.groupById.get(elementId);
     if (group && resetAttrs) {
       group.setAttrs(resetAttrs);
-      console.log('[TableRenderer] Applied reset attrs to group:', resetAttrs);
+      console.log("[TableRenderer] Applied reset attrs to group:", resetAttrs);
     }
 
     // Update the store with the new element
@@ -511,14 +606,14 @@ export class TableRenderer {
     if (storeHook) {
       const state = storeHook.getState();
       state.element.update(elementId, newElement, { pushHistory: true });
-      console.log('[TableRenderer] Updated store with new element');
+      console.log("[TableRenderer] Updated store with new element");
     }
   }
 
   // Add invisible click areas for cell editing with precise detection
   private addCellClickAreas(group: Konva.Group, el: TableElement) {
     // Remove existing cell interaction areas
-    group.find('.cell-clickable').forEach(node => node.destroy());
+    group.find(".cell-clickable").forEach((node) => node.destroy());
 
     const { rows, cols, colWidths, rowHeights } = el;
 
@@ -535,20 +630,20 @@ export class TableRenderer {
           y: yPos,
           width: cellWidth,
           height: cellHeight,
-          fill: 'transparent',
+          fill: "transparent",
           listening: true,
-          name: 'cell-clickable',
+          name: "cell-clickable",
           perfectDrawEnabled: false,
         });
 
         // Context menu handling - let events bubble properly
-        clickArea.on('contextmenu', (e) => {
+        clickArea.on("contextmenu", (_e) => {
           console.log(`[TableModule] Cell [${row}, ${col}] contextmenu event`);
           // Don't cancel bubble - let it go to table group and then stage
         });
 
         // Double-click to edit using the tracked editor for live resize support
-        clickArea.on('dblclick', (e) => {
+        clickArea.on("dblclick", (e) => {
           console.log(`[TableModule] Cell [${row}, ${col}] double-clicked`);
           e.cancelBubble = true; // Prevent stage events for editing
 
@@ -558,29 +653,29 @@ export class TableRenderer {
               stage,
               elementId: el.id,
               element: el,
-              getElement: () => this.getStoreHook()?.getState().element.getById(el.id),
+              getElement: () =>
+                this.getStoreHook()?.getState().element.getById(el.id),
               row,
               col,
               onCommit: (value, tableId, commitRow, commitCol) =>
                 this.commitCellText(tableId, commitRow, commitCol, value),
-              onSizeChange: (payload) =>
-                this.handleCellAutoResize(payload),
+              onSizeChange: (payload) => this.handleCellAutoResize(payload),
             });
           }
         });
 
         // Visual feedback for cell interaction
-        clickArea.on('mouseenter', () => {
+        clickArea.on("mouseenter", () => {
           const stage = group.getStage();
           if (stage?.container()) {
-            stage.container().style.cursor = 'text';
+            stage.container().style.cursor = "text";
           }
         });
 
-        clickArea.on('mouseleave', () => {
+        clickArea.on("mouseleave", () => {
           const stage = group.getStage();
           if (stage?.container()) {
-            stage.container().style.cursor = 'default';
+            stage.container().style.cursor = "default";
           }
         });
 
@@ -597,24 +692,24 @@ export class TableRenderer {
     const getSelectionModule = () => (window as any).selectionModule;
 
     // Context menu handler for the table group
-    group.on('contextmenu', (e) => {
-      console.log('[TableModule] Table group contextmenu event:', {
+    group.on("contextmenu", (e) => {
+      console.log("[TableModule] Table group contextmenu event:", {
         elementId,
         target: e.target,
         currentTarget: e.currentTarget,
         targetName: e.target?.name?.(),
         groupName: group.name(),
         groupId: group.id(),
-        evt: e.evt
+        evt: e.evt,
       });
-      
+
       // Prevent position jumping during context menu
       e.evt.preventDefault();
       e.cancelBubble = false; // Allow bubbling to stage for context menu handling
-      
+
       // Store the current position to prevent any updates during context menu
       const currentPos = group.position();
-      group._contextMenuPosition = currentPos;
+      group.setAttr("_contextMenuPosition", currentPos);
     });
 
     // Enhanced click handler for selection
@@ -631,7 +726,8 @@ export class TableRenderer {
       if (selectionModule) {
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
         if (isAdditive) {
-          selectionModule.toggleSelection?.(elementId) ?? selectionModule.selectElement(elementId);
+          selectionModule.toggleSelection?.(elementId) ??
+            selectionModule.selectElement(elementId);
         } else {
           selectionModule.selectElement(elementId);
         }
@@ -666,16 +762,20 @@ export class TableRenderer {
     });
 
     // Enhanced drag handling to prevent position drift
-    group.on('dragend', () => {
+    group.on("dragend", () => {
       const newPos = group.position();
       const storeHook = this.getStoreHook();
       if (storeHook) {
         const state = storeHook.getState();
         // Update store with exact final position
-        state.element.update(elementId, {
-          x: newPos.x,
-          y: newPos.y,
-        } as Partial<TableElement>, { pushHistory: true });
+        state.element.update(
+          elementId,
+          {
+            x: newPos.x,
+            y: newPos.y,
+          } as Partial<TableElement>,
+          { pushHistory: true },
+        );
       }
     });
   }
