@@ -132,9 +132,6 @@ export const TableContextMenuManager: React.FC<TableContextMenuManagerProps> = (
     const { tableId, cellPosition } = contextMenuState;
     if (!tableId || !cellPosition) return;
 
-    const tableElement = getElement(tableId);
-    if (!tableElement || tableElement.type !== 'table') return;
-
     const { row, col } = cellPosition;
 
     switch (actionId) {
@@ -146,15 +143,28 @@ export const TableContextMenuManager: React.FC<TableContextMenuManagerProps> = (
           index: row,
         });
         setTimeout(() => {
-          withUndo('Add row above', () => {
-            const updatedTable = addRowAbove(tableElement as any, row);
-            // Extract only the properties that changed to avoid immutability issues
-            // CRITICAL: Include x, y to preserve position!
-            const { cells, rows, rowHeights, height, x, y } = updatedTable;
-            updateElement(tableId, { cells, rows, rowHeights, height, x, y });
-            // Bump selection version to force transformer auto-resize
+          const latest = getElement(tableId);
+          if (!latest || latest.type !== 'table') return;
+
+          const apply = () => {
+            const updatedTable = addRowAbove(latest as any, row);
+            const { cells, rows, rowHeights, height } = updatedTable;
+            updateElement(tableId, {
+              cells,
+              rows,
+              rowHeights,
+              height,
+              x: latest.x,
+              y: latest.y,
+            });
             bumpSelectionVersion();
-          });
+          };
+
+          if (withUndo) {
+            withUndo('Add row above', apply);
+          } else {
+            apply();
+          }
           setSpatialFeedbackState({ visible: false, tableId: null, type: null, index: null });
         }, 300);
         break;
@@ -167,15 +177,28 @@ export const TableContextMenuManager: React.FC<TableContextMenuManagerProps> = (
           index: row + 1,
         });
         setTimeout(() => {
-          withUndo('Add row below', () => {
-            const updatedTable = addRowBelow(tableElement as any, row);
-            // Extract only the properties that changed to avoid immutability issues
-            // CRITICAL: Include x, y to preserve position!
-            const { cells, rows, rowHeights, height, x, y } = updatedTable;
-            updateElement(tableId, { cells, rows, rowHeights, height, x, y });
-            // Bump selection version to force transformer auto-resize
+          const latest = getElement(tableId);
+          if (!latest || latest.type !== 'table') return;
+
+          const apply = () => {
+            const updatedTable = addRowBelow(latest as any, row);
+            const { cells, rows, rowHeights, height } = updatedTable;
+            updateElement(tableId, {
+              cells,
+              rows,
+              rowHeights,
+              height,
+              x: latest.x,
+              y: latest.y,
+            });
             bumpSelectionVersion();
-          });
+          };
+
+          if (withUndo) {
+            withUndo('Add row below', apply);
+          } else {
+            apply();
+          }
           setSpatialFeedbackState({ visible: false, tableId: null, type: null, index: null });
         }, 300);
         break;
@@ -188,15 +211,28 @@ export const TableContextMenuManager: React.FC<TableContextMenuManagerProps> = (
           index: col,
         });
         setTimeout(() => {
-          withUndo('Add column left', () => {
-            const updatedTable = addColumnLeft(tableElement as any, col);
-            // Extract only the properties that changed to avoid immutability issues
-            // CRITICAL: Include x, y to preserve position!
-            const { cells, cols, colWidths, width, x, y } = updatedTable;
-            updateElement(tableId, { cells, cols, colWidths, width, x, y });
-            // Bump selection version to force transformer auto-resize
+          const latest = getElement(tableId);
+          if (!latest || latest.type !== 'table') return;
+
+          const apply = () => {
+            const updatedTable = addColumnLeft(latest as any, col);
+            const { cells, cols, colWidths, width } = updatedTable;
+            updateElement(tableId, {
+              cells,
+              cols,
+              colWidths,
+              width,
+              x: latest.x,
+              y: latest.y,
+            });
             bumpSelectionVersion();
-          });
+          };
+
+          if (withUndo) {
+            withUndo('Add column left', apply);
+          } else {
+            apply();
+          }
           setSpatialFeedbackState({ visible: false, tableId: null, type: null, index: null });
         }, 300);
         break;
@@ -209,65 +245,114 @@ export const TableContextMenuManager: React.FC<TableContextMenuManagerProps> = (
           index: col + 1,
         });
         setTimeout(() => {
-          withUndo('Add column right', () => {
-            const updatedTable = addColumnRight(tableElement as any, col);
-            // Extract only the properties that changed to avoid immutability issues
-            // CRITICAL: Include x, y to preserve position!
-            const { cells, cols, colWidths, width, x, y } = updatedTable;
-            updateElement(tableId, { cells, cols, colWidths, width, x, y });
-            // Bump selection version to force transformer auto-resize
+          const latest = getElement(tableId);
+          if (!latest || latest.type !== 'table') return;
+
+          const apply = () => {
+            const updatedTable = addColumnRight(latest as any, col);
+            const { cells, cols, colWidths, width } = updatedTable;
+            updateElement(tableId, {
+              cells,
+              cols,
+              colWidths,
+              width,
+              x: latest.x,
+              y: latest.y,
+            });
             bumpSelectionVersion();
-          });
+          };
+
+          if (withUndo) {
+            withUndo('Add column right', apply);
+          } else {
+            apply();
+          }
           setSpatialFeedbackState({ visible: false, tableId: null, type: null, index: null });
         }, 300);
         break;
 
       case 'delete-row':
-        if ((tableElement as any).rows <= 1) {
-          alert('Cannot delete the last row');
-          return;
+        {
+          const latest = getElement(tableId);
+          if (!latest || latest.type !== 'table') return;
+
+          if ((latest as any).rows <= 1) {
+            alert('Cannot delete the last row');
+            return;
+          }
+          setConfirmationState({
+            visible: true,
+            action: 'delete-row',
+            message: `Delete row ${row + 1}? This action cannot be undone.`,
+            onConfirm: () => {
+              const latestState = getElement(tableId);
+              if (!latestState || latestState.type !== 'table') return;
+
+              const apply = () => {
+                const updatedTable = deleteRow(latestState as any, row);
+                const { cells, rows, rowHeights, height } = updatedTable;
+                updateElement(tableId, {
+                  cells,
+                  rows,
+                  rowHeights,
+                  height,
+                  x: latestState.x,
+                  y: latestState.y,
+                });
+                bumpSelectionVersion();
+              };
+
+              if (withUndo) {
+                withUndo('Delete row', apply);
+              } else {
+                apply();
+              }
+              closeConfirmation();
+            },
+          });
         }
-        setConfirmationState({
-          visible: true,
-          action: 'delete-row',
-          message: `Delete row ${row + 1}? This action cannot be undone.`,
-          onConfirm: () => {
-            withUndo('Delete row', () => {
-              const updatedTable = deleteRow(tableElement as any, row);
-              // Extract only the properties that changed to avoid immutability issues
-              // CRITICAL: Include x, y to preserve position!
-              const { cells, rows, rowHeights, height, x, y } = updatedTable;
-              updateElement(tableId, { cells, rows, rowHeights, height, x, y });
-              // Bump selection version to force transformer auto-resize
-              bumpSelectionVersion();
-            });
-            closeConfirmation();
-          },
-        });
         break;
 
       case 'delete-column':
-        if ((tableElement as any).cols <= 1) {
-          alert('Cannot delete the last column');
-          return;
+        {
+          const latest = getElement(tableId);
+          if (!latest || latest.type !== 'table') return;
+
+          if ((latest as any).cols <= 1) {
+            alert('Cannot delete the last column');
+            return;
+          }
+          setConfirmationState({
+            visible: true,
+            action: 'delete-column',
+            message: `Delete column ${String.fromCharCode(65 + col)}? This action cannot be undone.`,
+            onConfirm: () => {
+              const latestState = getElement(tableId);
+              if (!latestState || latestState.type !== 'table') return;
+
+              const apply = () => {
+                const updatedTable = deleteColumn(latestState as any, col);
+                const { cells, cols, colWidths, width } = updatedTable;
+                updateElement(tableId, {
+                  cells,
+                  cols,
+                  colWidths,
+                  width,
+                  x: latestState.x,
+                  y: latestState.y,
+                });
+                bumpSelectionVersion();
+              };
+
+              if (withUndo) {
+                withUndo('Delete column', apply);
+              } else {
+                apply();
+              }
+              closeConfirmation();
+            },
+          });
         }
-        setConfirmationState({
-          visible: true,
-          action: 'delete-column',
-          message: `Delete column ${String.fromCharCode(65 + col)}? This action cannot be undone.`,
-          onConfirm: () => {
-            withUndo('Delete column', () => {
-              const updatedTable = deleteColumn(tableElement as any, col);
-              // Extract only the properties that changed to avoid immutability issues
-              // CRITICAL: Include x, y to preserve position!
-              const { cells, cols, colWidths, width, x, y } = updatedTable;
-              updateElement(tableId, { cells, cols, colWidths, width, x, y });
-              // Bump selection version to force transformer auto-resize
-              bumpSelectionVersion();
-            });
-            closeConfirmation();
-          },
-        });
         break;
     }
   }, [contextMenuState, getElement, updateElement, withUndo, closeConfirmation]);

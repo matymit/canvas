@@ -1,6 +1,7 @@
 // features/canvas/renderer/modules/SelectionModule.ts
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { TransformerManager } from "../../managers/TransformerManager";
+import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 
 export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
@@ -281,8 +282,20 @@ export class SelectionModule implements RendererModule {
       const MIN_WIDTH = 10;  // Minimum width in pixels
       const MIN_HEIGHT = 10; // Minimum height in pixels
 
-      const scaledWidth = size.width * Math.abs(scale?.x || 1);
-      const scaledHeight = size.height * Math.abs(scale?.y || 1);
+      let scaleX = Math.abs(scale?.x || 1);
+      let scaleY = Math.abs(scale?.y || 1);
+
+      if (isTable) {
+        const deltaX = Math.abs(scaleX - 1);
+        const deltaY = Math.abs(scaleY - 1);
+        const dominantScale = deltaX >= deltaY ? scaleX : scaleY;
+        const uniformScale = dominantScale === 0 ? 1 : dominantScale;
+        scaleX = uniformScale;
+        scaleY = uniformScale;
+      }
+
+      const scaledWidth = size.width * scaleX;
+      const scaledHeight = size.height * scaleY;
 
       const changes: any = {
         x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
@@ -294,15 +307,17 @@ export class SelectionModule implements RendererModule {
       };
 
       // Special handling for table elements - scale cell dimensions proportionally
-      if (isTable && scale && (scale.x !== 1 || scale.y !== 1)) {
-        const element = store?.elements?.get?.(elementId);
+      if (isTable && (scaleX !== 1 || scaleY !== 1)) {
+        const element =
+          store?.elements?.get?.(elementId) ??
+          store.element?.getById?.(elementId);
         if (element && element.colWidths && element.rowHeights) {
-          // Use absolute values of scale to handle negative scaling properly
+          const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
           changes.colWidths = element.colWidths.map((w: number) =>
-            Math.max(20, Math.round(w * Math.abs(scale.x) * 100) / 100)
+            Math.max(minCellWidth, Math.round(w * scaleX * 100) / 100)
           );
           changes.rowHeights = element.rowHeights.map((h: number) =>
-            Math.max(16, Math.round(h * Math.abs(scale.y) * 100) / 100)
+            Math.max(minCellHeight, Math.round(h * scaleY * 100) / 100)
           );
         }
       }
@@ -316,8 +331,8 @@ export class SelectionModule implements RendererModule {
       if (scale && (scale.x !== 1 || scale.y !== 1)) {
         node.scale({ x: 1, y: 1 });
         node.size({
-          width: size.width * scale.x,
-          height: size.height * scale.y,
+          width: size.width * scaleX,
+          height: size.height * scaleY,
         });
       }
     }

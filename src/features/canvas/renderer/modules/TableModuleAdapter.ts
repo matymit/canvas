@@ -43,8 +43,25 @@ export class TableModuleAdapter implements RendererModule {
                 other.x !== element.x ||
                 other.y !== element.y ||
                 other.width !== element.width ||
-                other.height !== element.height ||
-                JSON.stringify(other.cells) !== JSON.stringify(element.cells)) {
+                other.height !== element.height) {
+              return false;
+            }
+
+            const colsA = (element.colWidths ?? []) as number[];
+            const colsB = (other.colWidths ?? []) as number[];
+            if (colsA.length !== colsB.length) return false;
+            for (let i = 0; i < colsA.length; i++) {
+              if (Math.abs(colsA[i] - colsB[i]) > 0.25) return false;
+            }
+
+            const rowsA = (element.rowHeights ?? []) as number[];
+            const rowsB = (other.rowHeights ?? []) as number[];
+            if (rowsA.length !== rowsB.length) return false;
+            for (let i = 0; i < rowsA.length; i++) {
+              if (Math.abs(rowsA[i] - rowsB[i]) > 0.25) return false;
+            }
+
+            if (JSON.stringify(other.cells) !== JSON.stringify(element.cells)) {
               return false;
             }
           }

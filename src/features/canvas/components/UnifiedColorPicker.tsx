@@ -60,18 +60,13 @@ const DEFAULT_PALETTE: string[] = [
   '#F5D0FE', // Fuchsia
 ];
 
-// FigJam-style horizontal palette (exactly 10 colors)
+// FigJam-style horizontal palette tailored for sticky note toolbar
 const FIGMA_HORIZONTAL_PALETTE: string[] = [
   '#FEF08A', // Bright Yellow
-  '#FED7AA', // Peach
   '#FCA5A5', // Light Red
-  '#F9A8D4', // Pink
   '#DDA0DD', // Plum
   '#C4B5FD', // Light Purple
   '#93C5FD', // Light Blue
-  '#7DD3FC', // Sky Blue
-  '#86EFAC', // Light Green
-  '#BEF264', // Lime Green
 ];
 
 // Additional extended palette
@@ -247,8 +242,9 @@ export default function UnifiedColorPicker({
       // Toolbar-style positioning (above element)
       return {
         bottom: Math.round(window.innerHeight - anchorRect.top + 8),
-        left: Math.round(anchorRect.left),
+        left: Math.round(anchorRect.left + anchorRect.width / 2),
         top: 'auto' as const,
+        transform: 'translateX(-50%)',
       };
     } else if (anchor) {
       // Floating positioning (at coordinates)

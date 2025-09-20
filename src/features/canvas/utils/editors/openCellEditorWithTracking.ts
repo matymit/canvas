@@ -11,6 +11,16 @@ type CellEditorOpts = {
   row: number;
   col: number;
   onCommit?: (text: string, elementId: string, row: number, col: number) => void;
+  onSizeChange?: (
+    payload: {
+      elementId: string;
+      row: number;
+      col: number;
+      requiredWidth: number;
+      requiredHeight: number;
+    }
+  ) => void;
+  getElement?: () => any;
 };
 
 export function openCellEditorWithTracking({
@@ -19,7 +29,9 @@ export function openCellEditorWithTracking({
   element,
   row,
   col,
-  onCommit
+  onCommit,
+  onSizeChange,
+  getElement
 }: CellEditorOpts) {
   const container = stage.container();
 
@@ -30,22 +42,52 @@ export function openCellEditorWithTracking({
     return;
   }
 
-  // Calculate cell position within the table
-  let cellX = 0;
-  let cellY = 0;
+  const resolveElement = () => {
+    try {
+      const latest = getElement?.();
+      return latest ?? element;
+    } catch (error) {
+      console.warn('[openCellEditorWithTracking] Failed to resolve latest element, using snapshot:', error);
+      return element;
+    }
+  };
 
-  // Sum up column widths to get cell x position
-  for (let c = 0; c < col; c++) {
-    cellX += element.colWidths[c] || 0;
-  }
+  let snapshot = resolveElement();
+  let paddingX = snapshot.style?.paddingX || 8;
+  let paddingY = snapshot.style?.paddingY || 4;
 
-  // Sum up row heights to get cell y position
-  for (let r = 0; r < row; r++) {
-    cellY += element.rowHeights[r] || 0;
-  }
+  const refreshSnapshot = () => {
+    const updated = resolveElement();
+    if (updated) {
+      snapshot = updated;
+      paddingX = snapshot.style?.paddingX || 8;
+      paddingY = snapshot.style?.paddingY || 4;
+    }
+    return snapshot;
+  };
 
-  const cellWidth = element.colWidths[col] || 100;
-  const cellHeight = element.rowHeights[row] || 30;
+  const computeCellMetrics = () => {
+    const current = refreshSnapshot();
+    let cellX = 0;
+    let cellY = 0;
+
+    for (let c = 0; c < col; c++) {
+      cellX += current.colWidths[c] || 0;
+    }
+
+    for (let r = 0; r < row; r++) {
+      cellY += current.rowHeights[r] || 0;
+    }
+
+    return {
+      cellX,
+      cellY,
+      cellWidth: current.colWidths[col] || 100,
+      cellHeight: current.rowHeights[row] || 30,
+    };
+  };
+
+  let { cellX, cellY, cellWidth, cellHeight } = computeCellMetrics();
 
   // Create the editor element
   const editor = document.createElement('textarea');
@@ -53,18 +95,18 @@ export function openCellEditorWithTracking({
   editor.style.zIndex = '1000';
   editor.style.border = 'none';
   editor.style.outline = 'none';
-  editor.style.background = element.style?.cellFill || '#FFFFFF';
-  editor.style.color = element.style?.textColor || '#374151';
-  editor.style.fontFamily = element.style?.fontFamily || 'Inter, system-ui, sans-serif';
-  editor.style.fontSize = `${element.style?.fontSize || 14}px`;
+  editor.style.background = snapshot.style?.cellFill || '#FFFFFF';
+  editor.style.color = snapshot.style?.textColor || '#374151';
+  editor.style.fontFamily = snapshot.style?.fontFamily || 'Inter, system-ui, sans-serif';
+  editor.style.fontSize = `${snapshot.style?.fontSize || 14}px`;
   editor.style.lineHeight = '1.4';
-  editor.style.padding = `${element.style?.paddingY || 4}px ${element.style?.paddingX || 8}px`;
+  editor.style.padding = `${paddingY}px ${paddingX}px`;
   editor.style.margin = '0';
   editor.style.resize = 'none';
   editor.style.overflow = 'hidden';
   editor.style.whiteSpace = 'pre-wrap';
   editor.style.wordWrap = 'break-word';
-  editor.style.borderRadius = `${element.style?.cornerRadius || 0}px`;
+  editor.style.borderRadius = `${snapshot.style?.cornerRadius || 0}px`;
   // FIXED: Proper multi-line text flow with center start position
   editor.style.textAlign = 'center';
   editor.style.lineHeight = 'normal';                    // Allow natural line spacing for multi-line
@@ -72,22 +114,22 @@ export function openCellEditorWithTracking({
   editor.style.boxSizing = 'border-box';
 
   // Center the initial cursor position using padding
-  const normalLineHeight = 20; // Approximate single line height
-  const verticalPadding = Math.max(4, (cellHeight - normalLineHeight) / 2);
-  editor.style.paddingTop = `${verticalPadding}px`;
-  editor.style.paddingBottom = `${verticalPadding}px`;
-
-  // Override the previous padding setting to use calculated values
-  editor.style.padding = `${verticalPadding}px ${element.style?.paddingX || 8}px`;
+  editor.style.paddingTop = `${paddingY}px`;
+  editor.style.paddingBottom = `${paddingY}px`;
 
   // Get current cell text
-  const cellIndex = row * element.cols + col;
-  const currentText = element.cells?.[cellIndex]?.text || '';
+  const initialCellIndex = row * snapshot.cols + col;
+  const currentText = snapshot.cells?.[initialCellIndex]?.text || '';
   editor.value = currentText;
 
   container.appendChild(editor);
 
+  let pendingInnerWidth: number | null = null;
+  let pendingInnerHeight: number | null = null;
+
   function placeEditor() {
+    ({ cellX, cellY, cellWidth, cellHeight } = computeCellMetrics());
+
     if (!tableGroup) return;
 
     // CRITICAL FIX: Use proper Konva coordinate transformation
@@ -108,15 +150,25 @@ export function openCellEditorWithTracking({
 
     // Apply scale to cell dimensions
     const scale = stage.scaleX();
-    const scaledWidth = cellWidth * scale - (element.style?.paddingX || 8) * 2;
-    const scaledHeight = cellHeight * scale - (element.style?.paddingY || 4) * 2;
+    const innerWidth = Math.max(20, cellWidth - paddingX * 2);
+    const innerHeight = Math.max(20, cellHeight - paddingY * 2);
+    const effectiveInnerWidth = Math.max(innerWidth, pendingInnerWidth ?? innerWidth);
+    const effectiveInnerHeight = Math.max(innerHeight, pendingInnerHeight ?? innerHeight);
 
-    editor.style.left = `${screenX + (element.style?.paddingX || 8) * scale}px`;
-    editor.style.top = `${screenY + (element.style?.paddingY || 4) * scale}px`;
-    editor.style.width = `${Math.max(50, scaledWidth)}px`;
-    editor.style.height = `${Math.max(20, scaledHeight)}px`;
+    editor.style.left = `${screenX + paddingX * scale}px`;
+    editor.style.top = `${screenY + paddingY * scale}px`;
+    editor.style.width = `${effectiveInnerWidth}px`;
+    editor.style.height = `${effectiveInnerHeight}px`;
     editor.style.transform = `scale(${scale})`;
     editor.style.transformOrigin = '0 0';
+
+    if (pendingInnerWidth !== null && effectiveInnerWidth <= innerWidth + 0.5) {
+      pendingInnerWidth = null;
+    }
+
+    if (pendingInnerHeight !== null && effectiveInnerHeight <= innerHeight + 0.5) {
+      pendingInnerHeight = null;
+    }
   }
 
   placeEditor();
@@ -128,6 +180,57 @@ export function openCellEditorWithTracking({
 
   // Also listen for table group transforms (resizing)
   tableGroup.on('transform.cell-editor', sync);
+
+  let resizeFrame: number | null = null;
+
+  const scheduleSizeNotification = () => {
+    if (!onSizeChange) {
+      // Still ensure editor grows to fit content while editing
+      const desiredWidth = Math.max(20, editor.scrollWidth);
+      const desiredHeight = Math.max(20, editor.scrollHeight);
+      editor.style.width = `${desiredWidth}px`;
+      editor.style.height = `${desiredHeight}px`;
+      pendingInnerWidth = desiredWidth;
+      pendingInnerHeight = desiredHeight;
+      requestAnimationFrame(() => placeEditor());
+      return;
+    }
+
+    if (resizeFrame != null) {
+      cancelAnimationFrame(resizeFrame);
+    }
+
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null;
+
+      const scale = stage.scaleX();
+      const measuredInnerWidth = Math.max(20, editor.scrollWidth);
+      const measuredInnerHeight = Math.max(20, editor.scrollHeight);
+
+      const requiredWidth = measuredInnerWidth / scale + paddingX * 2;
+      const requiredHeight = measuredInnerHeight / scale + paddingY * 2;
+
+      // Optimistically resize editor to avoid clipping while waiting for store update
+      editor.style.width = `${measuredInnerWidth}px`;
+      editor.style.height = `${measuredInnerHeight}px`;
+
+      pendingInnerWidth = measuredInnerWidth;
+      pendingInnerHeight = measuredInnerHeight;
+
+      onSizeChange({
+        elementId,
+        row,
+        col,
+        requiredWidth,
+        requiredHeight,
+      });
+
+      // Re-position after potential store-driven resize
+      requestAnimationFrame(() => {
+        placeEditor();
+      });
+    });
+  };
 
   const finish = (commit: boolean) => {
     const value = editor.value;
@@ -156,6 +259,7 @@ export function openCellEditorWithTracking({
 
   editor.addEventListener('keydown', onKey);
   editor.addEventListener('blur', onBlur, { once: true });
+  editor.addEventListener('input', scheduleSizeNotification);
 
   // Focus and select all text
   editor.focus();
@@ -163,16 +267,22 @@ export function openCellEditorWithTracking({
     editor.select();
   }
 
+  // Initial size sync
+  scheduleSizeNotification();
+
   function cleanup() {
     editor.removeEventListener('keydown', onKey);
     editor.removeEventListener('blur', onBlur);
+    editor.removeEventListener('input', scheduleSizeNotification);
     stage.off('dragmove.cell-editor');
     stage.off('wheel.cell-editor');
     stage.off('xChange.cell-editor yChange.cell-editor scaleXChange.cell-editor scaleYChange.cell-editor');
     tableGroup?.off('transform.cell-editor');
     editor.remove();
+    if (resizeFrame != null) {
+      cancelAnimationFrame(resizeFrame);
+    }
   }
 
   return { editor, cleanup };
 }
-

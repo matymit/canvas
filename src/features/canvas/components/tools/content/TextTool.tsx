@@ -13,6 +13,8 @@ export interface TextToolProps {
   toolId?: string; // default: 'text'
 }
 
+const DEFAULT_TEXT_COLOR = '#111827';
+
 function createTextarea(screenX: number, screenY: number, fontSize: number, fontFamily: string): HTMLTextAreaElement {
   const ta = document.createElement('textarea');
   ta.setAttribute('data-testid', 'text-portal-input');
@@ -29,7 +31,7 @@ function createTextarea(screenX: number, screenY: number, fontSize: number, font
   ta.style.resize = 'none';
   ta.style.cursor = 'text';
   ta.style.background = 'rgba(255, 255, 255, 0.95)';
-  ta.style.color = '#111827'; // Always use dark color for visibility during editing
+  ta.style.color = DEFAULT_TEXT_COLOR; // Keep DOM editor text consistent with committed fill
   ta.style.fontFamily = fontFamily;
   ta.style.fontSize = `${fontSize}px`;
   ta.style.lineHeight = '1.2';
@@ -104,7 +106,7 @@ export class TextCanvasTool implements CanvasTool {
 
       // Get current UI state from store
       const currentStore = useUnifiedCanvasStore.getState();
-      const fillColor = currentStore.fillColor ?? '#000000'; // Use black for maximum visibility
+      const fillColor = DEFAULT_TEXT_COLOR;
       const fontSize = 18;
       const fontFamily = 'Inter, system-ui, sans-serif';
 

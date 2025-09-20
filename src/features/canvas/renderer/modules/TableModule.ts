@@ -3,6 +3,7 @@
 
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
+import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import KonvaNodePool from "../../utils/KonvaNodePool";
 import { openCellEditorWithTracking } from "../../utils/editors/openCellEditorWithTracking";
 
@@ -53,7 +54,7 @@ export class TableRenderer {
           node.setAttrs({
             x: 0, y: 0, width: 0, height: 0,
             text: '', fontFamily: '', fontSize: 12,
-            fill: '', align: 'center', verticalAlign: 'middle'
+            fill: '', align: 'left', verticalAlign: 'top', lineHeight: 1.4
           });
         }
       });
@@ -65,6 +66,104 @@ export class TableRenderer {
         }
       });
     }
+  }
+
+  private getStoreHook() {
+    return this.storeCtx?.store;
+  }
+
+  private commitCellText(
+    elementId: string,
+    row: number,
+    col: number,
+    value: string,
+  ) {
+    const storeHook = this.getStoreHook();
+    if (!storeHook) return;
+
+    const runUpdate = () => {
+      const state = storeHook.getState();
+      const current = state.element.getById?.(elementId) as TableElement | undefined;
+      if (!current || current.type !== 'table') return;
+
+      const idx = row * current.cols + col;
+      const cells = current.cells.slice();
+      const existing = cells[idx] ?? { text: '' };
+      if (existing.text === value) return;
+
+      cells[idx] = { ...existing, text: value };
+
+      state.element.update(elementId, {
+        cells,
+      } as Partial<TableElement>);
+    };
+
+    const state = storeHook.getState();
+    const history = state.history;
+
+    if (history?.withUndo) {
+      history.withUndo('Edit table cell', () => {
+        runUpdate();
+      });
+    } else {
+      runUpdate();
+    }
+  }
+
+  private handleCellAutoResize(
+    payload: {
+      elementId: string;
+      row: number;
+      col: number;
+      requiredWidth: number;
+      requiredHeight: number;
+    },
+  ) {
+    const storeHook = this.getStoreHook();
+    if (!storeHook) return;
+
+    const { elementId, row, col, requiredWidth, requiredHeight } = payload;
+    if (!Number.isFinite(requiredWidth) || !Number.isFinite(requiredHeight)) return;
+
+    const state = storeHook.getState();
+    const table = state.element.getById?.(elementId) as TableElement | undefined;
+    if (!table || table.type !== 'table') return;
+
+    const currentColWidths = table.colWidths.slice();
+    const currentRowHeights = table.rowHeights.slice();
+
+    const minWidth = DEFAULT_TABLE_CONFIG.minCellWidth;
+    const minHeight = DEFAULT_TABLE_CONFIG.minCellHeight;
+
+    const targetWidth = Math.max(currentColWidths[col] || 0, requiredWidth, minWidth);
+    const targetHeight = Math.max(currentRowHeights[row] || 0, requiredHeight, minHeight);
+
+    const widthChanged = targetWidth - (currentColWidths[col] || 0) > 0.5;
+    const heightChanged = targetHeight - (currentRowHeights[row] || 0) > 0.5;
+
+    if (!widthChanged && !heightChanged) return;
+
+    const patch: Partial<TableElement> = {};
+
+    if (widthChanged) {
+      currentColWidths[col] = targetWidth;
+      patch.colWidths = currentColWidths;
+      patch.width = currentColWidths.reduce((sum, w) => sum + w, 0);
+    }
+
+    if (heightChanged) {
+      currentRowHeights[row] = targetHeight;
+      patch.rowHeights = currentRowHeights;
+      patch.height = currentRowHeights.reduce((sum, h) => sum + h, 0);
+    }
+
+    state.element.update(elementId, patch as Partial<TableElement>);
+
+    const bumpVersion = state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
+    if (typeof bumpVersion === 'function') {
+      bumpVersion();
+    }
+
   }
 
   // Ensure a root group for this table exists on main layer
@@ -125,30 +224,30 @@ export class TableRenderer {
     x: number, y: number, width: number, height: number, 
     text: string, style: TableElement['style']
   ): Konva.Text {
-    if (this.pool) {
-      const textNode = this.pool.acquire<Konva.Text>('table-cell-text');
-      textNode.setAttrs({
-        x, y, width, height, text,
-        fontFamily: style.fontFamily,
-        fontSize: style.fontSize,
-        fill: style.textColor,
-        align: "center",
-        verticalAlign: "middle",
-      });
-      return textNode;
-    }
-
-    return new Konva.Text({
-      x, y, width, height, text,
+    const attrs = {
+      x,
+      y,
+      width,
+      height,
+      text,
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
       fill: style.textColor,
-      align: "center",
-      verticalAlign: "middle",
+      align: 'left' as const,
+      verticalAlign: 'top' as const,
+      lineHeight: 1.4,
       listening: false,
       perfectDrawEnabled: false,
-      name: "cell-text",
-    });
+      name: 'cell-text',
+    };
+
+    if (this.pool) {
+      const textNode = this.pool.acquire<Konva.Text>('table-cell-text');
+      textNode.setAttrs(attrs);
+      return textNode;
+    }
+
+    return new Konva.Text(attrs);
   }
 
   // Create grid lines using custom shape
@@ -402,8 +501,13 @@ export class TableRenderer {
               stage,
               elementId: el.id,
               element: el,
+              getElement: () => this.getStoreHook()?.getState().element.getById(el.id),
               row,
-              col
+              col,
+              onCommit: (value, tableId, commitRow, commitCol) =>
+                this.commitCellText(tableId, commitRow, commitCol, value),
+              onSizeChange: (payload) =>
+                this.handleCellAutoResize(payload),
             });
           }
         });

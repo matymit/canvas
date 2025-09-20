@@ -268,8 +268,10 @@ function openFirstCellEditor(
     stage,
     elementId: tableId,
     element: tableElement,
+    getElement: () =>
+      useUnifiedCanvasStore.getState().element.getById?.(tableId) as TableElement | undefined,
     row: 0,
-    col: 0
+    col: 0,
   });
 }
 

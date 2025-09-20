@@ -52,9 +52,9 @@ export const DEFAULT_TABLE_STYLE: TableStyle = {
 export const DEFAULT_TABLE_CONFIG = {
   rows: 2,
   cols: 3,
-  minWidth: 180,
+  minWidth: 360,
   minHeight: 96,
-  minCellWidth: 40,
+  minCellWidth: 120,
   minCellHeight: 28,
 } as const;
 
