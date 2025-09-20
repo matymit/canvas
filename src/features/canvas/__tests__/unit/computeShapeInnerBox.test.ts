@@ -59,7 +59,7 @@ describe('computeShapeInnerBox', () => {
     expect(inner.height).toBeGreaterThanOrEqual(0);
   });
 
-  it('circle: uses mathematically correct inscribed square (radius * √2)', () => {
+  it('circle: reserves fixed 70% diameter square for text', () => {
     const radius = 100;
     const pad = 8;
     const centerX = 200;
@@ -67,12 +67,12 @@ describe('computeShapeInnerBox', () => {
     const el = circle('c1', centerX, centerY, radius, pad);
     const inner = computeShapeInnerBox(el, pad);
 
-    // Mathematical formula: inscribed square side = radius * √2
-    const expectedSide = radius * Math.sqrt(2);
-    const expectedPaddedSide = Math.max(20, expectedSide - (pad * 2));
+    const diameter = radius * 2;
+    const textArea = diameter * 0.7;
+    const expectedSide = Math.max(12, textArea - pad * 2);
 
-    expect(inner.width).toBeCloseTo(expectedPaddedSide, 5);
-    expect(inner.height).toBeCloseTo(expectedPaddedSide, 5);
+    expect(inner.width).toBeCloseTo(expectedSide, 5);
+    expect(inner.height).toBeCloseTo(expectedSide, 5);
 
     // Should be centered at the circle's center
     const calculatedCenterX = inner.x + inner.width / 2;
@@ -80,8 +80,8 @@ describe('computeShapeInnerBox', () => {
     expect(calculatedCenterX).toBeCloseTo(centerX, 5);
     expect(calculatedCenterY).toBeCloseTo(centerY, 5);
 
-    expect(inner.width).toBeGreaterThanOrEqual(20); // Minimum size enforced
-    expect(inner.height).toBeGreaterThanOrEqual(20);
+    expect(inner.width).toBeGreaterThanOrEqual(12); // Minimum size enforced
+    expect(inner.height).toBeGreaterThanOrEqual(12);
   });
 
   it('circle: handles radius from data property', () => {
@@ -91,12 +91,12 @@ describe('computeShapeInnerBox', () => {
     const el = circle('c2', centerX, centerY, radius, 4);
     const inner = computeShapeInnerBox(el, 4);
 
-    // Should use radius from data.radius
-    const expectedSide = radius * Math.sqrt(2);
-    const expectedPaddedSide = Math.max(20, expectedSide - 8); // 4px padding * 2
+    const diameter = radius * 2;
+    const textArea = diameter * 0.7;
+    const expectedSide = Math.max(12, textArea - 4 * 2);
 
-    expect(inner.width).toBeCloseTo(expectedPaddedSide, 5);
-    expect(inner.height).toBeCloseTo(expectedPaddedSide, 5);
+    expect(inner.width).toBeCloseTo(expectedSide, 5);
+    expect(inner.height).toBeCloseTo(expectedSide, 5);
   });
 
   it('triangle: approximates inner box with tip avoidance and non-negative', () => {
@@ -129,10 +129,10 @@ describe('computeShapeInnerBox', () => {
     expect(i2.width).toBe(0);
     expect(i2.height).toBe(0);
 
-    // Circle with excessive padding should clamp to minimum 20px
+    // Circle with excessive padding should clamp to minimum side
     const el3 = circle('c3', 0, 0, 5, 50); // tiny radius, large padding
     const i3 = computeShapeInnerBox(el3, 50);
-    expect(i3.width).toBe(20); // Minimum enforced
-    expect(i3.height).toBe(20);
+    expect(i3.width).toBe(12); // Minimum enforced
+    expect(i3.height).toBe(12);
   });
 });

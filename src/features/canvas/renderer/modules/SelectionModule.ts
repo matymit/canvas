@@ -129,26 +129,32 @@ export class SelectionModule implements RendererModule {
     if (!this.transformerManager || !this.storeCtx) return;
 
     if (selectedIds.size === 0) {
+      this.transformerManager.setKeepRatio(false);
       this.transformerManager.detach();
       return;
     }
 
+    const selectionSnapshot = new Set(selectedIds);
+
     // FIXED: Slightly longer delay to ensure elements are fully rendered and avoid double frames
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
-      const nodes = this.resolveElementsToNodes(selectedIds);
+      const nodes = this.resolveElementsToNodes(selectionSnapshot);
 
       if (nodes.length > 0) {
         // FIXED: Detach first to prevent any lingering transformers, then attach
         this.transformerManager?.detach();
         this.transformerManager?.attachToNodes(nodes);
+        const lockAspect = this.shouldLockAspectRatio(selectionSnapshot);
+        this.transformerManager?.setKeepRatio(lockAspect);
         this.transformerManager?.show();
       } else {
         console.warn(
           "[SelectionModule] Could not find nodes for selected elements:",
-          Array.from(selectedIds),
+          Array.from(selectionSnapshot),
         );
         this.transformerManager?.detach();
+        this.transformerManager?.setKeepRatio(false);
       }
     }, 75); // Slightly longer delay
   }
@@ -472,29 +478,62 @@ export class SelectionModule implements RendererModule {
     if (!this.transformerManager || !this.storeCtx) return;
 
     if (selectedIds.size === 0) {
+      this.transformerManager.setKeepRatio(false);
       this.transformerManager.detach();
       return;
     }
 
+    const selectionSnapshot = new Set(selectedIds);
+
     // Small delay to ensure elements are fully re-rendered after dimension changes
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
-      const nodes = this.resolveElementsToNodes(selectedIds);
+      const nodes = this.resolveElementsToNodes(selectionSnapshot);
 
       if (nodes.length > 0) {
         // Force detach and reattach to recalculate bounds
         this.transformerManager?.detach();
         setTimeout(() => {
           this.transformerManager?.attachToNodes(nodes);
+          const lockAspect = this.shouldLockAspectRatio(selectionSnapshot);
+          this.transformerManager?.setKeepRatio(lockAspect);
           this.transformerManager?.show();
         }, 10);
       } else {
         console.warn(
           "[SelectionModule] Could not find nodes for refresh:",
-          Array.from(selectedIds),
+          Array.from(selectionSnapshot),
         );
         this.transformerManager?.detach();
+        this.transformerManager?.setKeepRatio(false);
       }
     }, 50); // Slightly longer delay to ensure table rendering is complete
+  }
+
+  private shouldLockAspectRatio(selectedIds: Set<string>): boolean {
+    if (!this.storeCtx || selectedIds.size === 0) {
+      return false;
+    }
+
+    const state: any = this.storeCtx.store.getState();
+    const elementsMap: Map<string, any> | undefined = state?.elements;
+    if (!elementsMap || typeof elementsMap.get !== 'function') {
+      return false;
+    }
+
+    let sawCircle = false;
+
+    for (const id of selectedIds) {
+      const element = elementsMap.get(id);
+      if (!element) {
+        return false;
+      }
+      if (element.type !== 'circle') {
+        return false;
+      }
+      sawCircle = true;
+    }
+
+    return sawCircle;
   }
 }

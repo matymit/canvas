@@ -1,6 +1,9 @@
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
-import { computeShapeInnerBox, type BaseShape } from '../text/computeShapeInnerBox';
+import {
+  computeShapeInnerBox,
+  type BaseShape
+} from '../text/computeShapeInnerBox';
 import type { ElementId } from '../../../../../types';
 
 const ZERO_WIDTH_SPACE = '\u200B';
@@ -16,7 +19,7 @@ export interface ShapeTextEditorOptions {
 
 /**
  * Opens a centered contentEditable text editor overlay for shape text editing.
- * Provides FigJam-style interactions with smooth auto-resizing and perfect caret centering.
+ * Keeps geometry in sync with manual shape sizing and maintains caret alignment.
  */
 export function openShapeTextEditor(
   stage: Konva.Stage,
@@ -43,36 +46,45 @@ export function openShapeTextEditor(
   // Default options
   const {
     padding = 10,
-    fontSize = 18,
-    lineHeight = 1.3,
+    fontSize: providedFontSize,
+    lineHeight: providedLineHeight,
     fontFamily = 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial',
     textColor = '#111827'
   } = options;
 
+  let fontSize = providedFontSize ?? shapeElement.style?.fontSize ?? (shapeElement.type === 'circle' ? 20 : 10);
+  let lineHeight = providedLineHeight ?? (shapeElement.data?.textLineHeight ?? 1.25);
+
   // Compute the inner text area for the shape - this should match exactly with ShapeRenderer
-  const isTriangle = shapeElement.type === 'triangle';
-  const isCircle = shapeElement.type === 'circle';
+  let shapeSnapshot = shapeElement;
+  let isTriangle = shapeSnapshot.type === 'triangle';
+  let isCircle = shapeSnapshot.type === 'circle' || shapeSnapshot.type === 'ellipse';
 
   const computeEffectivePadding = (shape: typeof shapeElement) =>
     shape.data?.padding ?? (isCircle ? 0 : padding);
 
-  let shapeSnapshot = shapeElement;
+  const getCirclePadding = () => Math.max(0, effectivePadding);
+
   let effectivePadding = computeEffectivePadding(shapeSnapshot);
   let innerBox = computeShapeInnerBox(shapeSnapshot as BaseShape, effectivePadding);
 
   const refreshShapeSnapshot = () => {
     const latest = useUnifiedCanvasStore.getState().elements.get(elementId);
-    if (latest && latest.type === shapeElement.type) {
+    if (latest && (latest.type === 'rectangle' || latest.type === 'triangle' || latest.type === 'circle' || latest.type === 'ellipse')) {
       shapeSnapshot = latest as typeof shapeElement;
-      effectivePadding = computeEffectivePadding(shapeSnapshot);
-      innerBox = computeShapeInnerBox(shapeSnapshot as BaseShape, effectivePadding);
     }
+    isTriangle = shapeSnapshot.type === 'triangle';
+    isCircle = shapeSnapshot.type === 'circle' || shapeSnapshot.type === 'ellipse';
+    effectivePadding = computeEffectivePadding(shapeSnapshot);
+    innerBox = computeShapeInnerBox(shapeSnapshot as BaseShape, effectivePadding);
     return shapeSnapshot;
   };
 
   const shapeRadius = (shapeSnapshot as any).radius ?? shapeSnapshot.data?.radius;
 
-  const textNode = stage.findOne<Konva.Text>(`#${elementId}-text`);
+  const textNode = typeof (stage as any).findOne === 'function'
+    ? stage.findOne<Konva.Text>(`#${elementId}-text`)
+    : null;
   const originalTextNodeOpacity = textNode?.opacity();
   const originalTextNodeVisible = textNode?.visible();
   const originalTextNodeListening = textNode?.listening();
@@ -95,12 +107,14 @@ export function openShapeTextEditor(
   const editor = document.createElement('div');
   editor.contentEditable = 'true';
   editor.setAttribute('data-shape-text-editor', elementId);
+  editor.setAttribute('role', 'textbox');
+  editor.setAttribute('aria-label', 'Shape text editor');
 
   // FIXED: Optimized circle styling to prevent cut-off and positioning issues
   editor.style.cssText = `
     position: absolute;
     z-index: 1000;
-    min-width: 40px;
+    min-width: 1px;
     outline: none;
     border: none;
     border-radius: 0;
@@ -115,6 +129,7 @@ export function openShapeTextEditor(
     overflow: hidden;
     cursor: text;
     ${isCircle ? `
+      /* square editor that always fits inside the circle */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -122,11 +137,9 @@ export function openShapeTextEditor(
       white-space: pre-wrap;
       word-wrap: break-word;
       overflow-wrap: break-word;
-      padding: 0px;
-      min-height: ${Math.max(fontSize * lineHeight, 24)}px;
+      padding: ${getCirclePadding()}px;
+      min-height: 1px;
       caret-color: ${textColor};
-      border-radius: 50%;
-      clip-path: circle(50% at 50% 50%);
     ` : isTriangle ? `
       text-align: center;
       white-space: pre-wrap;
@@ -146,6 +159,7 @@ export function openShapeTextEditor(
 
   // Set initial content with proper handling for circles
   const currentText = shapeSnapshot.data?.text || '';
+  let latestEditorText = currentText;
 
   if (currentText) {
     editor.textContent = currentText;
@@ -163,22 +177,23 @@ export function openShapeTextEditor(
       const liveShape = refreshShapeSnapshot();
       const liveInnerBox = innerBox;
       const containerRect = container.getBoundingClientRect();
-      const stageScale = stage.scaleX();
+      const stageScale = typeof stage.scaleX === 'function' ? stage.scaleX() : 1;
 
-      const circlePadding = isCircle ? liveInnerBox.circlePadding ?? 0 : 0;
-      const circleContainerSide = isCircle ? liveInnerBox.circleContainerSide ?? liveInnerBox.width : liveInnerBox.width;
+      let screenX: number;
+      let screenY: number;
 
-      const anchorX = isCircle ? liveInnerBox.x - circlePadding : liveInnerBox.x;
-      const anchorY = isCircle ? liveInnerBox.y - circlePadding : liveInnerBox.y;
+      const anchorX = liveInnerBox.x;
+      const anchorY = liveInnerBox.y;
 
-      // CRITICAL: Use stage.getAbsoluteTransform().point() for perfect coordinate transformation
-      // This accounts for all stage transforms (pan, zoom, etc.)
-      const stageTransform = stage.getAbsoluteTransform();
-      const screenPoint = stageTransform.point({ x: anchorX, y: anchorY });
-      const screenX = containerRect.left + screenPoint.x;
-      const screenY = containerRect.top + screenPoint.y;
-      const scaledWidth = (isCircle ? circleContainerSide : liveInnerBox.width) * stageScale;
-      const scaledHeight = (isCircle ? circleContainerSide : liveInnerBox.height) * stageScale;
+      let screenPoint = { x: anchorX * stageScale, y: anchorY * stageScale };
+      if (typeof stage.getAbsoluteTransform === 'function') {
+        const stageTransform = stage.getAbsoluteTransform();
+        screenPoint = stageTransform.point({ x: anchorX, y: anchorY });
+      }
+      screenX = containerRect.left + screenPoint.x;
+      screenY = containerRect.top + screenPoint.y;
+      const scaledWidth = liveInnerBox.width * stageScale;
+      const scaledHeight = liveInnerBox.height * stageScale;
 
       console.log('[DEBUG] Shape text editor positioning (ENHANCED):', {
         elementId,
@@ -186,10 +201,10 @@ export function openShapeTextEditor(
         innerBox: liveInnerBox,
         containerRect: { left: containerRect.left, top: containerRect.top },
         stageTransform: {
-          x: stage.x(),
-          y: stage.y(),
-          scaleX: stage.scaleX(),
-          scaleY: stage.scaleY()
+          x: typeof stage.x === 'function' ? stage.x() : 0,
+          y: typeof stage.y === 'function' ? stage.y() : 0,
+          scaleX: typeof stage.scaleX === 'function' ? stage.scaleX() : 1,
+          scaleY: typeof stage.scaleY === 'function' ? stage.scaleY() : 1
         },
         screenPoint,
         finalScreenCoords: { screenX, screenY },
@@ -201,173 +216,25 @@ export function openShapeTextEditor(
       editor.style.left = `${Math.round(screenX)}px`;
       editor.style.top = `${Math.round(screenY)}px`;
 
-      let finalWidth = Math.max(1, Math.round(scaledWidth));
-      let finalHeight = Math.max(Math.round(fontSize * lineHeight), Math.round(scaledHeight));
-
-      if (isCircle) {
-        const normalizedSize = Math.max(1, Math.round(scaledWidth));
-        finalWidth = normalizedSize;
-        finalHeight = normalizedSize;
-      } else {
-        finalWidth = Math.max(40, Math.round(scaledWidth));
-        finalHeight = Math.max(Math.round(fontSize * lineHeight), Math.round(scaledHeight));
-      }
+      const finalWidth = Math.max(1, Math.round(scaledWidth));
+      const finalHeight = Math.max(1, Math.round(scaledHeight));
 
       editor.style.width = `${finalWidth}px`;
       editor.style.height = `${finalHeight}px`;
 
-      const scaledFontSize = fontSize * stageScale;
-      const effectiveFontSize = stageScale >= 1 ? Math.max(Math.round(scaledFontSize), fontSize) : fontSize;
-      editor.style.fontSize = `${Math.max(effectiveFontSize, 14)}px`;
+      const effectiveFontSize = stageScale >= 1
+        ? Math.max(Math.round(fontSize * stageScale), fontSize)
+        : fontSize;
+      editor.style.fontSize = `${effectiveFontSize}px`;
 
       // For circles, ensure proper line-height scaling
       if (isCircle) {
         editor.style.lineHeight = `${lineHeight}`; // Keep relative line-height
-        const scaledPadding = Math.max(0, circlePadding * stageScale);
+        const scaledPadding = Math.max(0, getCirclePadding() * stageScale);
         editor.style.padding = `${Math.round(scaledPadding)}px`;
-        const scaledClipRadius = Math.max(0, Math.round(finalWidth / 2));
-        editor.style.clipPath = `circle(${scaledClipRadius}px at 50% 50%)`;
-        editor.style.borderRadius = `${scaledClipRadius}px`;
       }
     } catch (error) {
       console.warn('[ShapeTextEditor] Error updating position:', error);
-    }
-  }
-
-  // IMPROVED: Auto-resize function with better thresholds for circles
-  function autoResizeShape() {
-    const liveShape = refreshShapeSnapshot();
-    const liveInnerBox = innerBox;
-    const text = (editor.textContent || '').replace(ZERO_WIDTH_REGEX, '');
-    if (text.length === 0) return;
-
-    console.log('[DEBUG] Auto-resize called (IMPROVED):', {
-      elementId,
-      elementType: liveShape.type,
-      isCircle,
-      textLength: text.length,
-      currentText: text.substring(0, 50) + (text.length > 50 ? '...' : '')
-    });
-
-    // Create temporary element to measure text with identical styling
-    const temp = document.createElement('div');
-    temp.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      top: -9999px;
-      font-family: ${editor.style.fontFamily};
-      font-size: ${editor.style.fontSize};
-      line-height: ${editor.style.lineHeight};
-      padding: ${editor.style.padding};
-      box-sizing: border-box;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      width: ${editor.style.width};
-      text-align: ${editor.style.textAlign};
-    `;
-    temp.textContent = text;
-    document.body.appendChild(temp);
-
-    const measuredWidth = temp.offsetWidth;
-    const measuredHeight = temp.offsetHeight;
-    document.body.removeChild(temp);
-
-    // FIXED: Better thresholds for circles - more conservative to prevent unnecessary resizing
-    const stageScale = stage.scaleX();
-    const currentWidth = liveInnerBox.width * stageScale;
-    const currentHeight = liveInnerBox.height * stageScale;
-
-    // Trigger growth a bit earlier for circles
-    const widthThreshold = currentWidth * (isCircle ? 0.7 : 0.9);
-    const heightThreshold = currentHeight * (isCircle ? 0.7 : 0.9);
-
-    const elementRadius = (liveShape as any).radius ?? liveShape.data?.radius;
-
-    console.log('[DEBUG] Auto-resize measurements (IMPROVED):', {
-      elementId,
-      measuredDimensions: { measuredWidth, measuredHeight },
-      currentDimensions: { currentWidth, currentHeight },
-      thresholds: { widthThreshold, heightThreshold },
-      shouldResize: measuredWidth > widthThreshold || measuredHeight > heightThreshold,
-      currentElementSize: { width: liveShape.width, height: liveShape.height, radius: elementRadius }
-    });
-
-    if (measuredWidth > widthThreshold || measuredHeight > heightThreshold) {
-      // Calculate new shape dimensions with appropriate padding
-      const extraPadding = isCircle ? 2 : Math.max(2, effectivePadding * 1.25);
-      let newWidth = Math.max(liveShape.width || 0, (measuredWidth + extraPadding * 2) / stageScale);
-      let newHeight = Math.max(liveShape.height || 0, (measuredHeight + extraPadding * 2) / stageScale);
-
-      // FIXED: For circles, maintain perfect circular proportions
-      if (isCircle) {
-        const maxDim = Math.max(newWidth, newHeight);
-        newWidth = maxDim;
-        newHeight = maxDim;
-        
-        // Calculate radius from width (diameter)
-        const newRadius = maxDim / 2;
-        
-        console.log('[DEBUG] Circle auto-resize executing (IMPROVED):', {
-          elementId,
-          originalSize: { width: liveShape.width, height: liveShape.height, radius: elementRadius },
-          newSize: { newWidth, newHeight, newRadius },
-          maxDim,
-          extraPadding,
-          stageScale
-        });
-
-        // Update circle with proper radius calculation
-        store.element.update(elementId, {
-          width: newWidth,
-          height: newHeight,
-          data: {
-            ...liveShape.data,
-            radius: newRadius,
-            padding: effectivePadding,
-          },
-          bounds: {
-            x: (liveShape.x || 0) - newRadius, // Bounds use top-left corner
-            y: (liveShape.y || 0) - newRadius,
-            width: newWidth,
-            height: newHeight
-          }
-        });
-        store.bumpSelectionVersion?.();
-      } else {
-        console.log('[DEBUG] Shape auto-resize executing:', {
-          elementId,
-          elementType: liveShape.type,
-          originalSize: { width: liveShape.width, height: liveShape.height },
-          newSize: { newWidth, newHeight },
-          extraPadding,
-          stageScale
-        });
-
-        // Update other shapes normally
-        store.element.update(elementId, {
-          width: newWidth,
-          height: newHeight,
-          data: {
-            ...liveShape.data,
-            padding: effectivePadding,
-          },
-          bounds: {
-            x: liveShape.x || 0,
-            y: liveShape.y || 0,
-            width: newWidth,
-            height: newHeight
-          }
-        });
-        store.bumpSelectionVersion?.();
-      }
-
-      refreshShapeSnapshot();
-
-      // Update editor position after a brief delay
-      requestAnimationFrame(() => {
-        updateEditorPosition();
-      });
     }
   }
 
@@ -378,9 +245,11 @@ export function openShapeTextEditor(
 
   // Stage transform listeners
   const onStageTransform = () => updateEditorPosition();
-  stage.on('dragmove.shape-text-editor', onStageTransform);
-  stage.on('scaleXChange.shape-text-editor scaleYChange.shape-text-editor', onStageTransform);
-  stage.on('xChange.shape-text-editor yChange.shape-text-editor', onStageTransform);
+  if (typeof stage.on === 'function') {
+    stage.on('dragmove.shape-text-editor', onStageTransform);
+    stage.on('scaleXChange.shape-text-editor scaleYChange.shape-text-editor', onStageTransform);
+    stage.on('xChange.shape-text-editor yChange.shape-text-editor', onStageTransform);
+  }
 
   const handleGlobalPointerDown = (event: PointerEvent) => {
     if (!editor.contains(event.target as Node)) {
@@ -407,21 +276,31 @@ export function openShapeTextEditor(
     }
 
     // Remove stage listeners
-    stage.off('dragmove.shape-text-editor');
-    stage.off('scaleXChange.shape-text-editor scaleYChange.shape-text-editor');
-    stage.off('xChange.shape-text-editor yChange.shape-text-editor');
+    if (typeof stage.off === 'function') {
+      stage.off('dragmove.shape-text-editor');
+      stage.off('scaleXChange.shape-text-editor scaleYChange.shape-text-editor');
+      stage.off('xChange.shape-text-editor yChange.shape-text-editor');
+    }
     window.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+    window.removeEventListener('keydown', onKeyDown, true);
   }
 
   // Commit function
   function commit(save: boolean = true) {
-    const rawText = (editor.textContent || '').replace(ZERO_WIDTH_REGEX, '');
+    const rawSource = latestEditorText || editor.innerText || editor.textContent || '';
+    const rawText = rawSource.replace(ZERO_WIDTH_REGEX, '');
     const newText = rawText.trim();
     cleanup();
 
-    if (save && newText !== currentText) {
-      // Update element with new text using withUndo for history
-      store.withUndo('Edit shape text', () => {
+    if (!save) {
+      console.log('[ShapeTextEditor] Text edit cancelled');
+      return;
+    }
+
+    const shouldUpdate = newText !== currentText;
+
+    if (shouldUpdate) {
+      const applyUpdate = () => {
         const liveShape = refreshShapeSnapshot();
         store.element.update(elementId, {
           data: {
@@ -430,7 +309,7 @@ export function openShapeTextEditor(
             padding: effectivePadding,
             textLineHeight: lineHeight,
           },
-          textColor: textColor, // Use direct textColor property
+          textColor: textColor,
           style: {
             ...liveShape.style,
             fontSize,
@@ -438,11 +317,16 @@ export function openShapeTextEditor(
             textAlign: 'center' as const
           }
         });
-      });
-      console.log('[ShapeTextEditor] Text committed (FIXED):', newText);
-    } else {
-      console.log('[ShapeTextEditor] Text edit cancelled');
+      };
+
+      if (typeof store.withUndo === 'function') {
+        store.withUndo('Edit shape text', applyUpdate);
+      } else {
+        applyUpdate();
+      }
     }
+
+    console.log('[ShapeTextEditor] Text committed (FIXED):', newText);
   }
 
   // Event handlers
@@ -481,7 +365,7 @@ export function openShapeTextEditor(
       }
     }
 
-    autoResizeShape();
+    latestEditorText = (editor.textContent || '').replace(ZERO_WIDTH_REGEX, '');
   };
 
   const onBlur = () => {
@@ -491,6 +375,7 @@ export function openShapeTextEditor(
 
   // Attach event listeners
   editor.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keydown', onKeyDown, true);
   editor.addEventListener('input', onInput);
   editor.addEventListener('blur', onBlur);
 

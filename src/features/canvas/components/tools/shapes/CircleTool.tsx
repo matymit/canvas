@@ -194,12 +194,16 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
             data: {
               text: '',
               radius: radius, // CRITICAL: Store radius in data for proper text positioning
-              padding: 0
+              radiusX: radius,
+              radiusY: radius,
+              padding: 0,
+              textLineHeight: 1.25
             },
             style: {
               stroke: strokeColor,
               strokeWidth,
               fill: fillColor,
+              fontSize: 20,
             },
           } as any);
 

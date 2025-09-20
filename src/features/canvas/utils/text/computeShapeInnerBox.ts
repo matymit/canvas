@@ -6,9 +6,6 @@ export type InnerBox = {
   y: number;
   width: number;
   height: number;
-  circleContainerSide?: number;
-  circlePadding?: number;
-  circleClipRadius?: number;
 };
 
 export interface BaseShape {
@@ -27,9 +24,7 @@ export interface BaseShape {
 }
 
 const MIN_CONTENT_SIDE = 12;
-const CIRCLE_TEXT_CONTAINER_RATIO = 0.75;
-const CIRCLE_TEXT_CONTENT_RATIO = 0.9; // leaves 5% inset per side within the container
-const CIRCLE_TEXT_MIN_PADDING = 4;
+const CIRCLE_TEXT_RATIO = 0.7;
 
 /**
  * Measures text height using Konva.Text for precise text positioning.
@@ -65,7 +60,7 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
     return { x: el.x + px, y: el.y + px, width: w, height: h };
   }
 
-  // Circle: Use conservative, proportional geometry to guarantee circular containment
+  // Circle: reserve a fixed square (70% of the current diameter) so manual resizing stays predictable.
   // Konva.Circle is positioned by center (x, y) and uses radius property
   if (el.type === 'circle') {
     let radius: number;
@@ -77,35 +72,18 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
       radius = 50;
     }
 
-    const diameter = radius * 2;
-    const containerSide = Math.max(MIN_CONTENT_SIDE, diameter * CIRCLE_TEXT_CONTAINER_RATIO);
-
-    const basePadding = Math.max(
-      CIRCLE_TEXT_MIN_PADDING,
-      (containerSide * (1 - CIRCLE_TEXT_CONTENT_RATIO)) / 2
-    );
-
-    const requestedPadding = px;
-    const totalPadding = Math.min(
-      containerSide / 2 - 1,
-      basePadding + requestedPadding
-    );
-
-    const contentSide = Math.max(
-      MIN_CONTENT_SIDE,
-      containerSide - totalPadding * 2
-    );
-
-    const halfContent = contentSide / 2;
+    const diameterX = el.width ?? radius * 2;
+    const diameterY = el.height ?? radius * 2;
+    const diameter = Math.max(MIN_CONTENT_SIDE, Math.min(diameterX, diameterY));
+    const targetSide = diameter * CIRCLE_TEXT_RATIO;
+    const contentSide = Math.max(MIN_CONTENT_SIDE, targetSide - px * 2);
+    const halfSide = contentSide / 2;
 
     return {
-      x: el.x - halfContent,
-      y: el.y - halfContent,
+      x: el.x - halfSide,
+      y: el.y - halfSide,
       width: contentSide,
       height: contentSide,
-      circleContainerSide: containerSide,
-      circlePadding: totalPadding,
-      circleClipRadius: containerSide / 2,
     };
   }
 

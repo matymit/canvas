@@ -150,10 +150,10 @@ A FigJam-style collaborative canvas application built with **React 19**, **TypeS
 
 - Click → default shape at pointer (autoselect).
 - Drag → live ghost, commits on mouseup.
-- Resizing: anchors, Shift keeps ratio.
-- Contextual bar: fill, stroke, dash, radius.
-- Auto-grow: shapes can expand height when text is added (circles → ellipses).
-- Alignment guides/snap during move/resize.
+  - Resizing: anchors; Shift constrains ratio for rectangles/triangles while circles always stay 1:1.
+  - Contextual bar: fill, stroke, dash, radius.
+  - Circle text uses a fixed 70% inscribed square with centered 20px copy; resize is manual (no auto-grow).
+  - Alignment guides/snap during move/resize.
 
 #### Sticky Note
 

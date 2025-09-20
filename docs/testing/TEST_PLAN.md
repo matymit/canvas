@@ -88,8 +88,8 @@ This test plan covers unit, integration, end-to-end, performance, visual regress
 ## Specific tests for new shape text behavior
 - Auto‑open editor after rectangle/ellipse/triangle commit; centered in inner box; correct font/lineHeight/min size
 - Centered caret on focus and after delete-to-empty
-- Smooth auto‑grow: exceeds inner height → small height increments; overlay repositioned to recomputed inner box; no jumps
-- Renderer sync: after commit or changes, Konva.Text updates with padding/alignment/verticalAlign; main batchDraw called
+- Circle text: overlay + Konva use the shared 70 % inscribed square, always centered (20 px / 1.25); resize is manual and transformer keeps the circle 1:1
+- Renderer sync: after commit or changes, Konva.Text stays center/middle aligned with stageScale padding updates; main batchDraw called
 - Triangle bounds: inner-box approximation avoids tip; optional clipFunc clips overflow if enabled
 
 ## Harness tips

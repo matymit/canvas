@@ -5,6 +5,14 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🎯 Circle Text & Resizing
+
+- Circle text editor and Konva render now share a fixed 70 % inscribed square, centering 20 px text before, during, and after edits
+- Circle selections automatically lock aspect ratio so resize handles keep shapes perfectly round
+- Removed legacy auto-grow behavior; circles rely on manual resize while keeping editor/renderer alignment in sync
+
 ## [2.5.0] - 2025-01-18
 
 ### 🎯 Table Transformer Auto-Resize Fix

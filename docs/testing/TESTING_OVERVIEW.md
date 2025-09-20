@@ -115,7 +115,7 @@ Note: We can later remove the vi.mock and run against real Konva (browser build)
 ### Integration (skeletons; skipped for now)
 
 - Tool flows: preview → commit → auto-select → tool auto-switch back to Select
-- Shape text overlay: auto-open centered, caret behavior, smooth auto-grow, overlay repositioning as shape grows
+- Shape text overlay: auto-open centered, caret behavior, fixed inner box (circles 70 % inscribed square) with manual resize + locked circle aspect
 - Renderer registry subscriptions: mount, reconcile, batchDraw policies
 - Transformer lifecycle: transformstart begins batch; transformend normalizes geometry (scales→1), ends batch
 - Drag with snapping: grid-first, SmartGuides alignment, overlay guides
