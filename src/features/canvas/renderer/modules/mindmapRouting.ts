@@ -13,14 +13,14 @@ export interface Pt {
  * @param k Curvature factor (0 = straight, 1 = very curved)
  * @returns Control points for cubic Bézier curve
  */
-export function rightwardControls(a: Pt, b: Pt, k = 0.35): { c1: Pt; c2: Pt } {
+export function rightwardControls(a: Pt, b: Pt, k = 0.35): [Pt, Pt] {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   
-  return {
-    c1: { x: a.x + dx * k, y: a.y + dy * k * 0.2 },
-    c2: { x: b.x - dx * k, y: b.y - dy * k * 0.2 },
-  };
+  return [
+    { x: a.x + dx * k, y: a.y + dy * k * 0.2 },
+    { x: b.x - dx * k, y: b.y - dy * k * 0.2 },
+  ];
 }
 
 /**
@@ -144,8 +144,9 @@ export function calculateMultiBranchControls(
     // Adjust curvature based on vertical separation to avoid overlaps
     const verticalSeparation = Math.abs(child.y - parentCenter.y);
     const adjustedCurvature = curvature * Math.min(1, verticalSeparation / 100);
-    
-    return rightwardControls(parentCenter, child, adjustedCurvature);
+
+    const [c1, c2] = rightwardControls(parentCenter, child, adjustedCurvature);
+    return { c1, c2 };
   });
 }
 

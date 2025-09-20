@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Circle selections automatically lock aspect ratio so resize handles keep shapes perfectly round
 - Removed legacy auto-grow behavior; circles rely on manual resize while keeping editor/renderer alignment in sync
 
+### 🧠 Mindmap Nodes & Branches
+
+- Added full mindmap renderer with draggable node groups, selectable branches, and debounced edge rerouting that stays anchored to each node’s right-side connection point
+- Mindmap nodes now render as bare text labels with invisible hit areas while bezier branches stroke out from each label, matching the FigJam reference layout
+- Rebuilt mindmap tool flow with batched history commits, immediate inline editing, and keyboard child spawning (`Enter`) that drops linked nodes in one transaction
+- Introduced shared DOM editor (`openMindmapNodeEditor`) so text remains centre-aligned during and after edits and persists via store updates
+- Normalized node/edge styles across renderer, live routing, and persistence to support backward-compatible data while keeping branch visuals consistent
+
 ## [2.5.0] - 2025-01-18
 
 ### 🎯 Table Transformer Auto-Resize Fix

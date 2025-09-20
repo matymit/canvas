@@ -2,16 +2,21 @@
 // Follows established renderer patterns with vanilla Konva integration
 
 import Konva from "konva";
-import type { MindmapNodeElement, MindmapEdgeElement } from "../../types/mindmap";
-import { rightwardControls, buildTaperedRibbonPoints } from "./mindmapRouting";
-
-// Re-use existing RendererLayers interface
-export interface RendererLayers { 
-  background: Konva.Layer; 
-  main: Konva.Layer; 
-  preview: Konva.Layer; 
-  overlay: Konva.Layer; 
-}
+import type { RendererLayers } from "../layers";
+import type { CanvasElement } from "../../../../../types";
+import {
+  DEFAULT_BRANCH_STYLE,
+  DEFAULT_NODE_STYLE,
+  MINDMAP_CONFIG,
+  measureMindmapLabel,
+  type MindmapEdgeElement,
+  type MindmapNodeElement,
+  type MindmapNodeStyle,
+  type BranchStyle,
+} from "@/features/canvas/types/mindmap";
+import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
+import { openMindmapNodeEditor } from "@/features/canvas/utils/editors/openMindmapNodeEditor";
+import { rightwardControls } from "./mindmapRouting";
 
 export interface MindmapRendererOptions {
   // Performance options
@@ -25,9 +30,16 @@ export class MindmapRenderer {
   private nodeGroups = new Map<string, Konva.Group>();
   private edgeShapes = new Map<string, Konva.Shape>();
   private options: MindmapRendererOptions;
+  private readonly store: typeof useUnifiedCanvasStore;
+  private static readonly HANDLER_FLAG = "__mindmapHandlers";
 
-  constructor(layers: RendererLayers, options?: MindmapRendererOptions) {
+  constructor(
+    layers: RendererLayers,
+    store: typeof useUnifiedCanvasStore,
+    options?: MindmapRendererOptions
+  ) {
     this.layers = layers;
+    this.store = store;
     this.options = {
       cacheNodes: false,
       useHighQualityCurves: true,
@@ -36,10 +48,109 @@ export class MindmapRenderer {
     };
   }
 
+  private mergeNodeStyle(style?: MindmapNodeStyle): MindmapNodeStyle {
+    return { ...DEFAULT_NODE_STYLE, ...(style ?? {}) };
+  }
+
+  private mergeBranchStyle(style?: BranchStyle): BranchStyle {
+    return { ...DEFAULT_BRANCH_STYLE, ...(style ?? {}) };
+  }
+
+  private selectElement(elementId: string) {
+    const state = this.store.getState() as any;
+    const replace = state.replaceSelectionWithSingle ?? state.selection?.replaceSelectionWithSingle;
+    if (typeof replace === "function") {
+      replace(elementId);
+      return;
+    }
+
+    const selectOne = state.selection?.selectOne;
+    if (typeof selectOne === "function") {
+      selectOne(elementId, false);
+    }
+  }
+
+  private updateNodePosition(elementId: string, x: number, y: number) {
+    const state = this.store.getState() as any;
+    const update = state.updateElement ?? state.element?.update;
+    if (typeof update === "function") {
+      update(elementId, { x, y }, { pushHistory: true });
+    }
+  }
+
+  private lookupNode(elementId: string): MindmapNodeElement | null {
+    const state = this.store.getState() as any;
+    const getElement: ((id: string) => CanvasElement | undefined) |
+      undefined = state.getElement ?? state.element?.getById;
+    const raw = getElement?.(elementId);
+    if (!raw || raw.type !== "mindmap-node") return null;
+
+    const style = this.mergeNodeStyle((raw as any).style);
+    return {
+      id: raw.id,
+      type: "mindmap-node",
+      x: raw.x ?? 0,
+      y: raw.y ?? 0,
+      width: raw.width ?? MINDMAP_CONFIG.defaultNodeWidth,
+      height: raw.height ?? MINDMAP_CONFIG.defaultNodeHeight,
+      text: (raw as any).text ?? (raw as any).data?.text ?? "",
+      style,
+      parentId: (raw as any).parentId ?? (raw as any).data?.parentId ?? null,
+    };
+  }
+
+  private bindNodeEvents(group: Konva.Group, node: MindmapNodeElement) {
+    if (group.getAttr(MindmapRenderer.HANDLER_FLAG)) return;
+    group.setAttr(MindmapRenderer.HANDLER_FLAG, true);
+    group.draggable(true);
+
+    const select = (evt: Konva.KonvaEventObject<Event>) => {
+      evt.cancelBubble = true;
+      this.selectElement(node.id);
+    };
+
+    group.on("click", select);
+    group.on("tap", select);
+
+    const openEditor = (evt: Konva.KonvaEventObject<Event>) => {
+      evt.cancelBubble = true;
+      const stage = group.getStage();
+      if (!stage) return;
+      const latest = this.lookupNode(node.id);
+      if (latest) {
+        openMindmapNodeEditor(stage, node.id, latest);
+      }
+    };
+
+    group.on("dblclick", openEditor);
+    group.on("dbltap", openEditor as any);
+
+    group.on("dragend", (evt: Konva.KonvaEventObject<DragEvent>) => {
+      const target = evt.target as Konva.Group;
+      this.updateNodePosition(node.id, target.x(), target.y());
+    });
+  }
+
   /**
    * Render or update a mindmap node on the main layer
    */
   renderNode(element: MindmapNodeElement) {
+    const style = this.mergeNodeStyle(element.style);
+    const metrics = measureMindmapLabel(element.text ?? "", style);
+    const contentWidth = Math.max(metrics.width, 1);
+    const contentHeight = Math.max(metrics.height, style.fontSize);
+    const totalWidth = contentWidth + style.paddingX * 2;
+    const totalHeight = contentHeight + style.paddingY * 2;
+
+    const normalized: MindmapNodeElement = {
+      ...element,
+      style,
+      width: totalWidth,
+      height: totalHeight,
+      textWidth: contentWidth,
+      textHeight: contentHeight,
+    };
+
     let group = this.nodeGroups.get(element.id);
     
     // Create group if it doesn't exist or needs recreation
@@ -53,9 +164,10 @@ export class MindmapRenderer {
         name: "mindmap-node",
         x: element.x,
         y: element.y,
-        width: element.width,
-        height: element.height,
-        listening: true, // Enable selection and dragging
+        width: totalWidth,
+        height: totalHeight,
+        listening: true,
+        draggable: true,
       });
       
       this.layers.main.add(group);
@@ -63,45 +175,40 @@ export class MindmapRenderer {
     }
 
     // Update position and size
-    group.position({ x: element.x, y: element.y });
-    group.size({ width: element.width, height: element.height });
+    group.position({ x: normalized.x, y: normalized.y });
+    group.size({ width: totalWidth, height: totalHeight });
+    group.draggable(true);
+    group.listening(true);
 
     // Clear previous children and rebuild
     group.destroyChildren();
 
-    // Background rectangle
-    const background = new Konva.Rect({
+    // Invisible hit rect for interaction
+    const hitRect = new Konva.Rect({
       x: 0,
       y: 0,
-      width: element.width,
-      height: element.height,
-      fill: element.style.fill,
-      stroke: element.style.stroke,
-      strokeWidth: element.style.strokeWidth,
-      cornerRadius: element.style.cornerRadius,
-      listening: false,
+      width: totalWidth,
+      height: totalHeight,
+      cornerRadius: style.cornerRadius,
+      fill: "#ffffff",
+      opacity: 0.001,
+      listening: true,
       perfectDrawEnabled: false,
-      name: "node-bg",
-      shadowColor: '#000',
-      shadowBlur: 6,
-      shadowOpacity: 0.15,
+      name: "node-hit",
     });
-    group.add(background);
+    group.add(hitRect);
 
     // Text content
-    const textWidth = Math.max(0, element.width - element.style.paddingX * 2);
-    const textHeight = Math.max(0, element.height - element.style.paddingY * 2);
-    
     const text = new Konva.Text({
-      x: element.style.paddingX,
-      y: element.style.paddingY,
-      width: textWidth,
-      height: textHeight,
-      text: element.text,
-      fontFamily: element.style.fontFamily,
-      fontSize: element.style.fontSize,
-      fontStyle: element.style.fontStyle ?? 'bold',
-      fill: element.style.textColor,
+      x: style.paddingX,
+      y: style.paddingY,
+      width: contentWidth,
+      height: totalHeight - style.paddingY * 2,
+      text: normalized.text ?? "",
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontStyle: style.fontStyle ?? 'bold',
+      fill: style.textColor,
       align: "left",
       verticalAlign: "middle",
       wrap: "word",
@@ -117,6 +224,8 @@ export class MindmapRenderer {
       group.cache();
     }
 
+    this.bindNodeEvents(group, normalized);
+
     this.layers.main.batchDraw();
   }
 
@@ -124,9 +233,11 @@ export class MindmapRenderer {
    * Render or update a mindmap edge (branch) on the main layer
    */
   renderEdge(
-    element: MindmapEdgeElement, 
-    getNodeCenter: (id: string) => { x: number; y: number } | null
+    element: MindmapEdgeElement,
+    getNodePoint: (id: string, side: 'left' | 'right') => { x: number; y: number } | null
   ) {
+    const style = this.mergeBranchStyle(element.style);
+
     let shape = this.edgeShapes.get(element.id);
     
     // Create shape if it doesn't exist or needs recreation
@@ -136,6 +247,7 @@ export class MindmapRenderer {
         this.edgeShapes.delete(element.id);
       }
       shape = new Konva.Shape({
+        id: element.id,
         name: "mindmap-edge",
         listening: false, // Edges are not interactive
         perfectDrawEnabled: false,
@@ -143,11 +255,13 @@ export class MindmapRenderer {
       
       this.layers.main.add(shape);
       this.edgeShapes.set(element.id, shape);
+    } else if (shape.id() !== element.id) {
+      shape.id(element.id);
     }
 
     // Get node centers
-    const fromCenter = getNodeCenter(element.fromId);
-    const toCenter = getNodeCenter(element.toId);
+    const fromCenter = getNodePoint(element.fromId, 'right');
+    const toCenter = getNodePoint(element.toId, 'left');
     
     if (!fromCenter || !toCenter) {
       shape.hide();
@@ -157,9 +271,9 @@ export class MindmapRenderer {
     shape.show();
 
     // Calculate curve geometry
-    const { curvature, color, widthStart, widthEnd } = element.style;
+    const { curvature, color, widthStart, widthEnd } = style;
     const k = Math.max(0, Math.min(1, curvature));
-    const { c1, c2 } = rightwardControls(fromCenter, toCenter, k);
+    const [c1, c2] = rightwardControls(fromCenter, toCenter, k);
 
     // Update the shape's rendering function
     shape.sceneFunc((ctx: any, shapeNode: Konva.Shape) => {
@@ -194,32 +308,15 @@ export class MindmapRenderer {
     color: string
   ) {
     ctx.save();
-    
-    // Generate ribbon polygon points
-    const points = buildTaperedRibbonPoints(
-      start,
-      c1,
-      c2,
-      end,
-      widthStart,
-      widthEnd,
-      this.options.edgeSegments
-    );
-
-    // Draw the main ribbon
     ctx.beginPath();
-    points.forEach((point, index) => {
-      if (index === 0) {
-        ctx.moveTo(point.x, point.y);
-      } else {
-        ctx.lineTo(point.x, point.y);
-      }
-    });
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+    ctx.moveTo(start.x, start.y);
+    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(widthStart, 1);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
 
-    // Draw rounded end cap at child node
     if (widthEnd > 0) {
       ctx.beginPath();
       ctx.arc(end.x, end.y, Math.max(1, widthEnd * 0.5), 0, Math.PI * 2);
@@ -228,9 +325,7 @@ export class MindmapRenderer {
     }
 
     ctx.restore();
-    
-    // Required by Konva custom shape
-    ctx.fillStrokeShape(shape);
+    ctx.strokeShape(shape);
   }
 
   /**
@@ -268,7 +363,7 @@ export class MindmapRenderer {
   updateConnectedEdges(
     nodeId: string,
     getAllEdges: () => MindmapEdgeElement[],
-    getNodeCenter: (id: string) => { x: number; y: number } | null
+    getNodePoint: (id: string, side: 'left' | 'right') => { x: number; y: number } | null
   ) {
     const allEdges = getAllEdges();
     const connectedEdges = allEdges.filter(
@@ -276,7 +371,7 @@ export class MindmapRenderer {
     );
 
     connectedEdges.forEach(edge => {
-      this.renderEdge(edge, getNodeCenter);
+      this.renderEdge(edge, getNodePoint);
     });
   }
 
@@ -287,7 +382,7 @@ export class MindmapRenderer {
   renderBatch(
     nodes: MindmapNodeElement[],
     edges: MindmapEdgeElement[],
-    getNodeCenter: (id: string) => { x: number; y: number } | null
+    getNodePoint: (id: string, side: 'left' | 'right') => { x: number; y: number } | null
   ) {
     // Render all nodes first
     nodes.forEach(node => {
@@ -296,7 +391,7 @@ export class MindmapRenderer {
 
     // Then render all edges
     edges.forEach(edge => {
-      this.renderEdge(edge, getNodeCenter);
+      this.renderEdge(edge, getNodePoint);
     });
 
     // Single batch draw at the end

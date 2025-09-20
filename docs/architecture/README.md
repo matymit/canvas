@@ -226,13 +226,11 @@ A FigJam-style collaborative canvas application built with **React 19**, **TypeS
 
 #### Mindmap Tool
 
-- Click → rounded node with default text, auto-enters edit.
-- Enter while editing → spawns child node offset right + curved branch auto-drawn.
-- Branches reroute live when nodes move/resize.
-- SmartGuides align nodes.
-- Multi-step (node + branch) batched atomically in history.
-- Styles: tapered ribbons, curved connectors, rounded caps.
-- Contextual bar: add child, rename, restyle branch thickness/curve.
+- Click or drag → rounded node with default text; editor opens immediately in the same centred square used by Konva.
+- Enter while editing (no Shift) → spawns a right-offset child node and tapered branch in a single history batch; parent selection updates to the child.
+- Branches reroute on drag/transform via stage-level listeners so curves stay anchored to each node’s right connection point.
+- Text stays horizontally and vertically centred before, during, and after editing through the shared DOM overlay utility.
+- Node moves and content edits push undoable snapshots; branch styling (width/curvature) remains consistent via shared defaults.
 
 #### Eraser Tool
 
@@ -453,11 +451,11 @@ Each tool implements `ToolEventHandler` interface with pointer-first design and 
 
 #### Mindmap System
 
-- **Nodes**: Rounded rectangles with text content
-- **Branches**: Tapered Bézier curves with organic flow
-- **Hierarchy**: Parent-child relationships with automatic positioning
-- **Live Routing**: Real-time edge updates during node transforms
-- **Child Spawning**: Enter key for rapid expansion
+- **Nodes**: Draggable rounded rectangles that keep text centred via shared DOM editor geometry
+- **Branches**: Tapered Bézier ribbons (widthStart→widthEnd) rendered with custom Konva sceneFunc
+- **Hierarchy**: `calculateChildPosition` offsets new children and records `parentId` on each node
+- **Live Routing**: `wireMindmapLiveRouting` listens for drag/transform to reroute curves against current node bounding boxes
+- **Child Spawning**: Enter key creates child node + connecting edge inside a single history batch
 
 #### Image System
 
@@ -779,7 +777,8 @@ Serialization
 | ------------------------ | ------------------------------------------------- | ----------------------------------------------- |
 | **TableModule**          | Table grid rendering and management               | `/renderer/modules/TableModule.ts`              |
 | **TableTool**            | Interactive table creation with grid preview      | `/components/tools/content/TableTool.tsx`       |
-| **MindmapModule**        | Node and branch rendering with curves             | `/renderer/modules/MindmapModule.ts`            |
+| **MindmapRenderer**      | Node and branch rendering with curves             | `/renderer/modules/MindmapRenderer.ts`          |
+| **MindmapRendererAdapter** | Store subscription + reconciliation for mindmap elements | `/renderer/modules/MindmapRendererAdapter.ts` |
 | **MindmapTool**          | Interactive mindmap creation with spawning        | `/components/tools/content/MindmapTool.tsx`     |
 | **MindmapWire**          | Live edge updates for mindmap transforms          | `/renderer/modules/mindmapWire.ts`              |
 | **ImageRendererAdapter** | Async image loading and display                   | `/renderer/modules/ImageRendererAdapter.ts`     |
@@ -796,7 +795,6 @@ Serialization
 | **DrawingModule**        | Pen/marker/highlighter/eraser drawing             | `/renderer/modules/DrawingModule.ts`            |
 | **ShapeModule**          | Basic shape rendering (rect, circle, triangle)    | `/renderer/modules/ShapeModule.ts`              |
 | **StickyModule**         | Sticky note rendering and management              | `/renderer/modules/StickyModule.ts`             |
-| **MindmapWire**          | Live edge updates for mindmap transforms          | `/renderer/modules/mindmapWire.ts`              |
 | **openCellEditorWithTracking** | Centralized table cell editor with coordinate transformation | `/utils/editors/openCellEditorWithTracking.ts` |
 
 ## 📊 Performance Monitoring

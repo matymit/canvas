@@ -4,7 +4,13 @@
 import Konva from "konva";
 import React from "react";
 import type { MindmapEdgeElement, MindmapNodeElement } from "../../types/mindmap";
-import { getNodeConnectionPoint } from "../../types/mindmap";
+import {
+  DEFAULT_BRANCH_STYLE,
+  DEFAULT_NODE_STYLE,
+  MINDMAP_CONFIG,
+  getNodeConnectionPoint,
+  measureMindmapLabel,
+} from "../../types/mindmap";
 import { MindmapRenderer } from "./MindmapRenderer";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 
@@ -49,22 +55,42 @@ export function wireMindmapLiveRouting(
     
     for (const element of allElements) {
       if (element?.type === "mindmap-node") {
-        // Reconstruct mindmap node from CanvasElement data
-        const nodeData = {
-          ...element,
-          text: element.data?.text || "",
-          style: element.data?.style || {},
-          parentId: element.data?.parentId,
-        } as MindmapNodeElement;
+        const rawStyle = (element.style ?? (element as any).data?.style) ?? {};
+        const style = { ...DEFAULT_NODE_STYLE, ...rawStyle };
+        const metrics = measureMindmapLabel(
+          element.text ?? (element as any).data?.text ?? "",
+          style
+        );
+        const nodeData: MindmapNodeElement = {
+          id: element.id,
+          type: "mindmap-node",
+          x: element.x ?? 0,
+          y: element.y ?? 0,
+          width: Math.max(
+            element.width ?? metrics.width + style.paddingX * 2,
+            MINDMAP_CONFIG.minNodeWidth
+          ),
+          height: Math.max(
+            element.height ?? metrics.height + style.paddingY * 2,
+            MINDMAP_CONFIG.minNodeHeight
+          ),
+          text: element.text ?? (element as any).data?.text ?? "",
+          style,
+          parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
+          textWidth: metrics.width,
+          textHeight: metrics.height,
+        };
         nodes.push(nodeData);
       } else if (element?.type === "mindmap-edge") {
-        // Reconstruct mindmap edge from CanvasElement data
-        const edgeData = {
-          ...element,
-          fromId: element.data?.fromId || "",
-          toId: element.data?.toId || "",
-          style: element.data?.style || {},
-        } as MindmapEdgeElement;
+        const rawStyle = (element.style ?? (element as any).data?.style) ?? {};
+        const style = { ...DEFAULT_BRANCH_STYLE, ...rawStyle };
+        const edgeData: MindmapEdgeElement = {
+          id: element.id,
+          type: "mindmap-edge",
+          fromId: (element as any).fromId ?? (element as any).data?.fromId ?? "",
+          toId: (element as any).toId ?? (element as any).data?.toId ?? "",
+          style,
+        };
         edges.push(edgeData);
       }
     }
@@ -73,19 +99,40 @@ export function wireMindmapLiveRouting(
   };
 
   // Get node center point for routing calculations
-  const getNodeCenter = (nodeId: string): { x: number; y: number } | null => {
+  const getNodePoint = (
+    nodeId: string,
+    side: 'left' | 'right'
+  ): { x: number; y: number } | null => {
     const element = getElementById(nodeId);
     if (!element || element.type !== "mindmap-node") return null;
-    
-    // Reconstruct mindmap node
-    const node = {
-      ...element,
-      text: element.data?.text || "",
-      style: element.data?.style || {},
-      parentId: element.data?.parentId,
-    } as MindmapNodeElement;
-    
-    return getNodeConnectionPoint(node, 'right'); // Right-side connection for outward flow
+
+    const rawStyle = (element.style ?? (element as any).data?.style) ?? {};
+    const style = { ...DEFAULT_NODE_STYLE, ...rawStyle };
+    const metrics = measureMindmapLabel(
+      element.text ?? (element as any).data?.text ?? "",
+      style
+    );
+    const node: MindmapNodeElement = {
+      id: element.id,
+      type: "mindmap-node",
+      x: element.x ?? 0,
+      y: element.y ?? 0,
+      width: Math.max(
+        element.width ?? metrics.width + style.paddingX * 2,
+        MINDMAP_CONFIG.minNodeWidth
+      ),
+      height: Math.max(
+        element.height ?? metrics.height + style.paddingY * 2,
+        MINDMAP_CONFIG.minNodeHeight
+      ),
+      text: element.text ?? (element as any).data?.text ?? "",
+      style,
+      parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
+      textWidth: metrics.width,
+      textHeight: metrics.height,
+    };
+
+    return getNodeConnectionPoint(node, side);
   };
 
   // Throttled re-routing function
@@ -114,7 +161,7 @@ export function wireMindmapLiveRouting(
 
         // Re-render each affected edge
         filteredEdges.forEach(edge => {
-          renderer.renderEdge(edge, getNodeCenter);
+          renderer.renderEdge(edge, getNodePoint);
         });
       } catch (error) {
         console.warn("Error during mindmap re-routing:", error);
@@ -204,28 +251,51 @@ export function triggerMindmapReroute(
     return state.element?.getById?.(id) || state.elements?.get?.(id);
   };
 
-  const getNodeCenter = (nodeId: string): { x: number; y: number } | null => {
+  const getNodePoint = (
+    nodeId: string,
+    side: 'left' | 'right'
+  ): { x: number; y: number } | null => {
     const element = getElementById(nodeId);
     if (!element || element.type !== "mindmap-node") return null;
-    
-    const node = {
-      ...element,
-      text: element.data?.text || "",
-      style: element.data?.style || {},
-      parentId: element.data?.parentId,
-    } as MindmapNodeElement;
-    
-    return getNodeConnectionPoint(node, 'right');
+
+    const rawStyle = (element.style ?? (element as any).data?.style) ?? {};
+    const style = { ...DEFAULT_NODE_STYLE, ...rawStyle };
+    const metrics = measureMindmapLabel(
+      element.text ?? (element as any).data?.text ?? "",
+      style
+    );
+    const node: MindmapNodeElement = {
+      id: element.id,
+      type: "mindmap-node",
+      x: element.x ?? 0,
+      y: element.y ?? 0,
+      width: Math.max(
+        element.width ?? metrics.width + style.paddingX * 2,
+        MINDMAP_CONFIG.minNodeWidth
+      ),
+      height: Math.max(
+        element.height ?? metrics.height + style.paddingY * 2,
+        MINDMAP_CONFIG.minNodeHeight
+      ),
+      text: element.text ?? (element as any).data?.text ?? "",
+      style,
+      parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
+      textWidth: metrics.width,
+      textHeight: metrics.height,
+    };
+
+    return getNodeConnectionPoint(node, side);
   };
 
   const allElements = getAllElements();
   const edges = allElements
     .filter(el => el?.type === "mindmap-edge")
     .map(el => ({
-      ...el,
-      fromId: el.data?.fromId || "",
-      toId: el.data?.toId || "",
-      style: el.data?.style || {},
+      id: el.id,
+      type: "mindmap-edge",
+      fromId: (el as any).fromId ?? (el as any).data?.fromId ?? "",
+      toId: (el as any).toId ?? (el as any).data?.toId ?? "",
+      style: { ...DEFAULT_BRANCH_STYLE, ...((el.style ?? (el as any).data?.style) ?? {}) },
     }) as MindmapEdgeElement);
 
   const edgesToUpdate = nodeId
@@ -233,7 +303,7 @@ export function triggerMindmapReroute(
     : edges;
 
   edgesToUpdate.forEach(edge => {
-    renderer.renderEdge(edge, getNodeCenter);
+    renderer.renderEdge(edge, getNodePoint);
   });
 }
 
@@ -257,28 +327,38 @@ export function batchMindmapReroute(
     return state.element?.getById?.(id) || state.elements?.get?.(id);
   };
 
-  const getNodeCenter = (nodeId: string): { x: number; y: number } | null => {
+  const getNodePoint = (
+    nodeId: string,
+    side: 'left' | 'right'
+  ): { x: number; y: number } | null => {
     const element = getElementById(nodeId);
     if (!element || element.type !== "mindmap-node") return null;
-    
-    const node = {
-      ...element,
-      text: element.data?.text || "",
-      style: element.data?.style || {},
-      parentId: element.data?.parentId,
-    } as MindmapNodeElement;
-    
-    return getNodeConnectionPoint(node, 'right');
+
+    const rawStyle = (element.style ?? (element as any).data?.style) ?? {};
+    const node: MindmapNodeElement = {
+      id: element.id,
+      type: "mindmap-node",
+      x: element.x ?? 0,
+      y: element.y ?? 0,
+      width: element.width ?? MINDMAP_CONFIG.defaultNodeWidth,
+      height: element.height ?? MINDMAP_CONFIG.defaultNodeHeight,
+      text: element.text ?? (element as any).data?.text ?? "",
+      style: { ...DEFAULT_NODE_STYLE, ...rawStyle },
+      parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
+    };
+
+    return getNodeConnectionPoint(node, side);
   };
 
   const allElements = getAllElements();
   const affectedEdges = allElements
     .filter(el => el?.type === "mindmap-edge")
     .map(el => ({
-      ...el,
-      fromId: el.data?.fromId || "",
-      toId: el.data?.toId || "",
-      style: el.data?.style || {},
+      id: el.id,
+      type: "mindmap-edge",
+      fromId: (el as any).fromId ?? (el as any).data?.fromId ?? "",
+      toId: (el as any).toId ?? (el as any).data?.toId ?? "",
+      style: { ...DEFAULT_BRANCH_STYLE, ...((el.style ?? (el as any).data?.style) ?? {}) },
     }) as MindmapEdgeElement)
     .filter(edge => 
       nodeIdSet.has(edge.fromId) || nodeIdSet.has(edge.toId)
@@ -286,6 +366,6 @@ export function batchMindmapReroute(
 
   // Update all affected edges in one batch
   affectedEdges.forEach(edge => {
-    renderer.renderEdge(edge, getNodeCenter);
+    renderer.renderEdge(edge, getNodePoint);
   });
 }

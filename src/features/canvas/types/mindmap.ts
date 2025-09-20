@@ -26,6 +26,8 @@ export interface MindmapNodeElement {
   text: string;
   style: MindmapNodeStyle;
   parentId?: ElementId | null; // optional for quick traversal (not required)
+  textWidth?: number;
+  textHeight?: number;
 }
 
 export interface BranchStyle {
@@ -45,35 +47,36 @@ export interface MindmapEdgeElement {
 
 // Default styles for consistent mindmap appearance
 export const DEFAULT_NODE_STYLE: MindmapNodeStyle = {
-  fill: "#FFFFFF",
-  stroke: "#9CA3AF",
-  strokeWidth: 1.5,
-  cornerRadius: 14,
+  fill: "transparent",
+  stroke: "transparent",
+  strokeWidth: 0,
+  cornerRadius: 4,
   fontFamily: "Inter",
   fontSize: 20,
   fontStyle: "bold",
   textColor: "#111827",
-  paddingX: 14,
-  paddingY: 10,
+  paddingX: 8,
+  paddingY: 4,
 };
 
 export const DEFAULT_BRANCH_STYLE: BranchStyle = {
   color: "#4B5563",
-  widthStart: 12,
-  widthEnd: 3,
-  curvature: 0.4,
+  widthStart: 8,
+  widthEnd: 2,
+  curvature: 0.35,
 };
 
 // Configuration constants
 export const MINDMAP_CONFIG = {
-  defaultNodeWidth: 220,
-  defaultNodeHeight: 44,
-  minNodeWidth: 80,
+  defaultNodeWidth: 160,
+  defaultNodeHeight: 36,
+  minNodeWidth: 56,
   minNodeHeight: 28,
-  childOffsetX: 240,
-  childOffsetY: 60,
+  childOffsetX: 180,
+  childOffsetY: 56,
   defaultText: "Topic",
   childText: "Idea",
+  lineHeight: 1.25,
 } as const;
 
 // Helper functions for mindmap operations
@@ -113,7 +116,7 @@ export function calculateChildPosition(
   index: number = 0
 ): { x: number; y: number } {
   // Position children to the right with vertical offset
-  const dx = Math.max(MINDMAP_CONFIG.childOffsetX, parent.width + 160);
+  const dx = Math.max(MINDMAP_CONFIG.childOffsetX, parent.width + 140);
   const dy = index * MINDMAP_CONFIG.childOffsetY;
   
   return {
@@ -158,5 +161,48 @@ export function resizeMindmapNode(
     ...node,
     width: Math.max(MINDMAP_CONFIG.minNodeWidth, newWidth),
     height: Math.max(MINDMAP_CONFIG.minNodeHeight, newHeight),
+  };
+}
+
+let measureCanvas: HTMLCanvasElement | null = null;
+
+function getMeasureContext(): CanvasRenderingContext2D {
+  if (!measureCanvas) {
+    measureCanvas = document.createElement("canvas");
+  }
+  const ctx = measureCanvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to acquire 2D context for mindmap measurement");
+  }
+  return ctx;
+}
+
+/**
+ * Measure rendered text dimensions for mindmap nodes using Canvas 2D API.
+ */
+export function measureMindmapLabel(
+  text: string,
+  style: MindmapNodeStyle,
+  lineHeight: number = MINDMAP_CONFIG.lineHeight
+): { width: number; height: number } {
+  const ctx = getMeasureContext();
+  const fontWeight = style.fontStyle?.includes("bold") ? "700" : "400";
+  const fontStyle = style.fontStyle?.includes("italic") ? "italic" : "normal";
+  ctx.font = `${fontStyle} ${fontWeight} ${style.fontSize}px ${style.fontFamily}`;
+
+  const lines = text ? text.split(/\r?\n/) : [""];
+  let maxWidth = 0;
+  for (const line of lines) {
+    const metrics = ctx.measureText(line);
+    maxWidth = Math.max(maxWidth, metrics.width);
+  }
+  const textHeight = Math.max(
+    style.fontSize,
+    lines.length * style.fontSize * lineHeight
+  );
+
+  return {
+    width: Math.ceil(maxWidth),
+    height: Math.ceil(textHeight),
   };
 }

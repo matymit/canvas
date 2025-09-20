@@ -5,7 +5,17 @@ import { MindmapRenderer } from "./MindmapRenderer";
 import type {
   MindmapNodeElement,
   MindmapEdgeElement,
+  MindmapNodeStyle,
+  BranchStyle,
 } from "../../types/mindmap";
+import type { CanvasElement } from "../../../../../types";
+import {
+  DEFAULT_BRANCH_STYLE,
+  DEFAULT_NODE_STYLE,
+  MINDMAP_CONFIG,
+  getNodeConnectionPoint,
+  measureMindmapLabel,
+} from "@/features/canvas/types/mindmap";
 
 type Id = string;
 
@@ -14,15 +24,66 @@ interface MindmapElements {
   edges: Map<Id, MindmapEdgeElement>;
 }
 
+function mergeNodeStyle(style?: MindmapNodeStyle): MindmapNodeStyle {
+  return { ...DEFAULT_NODE_STYLE, ...(style ?? {}) };
+}
+
+function mergeBranchStyle(style?: BranchStyle): BranchStyle {
+  return { ...DEFAULT_BRANCH_STYLE, ...(style ?? {}) };
+}
+
+function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
+  if (element.type !== "mindmap-node") return null;
+
+  const style = mergeNodeStyle((element as any).style ?? (element as any).data?.style);
+  const metrics = measureMindmapLabel(
+    (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
+    style
+  );
+  const measuredWidth = Math.max(
+    metrics.width + style.paddingX * 2,
+    MINDMAP_CONFIG.minNodeWidth
+  );
+  const measuredHeight = Math.max(
+    metrics.height + style.paddingY * 2,
+    MINDMAP_CONFIG.minNodeHeight
+  );
+
+  return {
+    id: element.id,
+    type: "mindmap-node",
+    x: element.x ?? 0,
+    y: element.y ?? 0,
+    width: measuredWidth,
+    height: measuredHeight,
+    text: (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
+    style,
+    parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
+    textWidth: metrics.width,
+    textHeight: metrics.height,
+  };
+}
+
+function toMindmapEdge(element: CanvasElement): MindmapEdgeElement | null {
+  if (element.type !== "mindmap-edge") return null;
+
+  const style = mergeBranchStyle((element as any).style ?? (element as any).data?.style);
+  return {
+    id: element.id,
+    type: "mindmap-edge",
+    fromId: (element as any).fromId ?? (element as any).data?.fromId ?? "",
+    toId: (element as any).toId ?? (element as any).data?.toId ?? "",
+    style,
+  };
+}
+
 export class MindmapRendererAdapter implements RendererModule {
   private renderer?: MindmapRenderer;
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[MindmapRendererAdapter] Mounting...");
-
     // Create MindmapRenderer instance
-    this.renderer = new MindmapRenderer(ctx.layers);
+    this.renderer = new MindmapRenderer(ctx.layers, ctx.store);
 
     // Subscribe to store changes - watch mindmap elements
     this.unsubscribe = ctx.store.subscribe(
@@ -32,10 +93,16 @@ export class MindmapRendererAdapter implements RendererModule {
         const edges = new Map<Id, MindmapEdgeElement>();
 
         for (const [id, element] of state.elements.entries()) {
-          if (element.type === "mindmap-node") {
-            nodes.set(id, element as MindmapNodeElement);
-          } else if (element.type === "mindmap-edge") {
-            edges.set(id, element as unknown as MindmapEdgeElement);
+          const canvasElement = element as CanvasElement;
+          const node = toMindmapNode(canvasElement);
+          if (node) {
+            nodes.set(id, node);
+            continue;
+          }
+
+          const edge = toMindmapEdge(canvasElement);
+          if (edge) {
+            edges.set(id, edge);
           }
         }
 
@@ -55,10 +122,16 @@ export class MindmapRendererAdapter implements RendererModule {
     };
 
     for (const [id, element] of initialState.elements.entries()) {
-      if (element.type === "mindmap-node") {
-        initialElements.nodes.set(id, element as MindmapNodeElement);
-      } else if (element.type === "mindmap-edge") {
-        initialElements.edges.set(id, element as unknown as MindmapEdgeElement);
+      const canvasElement = element as CanvasElement;
+      const node = toMindmapNode(canvasElement);
+      if (node) {
+        initialElements.nodes.set(id, node);
+        continue;
+      }
+
+      const edge = toMindmapEdge(canvasElement);
+      if (edge) {
+        initialElements.edges.set(id, edge);
       }
     }
 
@@ -69,7 +142,6 @@ export class MindmapRendererAdapter implements RendererModule {
   }
 
   private unmount() {
-    console.log("[MindmapRendererAdapter] Unmounting...");
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -84,36 +156,27 @@ export class MindmapRendererAdapter implements RendererModule {
   }
 
   private reconcile(elements: MindmapElements) {
-    // Only log when there are actual elements to reconcile (reduce console spam)
-    if (elements.nodes.size > 0 || elements.edges.size > 0) {
-      console.log(
-        "[MindmapRendererAdapter] Reconciling",
-        elements.nodes.size,
-        "nodes and",
-        elements.edges.size,
-        "edges",
-      );
-    }
-
     if (!this.renderer) return;
 
     const seenNodes = new Set<Id>();
     const seenEdges = new Set<Id>();
 
     // Helper function to get node center for edge rendering
-    const getNodeCenter = (nodeId: string): { x: number; y: number } | null => {
+    const getNodePoint = (
+      nodeId: string,
+      side: 'left' | 'right'
+    ): { x: number; y: number } | null => {
       const node = elements.nodes.get(nodeId);
       if (!node) return null;
-      return {
-        x: node.x + node.width / 2,
-        y: node.y + node.height / 2,
-      };
+      return getNodeConnectionPoint(node, side);
     };
 
     // Render edges first (so they appear behind nodes)
     for (const [id, edge] of elements.edges) {
       seenEdges.add(id);
-      this.renderer.renderEdge(edge, getNodeCenter);
+      if (edge.fromId && edge.toId) {
+        this.renderer.renderEdge(edge, getNodePoint);
+      }
     }
 
     // Then render nodes on top

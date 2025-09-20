@@ -1,74 +1,83 @@
-// Mindmap tool with preview/commit, DOM editing, and child spawning
-// Follows existing tool patterns with four-layer usage and unified store integration
-
 import React, { useEffect, useRef } from "react";
 import Konva from "konva";
 import { nanoid } from "nanoid";
-import type {
-  MindmapNodeElement
-} from "../../../types/mindmap";
+import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import {
-  createMindmapNode,
-  createMindmapEdge,
-  calculateChildPosition,
+  DEFAULT_BRANCH_STYLE,
+  DEFAULT_NODE_STYLE,
   MINDMAP_CONFIG,
-  DEFAULT_NODE_STYLE
-} from "../../../types/mindmap";
-import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+  calculateChildPosition,
+  createMindmapEdge,
+  createMindmapNode,
+  measureMindmapLabel,
+} from "@/features/canvas/types/mindmap";
+import type {
+  BranchStyle,
+  MindmapEdgeElement,
+  MindmapNodeElement,
+  MindmapNodeStyle,
+} from "@/features/canvas/types/mindmap";
+import { openMindmapNodeEditor } from "@/features/canvas/utils/editors/openMindmapNodeEditor";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
-export interface MindmapToolProps { 
-  isActive: boolean; 
-  stageRef: StageRef; 
-  toolId?: string; 
+export interface MindmapToolProps {
+  isActive: boolean;
+  stageRef: StageRef;
+  toolId?: string;
 }
 
-function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
-  // Try by name or id; fallback to index if not named
-  const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
-  if (named && named instanceof Konva.Layer) return named;
+interface ToolState {
+  start: { x: number; y: number } | null;
+  preview: Konva.Rect | null;
+}
+
+function cloneStyle(style: MindmapNodeStyle): MindmapNodeStyle {
+  return { ...style };
+}
+
+function cloneBranchStyle(style: BranchStyle): BranchStyle {
+  return { ...style };
+}
+
+function ensurePreviewLayer(stage: Konva.Stage): Konva.Layer | null {
   const layers = stage.getLayers();
-  return layers[indexFallback] ?? null;
+  const previewLayer = layers[3] ?? layers[layers.length - 2];
+  return previewLayer ?? null;
 }
 
-export const MindmapTool: React.FC<MindmapToolProps> = ({ 
-  isActive, 
-  stageRef, 
-  toolId = "mindmap" 
+export const MindmapTool: React.FC<MindmapToolProps> = ({
+  isActive,
+  stageRef,
+  toolId = "mindmap",
 }) => {
-  const getSelectedTool = useUnifiedCanvasStore(s => s.ui?.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore(s => s.ui?.setSelectedTool);
-  const upsertElement = useUnifiedCanvasStore(s => s.element?.upsert);
-  const replaceSelection = useUnifiedCanvasStore(s => s.replaceSelectionWithSingle);
-  const getSelectedIds = useUnifiedCanvasStore(s => s.getSelectedIds);
+  const selectedTool = useUnifiedCanvasStore((s: any) => s.ui?.selectedTool ?? s.selectedTool);
+  const setSelectedTool = useUnifiedCanvasStore((s: any) => s.ui?.setSelectedTool ?? s.setSelectedTool);
+  const addElement = useUnifiedCanvasStore((s: any) => s.addElement ?? s.element?.addElement);
+  const replaceSelection = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle ?? s.selection?.replaceSelectionWithSingle);
+  const getSelectedIds = useUnifiedCanvasStore((s: any) => s.getSelectedIds ?? s.selection?.getSelectedIds);
+  const beginBatch = useUnifiedCanvasStore((s: any) => s.history?.beginBatch ?? s.beginBatch);
+  const endBatch = useUnifiedCanvasStore((s: any) => s.history?.endBatch ?? s.endBatch);
 
-  const stateRef = useRef<{ 
-    start: { x: number; y: number } | null; 
-    preview: Konva.Rect | null;
-  }>({ start: null, preview: null });
+  const state = useRef<ToolState>({ start: null, preview: null });
 
   useEffect(() => {
     const stage = stageRef.current;
-    const active = isActive && getSelectedTool === toolId;
+    const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
-    const previewLayer = getNamedOrIndexedLayer(stage, 'preview', 2) || 
-                        stage.getLayers()[stage.getLayers().length - 2] || 
-                        stage.getLayers()[0];
-    
+    const previewLayer = ensurePreviewLayer(stage);
     if (!previewLayer) return;
 
-    const onPointerDown = () => {
-      const pos = stage.getPointerPosition();
-      if (!pos) return;
+    const handlePointerDown = () => {
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
 
-      stateRef.current.start = { x: pos.x, y: pos.y };
+      state.current.start = { x: pointer.x, y: pointer.y };
 
-      // Create preview rectangle with dashed border
-      const preview = new Konva.Rect({
-        x: pos.x,
-        y: pos.y,
+      const previewRect = new Konva.Rect({
+        x: pointer.x,
+        y: pointer.y,
         width: 0,
         height: 0,
         stroke: DEFAULT_NODE_STYLE.stroke,
@@ -79,289 +88,146 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
         name: "mindmap-preview",
       });
 
-      stateRef.current.preview = preview;
-      previewLayer.add(preview);
+      state.current.preview = previewRect;
+      previewLayer.add(previewRect);
       previewLayer.batchDraw();
 
-      stage.on('pointermove.mindmap', onPointerMove);
-      stage.on('pointerup.mindmap', onPointerUp);
+      stage.on("pointermove.mindmap", handlePointerMove);
+      stage.on("pointerup.mindmap", handlePointerUp);
     };
 
-    const onPointerMove = () => {
-      const start = stateRef.current.start;
-      const preview = stateRef.current.preview;
+    const handlePointerMove = () => {
+      const { start, preview } = state.current;
       if (!start || !preview) return;
 
-      const pos = stage.getPointerPosition();
-      if (!pos) return;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
 
-      const x = Math.min(start.x, pos.x);
-      const y = Math.min(start.y, pos.y);
-      const w = Math.abs(pos.x - start.x);
-      const h = Math.abs(pos.y - start.y);
+      const x = Math.min(start.x, pointer.x);
+      const y = Math.min(start.y, pointer.y);
+      const width = Math.abs(pointer.x - start.x);
+      const height = Math.abs(pointer.y - start.y);
 
       preview.position({ x, y });
-      preview.size({ width: w, height: h });
+      preview.size({ width, height });
       previewLayer.batchDraw();
     };
 
-    const commitNode = (x: number, y: number, w: number, h: number): string | undefined => {
-      const { defaultNodeWidth, defaultNodeHeight, minNodeWidth, minNodeHeight, defaultText } = MINDMAP_CONFIG;
-      
-      // Use default size for small drags or clicks
-      const finalWidth = w < 20 ? defaultNodeWidth : Math.max(minNodeWidth, w);
-      const finalHeight = h < 20 ? defaultNodeHeight : Math.max(minNodeHeight, h);
+    const commitNode = (x: number, y: number, width: number, height: number) => {
+      const { minNodeWidth, minNodeHeight, defaultText } = MINDMAP_CONFIG;
+      const id = crypto?.randomUUID?.() ?? nanoid();
+      const node = {
+        id,
+        ...createMindmapNode(x, y, defaultText, null),
+        style: cloneStyle(DEFAULT_NODE_STYLE),
+      } as MindmapNodeElement;
 
-      const nodeData = createMindmapNode(x, y, defaultText);
-      const elementData = {
-        ...nodeData,
-        id: nanoid(),
-        width: finalWidth,
-        height: finalHeight,
-        // Store mindmap-specific data in the data field
-        data: {
-          text: nodeData.text,
-          style: nodeData.style,
-          parentId: nodeData.parentId,
-        },
-        // Convert to CanvasElement format
-        bounds: { x, y, width: finalWidth, height: finalHeight },
-      } as any;
+      const metrics = measureMindmapLabel(node.text, node.style);
+      node.textWidth = metrics.width;
+      node.textHeight = metrics.height;
+      const dragWidth = width >= minNodeWidth ? width : 0;
+      const dragHeight = height >= minNodeHeight ? height : 0;
+      node.width = Math.max(metrics.width + node.style.paddingX * 2, dragWidth, minNodeWidth);
+      node.height = Math.max(metrics.height + node.style.paddingY * 2, dragHeight, minNodeHeight);
 
-      const nodeId = upsertElement?.(elementData);
-      
-      if (nodeId && replaceSelection) {
-        replaceSelection(nodeId);
-      }
-      
-      // Open editor for immediate text input
-      setTimeout(() => openNodeEditor(stage, nodeId || nanoid(), elementData), 50);
-      
-      return nodeId;
+      beginBatch?.("create-mindmap-node", "mindmap:create");
+      addElement?.(node as any, { pushHistory: true, select: true });
+      endBatch?.(true);
+
+      replaceSelection?.(id);
+      openMindmapNodeEditor(stage, id, node);
+      return id;
     };
 
     const spawnChild = (parentId: string) => {
       const store = useUnifiedCanvasStore.getState();
-      const getElement = store.element?.getById;
+      const getElement = (store.getElement as any) ?? store.element?.getById;
       const parent = getElement?.(parentId) as MindmapNodeElement | undefined;
-      
       if (!parent) return;
 
-      // Calculate child position
-      const childPos = calculateChildPosition(parent, 0);
-      const childData = createMindmapNode(
-        childPos.x, 
-        childPos.y, 
-        MINDMAP_CONFIG.childText, 
-        parentId
-      );
-      
-      const childElementData = {
-        ...childData,
-        id: nanoid(),
-        // Store mindmap-specific data in the data field
-        data: {
-          text: childData.text,
-          style: childData.style,
-          parentId: childData.parentId,
-        },
-        // Convert to CanvasElement format 
-        bounds: { 
-          x: childPos.x, 
-          y: childPos.y, 
-          width: childData.width, 
-          height: childData.height 
-        },
-      } as any;
+      const position = calculateChildPosition(parent);
+      const childId = crypto?.randomUUID?.() ?? nanoid();
+      const child = {
+        id: childId,
+        ...createMindmapNode(position.x, position.y, MINDMAP_CONFIG.childText, parentId),
+        style: cloneStyle(DEFAULT_NODE_STYLE),
+      } as MindmapNodeElement;
 
-      const childId = upsertElement?.(childElementData);
+      const childMetrics = measureMindmapLabel(child.text, child.style);
+      child.textWidth = childMetrics.width;
+      child.textHeight = childMetrics.height;
+      child.width = Math.max(childMetrics.width + child.style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
+      child.height = Math.max(childMetrics.height + child.style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
 
-      // Create connecting edge
-      if (childId) {
-        const edgeData = createMindmapEdge(parentId, childId);
-        const edgeElementData = {
-          ...edgeData,
-          id: nanoid(),
-          // Edges don't have x,y but CanvasElement requires them
-          x: 0,
-          y: 0,
-          // Store edge-specific data in the data field
-          data: {
-            fromId: edgeData.fromId,
-            toId: edgeData.toId,
-            style: edgeData.style,
-          },
-          // Edges don't need bounds but include for consistency
-          bounds: { x: 0, y: 0, width: 0, height: 0 },
-        } as any;
-        
-        upsertElement?.(edgeElementData);
-        
-        // Select the new child and open editor
-        if (replaceSelection) {
-          replaceSelection(childId);
-        }
-        
-        setTimeout(() => openNodeEditor(stage, childId, childElementData), 50);
-      }
+      const edgeId = crypto?.randomUUID?.() ?? nanoid();
+      const edge = {
+        id: edgeId,
+        ...createMindmapEdge(parentId, childId, cloneBranchStyle(DEFAULT_BRANCH_STYLE)),
+      } as MindmapEdgeElement;
+
+      beginBatch?.("create-mindmap-child", "mindmap:create");
+      addElement?.(child as any, { pushHistory: true, select: true });
+      addElement?.(edge as any, { pushHistory: true });
+      endBatch?.(true);
+
+      replaceSelection?.(childId);
+      openMindmapNodeEditor(stage, childId, child);
     };
 
-    const onPointerUp = () => {
-      stage.off('pointermove.mindmap');
-      stage.off('pointerup.mindmap');
+    const handlePointerUp = () => {
+      stage.off("pointermove.mindmap");
+      stage.off("pointerup.mindmap");
 
-      const start = stateRef.current.start;
-      const preview = stateRef.current.preview;
-      stateRef.current.start = null;
+      const { start, preview } = state.current;
+      const pointer = stage.getPointerPosition();
+      state.current.start = null;
 
       if (preview) {
-        preview.remove();
         preview.destroy();
+        state.current.preview = null;
         previewLayer.batchDraw();
-        stateRef.current.preview = null;
       }
 
-      const pos = stage.getPointerPosition();
-      if (!start || !pos) return;
+      if (!start || !pointer) return;
 
-      const x = Math.min(start.x, pos.x);
-      const y = Math.min(start.y, pos.y);
-      const w = Math.abs(pos.x - start.x);
-      const h = Math.abs(pos.y - start.y);
+      const x = Math.min(start.x, pointer.x);
+      const y = Math.min(start.y, pointer.y);
+      const width = Math.abs(pointer.x - start.x);
+      const height = Math.abs(pointer.y - start.y);
 
-      commitNode(x, y, w, h);
+      commitNode(x, y, width, height);
       setSelectedTool?.("select");
     };
 
-    // Keyboard handler for spawning children
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        const selectedIds = getSelectedIds?.() || [];
-        const lastSelectedId = selectedIds[selectedIds.length - 1];
-        
-        if (lastSelectedId) {
-          e.preventDefault();
-          spawnChild(lastSelectedId);
-        }
-      }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      const ids = getSelectedIds?.() ?? [];
+      const activeId = ids[ids.length - 1];
+      if (!activeId) return;
+
+      event.preventDefault();
+      spawnChild(activeId);
     };
 
-    stage.on('pointerdown.mindmap', onPointerDown);
-    window.addEventListener('keydown', onKeyDown);
+    stage.on("pointerdown.mindmap", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      stage.off('pointerdown.mindmap');
-      stage.off('pointermove.mindmap');
-      stage.off('pointerup.mindmap');
-      window.removeEventListener('keydown', onKeyDown);
-      
-      // Cleanup preview if exists
-      const preview = stateRef.current.preview;
-      if (preview) {
-        preview.destroy();
-        stateRef.current.preview = null;
+      stage.off("pointerdown.mindmap", handlePointerDown);
+      stage.off("pointermove.mindmap", handlePointerMove);
+      stage.off("pointerup.mindmap", handlePointerUp);
+      window.removeEventListener("keydown", handleKeyDown);
+
+      if (state.current.preview) {
+        state.current.preview.destroy();
+        state.current.preview = null;
       }
-      stateRef.current.start = null;
+      state.current.start = null;
       previewLayer.batchDraw();
     };
-  }, [isActive, stageRef, getSelectedTool, toolId, upsertElement, setSelectedTool, replaceSelection, getSelectedIds]);
+  }, [isActive, selectedTool, stageRef, toolId, setSelectedTool, addElement, replaceSelection, getSelectedIds, beginBatch, endBatch]);
 
   return null;
 };
 
 export default MindmapTool;
-
-// DOM overlay editor for immediate text input - matches TextTool pattern
-function openNodeEditor(
-  stage: Konva.Stage, 
-  nodeId: string, 
-  nodeModel: Omit<MindmapNodeElement, "id"> & { id: string }
-) {
-  const container = stage.container();
-  const rect = container.getBoundingClientRect();
-  const stageTransform = stage.getAbsoluteTransform();
-  const scaleX = stage.scaleX() || 1;
-  const scaleY = stage.scaleY() || 1;
-  
-  // Position at node's text area (world -> screen)
-  const textX = nodeModel.x + nodeModel.style.paddingX;
-  const textY = nodeModel.y + nodeModel.style.paddingY;
-  const screenPos = stageTransform.point({ x: textX, y: textY });
-  const left = rect.left + screenPos.x;
-  const top = rect.top + screenPos.y;
-
-  // Scale size metrics to match current zoom to avoid overflow/underflow
-  const contentWidth = Math.max(120, (nodeModel.width - nodeModel.style.paddingX * 2)) * scaleX;
-  const contentMinHeight = 32 * scaleY;
-  const padY = 8 * scaleY;
-  const padX = 10 * scaleX;
-  const radius = nodeModel.style.cornerRadius * ((scaleX + scaleY) / 2);
-  const fontSizePx = nodeModel.style.fontSize * scaleY;
-
-  const textarea = document.createElement("textarea");
-  Object.assign(textarea.style, {
-    position: "absolute",
-    left: `${left}px`,
-    top: `${top}px`,
-    width: `${contentWidth}px`,
-    minHeight: `${contentMinHeight}px`,
-    padding: `${padY}px ${padX}px`,
-    border: "2px solid #3B82F6",
-    borderRadius: `${radius}px`,
-    background: nodeModel.style.fill,
-    color: nodeModel.style.textColor,
-    fontFamily: nodeModel.style.fontFamily,
-    fontSize: `${fontSizePx}px`,
-    fontWeight: "600",
-    lineHeight: "1.25",
-    zIndex: "1000",
-    outline: "none",
-    resize: "none",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-  } as CSSStyleDeclaration);
-  
-  textarea.value = nodeModel.text || "";
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  const commit = (cancel: boolean) => {
-    const value = textarea.value.trim();
-    if (textarea.parentElement) {
-      textarea.parentElement.removeChild(textarea);
-    }
-    
-    if (cancel || !value) return;
-    
-    // Update node text in store
-    const store = useUnifiedCanvasStore.getState();
-    const updateElement = store.element?.update;
-    if (updateElement) {
-      updateElement(nodeId, { 
-        data: {
-          ...store.element.getById?.(nodeId)?.data,
-          text: value
-        }
-      });
-    }
-  };
-
-  // Handle keyboard events
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      commit(false);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      commit(true);
-    }
-    // Allow Shift+Enter for multi-line text
-  };
-  
-  const handleBlur = () => {
-    commit(false);
-  };
-
-  textarea.addEventListener("keydown", handleKeyDown);
-  textarea.addEventListener("blur", handleBlur, { once: true });
-}
