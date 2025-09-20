@@ -274,8 +274,14 @@ export class SelectionModule implements RendererModule {
       const rotation = node.rotation();
       const scale = node.scale();
 
-      // Check if this is a table element for special cell dimension scaling
-      const isTable = node.className === 'table-group';
+      // CRITICAL FIX: Check if this is a table element by looking at the actual element data
+      const element = store?.elements?.get?.(elementId) ?? store.element?.getById?.(elementId);
+      const isTable = element?.type === 'table';
+
+      // Log for debugging
+      if (elementId && (scale?.x !== 1 || scale?.y !== 1)) {
+        console.log('[SelectionModule] Processing transform for element:', elementId, 'isTable:', isTable, 'scale:', scale);
+      }
 
       // CRITICAL FIX: Ensure dimensions never become 0 or negative
       // Use absolute values of scale to handle negative scaling (flipping)
@@ -285,10 +291,6 @@ export class SelectionModule implements RendererModule {
 
       let scaleX = Math.abs(scale?.x || 1);
       let scaleY = Math.abs(scale?.y || 1);
-
-      // FIXED: For tables, apply proportional scaling to maintain cell structure
-      // No longer forcing uniform scale - apply scaleX to width, scaleY to height
-      // This preserves the table's aspect ratio and prevents cell malformation
 
       const scaledWidth = size.width * scaleX;
       const scaledHeight = size.height * scaleY;
@@ -302,21 +304,34 @@ export class SelectionModule implements RendererModule {
         rotation: Math.round(rotation * 100) / 100,
       };
 
-      // Special handling for table elements - scale cell dimensions proportionally
+      // CRITICAL FIX: Special handling for table elements - scale cell dimensions proportionally
       if (isTable && (scaleX !== 1 || scaleY !== 1)) {
-        const element =
-          store?.elements?.get?.(elementId) ??
-          store.element?.getById?.(elementId);
+        console.log('[SelectionModule] Applying table-specific scaling to element:', elementId);
         if (element && element.colWidths && element.rowHeights) {
           const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
-          // FIXED: Apply scaleX to column widths and scaleY to row heights
+          
+          // Apply scaleX to column widths and scaleY to row heights
           // This maintains the proper aspect ratio for each cell
-          changes.colWidths = element.colWidths.map((w: number) =>
+          const newColWidths = element.colWidths.map((w: number) =>
             Math.max(minCellWidth, Math.round(w * scaleX * 100) / 100)
           );
-          changes.rowHeights = element.rowHeights.map((h: number) =>
-            Math.max(minCellHeight, Math.round(h * scaleY * 100) / 100)  // Use scaleY for row heights
+          const newRowHeights = element.rowHeights.map((h: number) =>
+            Math.max(minCellHeight, Math.round(h * scaleY * 100) / 100)
           );
+          
+          changes.colWidths = newColWidths;
+          changes.rowHeights = newRowHeights;
+          
+          console.log('[SelectionModule] Table dimensions scaled:', {
+            originalColWidths: element.colWidths,
+            newColWidths,
+            originalRowHeights: element.rowHeights,
+            newRowHeights,
+            scaleX,
+            scaleY
+          });
+        } else {
+          console.warn('[SelectionModule] Table element missing colWidths/rowHeights:', element);
         }
       }
 
