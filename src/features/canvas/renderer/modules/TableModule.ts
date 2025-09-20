@@ -1,6 +1,6 @@
 // Table renderer module for main layer rendering with Konva groups
+// CORRECTED to properly handle scale→reset pattern and prevent child updates during transform
 // Follows existing four-layer architecture and performance patterns
-// CRITICAL FIX: Ensures proper scale handling for Konva transformer integration
 
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
@@ -346,19 +346,34 @@ export class TableRenderer {
   }
 
   // Rebuild children when geometry or content changes
+  // CRITICAL FIX: Only update children when NOT being transformed
   render(el: TableElement) {
     const g = this.ensureGroup(el);
 
     // CRITICAL FIX: Always ensure proper scale and dimensions from the store
-    g.setAttrs({
-      x: el.x,
-      y: el.y,
-      width: el.width,
-      height: el.height,
-      // CRITICAL: Always ensure scale is 1 for proper transformer handling
-      scaleX: 1,
-      scaleY: 1,
-    });
+    // But don't modify if currently being transformed (scale might be temporarily != 1)
+    const currentScale = { x: g.scaleX(), y: g.scaleY() };
+    const isBeingTransformed = Math.abs(currentScale.x - 1) > 0.01 || Math.abs(currentScale.y - 1) > 0.01;
+    
+    if (!isBeingTransformed) {
+      g.setAttrs({
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        // CRITICAL: Only reset scale if not currently transforming
+        scaleX: 1,
+        scaleY: 1,
+      });
+    } else {
+      // During transform, only update position but leave scale/size alone
+      g.setAttrs({
+        x: el.x,
+        y: el.y,
+      });
+      console.log('[TableModule] Skipping child update during transform, scale:', currentScale);
+      return; // Don't rebuild children during transform
+    }
 
     // Release pooled nodes if using pooling
     if (this.pool) {
