@@ -226,11 +226,11 @@ A FigJam-style collaborative canvas application built with **React 19**, **TypeS
 
 #### Mindmap Tool
 
-- Click or drag → rounded node with default text; editor opens immediately in the same centred square used by Konva.
-- Enter while editing (no Shift) → spawns a right-offset child node and tapered branch in a single history batch; parent selection updates to the child.
-- Branches reroute on drag/transform via stage-level listeners so curves stay anchored to each node’s right connection point.
-- Text stays horizontally and vertically centred before, during, and after editing through the shared DOM overlay utility.
-- Node moves and content edits push undoable snapshots; branch styling (width/curvature) remains consistent via shared defaults.
+- Click or drag → seeded root node with themed fill, rounded corners, and centre-aligned editor that matches the Konva text frame.
+- Enter while editing (no Shift) → creates a colour-coordinated child node offset to the right and a tapered ribbon branch in the same history batch; focus moves to the child.
+- Branches reroute on drag/transform via stage-level listeners so curves stay glued to each node’s edge without jitter.
+- Text stays horizontally and vertically centred during editing thanks to the shared DOM overlay + measurement helpers.
+- Node moves, size changes, and copy edits push undoable snapshots; branch curvature and tapering remain consistent via shared defaults.
 
 #### Eraser Tool
 
@@ -456,6 +456,7 @@ Each tool implements `ToolEventHandler` interface with pointer-first design and 
 - **Hierarchy**: `calculateChildPosition` offsets new children and records `parentId` on each node
 - **Live Routing**: `wireMindmapLiveRouting` listens for drag/transform to reroute curves against current node bounding boxes
 - **Child Spawning**: Enter key creates child node + connecting edge inside a single history batch
+- **Theme**: `MINDMAP_THEME` surfaces palette + corner radius so renderer, tool, and adapter stay visually aligned
 
 #### Image System
 

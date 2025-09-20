@@ -14,6 +14,10 @@ export interface MindmapNodeStyle {
   textColor: string;    // e.g., "#111827"
   paddingX: number;     // e.g., 14
   paddingY: number;     // e.g., 10
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
 }
 
 export interface MindmapNodeElement {
@@ -28,6 +32,8 @@ export interface MindmapNodeElement {
   parentId?: ElementId | null; // optional for quick traversal (not required)
   textWidth?: number;
   textHeight?: number;
+  level?: number;
+  color?: string;
 }
 
 export interface BranchStyle {
@@ -47,22 +53,26 @@ export interface MindmapEdgeElement {
 
 // Default styles for consistent mindmap appearance
 export const DEFAULT_NODE_STYLE: MindmapNodeStyle = {
-  fill: "transparent",
-  stroke: "transparent",
-  strokeWidth: 0,
-  cornerRadius: 4,
-  fontFamily: "Inter",
-  fontSize: 20,
+  fill: "#E5E7EB",
+  stroke: "#9CA3AF",
+  strokeWidth: 1,
+  cornerRadius: 14,
+  fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 16,
   fontStyle: "bold",
   textColor: "#111827",
-  paddingX: 8,
-  paddingY: 4,
+  paddingX: 14,
+  paddingY: 10,
+  shadowColor: "rgba(17, 24, 39, 0.08)",
+  shadowBlur: 8,
+  shadowOffsetX: 0,
+  shadowOffsetY: 2,
 };
 
 export const DEFAULT_BRANCH_STYLE: BranchStyle = {
-  color: "#4B5563",
-  widthStart: 8,
-  widthEnd: 2,
+  color: "#6B7280",
+  widthStart: 10,
+  widthEnd: 4,
   curvature: 0.35,
 };
 
@@ -79,13 +89,48 @@ export const MINDMAP_CONFIG = {
   lineHeight: 1.25,
 } as const;
 
+export const MINDMAP_THEME = {
+  nodeColors: ["#E5E7EB", "#DBEAFE", "#DCFCE7", "#FEF3C7", "#FDE2E7"],
+  branchColors: ["#6B7280", "#3B82F6", "#10B981", "#F59E0B", "#EF4444"],
+  textColor: "#111827",
+  nodeRadius: 14,
+} as const;
+
+export interface MindmapNodeOptions {
+  parentId?: ElementId | null;
+  level?: number;
+  color?: string;
+  style?: Partial<MindmapNodeStyle>;
+}
+
 // Helper functions for mindmap operations
 export function createMindmapNode(
-  x: number, 
-  y: number, 
+  x: number,
+  y: number,
   text: string = MINDMAP_CONFIG.defaultText,
-  parentId?: ElementId | null
+  options: MindmapNodeOptions = {}
 ): Omit<MindmapNodeElement, "id"> {
+  const {
+    parentId = null,
+    level = parentId ? 1 : 0,
+    color,
+    style: styleOverrides,
+  } = options;
+
+  const themeColor = color ?? MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
+  const style: MindmapNodeStyle = {
+    ...DEFAULT_NODE_STYLE,
+    ...styleOverrides,
+    fill: styleOverrides?.fill ?? themeColor,
+    textColor: styleOverrides?.textColor ?? DEFAULT_NODE_STYLE.textColor,
+    fontStyle: styleOverrides?.fontStyle ?? (level === 0 ? "bold" : "normal"),
+    fontSize: styleOverrides?.fontSize ?? (level === 0 ? 16 : 14),
+    stroke:
+      styleOverrides?.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+    strokeWidth: styleOverrides?.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+    cornerRadius: styleOverrides?.cornerRadius ?? MINDMAP_THEME.nodeRadius,
+  };
+
   return {
     type: "mindmap-node",
     x,
@@ -93,8 +138,10 @@ export function createMindmapNode(
     width: MINDMAP_CONFIG.defaultNodeWidth,
     height: MINDMAP_CONFIG.defaultNodeHeight,
     text,
-    style: { ...DEFAULT_NODE_STYLE },
+    style,
     parentId,
+    level,
+    color: themeColor,
   };
 }
 
@@ -103,11 +150,12 @@ export function createMindmapEdge(
   toId: ElementId,
   style?: Partial<BranchStyle>
 ): Omit<MindmapEdgeElement, "id"> {
+  const baseColor = style?.color ?? MINDMAP_THEME.branchColors[0];
   return {
     type: "mindmap-edge",
     fromId,
     toId,
-    style: { ...DEFAULT_BRANCH_STYLE, ...style },
+    style: { ...DEFAULT_BRANCH_STYLE, ...style, color: baseColor },
   };
 }
 

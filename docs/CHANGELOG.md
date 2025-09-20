@@ -15,11 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧠 Mindmap Nodes & Branches
 
-- Added full mindmap renderer with draggable node groups, selectable branches, and debounced edge rerouting that stays anchored to each node’s right-side connection point
-- Mindmap nodes now render as bare text labels with invisible hit areas while bezier branches stroke out from each label, matching the FigJam reference layout
-- Rebuilt mindmap tool flow with batched history commits, immediate inline editing, and keyboard child spawning (`Enter`) that drops linked nodes in one transaction
-- Introduced shared DOM editor (`openMindmapNodeEditor`) so text remains centre-aligned during and after edits and persists via store updates
-- Normalized node/edge styles across renderer, live routing, and persistence to support backward-compatible data while keeping branch visuals consistent
+- Mindmap nodes now render as rounded colour cards with soft shadows, centre-aligned text, and FigJam-matching typography that stays consistent before, during, and after edits
+- Curved branches are drawn as filled, tapered ribbons using Bézier geometry so connectors feel organic while remaining glued to each node’s edge during drags and transforms
+- Tooling seeds a themed root node, spawns colour-coordinated children with `Enter`, and commits nodes/branches in one batched history entry for predictable undo
+- Inline editor reuses shared measurement helpers to auto-size the node frame while keeping copy perfectly centred, regardless of zoom or padding
 
 ## [2.5.0] - 2025-01-18
 

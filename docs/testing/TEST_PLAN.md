@@ -37,7 +37,7 @@ This test plan covers unit, integration, end-to-end, performance, visual regress
 1) Tool flows
 - rectangle, ellipse, triangle, text, sticky, image, connector, table, mindmap
 - preview appears on Preview layer, commit to Main, auto-select, tool auto-switch to Select
-- mindmap nodes: creation auto-opens centred editor, Enter spawns child + branch in one history entry, and dragging a node reroutes connected tapered edges
+- mindmap nodes: creation seeds themed root card, auto-opens centred editor, Enter spawns colour-matched child + tapered ribbon in one history entry, and dragging any node reroutes connected ribbons without losing edge anchors
 
 2) Shape text overlay
 - on commit, overlay opens centered; caret centered; typing expands overlay smoothly

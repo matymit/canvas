@@ -8,6 +8,7 @@ import {
   DEFAULT_BRANCH_STYLE,
   DEFAULT_NODE_STYLE,
   MINDMAP_CONFIG,
+  MINDMAP_THEME,
   measureMindmapLabel,
   type MindmapEdgeElement,
   type MindmapNodeElement,
@@ -16,7 +17,7 @@ import {
 } from "@/features/canvas/types/mindmap";
 import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import { openMindmapNodeEditor } from "@/features/canvas/utils/editors/openMindmapNodeEditor";
-import { rightwardControls } from "./mindmapRouting";
+import { buildTaperedRibbonPoints, rightwardControls } from "./mindmapRouting";
 
 export interface MindmapRendererOptions {
   // Performance options
@@ -85,7 +86,30 @@ export class MindmapRenderer {
     const raw = getElement?.(elementId);
     if (!raw || raw.type !== "mindmap-node") return null;
 
+    const level =
+      (raw as any).level ??
+      (raw as any).data?.level ??
+      ((raw as any).parentId ?? (raw as any).data?.parentId ? 1 : 0);
+    const color =
+      (raw as any).color ??
+      (raw as any).data?.color ??
+      MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
+
     const style = this.mergeNodeStyle((raw as any).style);
+    const hydratedStyle: MindmapNodeStyle = {
+      ...style,
+      fill: style.fill ?? color,
+      textColor: style.textColor ?? DEFAULT_NODE_STYLE.textColor,
+      fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
+      fontSize: style.fontSize ?? (level === 0 ? 16 : 14),
+      cornerRadius: style.cornerRadius ?? DEFAULT_NODE_STYLE.cornerRadius,
+      stroke: style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+      strokeWidth: style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+      shadowColor: style.shadowColor ?? DEFAULT_NODE_STYLE.shadowColor,
+      shadowBlur: style.shadowBlur ?? DEFAULT_NODE_STYLE.shadowBlur,
+      shadowOffsetX: style.shadowOffsetX ?? DEFAULT_NODE_STYLE.shadowOffsetX,
+      shadowOffsetY: style.shadowOffsetY ?? DEFAULT_NODE_STYLE.shadowOffsetY,
+    };
     return {
       id: raw.id,
       type: "mindmap-node",
@@ -94,8 +118,10 @@ export class MindmapRenderer {
       width: raw.width ?? MINDMAP_CONFIG.defaultNodeWidth,
       height: raw.height ?? MINDMAP_CONFIG.defaultNodeHeight,
       text: (raw as any).text ?? (raw as any).data?.text ?? "",
-      style,
+      style: hydratedStyle,
       parentId: (raw as any).parentId ?? (raw as any).data?.parentId ?? null,
+      level,
+      color,
     };
   }
 
@@ -139,8 +165,8 @@ export class MindmapRenderer {
     const metrics = measureMindmapLabel(element.text ?? "", style);
     const contentWidth = Math.max(metrics.width, 1);
     const contentHeight = Math.max(metrics.height, style.fontSize);
-    const totalWidth = contentWidth + style.paddingX * 2;
-    const totalHeight = contentHeight + style.paddingY * 2;
+    const totalWidth = Math.max(contentWidth + style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
+    const totalHeight = Math.max(contentHeight + style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
 
     const normalized: MindmapNodeElement = {
       ...element,
@@ -183,33 +209,36 @@ export class MindmapRenderer {
     // Clear previous children and rebuild
     group.destroyChildren();
 
-    // Invisible hit rect for interaction
-    const hitRect = new Konva.Rect({
+    const background = new Konva.Rect({
       x: 0,
       y: 0,
       width: totalWidth,
       height: totalHeight,
+      fill: style.fill,
+      stroke: style.stroke,
+      strokeWidth: style.strokeWidth,
       cornerRadius: style.cornerRadius,
-      fill: "#ffffff",
-      opacity: 0.001,
-      listening: true,
+      shadowColor: style.shadowColor,
+      shadowBlur: style.shadowBlur,
+      shadowOffsetX: style.shadowOffsetX ?? 0,
+      shadowOffsetY: style.shadowOffsetY ?? 0,
+      listening: false,
       perfectDrawEnabled: false,
-      name: "node-hit",
+      name: "node-bg",
     });
-    group.add(hitRect);
+    group.add(background);
 
-    // Text content
     const text = new Konva.Text({
       x: style.paddingX,
       y: style.paddingY,
-      width: contentWidth,
+      width: totalWidth - style.paddingX * 2,
       height: totalHeight - style.paddingY * 2,
       text: normalized.text ?? "",
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
-      fontStyle: style.fontStyle ?? 'bold',
+      fontStyle: style.fontStyle ?? "normal",
       fill: style.textColor,
-      align: "left",
+      align: "center",
       verticalAlign: "middle",
       wrap: "word",
       ellipsis: true,
@@ -218,6 +247,20 @@ export class MindmapRenderer {
       name: "node-text",
     });
     group.add(text);
+
+    const hitRect = new Konva.Rect({
+      x: 0,
+      y: 0,
+      width: totalWidth,
+      height: totalHeight,
+      cornerRadius: style.cornerRadius,
+      fill: "#ffffff",
+      opacity: 0,
+      listening: true,
+      perfectDrawEnabled: false,
+      name: "node-hit",
+    });
+    group.add(hitRect);
 
     // Optional caching for performance
     if (this.options.cacheNodes) {
@@ -276,7 +319,7 @@ export class MindmapRenderer {
     const [c1, c2] = rightwardControls(fromCenter, toCenter, k);
 
     // Update the shape's rendering function
-    shape.sceneFunc((ctx: any, shapeNode: Konva.Shape) => {
+    shape.sceneFunc((ctx: Konva.Context, shapeNode: Konva.Shape) => {
       this.drawTaperedBranch(
         ctx,
         shapeNode,
@@ -286,7 +329,8 @@ export class MindmapRenderer {
         toCenter,
         widthStart,
         widthEnd,
-        color
+        color,
+        this.options.edgeSegments ?? 12
       );
     });
 
@@ -297,7 +341,7 @@ export class MindmapRenderer {
    * Draw a tapered branch using the canvas context
    */
   private drawTaperedBranch(
-    ctx: any,
+    ctx: Konva.Context,
     shape: Konva.Shape,
     start: { x: number; y: number },
     c1: { x: number; y: number },
@@ -305,27 +349,32 @@ export class MindmapRenderer {
     end: { x: number; y: number },
     widthStart: number,
     widthEnd: number,
-    color: string
+    color: string,
+    segments: number
   ) {
+    const ribbon = buildTaperedRibbonPoints(start, c1, c2, end, widthStart, widthEnd, segments);
+    if (!ribbon.length) return;
+
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = Math.max(widthStart, 1);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke();
+    ribbon.forEach((point, index) => {
+      if (index === 0) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+    });
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
 
-    if (widthEnd > 0) {
-      ctx.beginPath();
-      ctx.arc(end.x, end.y, Math.max(1, widthEnd * 0.5), 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, Math.max(widthEnd, 1) * 0.5 + 1, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
 
     ctx.restore();
-    ctx.strokeShape(shape);
+    ctx.fillStrokeShape(shape);
   }
 
   /**

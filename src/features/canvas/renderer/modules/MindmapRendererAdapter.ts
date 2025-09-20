@@ -13,6 +13,7 @@ import {
   DEFAULT_BRANCH_STYLE,
   DEFAULT_NODE_STYLE,
   MINDMAP_CONFIG,
+  MINDMAP_THEME,
   getNodeConnectionPoint,
   measureMindmapLabel,
 } from "@/features/canvas/types/mindmap";
@@ -35,17 +36,41 @@ function mergeBranchStyle(style?: BranchStyle): BranchStyle {
 function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
   if (element.type !== "mindmap-node") return null;
 
+  const level =
+    (element as any).level ??
+    (element as any).data?.level ??
+    ((element as any).parentId ?? (element as any).data?.parentId ? 1 : 0);
+  const color =
+    (element as any).color ??
+    (element as any).data?.color ??
+    MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
+
   const style = mergeNodeStyle((element as any).style ?? (element as any).data?.style);
+  const hydratedStyle: MindmapNodeStyle = {
+    ...style,
+    fill: style.fill ?? color,
+    textColor: style.textColor ?? DEFAULT_NODE_STYLE.textColor,
+    fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
+    fontSize: style.fontSize ?? (level === 0 ? 16 : 14),
+    cornerRadius: style.cornerRadius ?? MINDMAP_THEME.nodeRadius,
+    stroke: style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+    strokeWidth: style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+    shadowColor: style.shadowColor ?? DEFAULT_NODE_STYLE.shadowColor,
+    shadowBlur: style.shadowBlur ?? DEFAULT_NODE_STYLE.shadowBlur,
+    shadowOffsetX: style.shadowOffsetX ?? DEFAULT_NODE_STYLE.shadowOffsetX,
+    shadowOffsetY: style.shadowOffsetY ?? DEFAULT_NODE_STYLE.shadowOffsetY,
+  };
+
   const metrics = measureMindmapLabel(
     (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
-    style
+    hydratedStyle
   );
   const measuredWidth = Math.max(
-    metrics.width + style.paddingX * 2,
+    metrics.width + hydratedStyle.paddingX * 2,
     MINDMAP_CONFIG.minNodeWidth
   );
   const measuredHeight = Math.max(
-    metrics.height + style.paddingY * 2,
+    metrics.height + hydratedStyle.paddingY * 2,
     MINDMAP_CONFIG.minNodeHeight
   );
 
@@ -57,23 +82,29 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
     width: measuredWidth,
     height: measuredHeight,
     text: (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
-    style,
+    style: hydratedStyle,
     parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
     textWidth: metrics.width,
     textHeight: metrics.height,
+    level,
+    color,
   };
 }
 
 function toMindmapEdge(element: CanvasElement): MindmapEdgeElement | null {
   if (element.type !== "mindmap-edge") return null;
 
-  const style = mergeBranchStyle((element as any).style ?? (element as any).data?.style);
+  const rawStyle = mergeBranchStyle((element as any).style ?? (element as any).data?.style);
+  const hydratedStyle: BranchStyle = {
+    ...rawStyle,
+    color: rawStyle.color ?? MINDMAP_THEME.branchColors[0],
+  };
   return {
     id: element.id,
     type: "mindmap-edge",
     fromId: (element as any).fromId ?? (element as any).data?.fromId ?? "",
     toId: (element as any).toId ?? (element as any).data?.toId ?? "",
-    style,
+    style: hydratedStyle,
   };
 }
 

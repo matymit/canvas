@@ -6,6 +6,7 @@ import {
   DEFAULT_BRANCH_STYLE,
   DEFAULT_NODE_STYLE,
   MINDMAP_CONFIG,
+  MINDMAP_THEME,
   calculateChildPosition,
   createMindmapEdge,
   createMindmapNode,
@@ -116,10 +117,15 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
     const commitNode = (x: number, y: number, width: number, height: number) => {
       const { minNodeWidth, minNodeHeight, defaultText } = MINDMAP_CONFIG;
       const id = crypto?.randomUUID?.() ?? nanoid();
+      const baseNode = createMindmapNode(x, y, defaultText, {
+        parentId: null,
+        level: 0,
+        style: { fill: MINDMAP_THEME.nodeColors[0] },
+      });
       const node = {
         id,
-        ...createMindmapNode(x, y, defaultText, null),
-        style: cloneStyle(DEFAULT_NODE_STYLE),
+        ...baseNode,
+        style: cloneStyle(baseNode.style),
       } as MindmapNodeElement;
 
       const metrics = measureMindmapLabel(node.text, node.style);
@@ -147,10 +153,18 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
 
       const position = calculateChildPosition(parent);
       const childId = crypto?.randomUUID?.() ?? nanoid();
+      const level = (parent.level ?? 0) + 1;
+      const baseChild = createMindmapNode(position.x, position.y, MINDMAP_CONFIG.childText, {
+        parentId,
+        level,
+        style: {
+          fill: MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length],
+        },
+      });
       const child = {
         id: childId,
-        ...createMindmapNode(position.x, position.y, MINDMAP_CONFIG.childText, parentId),
-        style: cloneStyle(DEFAULT_NODE_STYLE),
+        ...baseChild,
+        style: cloneStyle(baseChild.style),
       } as MindmapNodeElement;
 
       const childMetrics = measureMindmapLabel(child.text, child.style);
@@ -160,9 +174,14 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       child.height = Math.max(childMetrics.height + child.style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
 
       const edgeId = crypto?.randomUUID?.() ?? nanoid();
+      const branchColor =
+        MINDMAP_THEME.branchColors[level % MINDMAP_THEME.branchColors.length];
       const edge = {
         id: edgeId,
-        ...createMindmapEdge(parentId, childId, cloneBranchStyle(DEFAULT_BRANCH_STYLE)),
+        ...createMindmapEdge(parentId, childId, {
+          ...cloneBranchStyle(DEFAULT_BRANCH_STYLE),
+          color: branchColor,
+        }),
       } as MindmapEdgeElement;
 
       beginBatch?.("create-mindmap-child", "mindmap:create");
