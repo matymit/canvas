@@ -15,7 +15,7 @@ export class SelectionModule implements RendererModule {
     // FIXED: Make module globally accessible for tool integration
     (window as any).selectionModule = this;
 
-    // Create transformer manager on overlay layer with aspect ratio locking
+    // Create transformer manager on overlay layer with dynamic aspect ratio control
     this.transformerManager = new TransformerManager(ctx.stage, {
       overlayLayer: ctx.layers.overlay,
       enabledAnchors: [
@@ -36,7 +36,8 @@ export class SelectionModule implements RendererModule {
       anchorStroke: "#FFFFFF",
       anchorFill: "#4F46E5",
       ignoreStroke: false,
-      keepRatioKey: "Shift", // FIXED: Enable aspect ratio locking with Shift key
+      keepRatioKey: "Shift", // Hold Shift to maintain aspect ratio
+      lockAspectRatio: false, // Default to free resize for tables and other elements
       rotationSnapDeg: 15,
       onTransformStart: (_nodes) => {
         // Begin transform in store if available
@@ -285,14 +286,9 @@ export class SelectionModule implements RendererModule {
       let scaleX = Math.abs(scale?.x || 1);
       let scaleY = Math.abs(scale?.y || 1);
 
-      if (isTable) {
-        const deltaX = Math.abs(scaleX - 1);
-        const deltaY = Math.abs(scaleY - 1);
-        const dominantScale = deltaX >= deltaY ? scaleX : scaleY;
-        const uniformScale = dominantScale === 0 ? 1 : dominantScale;
-        scaleX = uniformScale;
-        scaleY = uniformScale;
-      }
+      // FIXED: For tables, apply proportional scaling to maintain cell structure
+      // No longer forcing uniform scale - apply scaleX to width, scaleY to height
+      // This preserves the table's aspect ratio and prevents cell malformation
 
       const scaledWidth = size.width * scaleX;
       const scaledHeight = size.height * scaleY;
@@ -313,11 +309,13 @@ export class SelectionModule implements RendererModule {
           store.element?.getById?.(elementId);
         if (element && element.colWidths && element.rowHeights) {
           const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
+          // FIXED: Apply scaleX to column widths and scaleY to row heights
+          // This maintains the proper aspect ratio for each cell
           changes.colWidths = element.colWidths.map((w: number) =>
             Math.max(minCellWidth, Math.round(w * scaleX * 100) / 100)
           );
           changes.rowHeights = element.rowHeights.map((h: number) =>
-            Math.max(minCellHeight, Math.round(h * scaleY * 100) / 100)
+            Math.max(minCellHeight, Math.round(h * scaleY * 100) / 100)  // Use scaleY for row heights
           );
         }
       }
@@ -536,7 +534,9 @@ export class SelectionModule implements RendererModule {
       return false;
     }
 
-    let sawCircle = false;
+    // Only lock aspect ratio for circles
+    // Tables and other elements should have independent width/height scaling
+    let allCircles = true;
 
     for (const id of selectedIds) {
       const element = elementsMap.get(id);
@@ -544,12 +544,12 @@ export class SelectionModule implements RendererModule {
         return false;
       }
       if (element.type !== 'circle') {
-        return false;
+        allCircles = false;
+        break;
       }
-      sawCircle = true;
     }
 
-    return sawCircle;
+    return allCircles;
   }
 
   /**

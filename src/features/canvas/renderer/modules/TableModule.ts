@@ -143,6 +143,11 @@ export class TableRenderer {
 
     if (!widthChanged && !heightChanged) return;
 
+    // CRITICAL FIX: Preserve the current table position during auto-resize
+    // Store the position BEFORE any changes to prevent jumping
+    const preservedX = table.x;
+    const preservedY = table.y;
+
     const patch: Partial<TableElement> = {};
 
     if (widthChanged) {
@@ -157,13 +162,25 @@ export class TableRenderer {
       patch.height = currentRowHeights.reduce((sum, h) => sum + h, 0);
     }
 
-    state.element.update(elementId, patch as Partial<TableElement>);
+    // ALWAYS include position in the patch to ensure it doesn't change
+    patch.x = preservedX;
+    patch.y = preservedY;
 
-    const bumpVersion = state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
-    if (typeof bumpVersion === 'function') {
-      bumpVersion();
+    // Update without triggering transformer refresh immediately
+    state.element.update(elementId, patch as Partial<TableElement>, { pushHistory: false });
+
+    // Only bump selection version if the element is selected
+    // This prevents unnecessary transformer updates for unselected tables
+    const selectedIds = state.selectedElementIds || new Set<string>();
+    if (selectedIds.has && selectedIds.has(elementId)) {
+      const bumpVersion = state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
+      if (typeof bumpVersion === 'function') {
+        // Delay the transformer refresh slightly to avoid conflicts with rendering
+        setTimeout(() => {
+          bumpVersion();
+        }, 50);
+      }
     }
-
   }
 
   // Ensure a root group for this table exists on main layer
@@ -318,16 +335,11 @@ export class TableRenderer {
   render(el: TableElement) {
     const g = this.ensureGroup(el);
 
-    // CRITICAL: Preserve position - only update x/y if they are defined and different
-    // This prevents position jumping during structure changes
-    const currentPos = g.position();
-    const newX = el.x !== undefined ? el.x : currentPos.x;
-    const newY = el.y !== undefined ? el.y : currentPos.y;
-
-    // Position and size - force update with defensive position preservation
+    // CRITICAL FIX: Always update position and size from the store
+    // The store now maintains position during auto-resize, so we can trust it
     g.setAttrs({
-      x: newX,
-      y: newY,
+      x: el.x,
+      y: el.y,
       width: el.width,
       height: el.height
     });
@@ -398,7 +410,8 @@ export class TableRenderer {
 
     // Log position for debugging table jumping issues
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[TableModule] Rendered table ${el.id} at position (${newX}, ${newY}), size (${el.width}, ${el.height})`);
+      const finalPos = g.position();
+      console.log(`[TableModule] Rendered table ${el.id} at position (${finalPos.x}, ${finalPos.y}), size (${el.width}, ${el.height})`);
     }
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
