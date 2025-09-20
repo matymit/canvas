@@ -9,7 +9,7 @@ import {
   DEFAULT_NODE_STYLE,
   MINDMAP_CONFIG,
   MINDMAP_THEME,
-  measureMindmapLabel,
+  measureMindmapLabelWithWrap,
   type MindmapEdgeElement,
   type MindmapNodeElement,
   type MindmapNodeStyle,
@@ -33,6 +33,11 @@ export class MindmapRenderer {
   private options: MindmapRendererOptions;
   private readonly store: typeof useUnifiedCanvasStore;
   private static readonly HANDLER_FLAG = "__mindmapHandlers";
+  private draggedNodeData: {
+    nodeId: string;
+    descendants: Set<string>;
+    initialPositions: Map<string, { x: number; y: number }>;
+  } | null = null;
 
   constructor(
     layers: RendererLayers,
@@ -79,6 +84,53 @@ export class MindmapRenderer {
     }
   }
 
+  private updateMultipleNodePositions(updates: Map<string, { x: number; y: number }>) {
+    const state = this.store.getState() as any;
+    const update = state.updateElement ?? state.element?.update;
+    if (typeof update === "function") {
+      // Update all nodes in a single history transaction
+      const withUndo = state.history?.withUndo;
+      if (typeof withUndo === "function") {
+        withUndo("Move mindmap nodes", () => {
+          updates.forEach((position, nodeId) => {
+            update(nodeId, position, { pushHistory: false });
+          });
+        });
+      } else {
+        // Fallback if withUndo is not available
+        updates.forEach((position, nodeId) => {
+          update(nodeId, position, { pushHistory: true });
+        });
+      }
+    }
+  }
+
+  private getAllDescendants(nodeId: string): Set<string> {
+    const descendants = new Set<string>();
+    const state = this.store.getState() as any;
+    const elements = state.elements ?? state.element?.all;
+
+    if (!elements) return descendants;
+
+    // Recursive function to find all descendants
+    const findDescendants = (parentId: string) => {
+      const elementsMap = elements instanceof Map ? elements : new Map(Object.entries(elements));
+      elementsMap.forEach((element: any, id: string) => {
+        if (element.type === "mindmap-node") {
+          const elementParentId = element.parentId ?? element.data?.parentId;
+          if (elementParentId === parentId) {
+            descendants.add(id);
+            // Recursively find descendants of this child
+            findDescendants(id);
+          }
+        }
+      });
+    };
+
+    findDescendants(nodeId);
+    return descendants;
+  }
+
   private lookupNode(elementId: string): MindmapNodeElement | null {
     const state = this.store.getState() as any;
     const getElement: ((id: string) => CanvasElement | undefined) |
@@ -122,6 +174,9 @@ export class MindmapRenderer {
       parentId: (raw as any).parentId ?? (raw as any).data?.parentId ?? null,
       level,
       color,
+      // CRITICAL: Preserve textWidth and textHeight from the raw element
+      textWidth: (raw as any).textWidth ?? (raw as any).data?.textWidth,
+      textHeight: (raw as any).textHeight ?? (raw as any).data?.textHeight,
     };
   }
 
@@ -130,30 +185,221 @@ export class MindmapRenderer {
     group.setAttr(MindmapRenderer.HANDLER_FLAG, true);
     group.draggable(true);
 
+    // Track click timing for double-click vs drag detection
+    let lastClickTime = 0;
+    let clickTimer: NodeJS.Timeout | null = null;
+
     const select = (evt: Konva.KonvaEventObject<Event>) => {
       evt.cancelBubble = true;
-      this.selectElement(node.id);
+
+      // Clear any pending single-click timer
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+
+      // Use a small delay for single click to allow double-click detection
+      const now = Date.now();
+      const timeSinceLastClick = now - lastClickTime;
+      lastClickTime = now;
+
+      // If this is potentially a double-click, don't select immediately
+      if (timeSinceLastClick > 300) {
+        clickTimer = setTimeout(() => {
+          this.selectElement(node.id);
+          clickTimer = null;
+        }, 250);
+      }
     };
 
     group.on("click", select);
     group.on("tap", select);
 
-    const openEditor = (evt: Konva.KonvaEventObject<Event>) => {
+    // Double-click to edit text
+    group.on("dblclick", (evt: Konva.KonvaEventObject<Event>) => {
       evt.cancelBubble = true;
+
+      // Clear any pending single-click action
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+
       const stage = group.getStage();
       if (!stage) return;
       const latest = this.lookupNode(node.id);
       if (latest) {
         openMindmapNodeEditor(stage, node.id, latest);
       }
-    };
+    });
 
-    group.on("dblclick", openEditor);
-    group.on("dbltap", openEditor as any);
+    // Double-tap for mobile
+    group.on("dbltap", (evt: Konva.KonvaEventObject<Event>) => {
+      evt.cancelBubble = true;
+
+      // Clear any pending single-click action
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+
+      const stage = group.getStage();
+      if (!stage) return;
+      const latest = this.lookupNode(node.id);
+      if (latest) {
+        openMindmapNodeEditor(stage, node.id, latest);
+      }
+    });
+
+    // Handle drag events for moving subtrees
+    group.on("dragstart", (evt: Konva.KonvaEventObject<DragEvent>) => {
+      // Clear any pending single-click action when starting drag
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+      const target = evt.target as Konva.Group;
+
+      // Get all descendants of this node
+      const descendants = this.getAllDescendants(node.id);
+
+      // Store initial positions
+      const initialPositions = new Map<string, { x: number; y: number }>();
+
+      // Store the dragged node's initial position
+      initialPositions.set(node.id, { x: target.x(), y: target.y() });
+
+      // Store descendants' initial positions
+      descendants.forEach(descendantId => {
+        const descendantGroup = this.nodeGroups.get(descendantId);
+        if (descendantGroup) {
+          initialPositions.set(descendantId, {
+            x: descendantGroup.x(),
+            y: descendantGroup.y()
+          });
+        }
+      });
+
+      // Store drag data
+      this.draggedNodeData = {
+        nodeId: node.id,
+        descendants,
+        initialPositions
+      };
+    });
+
+    group.on("dragmove", (evt: Konva.KonvaEventObject<DragEvent>) => {
+      if (!this.draggedNodeData) return;
+
+      const target = evt.target as Konva.Group;
+      const deltaX = target.x() - (this.draggedNodeData.initialPositions.get(node.id)?.x ?? 0);
+      const deltaY = target.y() - (this.draggedNodeData.initialPositions.get(node.id)?.y ?? 0);
+
+      // Move all descendant nodes by the same delta
+      this.draggedNodeData.descendants.forEach(descendantId => {
+        const descendantGroup = this.nodeGroups.get(descendantId);
+        const initialPos = this.draggedNodeData?.initialPositions.get(descendantId);
+
+        if (descendantGroup && initialPos) {
+          descendantGroup.position({
+            x: initialPos.x + deltaX,
+            y: initialPos.y + deltaY
+          });
+        }
+      });
+
+      // Update all connected edges during drag
+      const allNodes = new Set([node.id, ...this.draggedNodeData.descendants]);
+      allNodes.forEach(nodeId => {
+        this.updateConnectedEdgesForNode(nodeId);
+      });
+
+      // Batch draw to update the canvas
+      this.layers.main.batchDraw();
+    });
 
     group.on("dragend", (evt: Konva.KonvaEventObject<DragEvent>) => {
+      if (!this.draggedNodeData) {
+        // Fallback to single node update if no drag data
+        const target = evt.target as Konva.Group;
+        this.updateNodePosition(node.id, target.x(), target.y());
+        return;
+      }
+
       const target = evt.target as Konva.Group;
-      this.updateNodePosition(node.id, target.x(), target.y());
+      const deltaX = target.x() - (this.draggedNodeData.initialPositions.get(node.id)?.x ?? 0);
+      const deltaY = target.y() - (this.draggedNodeData.initialPositions.get(node.id)?.y ?? 0);
+
+      // Prepare batch update for all moved nodes
+      const updates = new Map<string, { x: number; y: number }>();
+
+      // Add the dragged node
+      updates.set(node.id, { x: target.x(), y: target.y() });
+
+      // Add all descendants with their new positions
+      this.draggedNodeData.descendants.forEach(descendantId => {
+        const initialPos = this.draggedNodeData?.initialPositions.get(descendantId);
+        if (initialPos) {
+          updates.set(descendantId, {
+            x: initialPos.x + deltaX,
+            y: initialPos.y + deltaY
+          });
+        }
+      });
+
+      // Update all positions in the store in a single transaction
+      this.updateMultipleNodePositions(updates);
+
+      // Clear drag data
+      this.draggedNodeData = null;
+    });
+  }
+
+  private updateConnectedEdgesForNode(nodeId: string) {
+    // Get all edges from the store
+    const state = this.store.getState() as any;
+    const elements = state.elements ?? state.element?.all;
+    if (!elements) return;
+
+    const elementsMap = elements instanceof Map ? elements : new Map(Object.entries(elements));
+    const edges: MindmapEdgeElement[] = [];
+
+    elementsMap.forEach((element: any) => {
+      if (element.type === "mindmap-edge" &&
+          (element.fromId === nodeId || element.toId === nodeId ||
+           element.data?.fromId === nodeId || element.data?.toId === nodeId)) {
+        const edge: MindmapEdgeElement = {
+          id: element.id,
+          type: "mindmap-edge",
+          fromId: element.fromId ?? element.data?.fromId ?? "",
+          toId: element.toId ?? element.data?.toId ?? "",
+          style: this.mergeBranchStyle(element.style ?? element.data?.style)
+        };
+        edges.push(edge);
+      }
+    });
+
+    // Helper to get node connection point
+    const getNodePoint = (
+      id: string,
+      side: 'left' | 'right'
+    ): { x: number; y: number } | null => {
+      const group = this.nodeGroups.get(id);
+      if (!group) return null;
+
+      const width = group.width() ?? 100;
+      const height = group.height() ?? 40;
+      const x = group.x();
+      const y = group.y();
+
+      return side === 'left'
+        ? { x, y: y + height / 2 }
+        : { x: x + width, y: y + height / 2 };
+    };
+
+    // Re-render connected edges
+    edges.forEach(edge => {
+      this.renderEdge(edge, getNodePoint);
     });
   }
 
@@ -162,19 +408,35 @@ export class MindmapRenderer {
    */
   renderNode(element: MindmapNodeElement) {
     const style = this.mergeNodeStyle(element.style);
-    const metrics = measureMindmapLabel(element.text ?? "", style);
-    const contentWidth = Math.max(metrics.width, 1);
-    const contentHeight = Math.max(metrics.height, style.fontSize);
-    const totalWidth = Math.max(contentWidth + style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
-    const totalHeight = Math.max(contentHeight + style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
+
+    // Use provided dimensions if they exist (from editor updates), otherwise calculate
+    let totalWidth = element.width || MINDMAP_CONFIG.defaultNodeWidth;
+    let totalHeight = element.height || MINDMAP_CONFIG.defaultNodeHeight;
+    let textWidth = element.textWidth;
+    let textHeight = element.textHeight;
+
+    // If dimensions aren't provided, calculate them with wrapping
+    if (!textWidth || !textHeight) {
+      const maxTextWidth = Math.max(MINDMAP_CONFIG.defaultNodeWidth, totalWidth) - style.paddingX * 2;
+      const metrics = measureMindmapLabelWithWrap(
+        element.text ?? "",
+        style,
+        maxTextWidth,
+        MINDMAP_CONFIG.lineHeight
+      );
+      textWidth = metrics.width;
+      textHeight = metrics.height;
+      totalWidth = Math.max(textWidth + style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
+      totalHeight = Math.max(textHeight + style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
+    }
 
     const normalized: MindmapNodeElement = {
       ...element,
       style,
       width: totalWidth,
       height: totalHeight,
-      textWidth: contentWidth,
-      textHeight: contentHeight,
+      textWidth: textWidth || 1,
+      textHeight: textHeight || style.fontSize,
     };
 
     let group = this.nodeGroups.get(element.id);
@@ -205,6 +467,8 @@ export class MindmapRenderer {
     group.size({ width: totalWidth, height: totalHeight });
     group.draggable(true);
     group.listening(true);
+    // Ensure the group can receive mouse events
+    group.setAttr('cursor', 'pointer');
 
     // Clear previous children and rebuild
     group.destroyChildren();
@@ -228,6 +492,10 @@ export class MindmapRenderer {
     });
     group.add(background);
 
+    // Determine vertical alignment based on content height
+    const contentHeight = totalHeight - style.paddingY * 2;
+    const verticalAlign = contentHeight < style.fontSize * 2 ? "middle" : "top";
+
     const text = new Konva.Text({
       x: style.paddingX,
       y: style.paddingY,
@@ -239,23 +507,24 @@ export class MindmapRenderer {
       fontStyle: style.fontStyle ?? "normal",
       fill: style.textColor,
       align: "center",
-      verticalAlign: "middle",
+      verticalAlign: verticalAlign,
       wrap: "word",
-      ellipsis: true,
+      lineHeight: MINDMAP_CONFIG.lineHeight,
+      ellipsis: false, // Don't truncate, let it wrap
       listening: false,
       perfectDrawEnabled: false,
       name: "node-text",
     });
     group.add(text);
 
+    // Add an invisible hit area for better event detection
     const hitRect = new Konva.Rect({
       x: 0,
       y: 0,
       width: totalWidth,
       height: totalHeight,
       cornerRadius: style.cornerRadius,
-      fill: "#ffffff",
-      opacity: 0,
+      fill: "transparent",
       listening: true,
       perfectDrawEnabled: false,
       name: "node-hit",

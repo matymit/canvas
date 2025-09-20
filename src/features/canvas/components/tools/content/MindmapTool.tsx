@@ -6,7 +6,6 @@ import {
   DEFAULT_BRANCH_STYLE,
   DEFAULT_NODE_STYLE,
   MINDMAP_CONFIG,
-  MINDMAP_THEME,
   calculateChildPosition,
   createMindmapEdge,
   createMindmapNode,
@@ -18,7 +17,6 @@ import type {
   MindmapNodeElement,
   MindmapNodeStyle,
 } from "@/features/canvas/types/mindmap";
-import { openMindmapNodeEditor } from "@/features/canvas/utils/editors/openMindmapNodeEditor";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -115,15 +113,18 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
     };
 
     const commitNode = (x: number, y: number, width: number, height: number) => {
-      const { minNodeWidth, minNodeHeight, defaultText } = MINDMAP_CONFIG;
-      const id = crypto?.randomUUID?.() ?? nanoid();
-      const baseNode = createMindmapNode(x, y, defaultText, {
+      const { minNodeWidth, minNodeHeight } = MINDMAP_CONFIG;
+      const rootId = crypto?.randomUUID?.() ?? nanoid();
+      const rootText = "Any question or topic";
+
+      // Create root node
+      const baseNode = createMindmapNode(x, y, rootText, {
         parentId: null,
         level: 0,
-        style: { fill: MINDMAP_THEME.nodeColors[0] },
+        style: { fill: "#E5E7EB" }, // Neutral gray for root node
       });
       const node = {
-        id,
+        id: rootId,
         ...baseNode,
         style: cloneStyle(baseNode.style),
       } as MindmapNodeElement;
@@ -136,13 +137,66 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       node.width = Math.max(metrics.width + node.style.paddingX * 2, dragWidth, minNodeWidth);
       node.height = Math.max(metrics.height + node.style.paddingY * 2, dragHeight, minNodeHeight);
 
-      beginBatch?.("create-mindmap-node", "mindmap:create");
-      addElement?.(node as any, { pushHistory: true, select: true });
+      beginBatch?.("create-mindmap", "mindmap:create");
+
+      // Add root node
+      addElement?.(node as any, { pushHistory: true, select: false });
+
+      // Create three child nodes with different texts
+      const childTexts = ["A concept", "An idea", "A thought"];
+      const childIds: string[] = [];
+
+      childTexts.forEach((childText, index) => {
+        const childId = crypto?.randomUUID?.() ?? nanoid();
+        childIds.push(childId);
+
+        // Calculate child position with vertical spacing
+        const childX = node.x + node.width + 140;
+        const childY = node.y + (index - 1) * 56; // Center child, then offset up and down
+
+        const baseChild = createMindmapNode(childX, childY, childText, {
+          parentId: rootId,
+          level: 1,
+          style: {
+            fill: "#E5E7EB", // Neutral gray for child nodes
+          },
+        });
+
+        const child = {
+          id: childId,
+          ...baseChild,
+          style: cloneStyle(baseChild.style),
+        } as MindmapNodeElement;
+
+        const childMetrics = measureMindmapLabel(child.text, child.style);
+        child.textWidth = childMetrics.width;
+        child.textHeight = childMetrics.height;
+        child.width = Math.max(childMetrics.width + child.style.paddingX * 2, minNodeWidth);
+        child.height = Math.max(childMetrics.height + child.style.paddingY * 2, minNodeHeight);
+
+        // Add child node
+        addElement?.(child as any, { pushHistory: true, select: false });
+
+        // Create edge from root to child
+        const edgeId = crypto?.randomUUID?.() ?? nanoid();
+        const branchColor = "#6B7280"; // Neutral gray for branches
+        const edge = {
+          id: edgeId,
+          ...createMindmapEdge(rootId, childId, {
+            ...cloneBranchStyle(DEFAULT_BRANCH_STYLE),
+            color: branchColor,
+          }),
+        } as MindmapEdgeElement;
+
+        addElement?.(edge as any, { pushHistory: true });
+      });
+
       endBatch?.(true);
 
-      replaceSelection?.(id);
-      openMindmapNodeEditor(stage, id, node);
-      return id;
+      // Select the root node after creating everything
+      replaceSelection?.(rootId);
+      // Removed automatic editor opening to prevent duplicate editors
+      return rootId;
     };
 
     const spawnChild = (parentId: string) => {
@@ -158,7 +212,7 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
         parentId,
         level,
         style: {
-          fill: MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length],
+          fill: "#E5E7EB", // Neutral gray for spawned child nodes
         },
       });
       const child = {
@@ -174,8 +228,7 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       child.height = Math.max(childMetrics.height + child.style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
 
       const edgeId = crypto?.randomUUID?.() ?? nanoid();
-      const branchColor =
-        MINDMAP_THEME.branchColors[level % MINDMAP_THEME.branchColors.length];
+      const branchColor = "#6B7280"; // Neutral gray for spawned branches
       const edge = {
         id: edgeId,
         ...createMindmapEdge(parentId, childId, {
@@ -190,7 +243,7 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       endBatch?.(true);
 
       replaceSelection?.(childId);
-      openMindmapNodeEditor(stage, childId, child);
+      // Removed automatic editor opening to prevent duplicate editors
     };
 
     const handlePointerUp = () => {

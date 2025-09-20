@@ -13,12 +13,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Circle selections automatically lock aspect ratio so resize handles keep shapes perfectly round
 - Removed legacy auto-grow behavior; circles rely on manual resize while keeping editor/renderer alignment in sync
 
-### 🧠 Mindmap Nodes & Branches
+### 🧠 Mindmap Major Improvements
 
-- Mindmap nodes now render as rounded colour cards with soft shadows, centre-aligned text, and FigJam-matching typography that stays consistent before, during, and after edits
-- Curved branches are drawn as filled, tapered ribbons using Bézier geometry so connectors feel organic while remaining glued to each node’s edge during drags and transforms
-- Tooling seeds a themed root node, spawns colour-coordinated children with `Enter`, and commits nodes/branches in one batched history entry for predictable undo
-- Inline editor reuses shared measurement helpers to auto-size the node frame while keeping copy perfectly centred, regardless of zoom or padding
+#### Initial Creation & Structure
+- **FigJam-Style Hierarchy**: Mindmap now creates root node with three example child nodes ("A concept", "An idea", "A thought") connected by curved branches
+- **Neutral Color Scheme**: Removed colorful styling - all nodes use consistent gray (#E5E7EB) and branches use neutral gray (#6B7280)
+- **Thinner Branches**: Reduced branch thickness by 50% (widthStart: 5px, widthEnd: 2px) for more elegant appearance
+- **No Auto-Editor**: Removed duplicate text editor on creation - users double-click to edit when needed
+
+#### Text Editing Enhancements
+- **Seamless Editor Integration**: Text editor perfectly overlays node shape with matching dimensions, background, and border radius
+- **Cursor Positioning**: Double-click positions cursor at end of text instead of selecting all
+- **Keyboard Event Isolation**: Text editing captures all keyboard input, preventing toolbar shortcut conflicts
+- **Auto Text Wrapping**: Nodes automatically wrap text and resize vertically in real-time during typing
+- **Dynamic Height Adjustment**: Nodes grow/shrink smoothly with CSS transitions to accommodate wrapped text
+
+#### Group Movement & Layout
+- **Unified Drag Behavior**: Dragging parent node moves all descendants (children, grandchildren) maintaining hierarchy
+- **Branch Connection Maintenance**: Branches stay connected and update in real-time during group movements
+- **Automatic Sibling Repositioning**: Expanding nodes trigger automatic repositioning of siblings to prevent overlap (20px spacing)
+- **Live Branch Updates**: Branches redraw smoothly as nodes move or resize
+
+#### Selection & Transform Sync
+- **Perfect Transformer Alignment**: Selection frame stays perfectly synced with node dimensions during all operations
+- **Force Refresh Method**: Added `forceRefresh()` to SelectionModule for immediate transformer updates
+- **Real-time Tracking**: Transformer updates instantly as text wraps and nodes resize
+
+#### Double-Click Text Editing
+- **Event Conflict Resolution**: Fixed conflicts between drag and double-click with 250ms timing logic
+- **Reliable Text Editing**: Double-click consistently opens text editor without triggering selection
+- **Mobile Support**: Added double-tap handling for touch devices
 
 ## [2.5.0] - 2025-01-18
 

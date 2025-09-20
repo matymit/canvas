@@ -536,4 +536,38 @@ export class SelectionModule implements RendererModule {
 
     return sawCircle;
   }
+
+  /**
+   * Force an immediate refresh of the transformer for the current selection.
+   * This is useful when elements have changed dimensions and the transformer
+   * needs to update immediately without waiting for async delays.
+   */
+  public forceRefresh(): void {
+    if (!this.transformerManager || !this.storeCtx) return;
+
+    // Get current selection
+    const currentState = this.storeCtx.store.getState();
+    const selectedIds = currentState.selectedElementIds || new Set<string>();
+
+    if (selectedIds.size === 0) {
+      this.transformerManager.detach();
+      return;
+    }
+
+    // Find Konva nodes for selected elements
+    const nodes = this.resolveElementsToNodes(selectedIds);
+
+    if (nodes.length > 0) {
+      // Detach and reattach to force bounds recalculation
+      this.transformerManager.detach();
+      this.transformerManager.attachToNodes(nodes);
+      const lockAspect = this.shouldLockAspectRatio(selectedIds);
+      this.transformerManager.setKeepRatio(lockAspect);
+      this.transformerManager.show();
+      // Force immediate update
+      this.transformerManager.refresh();
+    } else {
+      this.transformerManager.detach();
+    }
+  }
 }

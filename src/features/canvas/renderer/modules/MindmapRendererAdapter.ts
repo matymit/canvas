@@ -61,31 +61,59 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
     shadowOffsetY: style.shadowOffsetY ?? DEFAULT_NODE_STYLE.shadowOffsetY,
   };
 
-  const metrics = measureMindmapLabel(
-    (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
-    hydratedStyle
-  );
-  const measuredWidth = Math.max(
-    metrics.width + hydratedStyle.paddingX * 2,
-    MINDMAP_CONFIG.minNodeWidth
-  );
-  const measuredHeight = Math.max(
-    metrics.height + hydratedStyle.paddingY * 2,
-    MINDMAP_CONFIG.minNodeHeight
-  );
+  // CRITICAL: Check if we already have stored textWidth/textHeight from editor
+  const existingTextWidth = (element as any).textWidth ?? (element as any).data?.textWidth;
+  const existingTextHeight = (element as any).textHeight ?? (element as any).data?.textHeight;
+  const existingWidth = element.width ?? (element as any).data?.width;
+  const existingHeight = element.height ?? (element as any).data?.height;
+
+  let textWidth: number;
+  let textHeight: number;
+  let width: number;
+  let height: number;
+
+  if (existingTextWidth && existingTextHeight) {
+    // Use the stored wrapped dimensions from the editor
+    textWidth = existingTextWidth;
+    textHeight = existingTextHeight;
+    width = existingWidth ?? Math.max(
+      textWidth + hydratedStyle.paddingX * 2,
+      MINDMAP_CONFIG.minNodeWidth
+    );
+    height = existingHeight ?? Math.max(
+      textHeight + hydratedStyle.paddingY * 2,
+      MINDMAP_CONFIG.minNodeHeight
+    );
+  } else {
+    // Fallback: measure text (but this won't handle wrapping properly)
+    const metrics = measureMindmapLabel(
+      (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
+      hydratedStyle
+    );
+    textWidth = metrics.width;
+    textHeight = metrics.height;
+    width = Math.max(
+      textWidth + hydratedStyle.paddingX * 2,
+      MINDMAP_CONFIG.minNodeWidth
+    );
+    height = Math.max(
+      textHeight + hydratedStyle.paddingY * 2,
+      MINDMAP_CONFIG.minNodeHeight
+    );
+  }
 
   return {
     id: element.id,
     type: "mindmap-node",
     x: element.x ?? 0,
     y: element.y ?? 0,
-    width: measuredWidth,
-    height: measuredHeight,
+    width,
+    height,
     text: (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
     style: hydratedStyle,
     parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
-    textWidth: metrics.width,
-    textHeight: metrics.height,
+    textWidth,
+    textHeight,
     level,
     color,
   };
@@ -111,6 +139,7 @@ function toMindmapEdge(element: CanvasElement): MindmapEdgeElement | null {
 export class MindmapRendererAdapter implements RendererModule {
   private renderer?: MindmapRenderer;
   private unsubscribe?: () => void;
+  private previousNodeHeights = new Map<string, number>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Create MindmapRenderer instance
@@ -192,6 +221,9 @@ export class MindmapRendererAdapter implements RendererModule {
     const seenNodes = new Set<Id>();
     const seenEdges = new Set<Id>();
 
+    // Check for height changes and reposition siblings if needed
+    this.repositionSiblingsIfNeeded(elements);
+
     // Helper function to get node center for edge rendering
     const getNodePoint = (
       nodeId: string,
@@ -214,6 +246,8 @@ export class MindmapRendererAdapter implements RendererModule {
     for (const [id, node] of elements.nodes) {
       seenNodes.add(id);
       this.renderer.renderNode(node);
+      // Track current height for future comparisons
+      this.previousNodeHeights.set(id, node.height);
     }
 
     // Remove deleted elements manually
@@ -223,6 +257,7 @@ export class MindmapRendererAdapter implements RendererModule {
         const nodeId = node.id();
         if (nodeId && !seenNodes.has(nodeId)) {
           node.destroy();
+          this.previousNodeHeights.delete(nodeId);
         }
       });
       layer.find(".mindmap-edge").forEach((node: Konva.Node) => {
@@ -232,6 +267,89 @@ export class MindmapRendererAdapter implements RendererModule {
         }
       });
       layer.batchDraw();
+    }
+  }
+
+  /**
+   * Repositions sibling nodes when any node's height changes to prevent overlap
+   */
+  private repositionSiblingsIfNeeded(elements: MindmapElements) {
+    const store = (this.renderer as any)?.store;
+    if (!store) return;
+
+    // Group nodes by parent
+    const nodesByParent = new Map<string | null | undefined, MindmapNodeElement[]>();
+    for (const [_id, node] of elements.nodes) {
+      const parentId = node.parentId;
+      if (!nodesByParent.has(parentId)) {
+        nodesByParent.set(parentId, []);
+      }
+      nodesByParent.get(parentId)!.push(node);
+    }
+
+    // Process each parent's children
+    for (const [_parentId, siblings] of nodesByParent) {
+      if (siblings.length <= 1) continue; // No siblings to reposition
+
+      // Check if any sibling has changed height
+      let hasHeightChange = false;
+      for (const sibling of siblings) {
+        const prevHeight = this.previousNodeHeights.get(sibling.id);
+        if (prevHeight !== undefined && prevHeight !== sibling.height) {
+          hasHeightChange = true;
+          break;
+        }
+      }
+
+      if (!hasHeightChange) continue;
+
+      // Sort siblings by current Y position
+      siblings.sort((a, b) => a.y - b.y);
+
+      // Calculate new positions with proper spacing
+      const SIBLING_SPACING = 20; // Vertical spacing between siblings
+      let currentY = siblings[0].y; // Start from the topmost sibling's current position
+
+      const updates: Array<{ id: string; y: number }> = [];
+      let needsUpdate = false;
+
+      for (let i = 0; i < siblings.length; i++) {
+        const sibling = siblings[i];
+
+        if (i > 0) {
+          // Calculate minimum Y position based on previous sibling
+          const prevSibling = siblings[i - 1];
+          const minY = currentY + prevSibling.height + SIBLING_SPACING;
+
+          if (sibling.y < minY) {
+            // This sibling needs to be moved down
+            updates.push({ id: sibling.id, y: minY });
+            currentY = minY;
+            needsUpdate = true;
+          } else {
+            // Keep current position
+            currentY = sibling.y;
+          }
+        }
+      }
+
+      // Apply updates if needed
+      if (needsUpdate) {
+        const state = store.getState() as any;
+        const update = state.updateElement ?? state.element?.update;
+
+        if (typeof update === "function") {
+          // Update positions without history (this is an automatic adjustment)
+          for (const { id, y } of updates) {
+            update(id, { y }, { pushHistory: false });
+            // Also update the element in our local map
+            const node = elements.nodes.get(id);
+            if (node) {
+              node.y = y;
+            }
+          }
+        }
+      }
     }
   }
 }

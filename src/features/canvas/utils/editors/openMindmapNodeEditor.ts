@@ -1,7 +1,7 @@
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import type { MindmapNodeElement } from "@/features/canvas/types/mindmap";
-import { MINDMAP_CONFIG, measureMindmapLabel } from "@/features/canvas/types/mindmap";
+import { MINDMAP_CONFIG, measureMindmapLabelWithWrap } from "@/features/canvas/types/mindmap";
 
 type Nullable<T> = T | null | undefined;
 
@@ -21,52 +21,183 @@ export function openMindmapNodeEditor(
   const scaleX = stage.scaleX() || 1;
   const scaleY = stage.scaleY() || 1;
 
-  const textOrigin = toScreenPoint(
-    stage,
-    nodeModel.x + nodeModel.style.paddingX,
-    nodeModel.y + nodeModel.style.paddingY
-  );
+  // Position the editor to overlay the entire node, not just the text area
+  const nodeOrigin = toScreenPoint(stage, nodeModel.x, nodeModel.y);
+
+  // Maximum width for text wrapping (leaving some padding)
+  const maxTextWidth = Math.max(MINDMAP_CONFIG.defaultNodeWidth, nodeModel.width) - nodeModel.style.paddingX * 2;
+
+  // Track current dimensions
+  let currentWidth = nodeModel.width;
+  let currentHeight = nodeModel.height;
 
   const editor = document.createElement("div");
   editor.contentEditable = "true";
   editor.textContent = nodeModel.text ?? "";
 
+  // Function to update editor dimensions
+  const updateEditorDimensions = (width: number, height: number) => {
+    currentWidth = width;
+    currentHeight = height;
+    editor.style.width = `${width * scaleX}px`;
+    editor.style.height = `${height * scaleY}px`;
+
+    // Update vertical alignment based on content height
+    const contentHeight = height - nodeModel.style.paddingY * 2;
+    if (contentHeight < nodeModel.style.fontSize * 2) {
+      // Single line - center vertically
+      editor.style.alignItems = "center";
+    } else {
+      // Multiple lines - align to top
+      editor.style.alignItems = "flex-start";
+    }
+  };
+
   Object.assign(editor.style, {
     position: "absolute",
-    left: `${rect.left + textOrigin.x}px`,
-    top: `${rect.top + textOrigin.y}px`,
-    width: `${Math.max(120, nodeModel.width - nodeModel.style.paddingX * 2) * scaleX}px`,
-    minHeight: `${Math.max(28, nodeModel.height - nodeModel.style.paddingY * 2) * scaleY}px`,
+    left: `${rect.left + nodeOrigin.x}px`,
+    top: `${rect.top + nodeOrigin.y}px`,
+    // Initial dimensions
+    width: `${nodeModel.width * scaleX}px`,
+    height: `${nodeModel.height * scaleY}px`,
+    // Use the same padding as the node for text positioning
     padding: `${nodeModel.style.paddingY * scaleY}px ${nodeModel.style.paddingX * scaleX}px`,
-    border: "1px solid rgba(59, 130, 246, 0.45)",
-    borderRadius: `${nodeModel.style.cornerRadius * ((scaleX + scaleY) / 2)}px`,
+    // Match the node's visual properties exactly
+    borderRadius: `${nodeModel.style.cornerRadius * Math.min(scaleX, scaleY)}px`,
     background: nodeModel.style.fill,
+    // Add the node's border to maintain visual consistency
+    border: nodeModel.style.strokeWidth > 0
+      ? `${nodeModel.style.strokeWidth}px solid ${nodeModel.style.stroke}`
+      : "none",
+    // Match text properties
     color: nodeModel.style.textColor,
     fontFamily: nodeModel.style.fontFamily,
     fontSize: `${nodeModel.style.fontSize * scaleY}px`,
     fontWeight: nodeModel.style.fontStyle?.includes("bold") ? "600" : "500",
     lineHeight: `${MINDMAP_CONFIG.lineHeight}`,
-    resize: "none",
-    outline: "none",
-    zIndex: "1000",
-    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.12)",
-    display: "block",
+    // Flexbox for alignment
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     textAlign: "center",
+    // Text behavior - enable wrapping
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
+    wordWrap: "break-word",
+    overflowWrap: "break-word",
+    resize: "none",
+    outline: "none",
+    overflow: "hidden",
+    // Ensure it's above other elements but no shadow to avoid disconnected look
+    zIndex: "1000",
+    boxShadow: "none",
+    // Box sizing to include padding and border in dimensions
+    boxSizing: "border-box",
+    // Subtle focus indicator that doesn't break the illusion
+    transition: "box-shadow 0.15s ease, height 0.15s ease",
   } as CSSStyleDeclaration);
 
   document.body.appendChild(editor);
 
+  // Add a subtle glow on focus to indicate editing mode
+  editor.addEventListener("focus", () => {
+    editor.style.boxShadow = `0 0 0 2px ${nodeModel.style.stroke || "rgba(59, 130, 246, 0.25)"}`;
+  });
+
+  // Real-time resize handler
+  const handleInput = () => {
+    const text = editor.textContent || "";
+
+    // Calculate wrapped text dimensions
+    const metrics = measureMindmapLabelWithWrap(
+      text,
+      nodeModel.style,
+      maxTextWidth,
+      MINDMAP_CONFIG.lineHeight
+    );
+
+    // Calculate new dimensions
+    const newWidth = Math.max(
+      metrics.width + nodeModel.style.paddingX * 2,
+      MINDMAP_CONFIG.minNodeWidth
+    );
+    const newHeight = Math.max(
+      metrics.height + nodeModel.style.paddingY * 2,
+      MINDMAP_CONFIG.minNodeHeight
+    );
+
+    // Update editor dimensions if changed
+    if (newHeight !== currentHeight || newWidth !== currentWidth) {
+      updateEditorDimensions(newWidth, newHeight);
+
+      // Also update the node in the store (without history)
+      const store = useUnifiedCanvasStore.getState();
+      const update: Nullable<(id: string, patch: Partial<any>, opts?: { pushHistory?: boolean }) => void> =
+        (store.updateElement as any) ?? store.element?.update;
+
+      if (update) {
+        update(
+          nodeId,
+          {
+            width: newWidth,
+            height: newHeight,
+            textWidth: metrics.width,
+            textHeight: metrics.height,
+          },
+          { pushHistory: false }
+        );
+
+        // Force immediate transformer refresh by directly accessing the selection module
+        requestAnimationFrame(() => {
+          // Force a draw on the main layer to ensure visual update is complete
+          const mainLayer = stage.findOne(".main-layer") as Konva.Layer | null;
+          if (mainLayer && typeof mainLayer.batchDraw === "function") {
+            mainLayer.batchDraw();
+          }
+
+          // Directly refresh the transformer for immediate sync
+          const selectionModule = (window as any).selectionModule;
+          if (selectionModule && typeof selectionModule.forceRefresh === "function") {
+            selectionModule.forceRefresh();
+          } else {
+            // Fallback to bumping selection version if direct refresh not available
+            const bumpVersion = (store as any).bumpSelectionVersion;
+            if (typeof bumpVersion === "function") {
+              bumpVersion();
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Add input listener for real-time resizing
+  editor.addEventListener("input", handleInput);
+
+  // Focus the editor and position cursor at the end without selecting text
+  editor.focus();
+
+  // Move cursor to the end of the text
   const range = document.createRange();
-  range.selectNodeContents(editor);
   const selection = window.getSelection();
+  if (editor.childNodes.length > 0) {
+    // If there's text content, position cursor at the end
+    const textNode = editor.childNodes[editor.childNodes.length - 1];
+    range.setStart(textNode, textNode.textContent?.length || 0);
+    range.setEnd(textNode, textNode.textContent?.length || 0);
+  } else {
+    // If empty, just position at the beginning
+    range.selectNodeContents(editor);
+    range.collapse(false); // Collapse to end
+  }
   selection?.removeAllRanges();
   selection?.addRange(range);
-  editor.focus();
 
   const cleanup = () => {
     editor.removeEventListener("keydown", handleKeyDown);
+    editor.removeEventListener("keypress", handleKeyPress);
+    editor.removeEventListener("keyup", handleKeyUp);
+    editor.removeEventListener("input", handleInput);
     editor.removeEventListener("blur", handleBlur);
     editor.parentElement?.removeChild(editor);
   };
@@ -82,9 +213,23 @@ export function openMindmapNodeEditor(
 
     if (update) {
       const nextText = value || nodeModel.text;
-      const metrics = measureMindmapLabel(nextText, nodeModel.style);
-      const width = Math.max(metrics.width + nodeModel.style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
-      const height = Math.max(metrics.height + nodeModel.style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
+
+      // Use wrapped text measurement for final dimensions
+      const metrics = measureMindmapLabelWithWrap(
+        nextText,
+        nodeModel.style,
+        maxTextWidth,
+        MINDMAP_CONFIG.lineHeight
+      );
+
+      const width = Math.max(
+        metrics.width + nodeModel.style.paddingX * 2,
+        MINDMAP_CONFIG.minNodeWidth
+      );
+      const height = Math.max(
+        metrics.height + nodeModel.style.paddingY * 2,
+        MINDMAP_CONFIG.minNodeHeight
+      );
 
       update(
         nodeId,
@@ -97,10 +242,20 @@ export function openMindmapNodeEditor(
         },
         { pushHistory: true }
       );
+
+      // Bump selection version to refresh transformer bounds after commit
+      const bumpVersion = (store as any).bumpSelectionVersion;
+      if (typeof bumpVersion === "function") {
+        bumpVersion();
+      }
     }
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
+    // Always stop propagation to prevent toolbar shortcuts from firing
+    event.stopPropagation();
+
+    // Handle special keys
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       commit(false);
@@ -108,10 +263,24 @@ export function openMindmapNodeEditor(
       event.preventDefault();
       commit(true);
     }
+    // For all other keys, just let them type normally in the editor
+    // but prevent the event from bubbling up
+  };
+
+  const handleKeyPress = (event: KeyboardEvent) => {
+    // Stop propagation for all keypress events
+    event.stopPropagation();
+  };
+
+  const handleKeyUp = (event: KeyboardEvent) => {
+    // Stop propagation for all keyup events
+    event.stopPropagation();
   };
 
   const handleBlur = () => commit(false);
 
   editor.addEventListener("keydown", handleKeyDown);
+  editor.addEventListener("keypress", handleKeyPress);
+  editor.addEventListener("keyup", handleKeyUp);
   editor.addEventListener("blur", handleBlur, { once: true });
 }

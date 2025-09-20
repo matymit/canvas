@@ -71,8 +71,8 @@ export const DEFAULT_NODE_STYLE: MindmapNodeStyle = {
 
 export const DEFAULT_BRANCH_STYLE: BranchStyle = {
   color: "#6B7280",
-  widthStart: 10,
-  widthEnd: 4,
+  widthStart: 5,
+  widthEnd: 2,
   curvature: 0.35,
 };
 
@@ -252,5 +252,78 @@ export function measureMindmapLabel(
   return {
     width: Math.ceil(maxWidth),
     height: Math.ceil(textHeight),
+  };
+}
+
+/**
+ * Measure text dimensions with word wrapping support.
+ * Calculates how text will wrap within a maximum width constraint.
+ */
+export function measureMindmapLabelWithWrap(
+  text: string,
+  style: MindmapNodeStyle,
+  maxWidth: number,
+  lineHeight: number = MINDMAP_CONFIG.lineHeight
+): { width: number; height: number; wrappedLines: string[] } {
+  const ctx = getMeasureContext();
+  const fontWeight = style.fontStyle?.includes("bold") ? "700" : "400";
+  const fontStyle = style.fontStyle?.includes("italic") ? "italic" : "normal";
+  ctx.font = `${fontStyle} ${fontWeight} ${style.fontSize}px ${style.fontFamily}`;
+
+  // Handle empty text
+  if (!text || text.trim() === "") {
+    return {
+      width: 0,
+      height: style.fontSize,
+      wrappedLines: [""]
+    };
+  }
+
+  const wrappedLines: string[] = [];
+  const paragraphs = text.split(/\r?\n/);
+  let actualMaxWidth = 0;
+
+  for (const paragraph of paragraphs) {
+    if (paragraph === "") {
+      wrappedLines.push("");
+      continue;
+    }
+
+    const words = paragraph.split(/\s+/);
+    let currentLine = "";
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const metrics = ctx.measureText(testLine);
+
+      if (metrics.width > maxWidth && currentLine !== "") {
+        // Current line is too long, save it and start a new line
+        const lineMetrics = ctx.measureText(currentLine);
+        actualMaxWidth = Math.max(actualMaxWidth, lineMetrics.width);
+        wrappedLines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+
+    // Add the last line of the paragraph
+    if (currentLine) {
+      const lineMetrics = ctx.measureText(currentLine);
+      actualMaxWidth = Math.max(actualMaxWidth, lineMetrics.width);
+      wrappedLines.push(currentLine);
+    }
+  }
+
+  const textHeight = Math.max(
+    style.fontSize,
+    wrappedLines.length * style.fontSize * lineHeight
+  );
+
+  return {
+    width: Math.ceil(actualMaxWidth),
+    height: Math.ceil(textHeight),
+    wrappedLines
   };
 }
