@@ -1,6 +1,6 @@
 // Table renderer module for main layer rendering with Konva groups
 // Follows existing four-layer architecture and performance patterns
-// FIXED: Position jumping, context menu handling, and transform integration
+// CRITICAL FIX: Ensures proper scale handling for Konva transformer integration
 
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
@@ -28,7 +28,7 @@ export class TableRenderer {
   private pool?: KonvaNodePool;
   private opts: TableRendererOptions;
   private storeCtx?: any; // Store context for proper store access
-  private isUpdatingTransformer = false; // FIXED: Flag to prevent transformer loops
+  private isUpdatingTransformer = false; // Flag to prevent transformer loops
 
   constructor(layers: RendererLayers, opts?: TableRendererOptions, storeCtx?: any) {
     this.layers = layers;
@@ -173,7 +173,7 @@ export class TableRenderer {
     // Update with position preservation and no immediate transformer refresh
     state.element.update(elementId, patch as Partial<TableElement>, { pushHistory: false });
 
-    // FIXED: Only refresh transformer if selected, with debouncing to prevent loops
+    // Only refresh transformer if selected, with debouncing to prevent loops
     const selectedIds = state.selectedElementIds || new Set<string>();
     if (selectedIds.has && selectedIds.has(elementId) && !this.isUpdatingTransformer) {
       this.isUpdatingTransformer = true;
@@ -211,9 +211,12 @@ export class TableRenderer {
         y: el.y,
         width: el.width,  // Set explicit dimensions for transformer
         height: el.height,
+        // CRITICAL: Ensure scale is always 1 for proper transformer handling
+        scaleX: 1,
+        scaleY: 1,
       });
 
-      // FIXED: Set required attributes for SelectionModule integration
+      // Set required attributes for SelectionModule integration
       g.setAttr("elementId", el.id);
       g.setAttr("elementType", "table");
 
@@ -346,13 +349,15 @@ export class TableRenderer {
   render(el: TableElement) {
     const g = this.ensureGroup(el);
 
-    // CRITICAL FIX: Always update position and size from the store EXACTLY
-    // Position preservation during auto-resize is now handled at the store level
+    // CRITICAL FIX: Always ensure proper scale and dimensions from the store
     g.setAttrs({
       x: el.x,
       y: el.y,
       width: el.width,
-      height: el.height
+      height: el.height,
+      // CRITICAL: Always ensure scale is 1 for proper transformer handling
+      scaleX: 1,
+      scaleY: 1,
     });
 
     // Release pooled nodes if using pooling
@@ -471,6 +476,30 @@ export class TableRenderer {
     return this.groupById.get(id);
   }
 
+  // CRITICAL: Method to handle transform updates from TableTransformerController
+  handleTransformUpdate(elementId: string, newElement: TableElement, resetAttrs?: any) {
+    console.log('[TableRenderer] Handling transform update:', {
+      elementId,
+      newElement: { width: newElement.width, height: newElement.height },
+      resetAttrs
+    });
+
+    // Get the group and apply reset attributes if provided
+    const group = this.groupById.get(elementId);
+    if (group && resetAttrs) {
+      group.setAttrs(resetAttrs);
+      console.log('[TableRenderer] Applied reset attrs to group:', resetAttrs);
+    }
+
+    // Update the store with the new element
+    const storeHook = this.getStoreHook();
+    if (storeHook) {
+      const state = storeHook.getState();
+      state.element.update(elementId, newElement, { pushHistory: true });
+      console.log('[TableRenderer] Updated store with new element');
+    }
+  }
+
   // Add invisible click areas for cell editing with precise detection
   private addCellClickAreas(group: Konva.Group, el: TableElement) {
     // Remove existing cell interaction areas
@@ -497,7 +526,7 @@ export class TableRenderer {
           perfectDrawEnabled: false,
         });
 
-        // CRITICAL FIX: Improved contextmenu handling - let events bubble properly
+        // Context menu handling - let events bubble properly
         clickArea.on('contextmenu', (e) => {
           console.log(`[TableModule] Cell [${row}, ${col}] contextmenu event`);
           // Don't cancel bubble - let it go to table group and then stage
@@ -510,7 +539,6 @@ export class TableRenderer {
 
           const stage = group.getStage();
           if (stage) {
-            // Use the tracked version for live resize support
             openCellEditorWithTracking({
               stage,
               elementId: el.id,
@@ -553,7 +581,7 @@ export class TableRenderer {
     // Get reference to SelectionModule for proper selection integration
     const getSelectionModule = () => (window as any).selectionModule;
 
-    // CRITICAL FIX: Improved contextmenu handler for the table group
+    // Context menu handler for the table group
     group.on('contextmenu', (e) => {
       console.log('[TableModule] Table group contextmenu event:', {
         elementId,
@@ -565,7 +593,7 @@ export class TableRenderer {
         evt: e.evt
       });
       
-      // CRITICAL FIX: Prevent position jumping during context menu
+      // Prevent position jumping during context menu
       e.evt.preventDefault();
       e.cancelBubble = false; // Allow bubbling to stage for context menu handling
       
@@ -622,7 +650,7 @@ export class TableRenderer {
       }
     });
 
-    // FIXED: Enhanced drag handling to prevent position drift
+    // Enhanced drag handling to prevent position drift
     group.on('dragend', () => {
       const newPos = group.position();
       const storeHook = this.getStoreHook();
