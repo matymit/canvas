@@ -1,101 +1,220 @@
-// Table transform helper for proportional resize handling
-// Used by TransformerManager when table elements are resized
-// Enhanced with aspect ratio locking and cell integrity preservation
+// COMPLETELY REWRITTEN table transform logic that works correctly with Konva.Transformer
+// Konva transformers modify scaleX/scaleY, NOT width/height directly
+// This implementation handles the scale->dimension conversion properly
 
 import type { TableElement } from "../../types/table";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 
 /**
- * Apply proportional resize to a table element with aspect ratio options
- * Scales column widths and row heights proportionally while maintaining constraints
+ * CRITICAL: Apply table resize based on Konva scale values
+ * Konva.Transformer modifies scaleX/scaleY, so we convert those to actual dimensions
  * @param element - The table element to resize
- * @param newWidth - Target width
- * @param newHeight - Target height  
- * @param options - Resize options including aspect ratio locking
+ * @param scaleX - New X scale from transformer
+ * @param scaleY - New Y scale from transformer
+ * @param options - Resize options
  */
-export function applyTableResize(
-  element: TableElement, 
-  newWidth: number, 
-  newHeight: number,
+export function applyTableScaleResize(
+  element: TableElement,
+  scaleX: number,
+  scaleY: number,
   options: {
     keepAspectRatio?: boolean;
-    lockToWidth?: boolean; // When true with keepAspectRatio, height follows width
-    lockToHeight?: boolean; // When true with keepAspectRatio, width follows height
+    minScaleX?: number;
+    minScaleY?: number;
   } = {}
 ): TableElement {
   const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
   
   // Handle aspect ratio locking
+  let finalScaleX = scaleX;
+  let finalScaleY = scaleY;
+  
   if (options.keepAspectRatio) {
-    const originalAspect = element.width / element.height;
-    
-    if (options.lockToWidth) {
-      // Height follows width to maintain aspect ratio
-      newHeight = newWidth / originalAspect;
-    } else if (options.lockToHeight) {
-      // Width follows height to maintain aspect ratio
-      newWidth = newHeight * originalAspect;
-    } else {
-      // Use the smaller scale factor to fit both dimensions
-      const wScale = newWidth / element.width;
-      const hScale = newHeight / element.height;
-      const scale = Math.min(wScale, hScale);
-      newWidth = element.width * scale;
-      newHeight = element.height * scale;
-    }
+    // Use the smaller scale to maintain aspect ratio
+    const minScale = Math.min(scaleX, scaleY);
+    finalScaleX = minScale;
+    finalScaleY = minScale;
   }
   
-  // Calculate scale factors
-  const wScale = newWidth / Math.max(1, element.width);
-  const hScale = newHeight / Math.max(1, element.height);
+  // Apply minimum scale constraints
+  const minScaleX = options.minScaleX || 0.1;
+  const minScaleY = options.minScaleY || 0.1;
+  finalScaleX = Math.max(minScaleX, finalScaleX);
+  finalScaleY = Math.max(minScaleY, finalScaleY);
   
-  // Scale column widths proportionally with minimum constraints
-  const colWidths = element.colWidths.map(w => {
-    const scaledWidth = Math.round(w * wScale);
+  // Calculate new dimensions based on scale
+  const newTotalWidth = Math.round(element.width * finalScaleX);
+  const newTotalHeight = Math.round(element.height * finalScaleY);
+  
+  // Proportionally scale all column widths
+  const newColWidths = element.colWidths.map(w => {
+    const scaledWidth = Math.round(w * finalScaleX);
     return Math.max(minCellWidth, scaledWidth);
   });
   
-  // Scale row heights proportionally with minimum constraints  
-  const rowHeights = element.rowHeights.map(h => {
-    const scaledHeight = Math.round(h * hScale);
+  // Proportionally scale all row heights
+  const newRowHeights = element.rowHeights.map(h => {
+    const scaledHeight = Math.round(h * finalScaleY);
     return Math.max(minCellHeight, scaledHeight);
   });
   
   // Calculate actual dimensions after constraint application
-  const actualWidth = colWidths.reduce((sum, w) => sum + w, 0);
-  const actualHeight = rowHeights.reduce((sum, h) => sum + h, 0);
-  
-  // Ensure cell data integrity is preserved
-  const preservedCells = [...element.cells];
+  const actualWidth = newColWidths.reduce((sum, w) => sum + w, 0);
+  const actualHeight = newRowHeights.reduce((sum, h) => sum + h, 0);
   
   return {
     ...element,
     width: actualWidth,
     height: actualHeight,
-    colWidths,
-    rowHeights,
-    cells: preservedCells, // Preserve all cell data during resize
+    colWidths: newColWidths,
+    rowHeights: newRowHeights,
+    // Cells remain unchanged during resize
+    cells: [...element.cells],
   };
 }
 
 /**
- * Apply table resize while maintaining aspect ratio (legacy compatibility)
- * @deprecated Use applyTableResize with options.keepAspectRatio instead
+ * Handle table transform end - this is where we reset scale and update dimensions
+ * This is the CORRECT way to handle Konva transformer resize for complex elements
+ * @param element - The table element
+ * @param node - The Konva group node that was transformed
+ * @param options - Transform options
  */
-export function applyTableResizeUniform(
+export function handleTableTransformEnd(
   element: TableElement,
-  newWidth: number,
-  newHeight: number,
-  maintainAspect: boolean = false
-): TableElement {
-  return applyTableResize(element, newWidth, newHeight, {
-    keepAspectRatio: maintainAspect
+  node: any, // Konva.Group
+  options: {
+    shiftKey?: boolean;
+    altKey?: boolean;
+    ctrlKey?: boolean;
+  } = {}
+): { element: TableElement; resetAttrs: any } {
+  const keepAspectRatio = options.shiftKey || false;
+  
+  // Get the current scale from the transformed node
+  const currentScaleX = node.scaleX();
+  const currentScaleY = node.scaleY();
+  
+  console.log('[TableTransform] Transform end:', {
+    elementId: element.id,
+    originalSize: { width: element.width, height: element.height },
+    scale: { x: currentScaleX, y: currentScaleY },
+    keepAspectRatio
   });
+  
+  // Apply the scale to get new table structure
+  const resizedElement = applyTableScaleResize(
+    element,
+    currentScaleX,
+    currentScaleY,
+    { keepAspectRatio }
+  );
+  
+  // CRITICAL: Reset the node's scale and update its size
+  // This is the key to proper Konva transformer handling
+  const resetAttrs = {
+    scaleX: 1,
+    scaleY: 1,
+    width: resizedElement.width,
+    height: resizedElement.height,
+    // Position stays the same
+    x: node.x(),
+    y: node.y(),
+  };
+  
+  console.log('[TableTransform] Applying reset attrs:', resetAttrs);
+  
+  return {
+    element: {
+      ...resizedElement,
+      x: node.x(),
+      y: node.y(),
+    },
+    resetAttrs
+  };
 }
 
 /**
- * Enhanced table resize with shift-key modifier support for aspect ratio
- * This is the main function that should be called from TransformManager
+ * Handle ongoing table transform (live preview)
+ * During transform, we just let Konva handle the scaling visually
+ * @param element - The table element
+ * @param node - The Konva group node
+ */
+export function handleTableTransformLive(
+  element: TableElement,
+  node: any, // Konva.Group
+  options: {
+    shiftKey?: boolean;
+  } = {}
+): void {
+  // During live transform, we can optionally enforce aspect ratio
+  if (options.shiftKey) {
+    const currentScaleX = node.scaleX();
+    const currentScaleY = node.scaleY();
+    
+    // Use the smaller scale to maintain aspect ratio
+    const minScale = Math.min(Math.abs(currentScaleX), Math.abs(currentScaleY));
+    
+    node.scaleX(currentScaleX >= 0 ? minScale : -minScale);
+    node.scaleY(currentScaleY >= 0 ? minScale : -minScale);
+  }
+  
+  // Let Konva handle the visual scaling during transform
+  // No need to update the element data structure during live transform
+}
+
+/**
+ * Create proper boundBoxFunc for table transformers
+ * This prevents malformed tables and enforces minimum sizes
+ */
+export function createTableBoundBoxFunc(
+  element: TableElement
+) {
+  return (oldBox: any, newBox: any) => {
+    // Calculate minimum dimensions based on table structure
+    const minTableWidth = element.colWidths.length * DEFAULT_TABLE_CONFIG.minCellWidth;
+    const minTableHeight = element.rowHeights.length * DEFAULT_TABLE_CONFIG.minCellHeight;
+    
+    // Calculate minimum scale factors
+    const minScaleX = minTableWidth / element.width;
+    const minScaleY = minTableHeight / element.height;
+    
+    // Calculate what the scale would be for the new box
+    const newScaleX = newBox.width / element.width;
+    const newScaleY = newBox.height / element.height;
+    
+    // Enforce minimum scales
+    const constrainedScaleX = Math.max(minScaleX, newScaleX);
+    const constrainedScaleY = Math.max(minScaleY, newScaleY);
+    
+    // Handle aspect ratio locking with shift key
+    const event = window.event as KeyboardEvent | undefined;
+    const shiftKey = event?.shiftKey ?? false;
+    
+    let finalScaleX = constrainedScaleX;
+    let finalScaleY = constrainedScaleY;
+    
+    if (shiftKey) {
+      // Use the smaller scale to maintain aspect ratio
+      const minScale = Math.min(constrainedScaleX, constrainedScaleY);
+      finalScaleX = minScale;
+      finalScaleY = minScale;
+    }
+    
+    // Return the constrained bounds
+    return {
+      x: newBox.x || 0,
+      y: newBox.y || 0,
+      width: element.width * finalScaleX,
+      height: element.height * finalScaleY,
+      rotation: newBox.rotation || 0,
+    };
+  };
+}
+
+/**
+ * Legacy compatibility function - use handleTableTransformEnd instead
+ * @deprecated
  */
 export function handleTableTransform(
   element: TableElement,
@@ -106,14 +225,17 @@ export function handleTableTransform(
     ctrlKey?: boolean;
   } = {}
 ): TableElement {
-  const keepAspectRatio = transformState.shiftKey || false;
+  console.warn('[TableTransform] handleTableTransform is deprecated, use handleTableTransformEnd instead');
   
-  // Apply position and size changes
-  const resized = applyTableResize(
-    element, 
-    newBounds.width, 
-    newBounds.height,
-    { keepAspectRatio }
+  // Calculate scale from bounds
+  const scaleX = newBounds.width / element.width;
+  const scaleY = newBounds.height / element.height;
+  
+  const resized = applyTableScaleResize(
+    element,
+    scaleX,
+    scaleY,
+    { keepAspectRatio: transformState.shiftKey }
   );
   
   return {
@@ -123,9 +245,11 @@ export function handleTableTransform(
   };
 }
 
+// Keep existing functions for table structure modification (add/remove rows/cols)
+// These don't need to change as they work with the data structure directly
+
 /**
  * Resize specific columns in a table
- * Used for interactive column resizing
  */
 export function resizeTableColumns(
   element: TableElement,
@@ -149,7 +273,6 @@ export function resizeTableColumns(
 
 /**
  * Resize specific rows in a table
- * Used for interactive row resizing
  */
 export function resizeTableRows(
   element: TableElement,
@@ -179,8 +302,10 @@ export function addTableColumn(
   insertIndex?: number
 ): TableElement {
   const insertAt = insertIndex ?? element.cols;
-  const newColWidth = Math.max(DEFAULT_TABLE_CONFIG.minCellWidth, 
-    Math.round(element.width / (element.cols + 1)));
+  const newColWidth = Math.max(
+    DEFAULT_TABLE_CONFIG.minCellWidth,
+    Math.round(element.width / (element.cols + 1))
+  );
   
   // Insert new column width
   const newColWidths = [...element.colWidths];
@@ -191,10 +316,8 @@ export function addTableColumn(
   for (let row = 0; row < element.rows; row++) {
     for (let col = 0; col <= element.cols; col++) {
       if (col === insertAt) {
-        // Insert new empty cell
         newCells.push({ text: "" });
       } else {
-        // Copy existing cell, adjusting index for insertions
         const sourceCol = col > insertAt ? col - 1 : col;
         const sourceIndex = row * element.cols + sourceCol;
         newCells.push(element.cells[sourceIndex] || { text: "" });
@@ -219,8 +342,10 @@ export function addTableRow(
   insertIndex?: number
 ): TableElement {
   const insertAt = insertIndex ?? element.rows;
-  const newRowHeight = Math.max(DEFAULT_TABLE_CONFIG.minCellHeight,
-    Math.round(element.height / (element.rows + 1)));
+  const newRowHeight = Math.max(
+    DEFAULT_TABLE_CONFIG.minCellHeight,
+    Math.round(element.height / (element.rows + 1))
+  );
   
   // Insert new row height
   const newRowHeights = [...element.rowHeights];
@@ -248,12 +373,10 @@ export function removeTableColumn(
   element: TableElement,
   columnIndex: number
 ): TableElement {
-  if (element.cols <= 1) return element; // Can't remove last column
+  if (element.cols <= 1) return element;
   
-  // Remove column width
   const newColWidths = element.colWidths.filter((_, i) => i !== columnIndex);
   
-  // Remove cells in the column
   const newCells = [];
   for (let row = 0; row < element.rows; row++) {
     for (let col = 0; col < element.cols; col++) {
@@ -280,12 +403,10 @@ export function removeTableRow(
   element: TableElement,
   rowIndex: number
 ): TableElement {
-  if (element.rows <= 1) return element; // Can't remove last row
+  if (element.rows <= 1) return element;
   
-  // Remove row height
   const newRowHeights = element.rowHeights.filter((_, i) => i !== rowIndex);
   
-  // Remove cells in the row
   const newCells = [...element.cells];
   const startIndex = rowIndex * element.cols;
   newCells.splice(startIndex, element.cols);
