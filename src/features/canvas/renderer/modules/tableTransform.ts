@@ -1,9 +1,42 @@
-// COMPLETELY REWRITTEN table transform logic that works correctly with Konva.Transformer
-// Konva transformers modify scaleX/scaleY, NOT width/height directly
-// This implementation handles the scale->dimension conversion properly
+// CORRECTED table transform logic that properly handles Konva.Transformer
+// Implements the scale→reset→resize pattern correctly for complex elements
 
 import type { TableElement } from "../../types/table";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
+
+/**
+ * Helper function for proportional scaling with minimum constraints and redistribution
+ * This is the key to preventing horizontal locking when shrinking
+ */
+function rescaleWithMins(arr: number[], scale: number, min: number): number[] {
+  const proposed = arr.map(v => Math.max(v * scale, min));
+  const proposedSum = proposed.reduce((a, b) => a + b, 0);
+  const targetSum = arr.reduce((a, b) => a + b, 0) * scale;
+
+  // If some mins triggered, proposedSum may exceed targetSum.
+  // Normalize to targetSum to avoid drift, but never drop below min.
+  if (proposedSum === 0) return arr.map(() => min);
+
+  const correction = targetSum / proposedSum;
+  const corrected = proposed.map(v => Math.max(v * correction, min));
+
+  // Final normalization to exactly match targetSum
+  const finalSum = corrected.reduce((a, b) => a + b, 0);
+  const delta = targetSum - finalSum;
+  if (Math.abs(delta) > 0.5) {
+    // distribute delta across columns > min
+    const flexIdx = corrected
+      .map((v, i) => [v, i] as const)
+      .filter(([v]) => v > min)
+      .map(([, i]) => i);
+
+    if (flexIdx.length) {
+      const per = delta / flexIdx.length;
+      flexIdx.forEach(i => corrected[i] = Math.max(corrected[i] + per, min));
+    }
+  }
+  return corrected;
+}
 
 /**
  * CRITICAL: Apply table resize based on Konva scale values
@@ -31,32 +64,20 @@ export function applyTableScaleResize(
   
   if (options.keepAspectRatio) {
     // Use the smaller scale to maintain aspect ratio
-    const minScale = Math.min(scaleX, scaleY);
-    finalScaleX = minScale;
-    finalScaleY = minScale;
+    const minScale = Math.min(Math.abs(scaleX), Math.abs(scaleY));
+    finalScaleX = scaleX >= 0 ? minScale : -minScale;
+    finalScaleY = scaleY >= 0 ? minScale : -minScale;
   }
   
   // Apply minimum scale constraints
   const minScaleX = options.minScaleX || 0.1;
   const minScaleY = options.minScaleY || 0.1;
-  finalScaleX = Math.max(minScaleX, finalScaleX);
-  finalScaleY = Math.max(minScaleY, finalScaleY);
+  finalScaleX = Math.max(minScaleX, Math.abs(finalScaleX)) * Math.sign(finalScaleX);
+  finalScaleY = Math.max(minScaleY, Math.abs(finalScaleY)) * Math.sign(finalScaleY);
   
-  // Calculate new dimensions based on scale
-  const newTotalWidth = Math.round(element.width * finalScaleX);
-  const newTotalHeight = Math.round(element.height * finalScaleY);
-  
-  // Proportionally scale all column widths
-  const newColWidths = element.colWidths.map(w => {
-    const scaledWidth = Math.round(w * finalScaleX);
-    return Math.max(minCellWidth, scaledWidth);
-  });
-  
-  // Proportionally scale all row heights
-  const newRowHeights = element.rowHeights.map(h => {
-    const scaledHeight = Math.round(h * finalScaleY);
-    return Math.max(minCellHeight, scaledHeight);
-  });
+  // Use the corrected rescaling function that prevents horizontal locking
+  const newColWidths = rescaleWithMins(element.colWidths, Math.abs(finalScaleX), minCellWidth);
+  const newRowHeights = rescaleWithMins(element.rowHeights, Math.abs(finalScaleY), minCellHeight);
   
   // Calculate actual dimensions after constraint application
   const actualWidth = newColWidths.reduce((sum, w) => sum + w, 0);
@@ -164,84 +185,57 @@ export function handleTableTransformLive(
 }
 
 /**
- * Create proper boundBoxFunc for table transformers
- * This prevents malformed tables and enforces minimum sizes
+ * CORRECTED boundBoxFunc for table transformers
+ * This prevents the horizontal locking issue by never returning oldBox
+ * Always returns a constrained newBox instead
  */
 export function createTableBoundBoxFunc(
   element: TableElement
 ) {
   return (oldBox: any, newBox: any) => {
+    const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
+    
     // Calculate minimum dimensions based on table structure
-    const minTableWidth = element.colWidths.length * DEFAULT_TABLE_CONFIG.minCellWidth;
-    const minTableHeight = element.rowHeights.length * DEFAULT_TABLE_CONFIG.minCellHeight;
+    const minTableWidth = element.cols * minCellWidth;
+    const minTableHeight = element.rows * minCellHeight;
     
-    // Calculate minimum scale factors
-    const minScaleX = minTableWidth / element.width;
-    const minScaleY = minTableHeight / element.height;
-    
-    // Calculate what the scale would be for the new box
-    const newScaleX = newBox.width / element.width;
-    const newScaleY = newBox.height / element.height;
-    
-    // Enforce minimum scales
-    const constrainedScaleX = Math.max(minScaleX, newScaleX);
-    const constrainedScaleY = Math.max(minScaleY, newScaleY);
+    // CRITICAL FIX: Always return a constrained newBox, never oldBox
+    // This prevents the horizontal "dead stop" when shrinking
+    const constrainedWidth = Math.max(newBox.width, minTableWidth);
+    const constrainedHeight = Math.max(newBox.height, minTableHeight);
     
     // Handle aspect ratio locking with shift key
-    const event = window.event as KeyboardEvent | undefined;
+    const event = (typeof window !== 'undefined' && window.event) as KeyboardEvent | undefined;
     const shiftKey = event?.shiftKey ?? false;
     
-    let finalScaleX = constrainedScaleX;
-    let finalScaleY = constrainedScaleY;
+    let finalWidth = constrainedWidth;
+    let finalHeight = constrainedHeight;
     
     if (shiftKey) {
-      // Use the smaller scale to maintain aspect ratio
-      const minScale = Math.min(constrainedScaleX, constrainedScaleY);
-      finalScaleX = minScale;
-      finalScaleY = minScale;
+      // Calculate current aspect ratio
+      const aspectRatio = element.width / element.height;
+      
+      // Determine which dimension to adjust based on the change ratio
+      const widthRatio = constrainedWidth / element.width;
+      const heightRatio = constrainedHeight / element.height;
+      
+      if (widthRatio < heightRatio) {
+        // Width is the limiting factor
+        finalHeight = Math.max(constrainedWidth / aspectRatio, minTableHeight);
+      } else {
+        // Height is the limiting factor  
+        finalWidth = Math.max(constrainedHeight * aspectRatio, minTableWidth);
+      }
     }
     
-    // Return the constrained bounds
+    // CRITICAL: Always return a valid box, never oldBox
     return {
       x: newBox.x || 0,
       y: newBox.y || 0,
-      width: element.width * finalScaleX,
-      height: element.height * finalScaleY,
+      width: finalWidth,
+      height: finalHeight,
       rotation: newBox.rotation || 0,
     };
-  };
-}
-
-/**
- * Legacy compatibility function - use handleTableTransformEnd instead
- * @deprecated
- */
-export function handleTableTransform(
-  element: TableElement,
-  newBounds: { x: number; y: number; width: number; height: number },
-  transformState: {
-    shiftKey?: boolean;
-    altKey?: boolean;
-    ctrlKey?: boolean;
-  } = {}
-): TableElement {
-  console.warn('[TableTransform] handleTableTransform is deprecated, use handleTableTransformEnd instead');
-  
-  // Calculate scale from bounds
-  const scaleX = newBounds.width / element.width;
-  const scaleY = newBounds.height / element.height;
-  
-  const resized = applyTableScaleResize(
-    element,
-    scaleX,
-    scaleY,
-    { keepAspectRatio: transformState.shiftKey }
-  );
-  
-  return {
-    ...resized,
-    x: newBounds.x,
-    y: newBounds.y,
   };
 }
 
@@ -448,5 +442,38 @@ export function validateTableIntegrity(element: TableElement): TableElement {
     colWidths: validColWidths,
     rowHeights: validRowHeights,
     cells: validCells,
+  };
+}
+
+/**
+ * Legacy compatibility function - use handleTableTransformEnd instead
+ * @deprecated
+ */
+export function handleTableTransform(
+  element: TableElement,
+  newBounds: { x: number; y: number; width: number; height: number },
+  transformState: {
+    shiftKey?: boolean;
+    altKey?: boolean;
+    ctrlKey?: boolean;
+  } = {}
+): TableElement {
+  console.warn('[TableTransform] handleTableTransform is deprecated, use handleTableTransformEnd instead');
+  
+  // Calculate scale from bounds
+  const scaleX = newBounds.width / element.width;
+  const scaleY = newBounds.height / element.height;
+  
+  const resized = applyTableScaleResize(
+    element,
+    scaleX,
+    scaleY,
+    { keepAspectRatio: transformState.shiftKey }
+  );
+  
+  return {
+    ...resized,
+    x: newBounds.x,
+    y: newBounds.y,
   };
 }
