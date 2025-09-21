@@ -22,6 +22,7 @@ interface SelectionModule {
 interface ExtendedWindow extends Window {
   selectionModule?: SelectionModule;
   stickyNoteModule?: StickyNoteModule;
+  pendingStickyNoteEdits?: Set<string>;
 }
 
 interface StoreWithHistory {
@@ -52,8 +53,13 @@ export class StickyNoteModule implements RendererModule {
     this.layers = ctx.layers.main;
     this.storeCtx = ctx;
 
+    const extendedWindow = window as ExtendedWindow;
+
     // FIXED: Make module globally accessible for tool integration
-    (window as ExtendedWindow).stickyNoteModule = this;
+    extendedWindow.stickyNoteModule = this;
+    if (!extendedWindow.pendingStickyNoteEdits) {
+      extendedWindow.pendingStickyNoteEdits = new Set();
+    }
 
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
@@ -115,8 +121,9 @@ export class StickyNoteModule implements RendererModule {
     }
 
     // Clean up global reference
-    if ((window as ExtendedWindow).stickyNoteModule === this) {
-      (window as ExtendedWindow).stickyNoteModule = undefined;
+    const extendedWindow = window as ExtendedWindow;
+    if (extendedWindow.stickyNoteModule === this) {
+      extendedWindow.stickyNoteModule = undefined;
     }
   }
 
@@ -137,9 +144,11 @@ export class StickyNoteModule implements RendererModule {
         group = this.createStickyGroup(sticky);
         this.nodes.set(id, group);
         this.layers.add(group);
+        this.consumePendingImmediateEdit(id, group);
       } else {
         // Update existing sticky note
         this.updateStickyGroup(group, sticky);
+        this.consumePendingImmediateEdit(id, group);
       }
     }
 
@@ -477,6 +486,9 @@ export class StickyNoteModule implements RendererModule {
 
     if (!this.storeCtx) return;
 
+    const extendedWindow = window as ExtendedWindow;
+    extendedWindow.pendingStickyNoteEdits?.delete(elementId);
+
     // Get stage and text element for positioning
     const stage = group.getStage();
     const textNode = group.findOne(".sticky-text") as Konva.Text;
@@ -666,40 +678,40 @@ export class StickyNoteModule implements RendererModule {
 
   // FIXED: Public method for immediate text editing after creation with improved timing
   public triggerImmediateTextEdit(elementId: string) {
-    // Debug: [StickyNoteModule] Triggering immediate text edit for: ${elementId}
+    const extendedWindow = window as ExtendedWindow;
+    extendedWindow.pendingStickyNoteEdits?.add(elementId);
+    this.consumePendingImmediateEdit(elementId);
+  }
 
-    // Try immediate edit first
-    const group = this.nodes.get(elementId);
-    if (group) {
-      // Debug: [StickyNoteModule] Element found immediately, starting text edit
-      // Small delay to ensure selection is complete
-      setTimeout(() => {
-        this.startTextEditing(group, elementId);
-      }, 10);
+  private consumePendingImmediateEdit(
+    elementId: string,
+    group?: Konva.Group,
+    attempt = 0,
+  ) {
+    const extendedWindow = window as ExtendedWindow;
+    const pendingSet = extendedWindow.pendingStickyNoteEdits;
+
+    if (!pendingSet?.has(elementId)) {
       return;
     }
 
-    // Use retry mechanism with shorter delays for better UX
-    let attempts = 0;
-    const maxAttempts = 5;
-    const retryDelay = 50; // 50ms intervals
-
-    const attemptEdit = () => {
-      attempts++;
-      const group = this.nodes.get(elementId);
-
-      if (group) {
-        // Debug: [StickyNoteModule] Found element on attempt ${attempts}, starting text edit
-        this.startTextEditing(group, elementId);
-      } else if (attempts < maxAttempts) {
-        // Debug: [StickyNoteModule] Element not ready on attempt ${attempts}, retrying in ${retryDelay}ms...
-        setTimeout(attemptEdit, retryDelay);
-      } else {
-        // Warning: [StickyNoteModule] Could not find element for text editing after ${maxAttempts} attempts
+    const targetGroup = group ?? this.nodes.get(elementId);
+    if (!targetGroup) {
+      if (attempt > 120) {
+        return;
       }
-    };
+      setTimeout(() => this.consumePendingImmediateEdit(elementId, undefined, attempt + 1), 16);
+      return;
+    }
 
-    // Start retry mechanism
-    setTimeout(attemptEdit, retryDelay);
+    pendingSet.delete(elementId);
+
+    if (this.editorElementId === elementId) {
+      return;
+    }
+
+    setTimeout(() => {
+      this.startTextEditing(targetGroup, elementId);
+    }, 16);
   }
 }

@@ -20,13 +20,36 @@ const DEFAULT_FILL = "#FFF59D"; // light yellow
 const DEFAULT_TEXT = "";
 const DEFAULT_FONT_SIZE = 16;
 
+const MAX_FOCUS_ATTEMPTS = 120;
+
 // Get reference to StickyNoteModule for direct text editing trigger
 interface StickyNoteModule {
   triggerImmediateTextEdit?: (elementId: string) => void;
 }
 
-function getStickyNoteModule(): StickyNoteModule | undefined {
-  return (window as Window & { stickyNoteModule?: StickyNoteModule }).stickyNoteModule;
+type StickyWindow = Window & {
+  stickyNoteModule?: StickyNoteModule;
+  pendingStickyNoteEdits?: Set<string>;
+};
+
+function requestStickyNoteEditing(elementId: string, attempts = 30) {
+  if (typeof window === "undefined") return;
+  const stickyWindow = window as StickyWindow;
+  if (!stickyWindow.pendingStickyNoteEdits) {
+    stickyWindow.pendingStickyNoteEdits = new Set();
+  }
+  stickyWindow.pendingStickyNoteEdits.add(elementId);
+
+  const stickyModule = stickyWindow.stickyNoteModule;
+
+  if (stickyModule?.triggerImmediateTextEdit) {
+    stickyModule.triggerImmediateTextEdit(elementId);
+    return;
+  }
+
+  if (attempts <= 0) return;
+
+  window.setTimeout(() => requestStickyNoteEditing(elementId, attempts - 1), 50);
 }
 
 const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
@@ -73,7 +96,8 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         style: {
           fill: actualFill,
           fontSize,
-          fontFamily: "Inter, sans-serif"
+          fontFamily: "Inter, sans-serif",
+          textAlign: "left",
         },
       };
 
@@ -89,24 +113,69 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
       // Element added to store
 
-      // Wait for render, then auto-select and trigger text editing
-      setTimeout(() => {
-        // Attempting auto-text edit
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => requestStickyNoteEditing(elementId));
+      } else {
+        setTimeout(() => requestStickyNoteEditing(elementId), 0);
+      }
 
-        // Try to trigger text editing via StickyNoteModule
-        const stickyModule = getStickyNoteModule();
-        if (stickyModule?.triggerImmediateTextEdit) {
-          stickyModule.triggerImmediateTextEdit(elementId);
-        } else {
-          // StickyNoteModule not available for text editing
+      let finalized = false;
+
+      const finalizeToolSwitch = () => {
+        if (finalized) return;
+        finalized = true;
+        if (typeof store.setSelectedTool === "function") {
+          store.setSelectedTool("select");
+        }
+      };
+
+      const ensureEditorFocused = (attempt: number) => {
+        if (finalized) return;
+        if (typeof document === "undefined") {
+          finalizeToolSwitch();
+          return;
         }
 
-        // Switch back to select tool
-        setTimeout(() => {
-          store.setSelectedTool("select");
-          // Switched back to select tool
-        }, 100);
-      }, 150);
+        const editor = document.querySelector<HTMLTextAreaElement>(
+          `textarea[data-sticky-editor="${elementId}"]`,
+        );
+
+        if (editor) {
+          if (document.activeElement !== editor) {
+            editor.focus();
+          }
+
+          try {
+            const caretPosition = editor.value.length;
+            editor.setSelectionRange(caretPosition, caretPosition);
+          } catch {
+            // Ignore selection errors (e.g., unsupported inputs)
+          }
+
+          finalizeToolSwitch();
+          return;
+        }
+
+        if (attempt >= MAX_FOCUS_ATTEMPTS) {
+          finalizeToolSwitch();
+          return;
+        }
+
+        if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+          window.requestAnimationFrame(() => ensureEditorFocused(attempt + 1));
+        } else {
+          setTimeout(() => ensureEditorFocused(attempt + 1), 16);
+        }
+      };
+
+      if (
+        typeof window !== "undefined" &&
+        typeof window.requestAnimationFrame === "function"
+      ) {
+        window.requestAnimationFrame(() => ensureEditorFocused(0));
+      } else {
+        setTimeout(() => ensureEditorFocused(0), 16);
+      }
 
       e.cancelBubble = true;
     };

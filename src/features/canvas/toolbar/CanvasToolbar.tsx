@@ -1,4 +1,10 @@
-import React, { useState, useRef, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 import ShapesDropdown from "@features/canvas/toolbar/ShapesDropdown";
@@ -145,18 +151,83 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
   const [shapesOpen, setShapesOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [stickyNoteColorsOpen, setStickyNoteColorsOpen] = useState(false);
+  const [shapeAnchorRect, setShapeAnchorRect] = useState<DOMRect | null>(null);
+  const [stickyNoteAnchorRect, setStickyNoteAnchorRect] =
+    useState<DOMRect | null>(null);
   const shapesBtnRef = useRef<HTMLButtonElement | null>(null);
   const stickyNoteBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  const shapeAnchorRect = useMemo(
-    () => shapesBtnRef.current?.getBoundingClientRect() ?? null,
-    [],
-  );
+  const updateShapeAnchorRect = useCallback(() => {
+    if (!shapesBtnRef.current) return;
+    const nextRect = shapesBtnRef.current.getBoundingClientRect();
+    setShapeAnchorRect((current) => {
+      if (!current) return nextRect;
+      if (
+        current.top !== nextRect.top ||
+        current.left !== nextRect.left ||
+        current.width !== nextRect.width ||
+        current.height !== nextRect.height
+      ) {
+        return nextRect;
+      }
+      return current;
+    });
+  }, []);
 
-  const stickyNoteAnchorRect = useMemo(
-    () => stickyNoteBtnRef.current?.getBoundingClientRect() ?? null,
-    [],
-  );
+  const updateStickyNoteAnchorRect = useCallback(() => {
+    if (!stickyNoteBtnRef.current) return;
+    const nextRect = stickyNoteBtnRef.current.getBoundingClientRect();
+    setStickyNoteAnchorRect((current) => {
+      if (!current) return nextRect;
+      if (
+        current.top !== nextRect.top ||
+        current.left !== nextRect.left ||
+        current.width !== nextRect.width ||
+        current.height !== nextRect.height
+      ) {
+        return nextRect;
+      }
+      return current;
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    updateShapeAnchorRect();
+    if (!shapesOpen) return;
+
+    const handleWindowChange = () => updateShapeAnchorRect();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", handleWindowChange);
+      window.addEventListener("scroll", handleWindowChange, true);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", handleWindowChange);
+        window.removeEventListener("scroll", handleWindowChange, true);
+      }
+    };
+  }, [shapesOpen, updateShapeAnchorRect]);
+
+  useLayoutEffect(() => {
+    updateStickyNoteAnchorRect();
+    if (!stickyNoteColorsOpen) return;
+
+    const handleWindowChange = () => updateStickyNoteAnchorRect();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", handleWindowChange);
+      window.addEventListener("scroll", handleWindowChange, true);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", handleWindowChange);
+        window.removeEventListener("scroll", handleWindowChange, true);
+      }
+    };
+  }, [stickyNoteColorsOpen, updateStickyNoteAnchorRect]);
 
   const selectAndCloseShapes = useCallback(
     (toolId: string) => {
