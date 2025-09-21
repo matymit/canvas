@@ -7,9 +7,18 @@ export interface StageSelectionHandlerProps {
   stageRef: React.RefObject<Konva.Stage | null>;
 }
 
+interface SelectionModule {
+  clearSelection?: () => void;
+  selectElement?: (elementId: string) => void;
+}
+
+interface WindowWithSelectionModule extends Window {
+  selectionModule?: SelectionModule;
+}
+
 // Get reference to SelectionModule for consistent selection behavior
-function getSelectionModule(): any {
-  return (window as any).selectionModule;
+function getSelectionModule(): SelectionModule | undefined {
+  return (window as WindowWithSelectionModule).selectionModule;
 }
 
 const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef }) => {
@@ -23,14 +32,11 @@ const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef 
     const stage = stageRef.current;
     if (!stage) return;
 
-    console.log('[StageSelectionHandler] Setting up stage selection behavior');
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-      console.log('[StageSelectionHandler] Stage click detected, target:', e.target.className);
       
       // If clicking empty stage (background), clear selection
       if (e.target === stage) {
-        console.log('[StageSelectionHandler] Empty canvas click - clearing selection');
         
         const selectionModule = getSelectionModule();
         if (selectionModule?.clearSelection) {
@@ -48,18 +54,12 @@ const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef 
       const clickedNode = e.target;
       const elementId = clickedNode.getAttr('elementId') || clickedNode.id();
       
-      console.log('[StageSelectionHandler] Node clicked:', {
-        className: clickedNode.className,
-        elementId,
-        hasElement: elements.has(elementId)
-      });
       
       if (elementId && elements.has(elementId)) {
         const selectionModule = getSelectionModule();
         
         if (e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey) {
           // Additive selection with Ctrl/Cmd/Shift
-          console.log('[StageSelectionHandler] Additive selection for:', elementId);
           
           if (selectionModule) {
             // Use SelectionModule for consistency
@@ -77,7 +77,6 @@ const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef 
           }
         } else {
           // Single selection
-          console.log('[StageSelectionHandler] Single selection for:', elementId);
           
           if (selectionModule?.selectElement) {
             selectionModule.selectElement(elementId);

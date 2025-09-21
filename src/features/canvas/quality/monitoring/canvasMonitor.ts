@@ -157,7 +157,8 @@ export class CanvasMonitor {
     let shapes = 0;
     const stack = [this.stage as Konva.Node];
     while (stack.length) {
-      const node = stack.pop()!;
+      const node = stack.pop();
+      if (!node) continue;
       const name = node.getClassName?.();
       if (name === 'Layer' || name === 'FastLayer') layers++;
       else if (name === 'Group') groups++;

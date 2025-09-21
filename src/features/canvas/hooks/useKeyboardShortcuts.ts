@@ -117,10 +117,10 @@ export default function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers,
       }
     };
 
-    const node: any = target;
-    node.addEventListener('keydown', onKeyDown);
+    const node = target as EventTarget;
+    node.addEventListener('keydown', onKeyDown as EventListener);
     return () => {
-      node.removeEventListener('keydown', onKeyDown);
+      node.removeEventListener('keydown', onKeyDown as EventListener);
     };
   }, [handlers, target, isMac]);
 }

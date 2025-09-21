@@ -20,7 +20,7 @@ export function applyHiDPI(
     // Using Konva.pixelRatio as a coarse fallback on retina if needed
     // See Konva performance tips regarding retina performance vs. crispness
     // Note: setting this globally may impact quality; prefer per-layer pixel ratio when possible.
-    (Konva as any).pixelRatio = dpr; // runtime fallback only
+    (Konva as typeof Konva & { pixelRatio?: number }).pixelRatio = dpr; // runtime fallback only
   }
 
   const allLayers: Konva.Layer[] =
@@ -33,8 +33,8 @@ export function applyHiDPI(
   for (const ly of allLayers) {
     try {
       // Per-layer canvas pixel ratio for crisp rendering
-      ly.getCanvas().setPixelRatio(dpr as any);
-      ly.getHitCanvas().setPixelRatio?.(dpr as any);
+      (ly.getCanvas() as { setPixelRatio?: (ratio: number) => void }).setPixelRatio?.(dpr);
+      (ly.getHitCanvas() as { setPixelRatio?: (ratio: number) => void }).setPixelRatio?.(dpr);
       ly.batchDraw();
     } catch {
       // noop if unavailable in current Konva version
@@ -47,8 +47,8 @@ export function configureStaticLayer(layer: Konva.Layer): void {
   // listening false removes event detection overhead
   layer.listening(false);
   // hitGraphEnabled false avoids redrawing the hit graph; useful for non-interactive layers
-  if (typeof (layer as any).hitGraphEnabled === 'function') {
-    (layer as any).hitGraphEnabled(false);
+  if (typeof (layer as Konva.Layer & { hitGraphEnabled?: (enabled: boolean) => void }).hitGraphEnabled === 'function') {
+    (layer as Konva.Layer & { hitGraphEnabled: (enabled: boolean) => void }).hitGraphEnabled(false);
   }
   layer.batchDraw();
 }
@@ -81,12 +81,15 @@ export function enableDragLayerOptimization(
 export function cacheNodeIfComplex(node: Konva.Node, opts?: { pixelRatio?: number }): void {
   try {
     // Only shapes support perfectDrawEnabled/shadowForStrokeEnabled
-    const anyNode = node as any;
-    if (typeof anyNode.perfectDrawEnabled === 'function') {
-      anyNode.perfectDrawEnabled(false);
+    const nodeWithOptionalMethods = node as Konva.Node & {
+      perfectDrawEnabled?: (enabled: boolean) => void;
+      shadowForStrokeEnabled?: (enabled: boolean) => void;
+    };
+    if (typeof nodeWithOptionalMethods.perfectDrawEnabled === 'function') {
+      nodeWithOptionalMethods.perfectDrawEnabled(false);
     }
-    if (typeof anyNode.shadowForStrokeEnabled === 'function') {
-      anyNode.shadowForStrokeEnabled(false);
+    if (typeof nodeWithOptionalMethods.shadowForStrokeEnabled === 'function') {
+      nodeWithOptionalMethods.shadowForStrokeEnabled(false);
     }
     if (typeof node.cache === 'function') {
       // Higher pixelRatio cache can improve quality if needed

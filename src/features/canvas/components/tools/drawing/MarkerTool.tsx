@@ -93,7 +93,7 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
               lineCap: 'round',
               lineJoin: 'round'
             }
-          } as any);
+          });
         });
       }
       
@@ -103,7 +103,7 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
       rafPendingRef.current = false;
       try { previewLayerRef.current?.batchDraw(); } catch (error) {
         // Ignore cleanup errors
-        console.debug('[MarkerTool] Cleanup error:', error);
+        // Cleanup error
       }
     };
 
@@ -177,7 +177,7 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
         lineRef.current?.destroy();
       } catch (error) {
         // Ignore cleanup errors
-        console.debug('[MarkerTool] Cleanup error:', error);
+        // Cleanup error
       }
       lineRef.current = null;
 
@@ -187,7 +187,7 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
       pointsRef.current = [];
       rafPendingRef.current = false;
     };
-  }, [stageRef, isActive, color, size, opacity]);
+  }, [stageRef, isActive, color, size, opacity, upsertElement, withUndo]);
 
   return null;
 };

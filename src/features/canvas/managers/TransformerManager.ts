@@ -95,18 +95,21 @@ export class TransformerManager {
       keepRatio: this.opts.lockAspectRatio || false,
     });
 
-    this.overlay.add(this.transformer!);
-    this.overlay.batchDraw();
+    if (this.transformer) {
+      this.overlay.add(this.transformer);
+      this.overlay.batchDraw();
 
-    // Wire events to callbacks and snapping behavior
-    this.transformer!.on("transformstart", () => {
-      const nodes = this.transformer!.nodes();
-      this.opts.onTransformStart?.(nodes);
-    });
+      // Wire events to callbacks and snapping behavior
+      this.transformer.on("transformstart", () => {
+        const nodes = this.transformer?.nodes();
+        if (!nodes) return;
+        this.opts.onTransformStart?.(nodes);
+      });
 
     // Keep ratio when modifier is pressed (applied per move)
     const onTransform = () => {
-      const tr = this.transformer!;
+      const tr = this.transformer;
+      if (!tr) return;
       if (!tr) return;
       const nodes = tr.nodes();
 
@@ -131,11 +134,15 @@ export class TransformerManager {
       this.overlay.batchDraw();
     };
 
-    this.transformer!.on("transform", onTransform);
+    if (this.transformer) {
+      this.transformer.on("transform", onTransform);
+    }
 
 
-    this.transformer!.on("transformend", () => {
-      const tr = this.transformer!;
+    if (this.transformer) {
+      this.transformer.on("transformend", () => {
+        const tr = this.transformer;
+        if (!tr) return;
       if (!tr) return;
 
       // Rotation snapping on transform end (optional)
@@ -155,7 +162,8 @@ export class TransformerManager {
       setTimeout(() => {
         this.overlay.batchDraw();
       }, 10);
-    });
+      });
+    }
 
     // FIXED: Enhanced keyboard listener for aspect ratio control
     if (this.stage && this.opts.keepRatioKey) {
@@ -179,6 +187,7 @@ export class TransformerManager {
         document.removeEventListener("keydown", down, true);
         document.removeEventListener("keyup", up, true);
       };
+    }
     }
   }
 

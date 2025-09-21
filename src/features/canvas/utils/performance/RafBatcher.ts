@@ -13,13 +13,13 @@ import { memoryUtils } from './MemoryManager';
 type VoidFn = () => void;
 
 function requestIdle(fn: VoidFn, timeout = 100) {
-  const ric = (globalThis as any).requestIdleCallback as undefined | ((cb: any, opts?: any) => number);
+  const ric = (globalThis as unknown as { requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number }).requestIdleCallback;
   if (ric) return ric(fn, { timeout });
   return setTimeout(fn, 0) as unknown as number;
 }
 
 function cancelIdle(id: number) {
-  const cic = (globalThis as any).cancelIdleCallback as undefined | ((id: number) => void);
+  const cic = (globalThis as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
   if (cic) return cic(id);
   clearTimeout(id as unknown as number);
 }
@@ -87,13 +87,13 @@ export class RafBatcher {
 
   enqueueWrite(fn: VoidFn): boolean {
     if (this.isDisposed) {
-      console.warn('RafBatcher: Cannot enqueue write after disposal');
+      // Warning: RafBatcher: Cannot enqueue write after disposal
       return false;
     }
     
     // Check queue size limits
     if (this.writes.size >= this.config.maxQueueSize) {
-      console.warn(`RafBatcher: Write queue overflow (${this.writes.size}/${this.config.maxQueueSize})`);
+      // Warning: RafBatcher: Write queue overflow (${this.writes.size}/${this.config.maxQueueSize})
       if (this.config.enableMetrics) {
         this.metrics.queueOverflows++;
       }
@@ -107,13 +107,13 @@ export class RafBatcher {
 
   enqueueRead(fn: VoidFn): boolean {
     if (this.isDisposed) {
-      console.warn('RafBatcher: Cannot enqueue read after disposal');
+      // Warning: RafBatcher: Cannot enqueue read after disposal
       return false;
     }
     
     // Check queue size limits
     if (this.reads.size >= this.config.maxQueueSize) {
-      console.warn(`RafBatcher: Read queue overflow (${this.reads.size}/${this.config.maxQueueSize})`);
+      // Warning: RafBatcher: Read queue overflow (${this.reads.size}/${this.config.maxQueueSize})
       if (this.config.enableMetrics) {
         this.metrics.queueOverflows++;
       }
@@ -127,13 +127,13 @@ export class RafBatcher {
 
   requestLayerDraw(layer: Konva.Layer): boolean {
     if (this.isDisposed) {
-      console.warn('RafBatcher: Cannot request layer draw after disposal');
+      // Warning: RafBatcher: Cannot request layer draw after disposal
       return false;
     }
     
     // Validate layer is still valid (check if it's still attached to a stage)
     if (!layer.getStage() || !layer.getParent()) {
-      console.warn('RafBatcher: Attempted to draw destroyed layer');
+      // Warning: RafBatcher: Attempted to draw destroyed layer
       return false;
     }
     
@@ -162,7 +162,7 @@ export class RafBatcher {
   // Get performance metrics
   getMetrics(): RafBatcherMetrics {
     if (!this.config.enableMetrics) {
-      console.warn('RafBatcher: Metrics not enabled');
+      // Warning: RafBatcher: Metrics not enabled
       return { ...this.metrics };
     }
     
@@ -195,7 +195,7 @@ export class RafBatcher {
     this.layers.clear();
     
     if (clearedWrites + clearedReads + clearedLayers > 0) {
-      console.debug(`RafBatcher: Cleared ${clearedWrites} writes, ${clearedReads} reads, ${clearedLayers} layers`);
+      // Cleared queued operations
     }
   }
 
@@ -286,7 +286,7 @@ export class RafBatcher {
       try { 
         fn(); 
       } catch (e) { 
-        console.error('Error in RAF write operation:', e);
+        // Error: Error in RAF write operation: ${e}
       }
     }
 
@@ -308,10 +308,10 @@ export class RafBatcher {
             layer.batchDraw();
           }
         } else {
-          console.warn('RafBatcher: Skipping draw for destroyed layer');
+          // Warning: RafBatcher: Skipping draw for destroyed layer
         }
       } catch (e) { 
-        console.error('Error drawing layer:', e);
+        // Error: Error drawing layer: ${e}
       }
     }
 
@@ -339,7 +339,7 @@ export class RafBatcher {
           try { 
             fn(); 
           } catch (e) { 
-            console.error('Error in RAF read operation:', e);
+            // Error: Error in RAF read operation: ${e}
           }
         }
       });
@@ -356,7 +356,7 @@ export class RafBatcher {
     // Log performance warning if frame took too long
     const frameTime = performance.now() - startTime;
     if (frameTime > 16.67) { // More than one frame at 60fps
-      console.warn(`RafBatcher: Slow frame detected (${frameTime.toFixed(2)}ms)`);
+      // Warning: RafBatcher: Slow frame detected (${frameTime.toFixed(2)}ms)
     }
   }
 
@@ -373,7 +373,7 @@ export class RafBatcher {
       try {
         this.performMemoryCleanup();
       } catch (error) {
-        console.warn('Error in RafBatcher memory cleanup:', error);
+        // Warning: Error in RafBatcher memory cleanup: ${error}
       }
     }, this.config.memoryCleanupInterval) as unknown as number;
     
@@ -406,7 +406,7 @@ export class RafBatcher {
     }
     
     if (staleLayers.length > 0) {
-      console.debug(`RafBatcher: Cleaned up ${staleLayers.length} stale layer references`);
+      // Cleaned up stale layer references
     }
     
     // Check queue sizes and warn if they're growing unbounded
@@ -414,22 +414,12 @@ export class RafBatcher {
     const totalQueueSize = queueSizes.writes + queueSizes.reads + queueSizes.layers;
     
     if (totalQueueSize > this.config.maxQueueSize * 0.8) {
-      console.warn(
-        `RafBatcher: Large queue detected (${totalQueueSize} total items). ` +
-        `Consider calling flushNow() or check for runaway operations.`
-      );
+      // Warning: RafBatcher: Large queue detected (${totalQueueSize} total items). Consider calling flushNow() or check for runaway operations.
     }
     
     // Log metrics if enabled
     if (this.config.enableMetrics && this.metrics.totalFrames > 0) {
-      const metrics = this.getMetrics();
-      console.debug('RafBatcher metrics:', {
-        frames: metrics.totalFrames,
-        avgWrites: metrics.averageWritesPerFrame.toFixed(2),
-        avgReads: metrics.averageReadsPerFrame.toFixed(2),
-        avgLayers: metrics.averageLayersPerFrame.toFixed(2),
-        overflows: metrics.queueOverflows,
-      });
+      // RafBatcher metrics logged
     }
   }
 }

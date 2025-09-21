@@ -42,6 +42,8 @@
     "src-tauri",
     "docs/**/*",
     "src/**/__tests__/**/*",
-    "src/test/**/*"
+    "src/test/**/*",
+    "src/archive/**/*",
+    "archive/**/*"
   ]
 }

@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import Konva from 'konva';
 import type { MutableRefObject } from 'react';
-import type { CanvasLayers } from './CanvasEventContext';
+import type { CanvasLayers } from './canvasEventTypes';
 
 export interface UseCanvasSetupOptions {
   width: number;

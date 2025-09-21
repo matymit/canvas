@@ -15,7 +15,17 @@
       "Bash(mv:*)",
       "mcp__mcphub__sequential-thinking-sequentialthinking",
       "Bash(npx eslint:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "mcp__mcphub__memory-create_entities",
+      "mcp__mcphub__memory-read_graph",
+      "Bash(npm run test:mvp:all:*)",
+      "Bash(npm run test:mvp:unit:*)",
+      "Bash(npm run test:mvp:*)",
+      "mcp__mcphub__sequentialthinking-sequentialthinking",
+      "Bash(npm run lint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(awk:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

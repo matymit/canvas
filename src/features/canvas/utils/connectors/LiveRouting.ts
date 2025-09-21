@@ -90,7 +90,7 @@ export class LiveRoutingManager {
 
   private onNodeTransform = (e: Konva.KonvaEventObject<Event>): void => {
     const target = e.target;
-    if (target && 'nodes' in target && typeof (target as any).nodes === 'function') {
+    if (target && 'nodes' in target && typeof (target as { nodes?: unknown }).nodes === 'function') {
       const transformer = target as unknown as Konva.Transformer;
       const nodes = transformer.nodes();
       
@@ -103,7 +103,7 @@ export class LiveRoutingManager {
 
   private onTransformEnd = (e: Konva.KonvaEventObject<Event>): void => {
     const target = e.target;
-    if (target && 'nodes' in target && typeof (target as any).nodes === 'function') {
+    if (target && 'nodes' in target && typeof (target as { nodes?: unknown }).nodes === 'function') {
       const transformer = target as unknown as Konva.Transformer;
       const nodes = transformer.nodes();
       

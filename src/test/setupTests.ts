@@ -9,8 +9,21 @@ enableMapSet();
 
 // In jsdom, KeyboardEvent and document/window exist. If running without jsdom for any reason,
 // provide very light fallbacks to avoid ReferenceErrors in logic-only tests.
-if (typeof (globalThis as any).KeyboardEvent === 'undefined') {
-  (globalThis as any).KeyboardEvent = class { constructor(public type: string, public init?: any) {} } as any;
+interface MockKeyboardEventInit {
+  bubbles?: boolean;
+  cancelable?: boolean;
+  key?: string;
+  code?: string;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}
+
+if (typeof (globalThis as Record<string, unknown>).KeyboardEvent === 'undefined') {
+  (globalThis as Record<string, unknown>).KeyboardEvent = class {
+    constructor(public type: string, public init?: MockKeyboardEventInit) {}
+  };
 }
 
 // Mock node-canvas and skia-canvas so Konva's node build (if loaded) won't crash
@@ -29,7 +42,7 @@ vi.mock('canvas', () => ({
 }));
 
 vi.mock('skia-canvas', () => ({
-  Canvas: function (this: any, w: number, h: number) {
+  Canvas: function (this: { width: number; height: number; getContext: () => unknown; toDataURL: () => string }, w: number, h: number) {
     this.width = w; this.height = h;
     this.getContext = () => ({ fillRect: () => {}, clearRect: () => {} });
     this.toDataURL = () => 'data:image/png;base64,mock';
@@ -37,10 +50,84 @@ vi.mock('skia-canvas', () => ({
 }));
 
 // Provide a comprehensive Konva mock globally to keep tests consistent across files
-function konvaFactory() {
-  const STAGES: any[] = [];
+interface MockStage {
+  add: (layer: MockLayer) => MockStage;
+  getLayers: () => MockLayer[];
+  getChildren: () => MockLayer[];
+  getStage: () => MockStage;
+  width: (n?: number) => number;
+  height: (n?: number) => number;
+  size: (s?: { width: number; height: number }) => { width: number; height: number };
+  x: (n?: number) => number;
+  y: (n?: number) => number;
+  position: (p?: { x: number; y: number }) => { x: number; y: number };
+  scale: (s?: { x: number; y: number }) => { x: number; y: number };
+  scaleX: (n?: number) => number;
+  scaleY: (n?: number) => number;
+  draggable: (v?: boolean) => boolean;
+  on: (evt: string, cb: () => unknown) => MockStage;
+  off: (evt?: string, cb?: () => unknown) => MockStage;
+  container: () => MockContainerElement | null;
+  getPointerPosition: () => { x: number; y: number };
+  batchDraw: () => void;
+  toDataURL: (opts?: { mimeType?: string }) => string;
+  destroy: () => void;
+}
 
-  const makeStage = (config: any = {}) => {
+interface MockLayer {
+  add: (node: MockNode) => void;
+  getChildren: () => MockNode[];
+  batchDraw: () => void;
+  draw: () => void;
+  listening: () => void;
+  visible: () => void;
+  zIndex: () => void;
+  destroy: () => void;
+  destroyChildren: () => void;
+  getCanvas: () => { setPixelRatio: () => void };
+  getLayer: () => MockLayer;
+}
+
+interface MockNode {
+  getLayer?: () => MockLayer;
+  getParent?: () => MockLayer | MockGroup;
+  destroy: () => void;
+  name?: () => string;
+}
+
+interface MockGroup extends MockNode {
+  add: (node: MockNode) => void;
+  getChildren: () => MockNode[];
+  position: (p?: { x: number; y: number }) => { x: number; y: number } | undefined;
+  rotation: (n?: number) => number | undefined;
+  opacity: (n?: number) => number | undefined;
+  setAttrs: (attrs: Record<string, unknown>) => void;
+  name: () => string;
+  id: () => string;
+}
+
+interface MockContainerElement {
+  style: { cursor: string };
+  setAttribute: () => void;
+  getBoundingClientRect: () => {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    right: number;
+    bottom: number;
+    x: number;
+    y: number;
+    toJSON: () => void;
+  };
+  addEventListener: () => void;
+  removeEventListener: () => void;
+}
+
+function konvaFactory() {
+  const STAGES: MockStage[] = [];
+
+  const makeStage = (config: Record<string, unknown> = {}) => {
     let _width = typeof config.width === 'number' ? config.width : 800;
     let _height = typeof config.height === 'number' ? config.height : 600;
     let _x = 0;
@@ -49,7 +136,7 @@ function konvaFactory() {
     let _scaleY = 1;
     let _draggable = false;
 
-    const layers: any[] = [];
+    const layers: MockLayer[] = [];
     const listeners = new Map<string, (() => unknown)[]>();
 
     const containerEl = {
@@ -68,11 +155,11 @@ function konvaFactory() {
       })),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
-    } as any;
+    } as MockContainerElement;
 
-    const stage: any = {
+    const stage: MockStage = {
       // hierarchy
-      add: vi.fn((ly: any) => {
+      add: vi.fn((ly: MockLayer) => {
         layers.push(ly);
         if (!ly.getLayer) ly.getLayer = vi.fn(() => ly);
         if (!ly.getParent) ly.getParent = vi.fn(() => stage);
@@ -122,7 +209,7 @@ function konvaFactory() {
       container: vi.fn(() => (config.container === null ? null : containerEl)),
       getPointerPosition: vi.fn(() => ({ x: _width / 2, y: _height / 2 })),
       batchDraw: vi.fn(),
-      toDataURL: vi.fn((opts?: any) => `data:${opts?.mimeType ?? 'image/png'}`),
+      toDataURL: vi.fn((opts?: { mimeType?: string }) => `data:${opts?.mimeType ?? 'image/png'}`),
       destroy: vi.fn(),
     };
 
@@ -130,10 +217,10 @@ function konvaFactory() {
     return stage;
   };
 
-  const makeLayer = (_config?: any) => {
-    const children: any[] = [];
-    const layer: any = {
-      add: vi.fn((node: any) => {
+  const makeLayer = (_config?: Record<string, unknown>) => {
+    const children: MockNode[] = [];
+    const layer: MockLayer = {
+      add: vi.fn((node: MockNode) => {
         children.push(node);
         if (!node.getLayer) node.getLayer = vi.fn(() => layer);
         if (!node.getParent) node.getParent = vi.fn(() => layer);
@@ -153,9 +240,9 @@ function konvaFactory() {
   };
 
   const makeGroup = () => {
-    const children: any[] = [];
-    const group: any = {
-      add: vi.fn((node: any) => {
+    const children: MockNode[] = [];
+    const group: MockGroup = {
+      add: vi.fn((node: MockNode) => {
         children.push(node);
         if (!node.getParent) node.getParent = vi.fn(() => group);
         if (!node.getLayer) node.getLayer = vi.fn(() => group.getLayer?.());
@@ -164,7 +251,7 @@ function konvaFactory() {
       position: vi.fn((p?: { x: number; y: number }) => p),
       rotation: vi.fn((n?: number) => n),
       opacity: vi.fn((n?: number) => n),
-      setAttrs: vi.fn((_attrs: any) => {}),
+      setAttrs: vi.fn((_attrs: Record<string, unknown>) => {}),
       name: vi.fn(() => 'group'),
       id: vi.fn(() => ''),
       getLayer: vi.fn(),
@@ -210,13 +297,13 @@ function konvaFactory() {
       moveTo: vi.fn(),
       dash: vi.fn(),
       size: vi.fn(),
-    } as any;
+    } as MockNode;
   };
 
-  const makeShape = (config?: any) => {
-    const shape: any = {
+  const makeShape = (config?: Record<string, unknown>) => {
+    const shape = {
       _attrs: { ...(config || {}) },
-      setAttrs: vi.fn((attrs: any) => Object.assign(shape._attrs, attrs)),
+      setAttrs: vi.fn((attrs: Record<string, unknown>) => Object.assign(shape._attrs, attrs)),
       name: vi.fn(() => shape._attrs?.name),
       sceneFunc: vi.fn((fn?: () => unknown) => { if (typeof fn === 'function') shape._sceneFunc = fn; return shape; }),
       clearCache: vi.fn(),
@@ -225,7 +312,7 @@ function konvaFactory() {
     return shape;
   };
 
-  const makeText = (config?: any) => {
+  const makeText = (config?: Record<string, unknown>) => {
     let _x = config?.x ?? 0;
     let _y = config?.y ?? 0;
     let _width = config?.width ?? 0;
@@ -235,8 +322,8 @@ function konvaFactory() {
     const _fontSize = config?.fontSize ?? 12;
     const _fill = config?.fill ?? '#000';
     const _align = config?.align ?? 'left';
-    const node: any = {
-      setAttrs: vi.fn((attrs: any) => {
+    const node = {
+      setAttrs: vi.fn((attrs: Record<string, unknown>) => {
         Object.assign(node, attrs);
         if (typeof attrs.x === 'number') _x = attrs.x;
         if (typeof attrs.y === 'number') _y = attrs.y;
@@ -261,15 +348,15 @@ function konvaFactory() {
     return node;
   };
 
-  const makeImage = (config?: any) => {
-    let _img: any = undefined;
+  const makeImage = (config?: Record<string, unknown>) => {
+    let _img: HTMLImageElement | undefined = undefined;
     let _src: string | undefined = undefined;
     let _width = config?.width ?? 0;
     let _height = config?.height ?? 0;
-    const node: any = {
-      image: vi.fn((img?: any) => (img !== undefined ? (_img = img) : _img)),
-      setAttr: vi.fn((k: string, v: any) => { if (k === 'src') _src = v; (node as any)[k] = v; }),
-      getAttr: vi.fn((k: string) => (k === 'src' ? _src : (node as any)[k])),
+    const node = {
+      image: vi.fn((img?: HTMLImageElement) => (img !== undefined ? (_img = img) : _img)),
+      setAttr: vi.fn((k: string, v: unknown) => { if (k === 'src') _src = v as string; (node as Record<string, unknown>)[k] = v; }),
+      getAttr: vi.fn((k: string) => (k === 'src' ? _src : (node as Record<string, unknown>)[k])),
       size: vi.fn((wh?: { width: number; height: number }) => {
         if (wh) { _width = wh.width; _height = wh.height; }
         return { width: _width, height: _height };
@@ -311,14 +398,14 @@ vi.mock('konva', konvaFactory);
 vi.mock('konva/lib/index.js', konvaFactory);
 
 // Provide a minimal localStorage shim if env doesn’t expose one
-if (typeof (globalThis as any).localStorage === 'undefined') {
+if (typeof (globalThis as Record<string, unknown>).localStorage === 'undefined') {
   const store = new Map<string, string>();
-  (globalThis as any).localStorage = {
+  (globalThis as Record<string, unknown>).localStorage = {
     getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
     setItem: (k: string, v: string) => void store.set(k, String(v)),
     removeItem: (k: string) => void store.delete(k),
     clear: () => void store.clear(),
     key: (i: number) => Array.from(store.keys())[i] ?? null,
     get length() { return store.size; },
-  } as any;
+  } as Storage;
 }

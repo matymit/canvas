@@ -1,19 +1,21 @@
 // Mindmap element types for FigJam-style node and branch functionality
 // Provides serializable data model for nodes with curved, tapered branches
 
+import type { CanvasElement } from "../../../../types";
+
 export type ElementId = string;
 
 export interface MindmapNodeStyle {
-  fill: string;         // e.g., "#FFFFFF"
-  stroke: string;       // e.g., "#9CA3AF"  
-  strokeWidth: number;  // e.g., 1
+  fill: string; // e.g., "#FFFFFF"
+  stroke: string; // e.g., "#9CA3AF"
+  strokeWidth: number; // e.g., 1
   cornerRadius: number; // e.g., 14
-  fontFamily: string;   // e.g., "Inter"
-  fontSize: number;     // e.g., 20
-  fontStyle?: string;   // e.g., "bold" | "normal"
-  textColor: string;    // e.g., "#111827"
-  paddingX: number;     // e.g., 14
-  paddingY: number;     // e.g., 10
+  fontFamily: string; // e.g., "Inter"
+  fontSize: number; // e.g., 20
+  fontStyle?: string; // e.g., "bold" | "normal"
+  textColor: string; // e.g., "#111827"
+  paddingX: number; // e.g., 14
+  paddingY: number; // e.g., 10
   shadowColor?: string;
   shadowBlur?: number;
   shadowOffsetX?: number;
@@ -37,19 +39,18 @@ export interface MindmapNodeElement {
 }
 
 export interface BranchStyle {
-  color: string;        // stroke/fill color
-  widthStart: number;   // base/taper start width (px)
-  widthEnd: number;     // taper end width (px), often smaller than start
-  curvature: number;    // 0..1 curvature factor
+  color: string; // stroke/fill color
+  widthStart: number; // base/taper start width (px)
+  widthEnd: number; // taper end width (px), often smaller than start
+  curvature: number; // 0..1 curvature factor
 }
 
-export interface MindmapEdgeElement {
-  id: ElementId;
+export type MindmapEdgeElement = CanvasElement & {
   type: "mindmap-edge";
-  fromId: ElementId;    // parent node id
-  toId: ElementId;      // child node id
+  fromId: ElementId; // parent node id
+  toId: ElementId; // child node id
   style: BranchStyle;
-}
+};
 
 // Default styles for consistent mindmap appearance
 export const DEFAULT_NODE_STYLE: MindmapNodeStyle = {
@@ -108,7 +109,7 @@ export function createMindmapNode(
   x: number,
   y: number,
   text: string = MINDMAP_CONFIG.defaultText,
-  options: MindmapNodeOptions = {}
+  options: MindmapNodeOptions = {},
 ): Omit<MindmapNodeElement, "id"> {
   const {
     parentId = null,
@@ -117,7 +118,8 @@ export function createMindmapNode(
     style: styleOverrides,
   } = options;
 
-  const themeColor = color ?? MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
+  const themeColor =
+    color ?? MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
   const style: MindmapNodeStyle = {
     ...DEFAULT_NODE_STYLE,
     ...styleOverrides,
@@ -126,8 +128,11 @@ export function createMindmapNode(
     fontStyle: styleOverrides?.fontStyle ?? (level === 0 ? "bold" : "normal"),
     fontSize: styleOverrides?.fontSize ?? (level === 0 ? 16 : 14),
     stroke:
-      styleOverrides?.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
-    strokeWidth: styleOverrides?.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+      styleOverrides?.stroke ??
+      (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+    strokeWidth:
+      styleOverrides?.strokeWidth ??
+      (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
     cornerRadius: styleOverrides?.cornerRadius ?? MINDMAP_THEME.nodeRadius,
   };
 
@@ -148,32 +153,38 @@ export function createMindmapNode(
 export function createMindmapEdge(
   fromId: ElementId,
   toId: ElementId,
-  style?: Partial<BranchStyle>
+  style?: Partial<BranchStyle>,
 ): Omit<MindmapEdgeElement, "id"> {
   const baseColor = style?.color ?? MINDMAP_THEME.branchColors[0];
+  const branchStyle = { ...DEFAULT_BRANCH_STYLE, ...style, color: baseColor };
   return {
     type: "mindmap-edge",
+    x: 0, // Edges are positioned relative to connected nodes
+    y: 0, // Edges are positioned relative to connected nodes
     fromId,
     toId,
-    style: { ...DEFAULT_BRANCH_STYLE, ...style, color: baseColor },
+    style: branchStyle,
   };
 }
 
 export function calculateChildPosition(
   parent: MindmapNodeElement,
-  index: number = 0
+  index: number = 0,
 ): { x: number; y: number } {
   // Position children to the right with vertical offset
   const dx = Math.max(MINDMAP_CONFIG.childOffsetX, parent.width + 140);
   const dy = index * MINDMAP_CONFIG.childOffsetY;
-  
+
   return {
     x: parent.x + dx,
     y: parent.y + dy,
   };
 }
 
-export function getNodeCenter(node: MindmapNodeElement): { x: number; y: number } {
+export function getNodeCenter(node: MindmapNodeElement): {
+  x: number;
+  y: number;
+} {
   return {
     x: node.x + node.width * 0.5,
     y: node.y + node.height * 0.5,
@@ -182,18 +193,18 @@ export function getNodeCenter(node: MindmapNodeElement): { x: number; y: number 
 
 export function getNodeConnectionPoint(
   node: MindmapNodeElement,
-  side: 'left' | 'right' | 'top' | 'bottom' = 'right'
+  side: "left" | "right" | "top" | "bottom" = "right",
 ): { x: number; y: number } {
   const center = getNodeCenter(node);
-  
+
   switch (side) {
-    case 'left':
+    case "left":
       return { x: node.x, y: center.y };
-    case 'right':
+    case "right":
       return { x: node.x + node.width, y: center.y };
-    case 'top':
+    case "top":
       return { x: center.x, y: node.y };
-    case 'bottom':
+    case "bottom":
       return { x: center.x, y: node.y + node.height };
     default:
       return center;
@@ -203,7 +214,7 @@ export function getNodeConnectionPoint(
 export function resizeMindmapNode(
   node: MindmapNodeElement,
   newWidth: number,
-  newHeight: number
+  newHeight: number,
 ): MindmapNodeElement {
   return {
     ...node,
@@ -231,7 +242,7 @@ function getMeasureContext(): CanvasRenderingContext2D {
 export function measureMindmapLabel(
   text: string,
   style: MindmapNodeStyle,
-  lineHeight: number = MINDMAP_CONFIG.lineHeight
+  lineHeight: number = MINDMAP_CONFIG.lineHeight,
 ): { width: number; height: number } {
   const ctx = getMeasureContext();
   const fontWeight = style.fontStyle?.includes("bold") ? "700" : "400";
@@ -246,7 +257,7 @@ export function measureMindmapLabel(
   }
   const textHeight = Math.max(
     style.fontSize,
-    lines.length * style.fontSize * lineHeight
+    lines.length * style.fontSize * lineHeight,
   );
 
   return {
@@ -263,7 +274,7 @@ export function measureMindmapLabelWithWrap(
   text: string,
   style: MindmapNodeStyle,
   maxWidth: number,
-  lineHeight: number = MINDMAP_CONFIG.lineHeight
+  lineHeight: number = MINDMAP_CONFIG.lineHeight,
 ): { width: number; height: number; wrappedLines: string[] } {
   const ctx = getMeasureContext();
   const fontWeight = style.fontStyle?.includes("bold") ? "700" : "400";
@@ -275,7 +286,7 @@ export function measureMindmapLabelWithWrap(
     return {
       width: 0,
       height: style.fontSize,
-      wrappedLines: [""]
+      wrappedLines: [""],
     };
   }
 
@@ -318,12 +329,12 @@ export function measureMindmapLabelWithWrap(
 
   const textHeight = Math.max(
     style.fontSize,
-    wrappedLines.length * style.fontSize * lineHeight
+    wrappedLines.length * style.fontSize * lineHeight,
   );
 
   return {
     width: Math.ceil(actualMaxWidth),
     height: Math.ceil(textHeight),
-    wrappedLines
+    wrappedLines,
   };
 }

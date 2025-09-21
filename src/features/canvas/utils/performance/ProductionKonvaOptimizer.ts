@@ -132,8 +132,8 @@ export class ProductionKonvaOptimizer {
     layer.listening(false);
     
     // Disable hit graph for non-interactive layers
-    if (typeof (layer as any).hitGraphEnabled === 'function') {
-      (layer as any).hitGraphEnabled(false);
+    if (typeof (layer as unknown as { hitGraphEnabled?: (enabled: boolean) => void }).hitGraphEnabled === 'function') {
+      (layer as unknown as { hitGraphEnabled: (enabled: boolean) => void }).hitGraphEnabled(false);
     }
     
     layer.batchDraw();
@@ -147,7 +147,12 @@ export class ProductionKonvaOptimizer {
     let cached = false;
 
     try {
-      const anyNode = node as any;
+      const anyNode = node as unknown as {
+        perfectDrawEnabled?: (enabled: boolean) => void;
+        shadowForStrokeEnabled?: (enabled: boolean) => void;
+        filters?: () => unknown[];
+        text?: () => string;
+      };
 
       // Disable perfect draw for performance
       if (typeof anyNode.perfectDrawEnabled === 'function') {
@@ -186,9 +191,10 @@ export class ProductionKonvaOptimizer {
   private shouldCacheNode(node: Konva.Node): boolean {
     // Cache complex shapes, groups with many children, or nodes with filters
     if (node instanceof Konva.Group && node.getChildren().length > 10) return true;
-    if ((node as any).filters?.().length > 0) return true;
+    const filters = (node as unknown as { filters?: () => unknown[] }).filters?.();
+    if (filters && filters.length > 0) return true;
     if (node instanceof Konva.Path) return true;
-    if (node instanceof Konva.Text && (node as any).text().length > 100) return true;
+    if (node instanceof Konva.Text && ((node as unknown as { text?: () => string }).text?.()?.length ?? 0) > 100) return true;
     
     return false;
   }

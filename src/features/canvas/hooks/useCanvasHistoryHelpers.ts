@@ -1,7 +1,7 @@
 // features/canvas/hooks/useCanvasHistoryHelpers.ts
 import Konva from 'konva';
 
-export type AttrsMap = Record<string, any>;
+export type AttrsMap = Record<string, unknown>;
 
 export type AttrsOp = {
   type: 'attrs';
@@ -38,7 +38,7 @@ export type ReorderOp = {
 export type HistoryOp = AttrsOp | AddOp | RemoveOp | ReorderOp;
 
 const isContainer = (node: Konva.Node | null | undefined): node is Konva.Container =>
-  !!node && typeof (node as any).add === 'function';
+  !!node && typeof (node as { add?: unknown }).add === 'function';
 
 const idGen = (() => {
   let n = 0;

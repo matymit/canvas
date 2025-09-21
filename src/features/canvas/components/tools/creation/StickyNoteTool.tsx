@@ -21,8 +21,12 @@ const DEFAULT_TEXT = "";
 const DEFAULT_FONT_SIZE = 16;
 
 // Get reference to StickyNoteModule for direct text editing trigger
-function getStickyNoteModule(): any {
-  return (window as any).stickyNoteModule;
+interface StickyNoteModule {
+  triggerImmediateTextEdit?: (elementId: string) => void;
+}
+
+function getStickyNoteModule(): StickyNoteModule | undefined {
+  return (window as Window & { stickyNoteModule?: StickyNoteModule }).stickyNoteModule;
 }
 
 const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
@@ -45,13 +49,13 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     const stage = stageRef.current;
     if (!isActive || !stage) return;
 
-    console.log("[StickyNoteTool] Tool activated, adding stage listener");
+    // Tool activated, adding stage listener
 
     const handlePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
-      console.log("[StickyNoteTool] Pointer down at:", pos);
+      // Pointer down detected
 
       const elementId = crypto.randomUUID() as ElementId;
 
@@ -73,7 +77,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         },
       };
 
-      console.log("[StickyNoteTool] Creating element:", stickyElement);
+      // Creating sticky note element
 
       // Use the store's addElement method with auto-selection
       const store = useUnifiedCanvasStore.getState();
@@ -83,24 +87,24 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         store.addElement(stickyElement, { select: true, pushHistory: false }); // withUndo handles history
       });
 
-      console.log("[StickyNoteTool] Element added to store");
+      // Element added to store
 
       // Wait for render, then auto-select and trigger text editing
       setTimeout(() => {
-        console.log("[StickyNoteTool] Attempting auto-text edit");
+        // Attempting auto-text edit
 
         // Try to trigger text editing via StickyNoteModule
         const stickyModule = getStickyNoteModule();
         if (stickyModule?.triggerImmediateTextEdit) {
           stickyModule.triggerImmediateTextEdit(elementId);
         } else {
-          console.warn("[StickyNoteTool] StickyNoteModule not available for text editing");
+          // StickyNoteModule not available for text editing
         }
 
         // Switch back to select tool
         setTimeout(() => {
           store.setSelectedTool("select");
-          console.log("[StickyNoteTool] Switched back to select tool");
+          // Switched back to select tool
         }, 100);
       }, 150);
 
@@ -112,7 +116,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
     // Cleanup
     return () => {
-      console.log("[StickyNoteTool] Tool deactivated, removing stage listener");
+      // Tool deactivated, removing stage listener
       stage.off("pointerdown.sticky");
     };
   }, [isActive, stageRef, width, height, actualFill, text, fontSize]);

@@ -1,15 +1,30 @@
 import { useUnifiedCanvasStore } from '../../features/canvas/stores/unifiedCanvasStore';
 
+interface StoreBridge {
+  element: {
+    getElement: (id: string) => unknown;
+    updateElement: (id: string, patch: Record<string, unknown>, opts?: Record<string, unknown>) => void;
+  };
+  history: {
+    beginBatch: (label?: string) => void;
+    endBatch: (commit?: boolean) => void;
+  };
+}
+
+interface WindowWithStoreBridge extends Window {
+  __canvasStore?: StoreBridge;
+}
+
 // Mount a minimal bridge for non-React modules (renderers, Konva handlers)
 export function installStoreBridge() {
-  (window as any).__canvasStore = {
+  (window as WindowWithStoreBridge).__canvasStore = {
     element: {
       getElement: (id: string) => {
-        const state = (useUnifiedCanvasStore as any).getState();
+        const state = useUnifiedCanvasStore.getState();
         return state.elements?.get?.(id) || state.element?.getById?.(id);
       },
-      updateElement: (id: string, patch: any, opts?: any) => {
-        const state = (useUnifiedCanvasStore as any).getState();
+      updateElement: (id: string, patch: Record<string, unknown>, opts?: Record<string, unknown>) => {
+        const state = useUnifiedCanvasStore.getState();
         // Try multiple possible APIs for updateElement
         if (state.element?.update) {
           state.element.update(id, patch);
@@ -20,13 +35,13 @@ export function installStoreBridge() {
     },
     history: {
       beginBatch: (label?: string) => {
-        const state = (useUnifiedCanvasStore as any).getState();
+        const state = useUnifiedCanvasStore.getState();
         if (state.history?.beginBatch) {
           state.history.beginBatch(label);
         }
       },
       endBatch: (commit?: boolean) => {
-        const state = (useUnifiedCanvasStore as any).getState();
+        const state = useUnifiedCanvasStore.getState();
         if (state.history?.endBatch) {
           state.history.endBatch(commit);
         }
@@ -36,6 +51,6 @@ export function installStoreBridge() {
 }
 
 // Helper to get store bridge safely
-export function getStoreBridge() {
-  return (window as any).__canvasStore;
+export function getStoreBridge(): StoreBridge | undefined {
+  return (window as WindowWithStoreBridge).__canvasStore;
 }

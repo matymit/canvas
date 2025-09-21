@@ -58,7 +58,7 @@ const FigJamCanvas: React.FC = () => {
     (state) => state.selectedElementIds,
   );
 
-  // Store methods
+  // Store methods - use useCallback to stabilize references
   const setSelection = useUnifiedCanvasStore((state) => state.setSelection);
   const addToSelection = useUnifiedCanvasStore((state) => state.addToSelection);
   const clearSelection = useUnifiedCanvasStore((state) => state.clearSelection);
@@ -68,7 +68,41 @@ const FigJamCanvas: React.FC = () => {
   const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
   const undo = useUnifiedCanvasStore((state) => state.undo);
   const redo = useUnifiedCanvasStore((state) => state.redo);
-  const setSelectedTool = useUnifiedCanvasStore((state) => state.setSelectedTool);
+  const setSelectedTool = useUnifiedCanvasStore(
+    (state) => state.setSelectedTool,
+  );
+
+  // Stabilize store references for mount effect
+  const storeRef = useRef({
+    selectedTool,
+    elements,
+    selectedElementIds,
+    setSelection,
+    addToSelection,
+    clearSelection,
+    viewport,
+  });
+
+  // Update store ref when values change
+  useEffect(() => {
+    storeRef.current = {
+      selectedTool,
+      elements,
+      selectedElementIds,
+      setSelection,
+      addToSelection,
+      clearSelection,
+      viewport,
+    };
+  }, [
+    selectedTool,
+    elements,
+    selectedElementIds,
+    setSelection,
+    addToSelection,
+    clearSelection,
+    viewport,
+  ]);
 
   // Initialize stage and renderer system
   useEffect(() => {
@@ -83,6 +117,9 @@ const FigJamCanvas: React.FC = () => {
     });
 
     stageRef.current = stage;
+
+    // Expose stage globally for E2E testing
+    (window as unknown as Record<string, unknown>).konvaStage = stage;
 
     // Create the five-layer system
     const backgroundLayer = new Konva.Layer({ listening: false }); // Grid, non-interactive
@@ -109,13 +146,13 @@ const FigJamCanvas: React.FC = () => {
     // Setup FigJam-style grid on background layer
     // Match the CSS styling: radial-gradient(circle at 1px 1px, #d0d0d0 1px, transparent 1px)
     const gridRenderer = new GridRenderer(stage, backgroundLayer, {
-      spacing: 20,           // 20px spacing to match CSS background-size
-      dotRadius: 0.75,       // Slightly smaller than 1px for better visual match
-      color: '#d0d0d0',      // Exact color from CSS
+      spacing: 20, // 20px spacing to match CSS background-size
+      dotRadius: 0.75, // Slightly smaller than 1px for better visual match
+      color: "#d0d0d0", // Exact color from CSS
       opacity: 1,
-      cacheLayer: true,      // Cache for performance
-      recacheOnZoom: true,   // Recache on zoom for crisp dots
-      hugeRectSize: 100000   // Large coverage area
+      cacheLayer: true, // Cache for performance
+      recacheOnZoom: true, // Recache on zoom for crisp dots
+      hugeRectSize: 100000, // Large coverage area
     });
 
     gridRendererRef.current = gridRenderer;
@@ -140,7 +177,7 @@ const FigJamCanvas: React.FC = () => {
 
     // Register canvas tools that need direct Konva event binding
     const textCanvasTool = new TextCanvasTool();
-    toolManager.registerCanvasTool('text', textCanvasTool);
+    toolManager.registerCanvasTool("text", textCanvasTool);
 
     // Setup ImageDragHandler for image drag functionality
     const imageDragHandler = new ImageDragHandler(stage);
@@ -286,7 +323,15 @@ const FigJamCanvas: React.FC = () => {
       stage.destroy();
       stageRef.current = null;
     };
-  }, []); // Only run once on mount
+  }, [
+    addToSelection,
+    clearSelection,
+    elements,
+    selectedElementIds,
+    selectedTool,
+    setSelection,
+    viewport,
+  ]); // Include all store dependencies
 
   // Update viewport when store changes
   useEffect(() => {
@@ -352,8 +397,8 @@ const FigJamCanvas: React.FC = () => {
 
     // Activate tool through ToolManager if it has a canvas tool implementation
     if (toolManagerRef.current) {
-      if (selectedTool === 'text') {
-        toolManagerRef.current.activateCanvasTool('text');
+      if (selectedTool === "text") {
+        toolManagerRef.current.activateCanvasTool("text");
       } else {
         // Deactivate any active canvas tool when switching away
         const activeTool = toolManagerRef.current.getActiveCanvasTool();
@@ -394,12 +439,12 @@ const FigJamCanvas: React.FC = () => {
             store.removeElements(selectedIds);
             store.clearSelection?.();
           } else if (store.element?.delete) {
-            selectedElementIds.forEach(id => {
+            selectedElementIds.forEach((id) => {
               store.element.delete(id);
             });
             store.clearSelection?.();
           } else {
-            console.error('[FigJamCanvas] No deletion method available!');
+            // Error: No deletion method available
           }
         }
       },
@@ -445,7 +490,7 @@ const FigJamCanvas: React.FC = () => {
     // Normalize tool names (handle both old and new naming)
     const normalizedTool = selectedTool.toLowerCase();
 
-    console.log('[FigJamCanvas] Rendering tool:', selectedTool, '-> normalized:', normalizedTool);
+    // Debug: Rendering tool - selectedTool, normalizedTool
 
     try {
       switch (normalizedTool) {
@@ -528,16 +573,13 @@ const FigJamCanvas: React.FC = () => {
           return null;
       }
     } catch (error) {
-      console.error(
-        `[FigJamCanvas] Error rendering tool '${selectedTool}':`,
-        error,
-      );
+      // Error: Failed to render tool - selectedTool, error
       return null;
     }
   }, [selectedTool]);
 
   return (
-    <div className="canvas-wrapper">
+    <div className="canvas-wrapper" data-testid="canvas-container">
       <div className="toolbar-container">
         <CanvasToolbar
           selectedTool={selectedTool}
@@ -546,7 +588,11 @@ const FigJamCanvas: React.FC = () => {
           onRedo={redo}
         />
       </div>
-      <div ref={containerRef} className="konva-stage-container" />
+      <div
+        ref={containerRef}
+        className="konva-stage-container"
+        data-testid="konva-stage-container"
+      />
       <ZoomControls />
 
       {/* Render active tool components - these handle stage interactions */}

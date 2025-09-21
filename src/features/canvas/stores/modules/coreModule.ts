@@ -77,7 +77,7 @@ export interface ElementModuleSlice {
 // SELECTION MODULE TYPES AND IMPLEMENTATION
 // ============================================================================
 
-function firstElementIdOrNull(state: any): ElementId | undefined {
+function firstElementIdOrNull(state: ElementModuleSlice): ElementId | undefined {
   const order: ElementId[] = Array.isArray(state.elementOrder)
     ? state.elementOrder
     : [];
@@ -120,7 +120,9 @@ export interface SelectionModuleSlice {
     selectAll: () => void;
     deleteSelected: () => void;
     moveSelectedBy: (dx: number, dy: number) => void;
-    getSelected: () => any[]; // CanvasElement[] but avoiding circular import
+    getSelected: () => CanvasElement[]; // CanvasElement[]
+    beginTransform: () => void;
+    endTransform: () => void;
   };
 }
 
@@ -151,7 +153,7 @@ export interface ViewportModuleSlice {
 }
 
 function getElementBounds(
-  el: any,
+  el: CanvasElement,
 ): { x: number; y: number; width: number; height: number } | null {
   if (typeof el?.x === "number" && typeof el?.y === "number") {
     if (typeof el?.width === "number" && typeof el?.height === "number") {
@@ -195,16 +197,16 @@ function __deepClone<T>(v: T): T {
     if (typeof v !== "object") return v;
 
     // Try JSON serialization first (simplest approach)
-    return JSON.parse(JSON.stringify(v as any));
+    return JSON.parse(JSON.stringify(v));
   } catch {
     try {
       // Fallback: shallow clone for objects/arrays
       if (Array.isArray(v)) return v.slice() as unknown as T;
       if (v && typeof v === "object") {
-        const copy = {} as any;
+        const copy = {} as T;
         for (const key in v) {
           if (Object.prototype.hasOwnProperty.call(v, key)) {
-            copy[key] = (v as any)[key];
+            (copy as Record<string, unknown>)[key] = (v as Record<string, unknown>)[key];
           }
         }
         return copy;
@@ -228,7 +230,6 @@ function __sanitize<T extends Record<string, any>>(v: T): T {
     }
   } catch (error) {
     // Ignore sanitization errors
-    console.debug('[CoreModule] Sanitization error:', error);
   }
   return v;
 }

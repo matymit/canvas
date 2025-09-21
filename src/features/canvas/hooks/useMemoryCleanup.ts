@@ -3,7 +3,7 @@
 // React hook for automatic memory cleanup in canvas components.
 // Provides utilities for tracking resources and cleaning them up on unmount.
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import {
   memoryUtils,
   getMemoryManager,
@@ -18,24 +18,24 @@ export interface UseMemoryCleanupOptions {
 
 export interface MemoryCleanupUtils {
   // Track resources for automatic cleanup
-  trackNode: (node: Konva.Node, metadata?: Record<string, any>) => string;
+  trackNode: (node: Konva.Node, metadata?: Record<string, unknown>) => string;
   trackListener: (
     target: EventTarget,
     event: string,
     listener: EventListener,
     options?: AddEventListenerOptions,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ) => string;
   trackTimer: (
     timerId: number,
     type?: "timeout" | "interval",
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ) => string;
-  trackAnimation: (frameId: number, metadata?: Record<string, any>) => string;
+  trackAnimation: (frameId: number, metadata?: Record<string, unknown>) => string;
   trackCustom: (
-    resource: any,
+    resource: unknown,
     cleanup: () => void,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ) => string;
 
   // Manual cleanup
@@ -81,31 +81,19 @@ export function useMemoryCleanup(
       trackedResourcesRef.current.delete(resourceId);
     }
 
-    if (enableDebugLogging && cleanedCount > 0) {
-      console.debug(
-        `useMemoryCleanup[${componentIdRef.current}]: Cleaned up ${cleanedCount} resources`,
-      );
-    }
 
     return cleanedCount;
-  }, [enableDebugLogging]);
+  }, []);
 
   // Track a resource with automatic component-level cleanup
   const trackResource = useCallback(
     (trackFn: () => string) => {
       if (isUnmountedRef.current) {
-        console.warn(
-          `useMemoryCleanup[${componentIdRef.current}]: Attempted to track resource after unmount`,
-        );
         return "";
       }
 
       // Check resource limits
       if (trackedResourcesRef.current.size >= maxTrackedResources) {
-        console.warn(
-          `useMemoryCleanup[${componentIdRef.current}]: Resource limit exceeded ` +
-            `(${trackedResourcesRef.current.size}/${maxTrackedResources}). Consider cleanup.`,
-        );
         return "";
       }
 
@@ -114,161 +102,151 @@ export function useMemoryCleanup(
         if (resourceId) {
           trackedResourcesRef.current.add(resourceId);
 
-          if (enableDebugLogging) {
-            console.debug(
-              `useMemoryCleanup[${componentIdRef.current}]: Tracked resource ${resourceId} ` +
-                `(${trackedResourcesRef.current.size} total)`,
-            );
-          }
         }
         return resourceId;
       } catch (error) {
-        console.error(
-          `useMemoryCleanup[${componentIdRef.current}]: Error tracking resource:`,
-          error,
-        );
+        // Error: useMemoryCleanup[${componentIdRef.current}]: Error tracking resource: ${error}
         return "";
       }
     },
-    [maxTrackedResources, enableDebugLogging],
+    [maxTrackedResources],
   );
 
-  // Utility functions
-  const utils: MemoryCleanupUtils = {
-    trackNode: useCallback(
-      (node: Konva.Node, metadata?: Record<string, any>) => {
-        return trackResource(() =>
-          memoryUtils.trackNode(node, {
-            componentId: componentIdRef.current,
-            componentName: trackComponentName,
-            ...metadata,
-          }),
-        );
-      },
-      [trackResource, trackComponentName],
-    ),
+  // Individual utility callbacks - must be at top level to follow React rules
+  const trackNodeCallback = useCallback(
+    (node: Konva.Node, metadata?: Record<string, unknown>) => {
+      return trackResource(() =>
+        memoryUtils.trackNode(node, {
+          componentId: componentIdRef.current,
+          componentName: trackComponentName,
+          ...metadata,
+        }),
+      );
+    },
+    [trackResource, trackComponentName],
+  );
 
-    trackListener: useCallback(
-      (
-        target: EventTarget,
-        event: string,
-        listener: EventListener,
-        options?: AddEventListenerOptions,
-        metadata?: Record<string, any>,
-      ) => {
-        return trackResource(() =>
-          memoryUtils.trackListener(target, event, listener, options, {
-            componentId: componentIdRef.current,
-            componentName: trackComponentName,
-            ...metadata,
-          }),
-        );
-      },
-      [trackResource, trackComponentName],
-    ),
+  const trackListenerCallback = useCallback(
+    (
+      target: EventTarget,
+      event: string,
+      listener: EventListener,
+      options?: AddEventListenerOptions,
+      metadata?: Record<string, unknown>,
+    ) => {
+      return trackResource(() =>
+        memoryUtils.trackListener(target, event, listener, options, {
+          componentId: componentIdRef.current,
+          componentName: trackComponentName,
+          ...metadata,
+        }),
+      );
+    },
+    [trackResource, trackComponentName],
+  );
 
-    trackTimer: useCallback(
-      (
-        timerId: number,
-        type: "timeout" | "interval" = "timeout",
-        metadata?: Record<string, any>,
-      ) => {
-        return trackResource(() =>
-          memoryUtils.trackTimer(timerId, type, {
-            componentId: componentIdRef.current,
-            componentName: trackComponentName,
-            ...metadata,
-          }),
-        );
-      },
-      [trackResource, trackComponentName],
-    ),
+  const trackTimerCallback = useCallback(
+    (
+      timerId: number,
+      type: "timeout" | "interval" = "timeout",
+      metadata?: Record<string, unknown>,
+    ) => {
+      return trackResource(() =>
+        memoryUtils.trackTimer(timerId, type, {
+          componentId: componentIdRef.current,
+          componentName: trackComponentName,
+          ...metadata,
+        }),
+      );
+    },
+    [trackResource, trackComponentName],
+  );
 
-    trackAnimation: useCallback(
-      (frameId: number, metadata?: Record<string, any>) => {
-        return trackResource(() =>
-          memoryUtils.trackAnimation(frameId, {
-            componentId: componentIdRef.current,
-            componentName: trackComponentName,
-            ...metadata,
-          }),
-        );
-      },
-      [trackResource, trackComponentName],
-    ),
+  const trackAnimationCallback = useCallback(
+    (frameId: number, metadata?: Record<string, unknown>) => {
+      return trackResource(() =>
+        memoryUtils.trackAnimation(frameId, {
+          componentId: componentIdRef.current,
+          componentName: trackComponentName,
+          ...metadata,
+        }),
+      );
+    },
+    [trackResource, trackComponentName],
+  );
 
-    trackCustom: useCallback(
-      (resource: any, cleanup: () => void, metadata?: Record<string, any>) => {
-        return trackResource(() => {
-          const manager = getMemoryManager();
-          return manager.trackCustomResource(resource, cleanup, {
-            componentId: componentIdRef.current,
-            componentName: trackComponentName,
-            ...metadata,
-          });
+  const trackCustomCallback = useCallback(
+    (resource: unknown, cleanup: () => void, metadata?: Record<string, unknown>) => {
+      return trackResource(() => {
+        const manager = getMemoryManager();
+        return manager.trackCustomResource(resource, cleanup, {
+          componentId: componentIdRef.current,
+          componentName: trackComponentName,
+          ...metadata,
         });
-      },
-      [trackResource, trackComponentName],
-    ),
+      });
+    },
+    [trackResource, trackComponentName],
+  );
 
-    cleanup: useCallback(
-      (resourceId: string) => {
-        const success = memoryUtils.cleanup(resourceId);
-        if (success) {
-          trackedResourcesRef.current.delete(resourceId);
+  const cleanupCallback = useCallback(
+    (resourceId: string) => {
+      const success = memoryUtils.cleanup(resourceId);
+      if (success) {
+        trackedResourcesRef.current.delete(resourceId);
 
-          if (enableDebugLogging) {
-            console.debug(
-              `useMemoryCleanup[${componentIdRef.current}]: Cleaned up resource ${resourceId} ` +
-                `(${trackedResourcesRef.current.size} remaining)`,
-            );
-          }
-        }
-        return success;
-      },
-      [enableDebugLogging],
-    ),
+      }
+      return success;
+    },
+    [],
+  );
 
-    cleanupAll: useCallback(() => {
-      return cleanupResources();
-    }, [cleanupResources]),
+  const cleanupAllCallback = useCallback(() => {
+    return cleanupResources();
+  }, [cleanupResources]);
 
-    getTrackedCount: useCallback(() => {
-      return trackedResourcesRef.current.size;
-    }, []),
+  const getTrackedCountCallback = useCallback(() => {
+    return trackedResourcesRef.current.size;
+  }, []);
 
-    getResourceIds: useCallback(() => {
-      return Array.from(trackedResourcesRef.current);
-    }, []),
+  const getResourceIdsCallback = useCallback(() => {
+    return Array.from(trackedResourcesRef.current);
+  }, []);
 
-    logMetrics: useCallback(() => {
-      const globalMetrics = memoryUtils.getMetrics();
-      const componentMetrics = {
-        componentId: componentIdRef.current,
-        componentName: trackComponentName,
-        trackedResources: trackedResourcesRef.current.size,
-        resourceIds: Array.from(trackedResourcesRef.current),
-      };
+  const logMetricsCallback = useCallback(() => {
+    // Metrics logging removed for production
+  }, []);
 
-      console.group(`useMemoryCleanup[${componentIdRef.current}] Metrics`);
-      console.log("Component metrics:", componentMetrics);
-      console.log("Global memory metrics:", globalMetrics);
-      console.groupEnd();
-    }, [trackComponentName]),
-  };
+  // Utility functions - wrapped in useMemo to prevent changing on every render
+  const utils: MemoryCleanupUtils = useMemo(() => ({
+    trackNode: trackNodeCallback,
+    trackListener: trackListenerCallback,
+    trackTimer: trackTimerCallback,
+    trackAnimation: trackAnimationCallback,
+    trackCustom: trackCustomCallback,
+    cleanup: cleanupCallback,
+    cleanupAll: cleanupAllCallback,
+    getTrackedCount: getTrackedCountCallback,
+    getResourceIds: getResourceIdsCallback,
+    logMetrics: logMetricsCallback,
+  }), [
+    trackNodeCallback,
+    trackListenerCallback,
+    trackTimerCallback,
+    trackAnimationCallback,
+    trackCustomCallback,
+    cleanupCallback,
+    cleanupAllCallback,
+    getTrackedCountCallback,
+    getResourceIdsCallback,
+    logMetricsCallback,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isUnmountedRef.current = true;
-      const cleaned = cleanupResources();
-
-      if (enableDebugLogging) {
-        console.debug(
-          `useMemoryCleanup[${componentIdRef.current}]: Component unmounted, ` +
-            `cleaned up ${cleaned} resources`,
-        );
-      }
+      cleanupResources();
     };
   }, [cleanupResources, enableDebugLogging]);
 

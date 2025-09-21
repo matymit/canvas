@@ -86,7 +86,7 @@ export class AccessibilityManager {
     this.container.addEventListener('pointerdown', focusOnPointerDown, { passive: true });
 
     // Store cleaner
-    (this.container as any).__a11y_focus_listener__ = focusOnPointerDown;
+    (this.container as HTMLElement & { __a11y_focus_listener__?: () => void }).__a11y_focus_listener__ = focusOnPointerDown;
 
     // Initial announcement to aid SR context
     this.announce(
@@ -97,7 +97,7 @@ export class AccessibilityManager {
 
   detach() {
     if (!this.container) return;
-    const l = (this.container as any).__a11y_focus_listener__;
+    const l = (this.container as HTMLElement & { __a11y_focus_listener__?: () => void }).__a11y_focus_listener__;
     if (l) this.container.removeEventListener('pointerdown', l);
   }
 

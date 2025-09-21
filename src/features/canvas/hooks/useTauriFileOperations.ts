@@ -84,7 +84,7 @@ export function useTauriFileOperations(): UseTauriFileOperationsResult {
 
       return filePath;
     } catch (error) {
-      console.error("Save failed:", error);
+      // Error: Save failed
       return null;
     }
   }, [elements, elementOrder, viewport, currentFilePath]);
@@ -128,7 +128,7 @@ export function useTauriFileOperations(): UseTauriFileOperationsResult {
 
       return true;
     } catch (error) {
-      console.error("Load failed:", error);
+      // Error: Load failed
       return false;
     }
   }, [replaceAll]);
@@ -171,14 +171,14 @@ export function useTauriFileOperations(): UseTauriFileOperationsResult {
           (document.querySelector(".konvajs-content") as HTMLElement);
 
         if (!stage) {
-          console.error("Stage element not found");
+          // Error: Stage element not found
           return null;
         }
 
         const filePath = await TauriFileService.exportCanvasAsImage(stage);
         return filePath;
       } catch (error) {
-        console.error("Export failed:", error);
+        // Error: Export failed
         return null;
       }
     },
@@ -199,7 +199,7 @@ export function useTauriFileOperations(): UseTauriFileOperationsResult {
         setLastAutoSave(new Date());
       }
     } catch (error) {
-      console.error("Auto-save failed:", error);
+      // Error: Auto-save failed
     }
   }, [elements, elementOrder, viewport]);
 
@@ -269,11 +269,11 @@ export function useTauriFileOperations(): UseTauriFileOperationsResult {
               }
             }
 
-            console.log("Auto-save restored");
+            // Auto-save restored
           }
         }
       } catch (error) {
-        console.error("Failed to load auto-save:", error);
+        // Error: Failed to load auto-save
       }
     };
 

@@ -19,7 +19,7 @@ export interface TableTransformerControllerOptions
     "boundBoxFunc" | "onTransform" | "onTransformEnd"
   > {
   element: TableElement;
-  onTableUpdate?: (element: TableElement, resetAttrs?: any) => void;
+  onTableUpdate?: (element: TableElement, resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => void;
 }
 
 /**
@@ -32,7 +32,7 @@ export interface TableTransformerControllerOptions
  */
 export class TableTransformerController extends TransformerController {
   private element: TableElement;
-  private onTableUpdate?: (element: TableElement, resetAttrs?: any) => void;
+  private onTableUpdate?: (element: TableElement, resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => void;
   private isTransforming = false;
 
   constructor(options: TableTransformerControllerOptions) {
@@ -97,10 +97,6 @@ export class TableTransformerController extends TransformerController {
    */
   private handleTransformStart(_nodes: Konva.Node[]) {
     this.isTransforming = true;
-    console.log(
-      "[TableTransformerController] Transform start for table:",
-      this.element.id,
-    );
   }
 
   /**
@@ -133,11 +129,6 @@ export class TableTransformerController extends TransformerController {
 
     const node = nodes[0];
 
-    console.log("[TableTransformerController] Transform end for table:", {
-      elementId: this.element.id,
-      nodeScale: { x: node.scaleX(), y: node.scaleY() },
-      nodeSize: { width: node.width(), height: node.height() },
-    });
 
     // Get keyboard state
     const event = window.event as KeyboardEvent | undefined;
@@ -156,16 +147,6 @@ export class TableTransformerController extends TransformerController {
     // This resets scale to 1 and updates width/height
     node.setAttrs(resetAttrs);
 
-    console.log(
-      "[TableTransformerController] Applied reset attrs:",
-      resetAttrs,
-    );
-    console.log("[TableTransformerController] New table element:", {
-      width: newElement.width,
-      height: newElement.height,
-      colWidths: newElement.colWidths,
-      rowHeights: newElement.rowHeights,
-    });
 
     // Update our internal element reference
     this.element = newElement;
@@ -209,13 +190,6 @@ export class TableTransformerController extends TransformerController {
     // This prevents cumulative scaling issues
     nodes.forEach((node) => {
       if (node.scaleX() !== 1 || node.scaleY() !== 1) {
-        console.warn(
-          "[TableTransformerController] Node has non-1 scale, resetting:",
-          {
-            nodeId: node.id(),
-            scale: { x: node.scaleX(), y: node.scaleY() },
-          },
-        );
 
         // Calculate current actual size
         const actualWidth = node.width() * node.scaleX();
@@ -282,7 +256,7 @@ export function createTableTransformerController(
   stage: Konva.Stage,
   layer: Konva.Layer,
   options: {
-    onTableUpdate?: (element: TableElement, resetAttrs?: any) => void;
+    onTableUpdate?: (element: TableElement, resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => void;
   } = {},
 ): TableTransformerController {
   return new TableTransformerController({
@@ -318,8 +292,4 @@ export function resetNodeScale(node: Konva.Node): void {
     height: newHeight,
   });
 
-  console.log("[TableTransformer] Reset node scale:", {
-    nodeId: node.id(),
-    newSize: { width: newWidth, height: newHeight },
-  });
 }

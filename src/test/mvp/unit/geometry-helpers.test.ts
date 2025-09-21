@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import Konva from "konva";
 import {
   commitTransformForNode,
   beginTransformBatch,

@@ -1,9 +1,35 @@
 // features/canvas/renderer/modules/SelectionModule.ts
+import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import type { TableElement } from "../../types/table";
 import { applyTableScaleResize } from "./tableTransform";
+
+// Element update interface
+interface ElementUpdate {
+  id: string;
+  changes: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    rotation?: number;
+    colWidths?: number[];
+    rowHeights?: number[];
+  };
+}
+
+// Element changes interface
+interface ElementChanges {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  colWidths?: number[];
+  rowHeights?: number[];
+}
 
 export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
@@ -15,7 +41,7 @@ export class SelectionModule implements RendererModule {
     this.storeCtx = ctx;
 
     // FIXED: Make module globally accessible for tool integration
-    (window as any).selectionModule = this;
+    (window as { selectionModule?: SelectionModule }).selectionModule = this;
 
     // Create transformer manager on overlay layer with dynamic aspect ratio control
     this.transformerManager = new TransformerManager(ctx.stage, {
@@ -61,10 +87,16 @@ export class SelectionModule implements RendererModule {
           store.endTransform();
         }
 
-        // FIXED: Force a clean refresh after transform to prevent duplicate frames
+        // CRITICAL FIX: Ensure transformer remains visible after transform end
         setTimeout(() => {
           if (this.transformerManager) {
             this.transformerManager.refresh();
+            // Ensure transformer is still visible after transform
+            const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
+            if (transformer && !transformer.visible()) {
+              // Transformer was hidden after transform, reshowing
+              this.transformerManager.show();
+            }
           }
         }, 10);
       },
@@ -95,7 +127,8 @@ export class SelectionModule implements RendererModule {
         if (this.transformerManager && this.storeCtx) {
           // Get current selection and refresh transformer
           const currentState = this.storeCtx.store.getState();
-          const selectedIds = currentState.selectedElementIds || new Set<string>();
+          const selectedIds =
+            currentState.selectedElementIds || new Set<string>();
           if (selectedIds.size > 0) {
             // Force refresh the transformer with current selection
             this.refreshTransformerForSelection(selectedIds);
@@ -124,8 +157,9 @@ export class SelectionModule implements RendererModule {
     }
 
     // Clean up global reference
-    if ((window as any).selectionModule === this) {
-      (window as any).selectionModule = null;
+    const globalWindow = window as { selectionModule?: SelectionModule };
+    if (globalWindow.selectionModule === this) {
+      globalWindow.selectionModule = undefined;
     }
   }
 
@@ -142,21 +176,37 @@ export class SelectionModule implements RendererModule {
 
     // FIXED: Slightly longer delay to ensure elements are fully rendered and avoid double frames
     setTimeout(() => {
+      // Processing selection update
       // Find Konva nodes for selected elements across all layers
       const nodes = this.resolveElementsToNodes(selectionSnapshot);
+      // Found nodes
 
       if (nodes.length > 0) {
+        // Attaching transformer to nodes
         // FIXED: Detach first to prevent any lingering transformers, then attach
         this.transformerManager?.detach();
         this.transformerManager?.attachToNodes(nodes);
         const lockAspect = this.shouldLockAspectRatio(selectionSnapshot);
         this.transformerManager?.setKeepRatio(lockAspect);
+
+        // CRITICAL FIX: Ensure transformer is shown and force a batch draw
+        // Showing transformer
         this.transformerManager?.show();
+
+        // Additional safety check: force visibility and batch draw
+        setTimeout(() => {
+          if (this.transformerManager) {
+            const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
+            // Safety check - transformer visible
+            if (transformer && !transformer.visible()) {
+              // Transformer was not visible, forcing visibility
+              transformer.visible(true);
+              transformer.getLayer()?.batchDraw();
+            }
+          }
+        }, 10);
       } else {
-        console.warn(
-          "[SelectionModule] Could not find nodes for selected elements:",
-          Array.from(selectionSnapshot),
-        );
+        // Could not find nodes for selected elements
         this.transformerManager?.detach();
         this.transformerManager?.setKeepRatio(false);
       }
@@ -177,11 +227,9 @@ export class SelectionModule implements RendererModule {
     ];
 
     const validLayers = allLayers
-      .filter(({ name, layer }) => {
+      .filter(({ layer }) => {
         if (!layer) {
-          console.warn(
-            `[SelectionModule] Layer '${name}' is undefined, skipping search`,
-          );
+          // Layer is undefined, skipping search
           return false;
         }
         return true;
@@ -189,9 +237,7 @@ export class SelectionModule implements RendererModule {
       .map(({ layer }) => layer);
 
     if (validLayers.length === 0) {
-      console.error(
-        "[SelectionModule] No valid layers available for element resolution",
-      );
+      // Error: [SelectionModule] No valid layers available for element resolution
       return [];
     }
 
@@ -202,7 +248,7 @@ export class SelectionModule implements RendererModule {
       for (const layer of validLayers) {
         // Additional safety check before calling find()
         if (!layer || typeof layer.find !== "function") {
-          console.warn("[SelectionModule] Invalid layer encountered, skipping");
+          // Invalid layer encountered, skipping
           continue;
         }
 
@@ -214,12 +260,13 @@ export class SelectionModule implements RendererModule {
         if (candidates.length > 0) {
           // Prefer groups over individual shapes for better transform experience
           // Check for various group types: Group, table-group, image-group, etc.
-          const group = candidates.find((n) =>
-            n.className === "Group" ||
-            n.className === "table-group" ||
-            n.className === "image-group" ||
-            n.name() === "table-group" ||
-            n.name() === "image"
+          const group = candidates.find(
+            (n) =>
+              n.className === "Group" ||
+              n.className === "table-group" ||
+              n.className === "image-group" ||
+              n.name() === "table-group" ||
+              n.name() === "image",
           );
           const selectedNode = group || candidates[0];
 
@@ -228,22 +275,14 @@ export class SelectionModule implements RendererModule {
             nodes.push(selectedNode);
             found = true;
           } else {
-            console.warn(
-              "[SelectionModule] Found candidates but selectedNode is null for element:",
-              elementId,
-              "candidates:",
-              candidates.length,
-            );
+            // Found candidates but selectedNode is null for element
           }
           break;
         }
       }
 
       if (!found) {
-        console.warn(
-          "[SelectionModule] Could not find node for element:",
-          elementId,
-        );
+        // Could not find node for element
       }
     }
 
@@ -261,11 +300,11 @@ export class SelectionModule implements RendererModule {
     const withUndo = store.withUndo;
 
     if (!updateElement) {
-      console.error("[SelectionModule] No element update method available");
+      // Error: [SelectionModule] No element update method available
       return;
     }
 
-    const updates: Array<{ id: string; changes: any }> = [];
+    const updates: ElementUpdate[] = [];
 
     for (const node of nodes) {
       const elementId = node.getAttr("elementId") || node.id();
@@ -279,27 +318,29 @@ export class SelectionModule implements RendererModule {
       const rawScaleY = scale?.y ?? 1;
 
       // CRITICAL FIX: Check if this is a table element by looking at the actual element data
-      const element = store?.elements?.get?.(elementId) ?? store.element?.getById?.(elementId);
-      const isTable = element?.type === 'table';
+      const element =
+        store?.elements?.get?.(elementId) ??
+        store.element?.getById?.(elementId);
+      const isTable = element?.type === "table";
 
       // Log for debugging
       if (elementId && (rawScaleX !== 1 || rawScaleY !== 1)) {
-        console.log('[SelectionModule] Processing transform for element:', elementId, 'isTable:', isTable, 'scale:', scale);
+        // Processing transform for element
       }
 
       // CRITICAL FIX: Ensure dimensions never become 0 or negative
       // Use absolute values of scale to handle negative scaling (flipping)
       // and enforce minimum dimensions to prevent disappearing elements
-      const MIN_WIDTH = 10;  // Minimum width in pixels for generic elements
+      const MIN_WIDTH = 10; // Minimum width in pixels for generic elements
       const MIN_HEIGHT = 10; // Minimum height in pixels for generic elements
 
-      let scaleX = Math.abs(rawScaleX);
-      let scaleY = Math.abs(rawScaleY);
+      const scaleX = Math.abs(rawScaleX);
+      const scaleY = Math.abs(rawScaleY);
 
       const scaledWidth = size.width * scaleX;
       const scaledHeight = size.height * scaleY;
 
-      const changes: any = {
+      const changes: ElementChanges = {
         x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
         y: Math.round(pos.y * 100) / 100,
         rotation: Math.round(rotation * 100) / 100,
@@ -307,21 +348,26 @@ export class SelectionModule implements RendererModule {
 
       let tableResizeResult: TableElement | null = null;
       let nextWidth = Math.max(MIN_WIDTH, Math.round(scaledWidth * 100) / 100);
-      let nextHeight = Math.max(MIN_HEIGHT, Math.round(scaledHeight * 100) / 100);
+      let nextHeight = Math.max(
+        MIN_HEIGHT,
+        Math.round(scaledHeight * 100) / 100,
+      );
       const shouldCommitSizeNow = isTable || commitWithHistory;
 
       // CRITICAL FIX: Special handling for table elements - delegate to table transform helper
       if (isTable) {
         if (element && element.colWidths && element.rowHeights) {
           const tableElement = element as TableElement;
-          const keyboardEvent = (typeof window !== 'undefined' ? window.event : undefined) as KeyboardEvent | undefined;
+          const keyboardEvent = (
+            typeof window !== "undefined" ? window.event : undefined
+          ) as KeyboardEvent | undefined;
           const keepAspectRatio = keyboardEvent?.shiftKey ?? false;
 
           tableResizeResult = applyTableScaleResize(
             tableElement,
             rawScaleX,
             rawScaleY,
-            { keepAspectRatio }
+            { keepAspectRatio },
           );
 
           changes.width = Math.round(tableResizeResult.width * 100) / 100;
@@ -332,16 +378,9 @@ export class SelectionModule implements RendererModule {
           nextWidth = tableResizeResult.width;
           nextHeight = tableResizeResult.height;
 
-          console.log('[SelectionModule] Table dimensions scaled via helper:', {
-            elementId,
-            scale: { x: rawScaleX, y: rawScaleY },
-            width: changes.width,
-            height: changes.height,
-            colWidths: changes.colWidths,
-            rowHeights: changes.rowHeights,
-          });
+          // Table dimensions scaled via helper
         } else {
-          console.warn('[SelectionModule] Table element missing colWidths/rowHeights:', element);
+          // Table element missing colWidths/rowHeights
         }
       }
 
@@ -360,23 +399,23 @@ export class SelectionModule implements RendererModule {
       }
 
       // Reset scale after applying to dimensions
-      if (scale && (rawScaleX !== 1 || rawScaleY !== 1) && shouldCommitSizeNow) {
+      if (
+        scale &&
+        (rawScaleX !== 1 || rawScaleY !== 1) &&
+        shouldCommitSizeNow
+      ) {
         node.scale({ x: 1, y: 1 });
         node.size({
           width: nextWidth,
           height: nextHeight,
         });
         if (tableResizeResult) {
-          const minTableWidth = tableResizeResult.cols * DEFAULT_TABLE_CONFIG.minCellWidth;
-          const minTableHeight = tableResizeResult.rows * DEFAULT_TABLE_CONFIG.minCellHeight;
+          const minTableWidth =
+            tableResizeResult.cols * DEFAULT_TABLE_CONFIG.minCellWidth;
+          const minTableHeight =
+            tableResizeResult.rows * DEFAULT_TABLE_CONFIG.minCellHeight;
           if (nextWidth < minTableWidth || nextHeight < minTableHeight) {
-            console.warn('[SelectionModule] Table size fell below minimums after transform reset', {
-              elementId,
-              nextWidth,
-              nextHeight,
-              minTableWidth,
-              minTableHeight,
-            });
+            // Table size fell below minimums after transform reset
           }
         }
       }
@@ -394,15 +433,10 @@ export class SelectionModule implements RendererModule {
         for (const { id, changes } of updates) {
           try {
             // Use the store's updateElement directly without pushHistory since we're already in withUndo
-            const storeState = this.storeCtx!.store.getState();
-            storeState.updateElement(id, changes, { pushHistory: false });
+            const storeState = this.storeCtx?.store?.getState();
+            storeState?.updateElement?.(id, changes, { pushHistory: false });
           } catch (error) {
-            console.error(
-              "[SelectionModule] Failed to update element",
-              id,
-              ":",
-              error,
-            );
+            // Failed to update element during transform
           }
         }
       });
@@ -410,15 +444,10 @@ export class SelectionModule implements RendererModule {
       // For non-history updates (during transform), use updateElement directly
       for (const { id, changes } of updates) {
         try {
-          const storeState = this.storeCtx!.store.getState();
+          const storeState = this.storeCtx.store.getState();
           storeState.updateElement(id, changes, { pushHistory: false });
         } catch (error) {
-          console.error(
-            "[SelectionModule] Failed to update element",
-            id,
-            ":",
-            error,
-          );
+          // Failed to update element
         }
       }
     }
@@ -427,9 +456,7 @@ export class SelectionModule implements RendererModule {
   // FIXED: Public API for other modules to trigger selection with proper store integration
   selectElement(elementId: string) {
     if (!this.storeCtx) {
-      console.error(
-        "[SelectionModule] No store context available for selection",
-      );
+      // Error: [SelectionModule] No store context available for selection
       return;
     }
 
@@ -455,12 +482,10 @@ export class SelectionModule implements RendererModule {
           selectedElementIds: store.selectedElementIds,
         });
       } else {
-        console.error(
-          "[SelectionModule] No valid selection method found in store",
-        );
+        // Error: [SelectionModule] No valid selection method found in store
       }
     } catch (error) {
-      console.error("[SelectionModule] Error during element selection:", error);
+      // Error: [SelectionModule] Error during element selection: ${error}
     }
   }
 
@@ -499,10 +524,7 @@ export class SelectionModule implements RendererModule {
           this.selectElement(elementId);
           attemptSelection(); // Recursive retry
         } else {
-          console.warn(
-            `[SelectionModule] Auto-selection failed after ${maxAttempts} attempts for element:`,
-            elementId,
-          );
+          // Auto-selection failed after max attempts
         }
       }, delay);
     };
@@ -560,10 +582,7 @@ export class SelectionModule implements RendererModule {
           this.transformerManager?.show();
         }, 10);
       } else {
-        console.warn(
-          "[SelectionModule] Could not find nodes for refresh:",
-          Array.from(selectionSnapshot),
-        );
+        // Could not find nodes for refresh
         this.transformerManager?.detach();
         this.transformerManager?.setKeepRatio(false);
       }
@@ -575,9 +594,9 @@ export class SelectionModule implements RendererModule {
       return false;
     }
 
-    const state: any = this.storeCtx.store.getState();
-    const elementsMap: Map<string, any> | undefined = state?.elements;
-    if (!elementsMap || typeof elementsMap.get !== 'function') {
+    const state = this.storeCtx.store.getState();
+    const elementsMap = state?.elements as Map<string, { type?: string }> | undefined;
+    if (!elementsMap || typeof elementsMap.get !== "function") {
       return false;
     }
 
@@ -590,7 +609,7 @@ export class SelectionModule implements RendererModule {
       if (!element) {
         return false;
       }
-      if (element.type !== 'circle') {
+      if (element.type !== "circle") {
         allCircles = false;
         break;
       }

@@ -94,7 +94,7 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
               lineJoin: 'round',
               globalCompositeOperation: 'multiply'
             }
-          } as any);
+          });
         });
       }
       
@@ -104,7 +104,7 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
       rafPendingRef.current = false;
       try { previewLayerRef.current?.batchDraw(); } catch (error) {
         // Ignore cleanup errors
-        console.debug('[HighlighterTool] Cleanup error:', error);
+        // Cleanup error
       }
     };
 
@@ -179,7 +179,7 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
         lineRef.current?.destroy();
       } catch (error) {
         // Ignore cleanup errors
-        console.debug('[HighlighterTool] Cleanup error:', error);
+        // Cleanup error
       }
       lineRef.current = null;
 
@@ -189,7 +189,7 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
       pointsRef.current = [];
       rafPendingRef.current = false;
     };
-  }, [stageRef, isActive, color, size, opacity]);
+  }, [stageRef, isActive, color, size, opacity, upsertElement, withUndo]);
 
   return null;
 };

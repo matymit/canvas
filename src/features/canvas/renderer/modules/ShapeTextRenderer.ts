@@ -42,11 +42,11 @@ export class ShapeTextRenderer implements RendererModule {
     
     // Create a basic node finder that searches the main layer
     this.getNodeById = (id: string) => {
-      const main = this.layers!.main;
+      const main = this.layers?.main;
       // Prefer Konva's native id selector
       return (
-        (main.findOne(`#${id}`) as Konva.Node | null) ||
-        (main.findOne(`[id="${id}"]`) as Konva.Node | null) ||
+        (main?.findOne(`#${id}`) as Konva.Node | null) ||
+        (main?.findOne(`[id="${id}"]`) as Konva.Node | null) ||
         null
       );
     };
@@ -61,8 +61,8 @@ export class ShapeTextRenderer implements RendererModule {
           
           if (this.isTextShapeType(element)) {
             // Check if text content changed or element is new
-            const currentText = element.data?.text;
-            const prevText = prevElement?.data?.text;
+            const currentText = typeof element.data?.text === 'string' ? element.data.text : '';
+            const prevText = typeof prevElement?.data?.text === 'string' ? prevElement.data.text : '';
 
             if (currentText !== prevText || !prevElement) {
               if (currentText && currentText.trim()) {
@@ -93,7 +93,7 @@ export class ShapeTextRenderer implements RendererModule {
   }
 
   private isTextShapeType(el: CanvasElement): el is ShapeWithText {
-    return ['rectangle', 'circle', 'ellipse', 'triangle'].includes(el.type as any);
+    return ['rectangle', 'circle', 'ellipse', 'triangle'].includes(el.type as string);
   }
 
   render(el: ShapeWithText) {
@@ -115,7 +115,7 @@ export class ShapeTextRenderer implements RendererModule {
 
     let textNode = this.textById.get(el.id);
     // If we don't have a node or it was detached/destroyed (no parent), recreate it
-    if (!textNode || (typeof (textNode as any).getParent === 'function' && !(textNode as any).getParent())) {
+    if (!textNode || (typeof textNode.getParent === 'function' && !textNode.getParent())) {
       textNode = new Konva.Text({
         x: padding,
         y: padding,

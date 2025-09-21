@@ -7,6 +7,15 @@ import type { TableElement } from "../../types/table";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import KonvaNodePool from "../../utils/KonvaNodePool";
 import { openCellEditorWithTracking } from "../../utils/editors/openCellEditorWithTracking";
+import type { ModuleRendererCtx } from "../index";
+
+// Extended window interface for type safety
+interface ExtendedWindow extends Window {
+  selectionModule?: {
+    selectElement: (elementId: string) => void;
+    toggleSelection?: (elementId: string) => void;
+  };
+}
 
 // Re-use existing RendererLayers interface from the codebase
 export interface RendererLayers {
@@ -27,13 +36,13 @@ export class TableRenderer {
   private groupById = new Map<string, Konva.Group>();
   private pool?: KonvaNodePool;
   private opts: TableRendererOptions;
-  private storeCtx?: any; // Store context for proper store access
+  private storeCtx?: ModuleRendererCtx; // Store context for proper store access
   private isUpdatingTransformer = false; // Flag to prevent transformer loops
 
   constructor(
     layers: RendererLayers,
     opts?: TableRendererOptions,
-    storeCtx?: any,
+    storeCtx?: ModuleRendererCtx,
   ) {
     this.layers = layers;
     this.opts = opts ?? {};
@@ -202,9 +211,7 @@ export class TableRenderer {
     }
 
     // Update with position preservation and no immediate transformer refresh
-    state.element.update(elementId, patch as Partial<TableElement>, {
-      pushHistory: false,
-    });
+    state.element.update(elementId, patch as Partial<TableElement>);
 
     // Only refresh transformer if selected, with debouncing to prevent loops
     const selectedIds = state.selectedElementIds || new Set<string>();
@@ -214,8 +221,7 @@ export class TableRenderer {
       !this.isUpdatingTransformer
     ) {
       this.isUpdatingTransformer = true;
-      const bumpVersion =
-        state.bumpSelectionVersion ?? state.selection?.bumpSelectionVersion;
+      const bumpVersion = state.bumpSelectionVersion;
       if (typeof bumpVersion === "function") {
         // Debounced transformer refresh to prevent update loops
         setTimeout(() => {
@@ -237,7 +243,7 @@ export class TableRenderer {
     if (g && g.getLayer() !== this.layers.main) {
       g.remove();
       this.groupById.delete(el.id);
-      g = undefined as any;
+      g = undefined;
     }
     if (!g) {
       g = new Konva.Group({
@@ -375,7 +381,7 @@ export class TableRenderer {
 
   // Draw grid lines implementation
   private drawGridLines(
-    ctx: any,
+    ctx: Konva.Context,
     shape: Konva.Shape,
     params: {
       rows: number;
@@ -448,10 +454,7 @@ export class TableRenderer {
         x: el.x,
         y: el.y,
       });
-      console.log(
-        "[TableModule] Skipping child update during transform, scale:",
-        currentScale,
-      );
+      // Debug: [TableModule] Skipping child update during transform, scale: ${currentScale}
       return; // Don't rebuild children during transform
     }
 
@@ -464,7 +467,7 @@ export class TableRenderer {
           child instanceof Konva.Rect ||
           child instanceof Konva.Text
         ) {
-          this.pool!.release(child);
+          this.pool?.release(child);
         }
       });
     }
@@ -548,7 +551,7 @@ export class TableRenderer {
           child instanceof Konva.Rect ||
           child instanceof Konva.Text
         ) {
-          this.pool!.release(child);
+          this.pool?.release(child);
         }
       });
     }
@@ -586,27 +589,23 @@ export class TableRenderer {
   handleTransformUpdate(
     elementId: string,
     newElement: TableElement,
-    resetAttrs?: any,
+    resetAttrs?: Record<string, unknown>,
   ) {
-    console.log("[TableRenderer] Handling transform update:", {
-      elementId,
-      newElement: { width: newElement.width, height: newElement.height },
-      resetAttrs,
-    });
+    // Debug: [TableRenderer] Handling transform update: elementId=${elementId}, newElement=${JSON.stringify({ width: newElement.width, height: newElement.height })}, resetAttrs=${JSON.stringify(resetAttrs)}
 
     // Get the group and apply reset attributes if provided
     const group = this.groupById.get(elementId);
     if (group && resetAttrs) {
       group.setAttrs(resetAttrs);
-      console.log("[TableRenderer] Applied reset attrs to group:", resetAttrs);
+      // Debug: [TableRenderer] Applied reset attrs to group: ${JSON.stringify(resetAttrs)}
     }
 
     // Update the store with the new element
     const storeHook = this.getStoreHook();
     if (storeHook) {
       const state = storeHook.getState();
-      state.element.update(elementId, newElement, { pushHistory: true });
-      console.log("[TableRenderer] Updated store with new element");
+      state.element.update(elementId, newElement);
+      // Debug: [TableRenderer] Updated store with new element
     }
   }
 
@@ -638,13 +637,13 @@ export class TableRenderer {
 
         // Context menu handling - let events bubble properly
         clickArea.on("contextmenu", (_e) => {
-          console.log(`[TableModule] Cell [${row}, ${col}] contextmenu event`);
+          // Debug: [TableModule] Cell [${row}, ${col}] contextmenu event
           // Don't cancel bubble - let it go to table group and then stage
         });
 
         // Double-click to edit using the tracked editor for live resize support
         clickArea.on("dblclick", (e) => {
-          console.log(`[TableModule] Cell [${row}, ${col}] double-clicked`);
+          // Debug: [TableModule] Cell [${row}, ${col}] double-clicked
           e.cancelBubble = true; // Prevent stage events for editing
 
           const stage = group.getStage();
@@ -654,7 +653,7 @@ export class TableRenderer {
               elementId: el.id,
               element: el,
               getElement: () =>
-                this.getStoreHook()?.getState().element.getById(el.id),
+                this.getStoreHook()?.getState().element.getById(el.id) as TableElement,
               row,
               col,
               onCommit: (value, tableId, commitRow, commitCol) =>
@@ -689,19 +688,11 @@ export class TableRenderer {
   // Setup table interaction handlers
   private setupTableInteractions(group: Konva.Group, elementId: string) {
     // Get reference to SelectionModule for proper selection integration
-    const getSelectionModule = () => (window as any).selectionModule;
+    const getSelectionModule = () => (window as ExtendedWindow).selectionModule;
 
     // Context menu handler for the table group
     group.on("contextmenu", (e) => {
-      console.log("[TableModule] Table group contextmenu event:", {
-        elementId,
-        target: e.target,
-        currentTarget: e.currentTarget,
-        targetName: e.target?.name?.(),
-        groupName: group.name(),
-        groupId: group.id(),
-        evt: e.evt,
-      });
+      // Debug: [TableModule] Table group contextmenu event: elementId=${elementId}, target=${e.target}, currentTarget=${e.currentTarget}, targetName=${e.target?.name?.()}, groupName=${group.name()}, groupId=${group.id()}
 
       // Prevent position jumping during context menu
       e.evt.preventDefault();
@@ -773,8 +764,7 @@ export class TableRenderer {
           {
             x: newPos.x,
             y: newPos.y,
-          } as Partial<TableElement>,
-          { pushHistory: true },
+          } as Partial<TableElement>
         );
       }
     });

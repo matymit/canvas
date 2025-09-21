@@ -357,7 +357,7 @@ export class ProductionPerformanceBudgets {
    */
   private getMemoryUsage(): number {
     // Prefer globalThis to support both browser and jsdom/node test contexts
-    const perf: any = (typeof globalThis !== 'undefined' && (globalThis as any).performance) ? (globalThis as any).performance : undefined;
+    const perf = (typeof globalThis !== 'undefined' && (globalThis as unknown as { performance?: { memory?: { usedJSHeapSize: number } } }).performance) ? (globalThis as unknown as { performance: { memory?: { usedJSHeapSize: number } } }).performance : undefined;
     if (!perf) return 0;
 
     try {

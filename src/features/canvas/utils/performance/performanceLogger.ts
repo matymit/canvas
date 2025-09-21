@@ -31,9 +31,7 @@ export class PerformanceLogger {
     this.buffer.push(ev);
     if (this.enableConsole) {
       // Small, structured console trace to help during development.
-      const tag = `[perf:${ev.type}]`;
-      // eslint-disable-next-line no-console
-      console.debug(tag, ev);
+      // Debug: [perf:${ev.type}] ${JSON.stringify(ev)}
     }
   }
 
@@ -44,7 +42,7 @@ export class PerformanceLogger {
   mark(name: string, meta?: Record<string, unknown>) {
     const ts = this.now();
     if (typeof performance !== 'undefined' && performance.mark) {
-      try { performance.mark(name); } catch { console.debug('Performance mark failed'); }
+      try { performance.mark(name); } catch { /* Performance mark failed - ignore */ }
     }
     this.push({ type: 'mark', name, ts, meta });
     return ts;
@@ -54,7 +52,7 @@ export class PerformanceLogger {
     const t1 = end ?? this.now();
     const duration = t1 - start;
     if (typeof performance !== 'undefined' && performance.measure) {
-      try { performance.measure(name, { start, end: t1 }); } catch { console.debug('Performance measure failed'); }
+      try { performance.measure(name, { start, end: t1 }); } catch { /* Performance measure failed - ignore */ }
     }
     this.push({ type: 'measure', name, duration, start, end: t1, meta });
     return duration;

@@ -186,7 +186,8 @@ export class CanvasLayerManager {
     for (const id of this.order) {
       const ly = this.requireLayer(id);
       try {
-        (ly.getCanvas() as any)?.setPixelRatio?.(dpr);
+        const canvas = ly.getCanvas() as unknown as HTMLCanvasElement & { setPixelRatio?: (dpr: number) => void };
+        canvas?.setPixelRatio?.(dpr);
       } catch {
         // ignore
       }
@@ -324,10 +325,7 @@ export class CanvasLayerManager {
     if (!this.options.warnOnTooManyLayers) return;
     const count = this.order.length;
     if (count > 5) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `CanvasLayerManager: the stage has ${count} layers. Recommended maximum is ~3-5 for performance.`
-      );
+      // Warning: CanvasLayerManager: the stage has ${count} layers. Recommended maximum is ~3-5 for performance.
     }
   }
 }

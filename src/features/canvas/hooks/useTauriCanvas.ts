@@ -14,16 +14,16 @@ import {
 // - v1: import { appWindow } from '@tauri-apps/api/window'
 // - v2: import { getCurrent as getCurrentWebviewWindow } from '@tauri-apps/api/window' or namespace changes
 // We try both at runtime to remain flexible across setups.
-async function getCurrentWindowCompat(): Promise<any | null> {
+async function getCurrentWindowCompat(): Promise<Record<string, unknown> | null> {
   try {
     // Prefer v2-style getter if available
-    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-    const mod: any = await import('@tauri-apps/api/window' as any);
+     
+    const mod = await import('@tauri-apps/api/window') as Record<string, unknown>;
     if (typeof mod.getCurrent === 'function') {
       return mod.getCurrent();
     }
     if (mod.appWindow) {
-      return mod.appWindow;
+      return mod.appWindow as Record<string, unknown>;
     }
   } catch {
     // Not running in Tauri or API not available
@@ -86,12 +86,13 @@ export default function useTauriCanvas(opts: UseTauriCanvasOptions = {}): UseTau
   const applyDprToStage = useCallback(
     (nextDpr: number) => {
       const stage = stageRef.current;
-      if (!stage) return;
+      const layers = layersRef.current;
+      if (!stage || !layers.background || !layers.main || !layers.preview || !layers.overlay) return;
       applyHiDPI(nextDpr, stage, [
-        layersRef.current.background!,
-        layersRef.current.main!,
-        layersRef.current.preview!,
-        layersRef.current.overlay!,
+        layers.background,
+        layers.main,
+        layers.preview,
+        layers.overlay,
       ]);
     },
     []
@@ -144,12 +145,13 @@ export default function useTauriCanvas(opts: UseTauriCanvasOptions = {}): UseTau
       if (!currentWindow || disposed) return;
 
       // v1 and v2 expose onScaleChanged with payload.scaleFactor
-      unlisten = await currentWindow.onScaleChanged?.(({ payload }: any) => {
-        const scale = payload?.scaleFactor;
+      const onScaleChanged = (currentWindow as Record<string, unknown>).onScaleChanged as ((handler: (event: { payload?: { scaleFactor?: number } }) => void) => Promise<() => void>) | undefined;
+      unlisten = (await onScaleChanged?.((event: { payload?: { scaleFactor?: number } }) => {
+        const scale = event.payload?.scaleFactor;
         if (typeof scale === 'number' && scale > 0) {
           setDpr(scale);
         }
-      });
+      })) || null;
     })();
 
     return () => {

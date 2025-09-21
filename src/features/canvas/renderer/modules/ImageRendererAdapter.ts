@@ -1,7 +1,7 @@
 // Adapter for ImageRenderer to implement RendererModule interface
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import { ImageRenderer } from "./ImageRenderer";
+import { ImageRenderer, type RendererLayers } from "./ImageRenderer";
 import type ImageElement from "../../types/image";
 
 type Id = string;
@@ -51,7 +51,7 @@ export class ImageRendererAdapter implements RendererModule {
       this.unsubscribe();
     }
     // Cleanup images manually
-    const layer = (this.renderer as any)?.layers?.main;
+    const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
       layer.find(".image").forEach((node: Konva.Node) => node.destroy());
       layer.batchDraw();
@@ -67,17 +67,13 @@ export class ImageRendererAdapter implements RendererModule {
     for (const [id, image] of images) {
       seen.add(id);
       // Fire and forget async rendering
-      this.renderer.render(image).catch((err) => {
-        console.error(
-          "[ImageRendererAdapter] Failed to render image:",
-          id,
-          err,
-        );
+      this.renderer.render(image).catch((_err) => {
+        // Error: [ImageRendererAdapter] Failed to render image: ${id}
       });
     }
 
     // Remove deleted images manually
-    const layer = (this.renderer as any)?.layers?.main;
+    const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
       layer.find(".image").forEach((node: Konva.Node) => {
         const nodeId = node.id();

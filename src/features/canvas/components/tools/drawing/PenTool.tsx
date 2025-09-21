@@ -95,7 +95,7 @@ export const PenTool: React.FC<PenToolProps> = ({
               lineCap: 'round',
               lineJoin: 'round'
             }
-          } as any);
+          });
         });
       }
 
@@ -106,7 +106,7 @@ export const PenTool: React.FC<PenToolProps> = ({
       rafPendingRef.current = false;
       try { previewLayerRef.current?.batchDraw(); } catch (error) {
         // Ignore cleanup errors
-        console.debug('[PenTool] Cleanup error:', error);
+        // Debug log removed
       }
     };
 
@@ -180,7 +180,7 @@ export const PenTool: React.FC<PenToolProps> = ({
         lineRef.current?.destroy();
       } catch (error) {
         // Ignore cleanup errors
-        console.debug('[PenTool] Cleanup error:', error);
+        // Debug log removed
       }
       lineRef.current = null;
 
@@ -191,7 +191,7 @@ export const PenTool: React.FC<PenToolProps> = ({
       pointsRef.current = [];
       rafPendingRef.current = false;
     };
-  }, [stageRef, isActive, color, size, opacity]);
+  }, [stageRef, isActive, color, size, opacity, upsertElement, withUndo]);
 
   return null;
 };

@@ -5,6 +5,13 @@ import { openKonvaTextEditor } from '../../utils/editors/openShapeTextEditor';
 
 type Id = string;
 
+// Extended window interface for type safety
+interface ExtendedWindow extends Window {
+  selectionModule?: {
+    selectElement: (elementId: string) => void;
+  };
+}
+
 interface TextElement {
   id: Id;
   type: "text";
@@ -29,10 +36,10 @@ export class TextRenderer implements RendererModule {
   private layer?: Konva.Layer;
   private stage?: Konva.Stage;
   private unsubscribe?: () => void;
-  private store?: any;
+  private store?: ModuleRendererCtx['store'];
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[TextRenderer] Mounting...");
+    // Mounting text renderer
     this.layer = ctx.layers.main;
     this.stage = ctx.stage;
     this.store = ctx.store;
@@ -41,15 +48,15 @@ export class TextRenderer implements RendererModule {
     this.unsubscribe = ctx.store.subscribe(
       // Selector: extract text elements
       (state) => {
-        console.log('[TextRenderer] Store subscription triggered, total elements:', state.elements.size);
+        // Store subscription triggered
         const texts = new Map<Id, TextElement>();
         for (const [id, element] of state.elements.entries()) {
           if (element.type === "text") {
-            console.log('[TextRenderer] Found text element in store:', { id, text: element.text });
+            // Found text element in store
             texts.set(id, element as TextElement);
           }
         }
-        console.log('[TextRenderer] Selector returning', texts.size, 'text elements');
+        // Returning text elements
         return texts;
       },
       // Callback: reconcile changes
@@ -79,7 +86,7 @@ export class TextRenderer implements RendererModule {
   }
 
   private unmount() {
-    console.log("[TextRenderer] Unmounting...");
+    // Unmounting text renderer
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -94,10 +101,10 @@ export class TextRenderer implements RendererModule {
 
   private reconcile(texts: Map<Id, TextElement>) {
     // Always log reconciliation attempts for debugging
-    console.log("[TextRenderer] 🔄 Reconciling", texts.size, "text elements", Array.from(texts.keys()));
+    // Reconciling text elements
 
     if (!this.layer) {
-      console.error('[TextRenderer] ❌ No layer available for reconciliation');
+      // Error: [TextRenderer] No layer available for reconciliation
       return;
     }
 
@@ -108,15 +115,15 @@ export class TextRenderer implements RendererModule {
       seen.add(id);
       let node = this.textNodes.get(id);
 
-      if (!node || (node && (node as any).isDestroyed?.() === true)) {
+      if (!node || (node && 'isDestroyed' in node && typeof node.isDestroyed === 'function' && node.isDestroyed() === true)) {
         // Remove destroyed node from tracking if it exists
-        if (node && (node as any).isDestroyed?.() === true) {
-          console.log('[TextRenderer] 🗑️ Removing destroyed node from tracking:', id);
+        if (node && 'isDestroyed' in node && typeof node.isDestroyed === 'function' && node.isDestroyed() === true) {
+          // Removing destroyed node from tracking
           this.textNodes.delete(id);
         }
 
         // Create new text node
-        console.log('[TextRenderer] ✨ Creating new text node for:', { id, text: text.text, fill: text.style?.fill });
+        // Creating new text node
         try {
           node = this.createTextNode(text);
           this.textNodes.set(id, node);
@@ -124,17 +131,17 @@ export class TextRenderer implements RendererModule {
           // Check if node is already in layer to prevent duplicates
           if (!node.getParent()) {
             this.layer.add(node);
-            console.log('[TextRenderer] ✅ Added text node to layer:', { id, nodeCount: this.textNodes.size, layerChildren: this.layer.children.length });
+            // Added text node to layer
           } else {
-            console.warn('[TextRenderer] ⚠️ Node already has parent, not adding to layer:', id);
+            // Node already has parent, not adding to layer
           }
         } catch (error) {
-          console.error('[TextRenderer] ❌ Error creating text node:', error);
+          // Error: [TextRenderer] Error creating text node: ${error}
           continue;
         }
       } else {
         // Update existing text node
-        console.log('[TextRenderer] 🔄 Updating existing text node:', { id, text: text.text });
+        // Updating existing text node
         this.updateTextNode(node, text);
       }
     }
@@ -142,28 +149,28 @@ export class TextRenderer implements RendererModule {
     // Remove deleted text elements
     for (const [id, node] of this.textNodes) {
       if (!seen.has(id)) {
-        console.log("[TextRenderer] 🗑️ Removing deleted text:", id);
+        // Removing deleted text
         try {
           node.destroy();
         } catch (error) {
-          console.warn('[TextRenderer] ⚠️ Error destroying node:', error);
+          // Error destroying node (non-critical)
         }
         this.textNodes.delete(id);
       }
     }
 
-    console.log('[TextRenderer] 🎨 Calling batchDraw on layer with', this.textNodes.size, 'text nodes, layer children:', this.layer.children.length);
+    // Calling batchDraw on layer
 
     try {
       this.layer.batchDraw();
-      console.log('[TextRenderer] ✅ BatchDraw completed successfully');
+      // BatchDraw completed successfully
     } catch (error) {
-      console.error('[TextRenderer] ❌ Error during batchDraw:', error);
+      // Error: [TextRenderer] Error during batchDraw: ${error}
     }
   }
 
   private createTextNode(text: TextElement): Konva.Text {
-    console.log('[TextRenderer] Creating text node:', { id: text.id, text: text.text, style: text.style });
+    // Creating text node
 
     const node = new Konva.Text({
       id: text.id,
@@ -203,25 +210,15 @@ export class TextRenderer implements RendererModule {
       node.height(text.height);
     }
 
-    console.log('[TextRenderer] Text node created with attributes:', {
-      id: node.id(),
-      elementId: node.getAttr('elementId'),
-      x: node.x(),
-      y: node.y(),
-      text: node.text(),
-      fill: node.fill(),
-      fontSize: node.fontSize(),
-      listening: node.listening(),
-      draggable: node.draggable()
-    });
+    // Text node created with attributes
 
     return node;
   }
 
   private updateTextNode(node: Konva.Text, text: TextElement) {
     // Safety check: ensure node exists and hasn't been destroyed
-    if (!node || (node && (node as any).isDestroyed?.() === true)) {
-      console.warn('[TextRenderer] Attempted to update destroyed or null text node:', text.id);
+    if (!node || (node && 'isDestroyed' in node && typeof node.isDestroyed === 'function' && node.isDestroyed() === true)) {
+      // Warning: [TextRenderer] Attempted to update destroyed or null text node: ${text.id}
       return;
     }
 
@@ -256,13 +253,13 @@ export class TextRenderer implements RendererModule {
         node.height(text.height);
       }
     } catch (error) {
-      console.error('[TextRenderer] Error updating text node:', error, { textId: text.id });
+      // Error: [TextRenderer] Error updating text node: ${error}, textId: ${text.id}
       // Remove the corrupted node from our tracking
       this.textNodes.delete(text.id);
       try {
         node.destroy();
       } catch (destroyError) {
-        console.warn('[TextRenderer] Error destroying corrupted node:', destroyError);
+        // Warning: [TextRenderer] Error destroying corrupted node: ${destroyError}
       }
     }
   }
@@ -270,11 +267,11 @@ export class TextRenderer implements RendererModule {
   private addEventHandlers(node: Konva.Text, text: TextElement) {
     // Handle single click for selection
     node.on('click', (e) => {
-      console.log('[TextRenderer] Text clicked for selection:', text.id);
+      // Text clicked for selection
       e.cancelBubble = true; // Prevent event bubbling
 
       // Select this text element via the global selection module
-      const selectionModule = (window as any).selectionModule;
+      const selectionModule = (window as ExtendedWindow).selectionModule;
       if (selectionModule?.selectElement) {
         selectionModule.selectElement(text.id);
       } else {
@@ -292,10 +289,10 @@ export class TextRenderer implements RendererModule {
 
     // Handle tap for mobile selection
     node.on('tap', (e) => {
-      console.log('[TextRenderer] Text tapped for selection:', text.id);
+      // Text tapped for selection
       e.cancelBubble = true;
 
-      const selectionModule = (window as any).selectionModule;
+      const selectionModule = (window as ExtendedWindow).selectionModule;
       if (selectionModule?.selectElement) {
         selectionModule.selectElement(text.id);
       }
@@ -303,34 +300,34 @@ export class TextRenderer implements RendererModule {
 
     // Handle dragging to update position
     node.on('dragstart', (e) => {
-      console.log('[TextRenderer] Text drag started:', text.id);
+      // Text drag started
       // Set dragStatus for compatibility with transformer
       const textNode = e.target as Konva.Text;
-      (textNode as any).dragStatus = 'started';
+      (textNode as Konva.Text & { dragStatus?: string }).dragStatus = 'started';
     });
 
     node.on('dragend', (e) => {
       const textNode = e.target as Konva.Text;
       const nx = textNode.x();
       const ny = textNode.y();
-      console.log('[TextRenderer] Updating text position:', { id: text.id, x: nx, y: ny });
+      // Updating text position
 
       // Clear dragStatus
-      (textNode as any).dragStatus = undefined;
+      (textNode as Konva.Text & { dragStatus?: string }).dragStatus = undefined;
 
       this.updateTextInStore(text.id, { x: nx, y: ny });
     });
 
     // Handle double-click for text editing
     node.on('dblclick', (e) => {
-      console.log('[TextRenderer] Text double-clicked for editing:', text.id);
+      // Text double-clicked for editing
       e.cancelBubble = true; // Prevent event bubbling
       this.startTextEditing(node, text);
     });
 
     // Handle double-tap for mobile
     node.on('dbltap', (e) => {
-      console.log('[TextRenderer] Text double-tapped for editing:', text.id);
+      // Text double-tapped for editing
       e.cancelBubble = true;
       this.startTextEditing(node, text);
     });
@@ -346,7 +343,7 @@ export class TextRenderer implements RendererModule {
       } else if (state?.element?.update) {
         state.element.update(textId, updates);
       } else {
-        console.warn('[TextRenderer] No suitable update method found in store');
+        // No suitable update method found in store
         // Fall back to direct store update - not ideal but prevents crashes
         const currentElement = state?.elements?.get?.(textId);
         if (currentElement && state?.elements?.set) {
@@ -355,30 +352,30 @@ export class TextRenderer implements RendererModule {
         }
       }
     } catch (error) {
-      console.error('[TextRenderer] Error updating text in store:', error);
+      // Error: [TextRenderer] Error updating text in store: ${error}
     }
   }
 
   private startTextEditing(node: Konva.Text, text: TextElement) {
     if (!this.stage || !this.layer) {
-      console.warn('[TextRenderer] No stage or layer available for text editing');
+      // Warning: [TextRenderer] No stage or layer available for text editing
       return;
     }
 
-    console.log('[TextRenderer] Opening text editor for:', text.id);
+    // Opening text editor
 
     openKonvaTextEditor({
       stage: this.stage,
       layer: this.layer,
       shape: node,
       onCommit: (newText: string) => {
-        console.log('[TextRenderer] Text editor committed:', newText);
+        // Text editor committed
         if (newText !== text.text) {
           this.updateTextInStore(text.id, { text: newText });
         }
       },
       onCancel: () => {
-        console.log('[TextRenderer] Text editing cancelled');
+        // Text editing cancelled
       }
     });
   }

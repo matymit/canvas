@@ -1,8 +1,9 @@
 // Adapter for ConnectorRenderer to implement RendererModule interface
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import { ConnectorRenderer } from "./ConnectorRenderer";
+import { ConnectorRenderer, type RendererLayers } from "./ConnectorRenderer";
 import type { ConnectorElement } from "../../types/connector";
+import type { CanvasElement } from "../../../../../types";
 
 type Id = string;
 
@@ -13,7 +14,7 @@ export class ConnectorRendererAdapter implements RendererModule {
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Create renderer with node resolver
-    this.renderer = new ConnectorRenderer(ctx.layers, {
+    this.renderer = new ConnectorRenderer(ctx.layers as RendererLayers, {
       getNodeById: (id: string) => {
         // Find the node in the main layer
         const node = ctx.layers.main.findOne(`#${id}`);
@@ -29,7 +30,7 @@ export class ConnectorRendererAdapter implements RendererModule {
       // Selector: extract connectors and cache element positions
       (state) => {
         const connectors = new Map<Id, ConnectorElement>();
-        const elements = new Map<Id, any>();
+        const elements = new Map<Id, CanvasElement>();
 
         for (const [id, element] of state.elements.entries()) {
           if (element.type === "connector") {
@@ -51,7 +52,7 @@ export class ConnectorRendererAdapter implements RendererModule {
     // Initial render
     const initialState = ctx.store.getState();
     const initialConnectors = new Map<Id, ConnectorElement>();
-    const initialElements = new Map<Id, any>();
+    const initialElements = new Map<Id, CanvasElement>();
 
     for (const [id, element] of initialState.elements.entries()) {
       if (element.type === "connector") {
@@ -73,7 +74,7 @@ export class ConnectorRendererAdapter implements RendererModule {
     }
     if (this.renderer) {
       // Manually clear connectors since ConnectorRenderer doesn't have a clear method
-      const layer = (this.renderer as any).layers?.main;
+      const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
       if (layer) {
         layer.find(".connector").forEach((node: Konva.Node) => node.destroy());
         layer.batchDraw();
@@ -84,7 +85,7 @@ export class ConnectorRendererAdapter implements RendererModule {
 
   private reconcile(
     connectors: Map<Id, ConnectorElement>,
-    elements: Map<Id, any>,
+    elements: Map<Id, CanvasElement>,
   ) {
     // Only log when there are actual connectors to reconcile (reduce console spam)
 
@@ -96,10 +97,10 @@ export class ConnectorRendererAdapter implements RendererModule {
       // Create a temporary group representing the element bounds
       const group = new Konva.Group({
         id,
-        x: element.x,
-        y: element.y,
-        width: element.width || 100,
-        height: element.height || 100,
+        x: (typeof element.x === 'number' ? element.x : 0),
+        y: (typeof element.y === 'number' ? element.y : 0),
+        width: (typeof element.width === 'number' ? element.width : 100),
+        height: (typeof element.height === 'number' ? element.height : 100),
       });
       this.elementNodes.set(id, group);
     }
@@ -111,17 +112,13 @@ export class ConnectorRendererAdapter implements RendererModule {
     for (const [id, connector] of connectors) {
       seen.add(id);
       renderedIds.add(id);
-      this.renderer.render(connector).catch((err) => {
-        console.error(
-          "[ConnectorRendererAdapter] Failed to render connector:",
-          id,
-          err,
-        );
+      this.renderer.render(connector).catch((_err) => {
+        // Error: [ConnectorRendererAdapter] Failed to render connector: ${id}
       });
     }
 
     // Remove deleted connectors (manually since ConnectorRenderer doesn't have removeNotIn)
-    const layer = (this.renderer as any).layers?.main;
+    const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
       layer.find(".connector").forEach((node: Konva.Node) => {
         const nodeId = node.id();

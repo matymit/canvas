@@ -3,11 +3,12 @@
 // Handles world-to-screen coordinate conversion and live updates during pan/zoom operations
 
 import Konva from 'konva';
+import type { TableElement } from '../../types/table';
 
 type CellEditorOpts = {
   stage: Konva.Stage;
   elementId: string;
-  element: any; // TableElement
+  element: TableElement;
   row: number;
   col: number;
   onCommit?: (text: string, elementId: string, row: number, col: number) => void;
@@ -20,7 +21,7 @@ type CellEditorOpts = {
       requiredHeight: number;
     }
   ) => void;
-  getElement?: () => any;
+  getElement?: () => TableElement;
 };
 
 export function openCellEditorWithTracking({
@@ -38,7 +39,7 @@ export function openCellEditorWithTracking({
   // Find the table group to get positioning
   const tableGroup = stage.findOne(`#${elementId}`) as Konva.Group;
   if (!tableGroup) {
-    console.error('[openCellEditorWithTracking] Could not find table group with ID:', elementId);
+    // Error: Could not find table group with ID
     return;
   }
 
@@ -47,7 +48,7 @@ export function openCellEditorWithTracking({
       const latest = getElement?.();
       return latest ?? element;
     } catch (error) {
-      console.warn('[openCellEditorWithTracking] Failed to resolve latest element, using snapshot:', error);
+      // Warning: Failed to resolve latest element, using snapshot
       return element;
     }
   };
@@ -241,14 +242,14 @@ export function openCellEditorWithTracking({
   };
 
   const onKey = (e: KeyboardEvent) => {
-    console.log('[openCellEditorWithTracking] Key pressed:', e.key, 'shiftKey:', e.shiftKey);
+    // Debug: Key pressed
 
     if (e.key === 'Enter' && !e.shiftKey) {
-      console.log('[openCellEditorWithTracking] Enter pressed, calling finish(true)');
+      // Debug: Enter pressed, calling finish(true)
       e.preventDefault();
       finish(true);
     } else if (e.key === 'Escape') {
-      console.log('[openCellEditorWithTracking] Escape pressed, calling finish(false)');
+      // Debug: Escape pressed, calling finish(false)
       e.preventDefault();
       finish(false);
     }

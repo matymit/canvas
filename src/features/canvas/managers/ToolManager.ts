@@ -12,27 +12,50 @@ export interface CanvasTool {
   name: string;
 }
 
-// Import all tool components
-import { TableTool } from "../components/tools/content/TableTool";
-import { TextTool } from "../components/tools/content/TextTool";
-import { ImageTool } from "../components/tools/content/ImageTool";
-import { MindmapTool } from "../components/tools/content/MindmapTool";
-import { PenTool } from "../components/tools/drawing/PenTool";
-import MarkerTool from "../components/tools/drawing/MarkerTool";
-import HighlighterTool from "../components/tools/drawing/HighlighterTool";
-import EraserTool from "../components/tools/drawing/EraserTool";
-import { RectangleTool } from "../components/tools/shapes/RectangleTool";
-import { CircleTool } from "../components/tools/shapes/CircleTool";
-import { TriangleTool } from "../components/tools/shapes/TriangleTool";
-import StickyNoteTool from "../components/tools/creation/StickyNoteTool";
-import { ConnectorTool } from "../components/tools/creation/ConnectorTool";
+// Tool instance interface
+export interface ToolInstance {
+  component: React.ComponentType<ToolProps>;
+  stageRef: React.RefObject<Konva.Stage>;
+  initialized: boolean;
+}
+
+// Import all tool components and their prop types
+import { TableTool, type TableToolProps } from "../components/tools/content/TableTool";
+import { TextTool, type TextToolProps } from "../components/tools/content/TextTool";
+import { ImageTool, type ImageToolProps } from "../components/tools/content/ImageTool";
+import { MindmapTool, type MindmapToolProps } from "../components/tools/content/MindmapTool";
+import { PenTool, type PenToolProps } from "../components/tools/drawing/PenTool";
+import MarkerTool, { type MarkerToolProps } from "../components/tools/drawing/MarkerTool";
+import HighlighterTool, { type HighlighterToolProps } from "../components/tools/drawing/HighlighterTool";
+import EraserTool, { type EraserToolProps } from "../components/tools/drawing/EraserTool";
+import { RectangleTool, type RectangleToolProps } from "../components/tools/shapes/RectangleTool";
+import { CircleTool, type CircleToolProps } from "../components/tools/shapes/CircleTool";
+import { TriangleTool, type TriangleToolProps } from "../components/tools/shapes/TriangleTool";
+import StickyNoteTool, { type StickyNoteToolProps } from "../components/tools/creation/StickyNoteTool";
+import { ConnectorTool, type ConnectorToolProps } from "../components/tools/creation/ConnectorTool";
+
+// Union type for all tool props
+type ToolProps =
+  | TableToolProps
+  | TextToolProps
+  | ImageToolProps
+  | MindmapToolProps
+  | PenToolProps
+  | MarkerToolProps
+  | HighlighterToolProps
+  | EraserToolProps
+  | RectangleToolProps
+  | CircleToolProps
+  | TriangleToolProps
+  | StickyNoteToolProps
+  | ConnectorToolProps;
 
 export interface ToolDefinition {
   id: string;
   name: string;
   description: string;
   category: "navigation" | "content" | "drawing" | "shapes" | "creation";
-  component?: React.ComponentType<any>;
+  component?: React.ComponentType<ToolProps>;
   cursor: string;
   shortcut?: string;
 }
@@ -47,8 +70,9 @@ export class ToolManager {
   private stage: Konva.Stage;
   private mainLayer: Konva.Layer;
   private store: UnifiedCanvasStore;
-  private toolInstances = new Map<string, any>();
+  private toolInstances = new Map<string, ToolInstance>();
   private activeCanvasTool: CanvasTool | null = null;
+  private _keyboardCleanup?: () => void;
 
   // Tool registry with all available tools
   private tools: Record<string, ToolDefinition> = {
@@ -278,7 +302,7 @@ export class ToolManager {
     container.addEventListener("keydown", handleKeyDown);
 
     // Store cleanup function
-    (this as any)._keyboardCleanup = () => {
+    this._keyboardCleanup = () => {
       container.removeEventListener("keydown", handleKeyDown);
     };
   }
@@ -286,7 +310,7 @@ export class ToolManager {
   public activateTool(toolId: string) {
     const tool = this.tools[toolId];
     if (!tool) {
-      console.warn(`Unknown tool: ${toolId}`);
+      // Warning: Unknown tool
       return;
     }
 
@@ -322,7 +346,7 @@ export class ToolManager {
     // The components watch for store changes and activate/deactivate accordingly
 
     // Check if this tool has a canvas tool implementation
-    const canvasTool = this.toolInstances.get(toolId + '_canvas') as CanvasTool;
+    const canvasTool = this.toolInstances.get(toolId + '_canvas') as unknown as CanvasTool;
     if (canvasTool) {
       this.activateCanvasTool(toolId);
     }
@@ -383,8 +407,8 @@ export class ToolManager {
     }
 
     // Cleanup keyboard shortcuts
-    if ((this as any)._keyboardCleanup) {
-      (this as any)._keyboardCleanup();
+    if (this._keyboardCleanup) {
+      this._keyboardCleanup();
     }
 
     // Clear tool instances
@@ -393,12 +417,12 @@ export class ToolManager {
 
   // Method to register canvas tools that implement CanvasTool interface
   public registerCanvasTool(toolId: string, tool: CanvasTool) {
-    this.toolInstances.set(toolId + '_canvas', tool);
+    this.toolInstances.set(toolId + '_canvas', tool as unknown as ToolInstance);
   }
 
   // Method to activate a canvas tool
   public activateCanvasTool(toolId: string) {
-    const tool = this.toolInstances.get(toolId + '_canvas') as CanvasTool;
+    const tool = this.toolInstances.get(toolId + '_canvas') as unknown as CanvasTool;
     if (tool) {
       if (this.activeCanvasTool) {
         this.activeCanvasTool.detach();

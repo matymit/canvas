@@ -149,8 +149,8 @@ export class DirectKonvaDrawer {
 
     const line = new Konva.Line({
       points: this.points,
-      stroke: options.color!,
-      strokeWidth: options.width!,
+      stroke: options.color || '#000000',
+      strokeWidth: options.width || 2,
       lineCap: 'round',
       lineJoin: 'round',
       opacity,

@@ -37,9 +37,9 @@ const E = Konva.Easings || {
 const TWEEN_KEY = '__activeTweens';
 
 function getTweens(node: Konva.Node): Map<string, Konva.Tween> {
-  const any = node as any;
-  if (!any[TWEEN_KEY]) any[TWEEN_KEY] = new Map<string, Konva.Tween>();
-  return any[TWEEN_KEY];
+  const nodeWithTweens = node as Konva.Node & { [TWEEN_KEY]?: Map<string, Konva.Tween> };
+  if (!nodeWithTweens[TWEEN_KEY]) nodeWithTweens[TWEEN_KEY] = new Map<string, Konva.Tween>();
+  return nodeWithTweens[TWEEN_KEY] as Map<string, Konva.Tween>;
 }
 
 function stopTween(node: Konva.Node, key: string) {
@@ -48,7 +48,6 @@ function stopTween(node: Konva.Node, key: string) {
   if (tw) {
     try { tw.pause(); tw.destroy(); } catch (error) {
       // Ignore cleanup errors
-      console.debug('[ElementAnimations] Cleanup error:', error);
     }
     map.delete(key);
   }
@@ -63,7 +62,6 @@ function setTween(node: Konva.Node, key: string, tween: Konva.Tween) {
 function batchDraw(layer?: Konva.Layer | null) {
   try { layer?.batchDraw(); } catch (error) {
     // Ignore cleanup errors
-    console.debug('[ElementAnimations] Cleanup error:', error);
   }
 }
 
@@ -159,7 +157,6 @@ export function stopAllAnimations(node: Konva.Node) {
   for (const [k, t] of map) {
     try { t.pause(); t.destroy(); } catch (error) {
       // Ignore cleanup errors
-      console.debug('[ElementAnimations] Cleanup error:', error);
     }
     map.delete(k);
   }

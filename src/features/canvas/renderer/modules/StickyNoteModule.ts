@@ -14,9 +14,30 @@ type StickySnapshot = {
   text?: string;
 };
 
+// Define interfaces for window extensions and store types
+interface SelectionModule {
+  selectElement: (elementId: string) => void;
+}
+
+interface ExtendedWindow extends Window {
+  selectionModule?: SelectionModule;
+  stickyNoteModule?: StickyNoteModule;
+}
+
+interface StoreWithHistory {
+  history?: {
+    withUndo: (description: string, fn: () => void) => void;
+  };
+  withUndo?: (description: string, fn: () => void) => void;
+  element?: {
+    update: (id: string, updates: Record<string, unknown>) => void;
+  };
+  updateElement?: (id: string, updates: Record<string, unknown>) => void;
+}
+
 // Get reference to SelectionModule for proper selection integration
-function getSelectionModule(): any {
-  return (window as any).selectionModule;
+function getSelectionModule(): SelectionModule | undefined {
+  return (window as ExtendedWindow).selectionModule;
 }
 
 export class StickyNoteModule implements RendererModule {
@@ -32,7 +53,7 @@ export class StickyNoteModule implements RendererModule {
     this.storeCtx = ctx;
 
     // FIXED: Make module globally accessible for tool integration
-    (window as any).stickyNoteModule = this;
+    (window as ExtendedWindow).stickyNoteModule = this;
 
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
@@ -48,7 +69,8 @@ export class StickyNoteModule implements RendererModule {
               width: element.width || 240,
               height: element.height || 180,
               fill: element.fill || element.style?.fill || "#FFF59D", // Check fill first, then style.fill
-              text: element.text || element.data?.text || "",
+              text: (typeof element.text === 'string' ? element.text : '') ||
+                    (typeof element.data?.text === 'string' ? element.data.text : '') || "",
             });
           }
         }
@@ -93,8 +115,8 @@ export class StickyNoteModule implements RendererModule {
     }
 
     // Clean up global reference
-    if ((window as any).stickyNoteModule === this) {
-      (window as any).stickyNoteModule = null;
+    if ((window as ExtendedWindow).stickyNoteModule === this) {
+      (window as ExtendedWindow).stickyNoteModule = undefined;
     }
   }
 
@@ -251,11 +273,11 @@ export class StickyNoteModule implements RendererModule {
         const store = this.storeCtx.store.getState();
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
 
-        if (store.setSelection) {
+        if ('setSelection' in store && typeof store.setSelection === 'function') {
           if (isAdditive) {
             // Get current selection and toggle
-            const current = store.selectedElementIds || new Set();
-            const newSelection = new Set(current);
+            const current = ('selectedElementIds' in store ? store.selectedElementIds : new Set()) || new Set();
+            const newSelection = new Set(current as Iterable<string>);
             if (newSelection.has(elementId)) {
               newSelection.delete(elementId);
             } else {
@@ -265,11 +287,12 @@ export class StickyNoteModule implements RendererModule {
           } else {
             store.setSelection([elementId]);
           }
-        } else if (store.selection) {
+        } else if ('selection' in store && store.selection) {
+          const selection = store.selection as { toggle?: (id: string) => void; set?: (ids: string[]) => void };
           if (isAdditive) {
-            store.selection.toggle?.(elementId);
+            selection.toggle?.(elementId);
           } else {
-            store.selection.set?.([elementId]);
+            selection.set?.([elementId]);
           }
         }
       }
@@ -320,10 +343,11 @@ export class StickyNoteModule implements RendererModule {
       const deltaY = Math.abs(pos.y - dragStartData.storeY);
 
       if (deltaX > 1 || deltaY > 1) {
+        const storeWithHistory = store as StoreWithHistory;
         const withUndo =
-          (store as any).history?.withUndo?.bind((store as any).history) ||
-          (store as any).withUndo;
-        const updateElement = store.element?.update || store.updateElement;
+          storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
+          storeWithHistory.withUndo;
+        const updateElement = storeWithHistory.element?.update || storeWithHistory.updateElement;
 
         if (updateElement) {
           const updateFn = () => {
@@ -390,10 +414,11 @@ export class StickyNoteModule implements RendererModule {
       const deltaHeight = Math.abs(newHeight - transformStartData.storeHeight);
 
       if (deltaWidth > 1 || deltaHeight > 1) {
+        const storeWithHistory = store as StoreWithHistory;
         const withUndo =
-          (store as any).history?.withUndo?.bind((store as any).history) ||
-          (store as any).withUndo;
-        const updateElement = store.element?.update || store.updateElement;
+          storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
+          storeWithHistory.withUndo;
+        const updateElement = storeWithHistory.element?.update || storeWithHistory.updateElement;
 
         if (updateElement) {
           const updateFn = () => {
@@ -496,7 +521,8 @@ export class StickyNoteModule implements RendererModule {
     const store = this.storeCtx?.store.getState();
     const element =
       store?.elements?.get?.(elementId) || store?.element?.getById?.(elementId);
-    const currentText = element?.text || element?.data?.text || "";
+    const currentText = (typeof element?.text === 'string' ? element.text : '') ||
+                       (typeof element?.data?.text === 'string' ? element.data.text : '') || "";
 
     editor.value = currentText;
 
@@ -539,10 +565,11 @@ export class StickyNoteModule implements RendererModule {
 
       if (this.storeCtx) {
         const store = this.storeCtx.store.getState();
-        const updateElement = store.element?.update || store.updateElement;
+        const storeWithHistory = store as StoreWithHistory;
+        const updateElement = storeWithHistory.element?.update || storeWithHistory.updateElement;
         const withUndo =
-          (store as any).history?.withUndo?.bind((store as any).history) ||
-          (store as any).withUndo;
+          storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
+          storeWithHistory.withUndo;
 
         if (updateElement) {
           const updateFn = () => {
@@ -627,7 +654,7 @@ export class StickyNoteModule implements RendererModule {
       this.activeEditor.remove();
     } catch (error) {
       // Ignore cleanup errors
-      console.debug('[StickyNoteModule] Cleanup error:', error);
+      // Debug: [StickyNoteModule] Cleanup error: ${error}
     }
 
     this.activeEditor = null;
@@ -639,17 +666,12 @@ export class StickyNoteModule implements RendererModule {
 
   // FIXED: Public method for immediate text editing after creation with improved timing
   public triggerImmediateTextEdit(elementId: string) {
-    console.log(
-      "[StickyNoteModule] Triggering immediate text edit for:",
-      elementId,
-    );
+    // Debug: [StickyNoteModule] Triggering immediate text edit for: ${elementId}
 
     // Try immediate edit first
     const group = this.nodes.get(elementId);
     if (group) {
-      console.log(
-        "[StickyNoteModule] Element found immediately, starting text edit",
-      );
+      // Debug: [StickyNoteModule] Element found immediately, starting text edit
       // Small delay to ensure selection is complete
       setTimeout(() => {
         this.startTextEditing(group, elementId);
@@ -667,21 +689,13 @@ export class StickyNoteModule implements RendererModule {
       const group = this.nodes.get(elementId);
 
       if (group) {
-        console.log(
-          `[StickyNoteModule] Found element on attempt ${attempts}, starting text edit`,
-        );
+        // Debug: [StickyNoteModule] Found element on attempt ${attempts}, starting text edit
         this.startTextEditing(group, elementId);
       } else if (attempts < maxAttempts) {
-        console.log(
-          `[StickyNoteModule] Element not ready on attempt ${attempts}, retrying in ${retryDelay}ms...`,
-        );
+        // Debug: [StickyNoteModule] Element not ready on attempt ${attempts}, retrying in ${retryDelay}ms...
         setTimeout(attemptEdit, retryDelay);
       } else {
-        console.warn(
-          "[StickyNoteModule] Could not find element for text editing after",
-          maxAttempts,
-          "attempts",
-        );
+        // Warning: [StickyNoteModule] Could not find element for text editing after ${maxAttempts} attempts
       }
     };
 

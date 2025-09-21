@@ -62,11 +62,15 @@ export const ScreenReaderUtils = {
     }
     // Utility to force announcement by clearing then setting text
     const announce = (msg: string) => {
-      el!.textContent = ''; // reset
-      // small timeout to ensure screen readers detect change
-      setTimeout(() => {
-        el!.textContent = msg;
-      }, 10);
+      if (el) {
+        el.textContent = ''; // reset
+        // small timeout to ensure screen readers detect change
+        setTimeout(() => {
+          if (el) {
+            el.textContent = msg;
+          }
+        }, 10);
+      }
     };
     return { root: el, announce };
   },

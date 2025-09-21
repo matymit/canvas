@@ -1,0 +1,46 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "Select" [pressed] [ref=e6] [cursor=pointer]:
+        - img [ref=e7] [cursor=pointer]
+      - button "Pan" [ref=e10] [cursor=pointer]:
+        - img [ref=e11] [cursor=pointer]
+    - generic [ref=e16]:
+      - button "Sticky Note Colors" [ref=e17] [cursor=pointer]:
+        - img [ref=e18] [cursor=pointer]
+      - button "Text" [ref=e22] [cursor=pointer]:
+        - img [ref=e23] [cursor=pointer]
+      - button "Table" [ref=e25] [cursor=pointer]:
+        - img [ref=e26] [cursor=pointer]
+      - button "Image" [ref=e28] [cursor=pointer]:
+        - img [ref=e29] [cursor=pointer]
+      - button "Shapes" [ref=e33] [cursor=pointer]:
+        - img [ref=e34] [cursor=pointer]
+      - button "Connector" [ref=e39] [cursor=pointer]:
+        - img [ref=e40] [cursor=pointer]
+    - generic [ref=e44]:
+      - button "Pen" [ref=e45] [cursor=pointer]:
+        - img [ref=e46] [cursor=pointer]
+      - button "Marker" [ref=e48] [cursor=pointer]:
+        - img [ref=e49] [cursor=pointer]
+      - button "Highlighter" [ref=e53] [cursor=pointer]:
+        - img [ref=e54] [cursor=pointer]
+      - button "Eraser" [ref=e57] [cursor=pointer]:
+        - img [ref=e58] [cursor=pointer]
+    - generic [ref=e61]:
+      - button "Undo" [ref=e62] [cursor=pointer]:
+        - img [ref=e63] [cursor=pointer]
+      - button "Redo" [ref=e66] [cursor=pointer]:
+        - img [ref=e67] [cursor=pointer]
+      - button "Clear Canvas" [ref=e70] [cursor=pointer]:
+        - img [ref=e71] [cursor=pointer]
+  - generic [ref=e80]:
+    - button "Zoom out" [ref=e81]: −
+    - generic [ref=e82]: 100%
+    - button "Zoom in" [ref=e83]: +
+    - button "Reset" [ref=e84]
+    - button "Fit" [ref=e85]
+```

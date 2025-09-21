@@ -9,8 +9,17 @@ export type RendererLayers = {
   overlay: Konva.Layer;
 };
 
+export interface DrawingElement {
+  id: string;
+  type: string;
+  stroke: string;
+  strokeWidth: number;
+  opacity: number;
+  points: number[];
+}
+
 export interface StoreAdapter {
-  addElement: (element: any) => void;
+  addElement: (element: DrawingElement) => void;
 }
 
 export interface DrawingOptions {
@@ -101,7 +110,7 @@ export default class DrawingModule {
     this.store.addElement({
       id,
       type: 'freehand',
-      stroke: committed.stroke(),
+      stroke: committed.stroke() as string,
       strokeWidth: committed.strokeWidth(),
       opacity: committed.opacity(),
       points: committed.points(),

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import { TableElement } from '../../types/table';
 
 export interface TableSpatialFeedbackState {
   visible: boolean;
@@ -12,7 +13,7 @@ export interface TableSpatialFeedbackState {
 
 export interface TableSpatialFeedbackProps {
   state: TableSpatialFeedbackState;
-  stageRef: React.RefObject<any>; // Konva.Stage
+  stageRef: React.RefObject<Konva.Stage>;
 }
 
 export const TableSpatialFeedback: React.FC<TableSpatialFeedbackProps> = ({
@@ -58,8 +59,8 @@ export const TableSpatialFeedback: React.FC<TableSpatialFeedbackProps> = ({
 
     // Calculate highlight position and size
     const tableRect = tableGroup.getClientRect();
-    const cellWidth = tableRect.width / (tableElement as any).cols;
-    const cellHeight = tableRect.height / (tableElement as any).rows;
+    const cellWidth = tableRect.width / (tableElement as TableElement).cols;
+    const cellHeight = tableRect.height / (tableElement as TableElement).rows;
 
     let highlightX: number;
     let highlightY: number;
@@ -74,10 +75,10 @@ export const TableSpatialFeedback: React.FC<TableSpatialFeedbackProps> = ({
       highlightHeight = cellHeight;
 
       // For new row insertion, show a thin line
-      if (state.index === (tableElement as any).rows) {
+      if (state.index === (tableElement as TableElement).rows) {
         highlightY = tableRect.y + tableRect.height;
         highlightHeight = 3;
-      } else if (state.index < (tableElement as any).rows) {
+      } else if (state.index < (tableElement as TableElement).rows) {
         highlightHeight = 3;
       }
     } else {
@@ -88,10 +89,10 @@ export const TableSpatialFeedback: React.FC<TableSpatialFeedbackProps> = ({
       highlightHeight = tableRect.height;
 
       // For new column insertion, show a thin line
-      if (state.index === (tableElement as any).cols) {
+      if (state.index === (tableElement as TableElement).cols) {
         highlightX = tableRect.x + tableRect.width;
         highlightWidth = 3;
-      } else if (state.index < (tableElement as any).cols) {
+      } else if (state.index < (tableElement as TableElement).cols) {
         highlightWidth = 3;
       }
     }
@@ -109,8 +110,8 @@ export const TableSpatialFeedback: React.FC<TableSpatialFeedbackProps> = ({
     });
 
     // Add pulsing animation for insertion indicators
-    if ((state.type === 'row' && (state.index === (tableElement as any).rows || highlightHeight === 3)) ||
-        (state.type === 'column' && (state.index === (tableElement as any).cols || highlightWidth === 3))) {
+    if ((state.type === 'row' && (state.index === (tableElement as TableElement).rows || highlightHeight === 3)) ||
+        (state.type === 'column' && (state.index === (tableElement as TableElement).cols || highlightWidth === 3))) {
       const tween = new Konva.Tween({
         node: highlight,
         duration: 0.5,

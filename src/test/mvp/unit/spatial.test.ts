@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   QuadTree,
-  Rect,
 } from "../../../features/canvas/utils/performance/QuadTree";
 import {
   SimpleEraserIndex,

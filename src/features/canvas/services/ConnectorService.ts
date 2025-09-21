@@ -109,7 +109,7 @@ export function initializeConnectorService(deps: ConnectorServiceDeps): Connecto
   globalConnectorService.initialize();
   
   // Make available globally for tools
-  (window as any).connectorService = globalConnectorService;
+  (window as Window & { connectorService?: ConnectorService }).connectorService = globalConnectorService;
   
   return globalConnectorService;
 }

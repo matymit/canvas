@@ -15,6 +15,21 @@ import type { InteractionModuleSlice } from "./modules/interactionModule";
 
 // Types (keep imports narrow to avoid circular types)
 import type { CanvasElement, ElementId } from "../../../../types/index";
+import type { StoreHistoryOp } from "./modules/historyModule";
+
+// Persistence types
+interface PersistedState {
+  elements?: Array<[ElementId, CanvasElement]>;
+  elementOrder?: ElementId[];
+  selectedElementIds?: ElementId[];
+  viewport?: {
+    x: number;
+    y: number;
+    scale: number;
+    minScale: number;
+    maxScale: number;
+  };
+}
 
 export interface ViewportState {
   x: number;
@@ -144,7 +159,20 @@ export interface ConvenienceSlice {
 export type UnifiedCanvasStore = CoreModuleSlice &
   HistoryModuleSlice &
   InteractionModuleSlice &
-  ConvenienceSlice;
+  ConvenienceSlice & {
+    // Compatibility history object for modules expecting nested history structure
+    history: {
+      record: (input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]) => void;
+      push: (ops: StoreHistoryOp[], label?: string, mergeKey?: string) => void;
+      add: (input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]) => void;
+      withUndo: (description: string, mutator: () => void) => void;
+      beginBatch: (label?: string) => void;
+      endBatch: (commit?: boolean) => void;
+      undo: () => void;
+      redo: () => void;
+      clear: () => void;
+    };
+  };
 
 // Helper for persistence: serialize Map/Set into arrays
 function partializeForPersist(state: UnifiedCanvasStore) {
@@ -165,7 +193,7 @@ function partializeForPersist(state: UnifiedCanvasStore) {
 
 // Helper to rebuild Map/Set when rehydrating
 function mergeAfterHydration(
-  persisted: any,
+  persisted: PersistedState,
   current: UnifiedCanvasStore,
 ): UnifiedCanvasStore {
   const restored = { ...current } as UnifiedCanvasStore;
@@ -218,10 +246,10 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
 
           // Compatibility shim for modules that expect state.history object with helper methods
           history: {
-            record: (input: any) => (get() as any).record?.(input),
-            push: (ops: any, label?: string, mergeKey?: string) =>
-              (get() as any).push?.(ops, label, mergeKey),
-            add: (input: any) => (get() as any).add?.(input),
+            record: (input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]) => get().record?.(input),
+            push: (ops: StoreHistoryOp[], label?: string, mergeKey?: string) =>
+              get().push?.(ops, label, mergeKey),
+            add: (input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]) => get().add?.(input),
             withUndo: (description: string, mutator: () => void) =>
               historyModule.withUndo(description, mutator),
             beginBatch: historyModule.beginBatch,
@@ -229,7 +257,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             undo: historyModule.undo,
             redo: historyModule.redo,
             clear: historyModule.clear,
-          } as any,
+          },
 
           // Add convenience properties at root level
           selectedTool: DEFAULT_UI.selectedTool,
@@ -316,7 +344,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
       version: 2,
       partialize: partializeForPersist,
       merge: (persisted, current) =>
-        mergeAfterHydration(persisted, current as any),
+        mergeAfterHydration(persisted as PersistedState, current as any),
     },
   ),
 );

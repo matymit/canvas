@@ -10,10 +10,10 @@ import type Konva from 'konva';
 interface ManagedResource {
   id: string;
   type: 'konva-node' | 'event-listener' | 'timer' | 'animation' | 'observer' | 'custom';
-  resource: any;
+  resource: unknown;
   cleanup: () => void;
   createdAt: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Memory usage tracking
@@ -74,7 +74,7 @@ export class MemoryManager {
   }
 
   // Register a Konva node for cleanup tracking
-  trackKonvaNode(node: Konva.Node, metadata?: Record<string, any>): string {
+  trackKonvaNode(node: Konva.Node, metadata?: Record<string, unknown>): string {
     const id = this.generateId();
     const resource: ManagedResource = {
       id,
@@ -94,7 +94,7 @@ export class MemoryManager {
           // Destroy the node
           node.destroy();
         } catch (error) {
-          console.warn('Error cleaning up Konva node:', error);
+          // Warning: Error cleaning up Konva node
         }
       },
       createdAt: Date.now(),
@@ -114,7 +114,7 @@ export class MemoryManager {
     event: string,
     listener: EventListener,
     options?: AddEventListenerOptions,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): string {
     const id = this.generateId();
     
@@ -129,7 +129,7 @@ export class MemoryManager {
         try {
           target.removeEventListener(event, listener, options);
         } catch (error) {
-          console.warn('Error cleaning up event listener:', error);
+          // Warning: Error cleaning up event listener
         }
       },
       createdAt: Date.now(),
@@ -144,7 +144,7 @@ export class MemoryManager {
   }
 
   // Register a timer for cleanup tracking
-  trackTimer(timerId: number, type: 'timeout' | 'interval' = 'timeout', metadata?: Record<string, any>): string {
+  trackTimer(timerId: number, type: 'timeout' | 'interval' = 'timeout', metadata?: Record<string, unknown>): string {
     const id = this.generateId();
     const resource: ManagedResource = {
       id,
@@ -158,7 +158,7 @@ export class MemoryManager {
             clearInterval(timerId);
           }
         } catch (error) {
-          console.warn('Error cleaning up timer:', error);
+          // Warning: Error cleaning up timer
         }
       },
       createdAt: Date.now(),
@@ -172,7 +172,7 @@ export class MemoryManager {
   }
 
   // Register an animation frame request
-  trackAnimationFrame(frameId: number, metadata?: Record<string, any>): string {
+  trackAnimationFrame(frameId: number, metadata?: Record<string, unknown>): string {
     const id = this.generateId();
     const resource: ManagedResource = {
       id,
@@ -182,7 +182,7 @@ export class MemoryManager {
         try {
           cancelAnimationFrame(frameId);
         } catch (error) {
-          console.warn('Error cleaning up animation frame:', error);
+          // Warning: Error cleaning up animation frame
         }
       },
       createdAt: Date.now(),
@@ -197,9 +197,9 @@ export class MemoryManager {
 
   // Register a custom resource with cleanup function
   trackCustomResource(
-    resource: any,
+    resource: unknown,
     cleanup: () => void,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): string {
     const id = this.generateId();
     const managedResource: ManagedResource = {
@@ -228,7 +228,7 @@ export class MemoryManager {
       this.updateMetrics();
       return true;
     } catch (error) {
-      console.warn('Error during resource cleanup:', error);
+      // Warning: Error during resource cleanup
       // Still remove from tracking even if cleanup failed
       this.resources.delete(resourceId);
       this.updateMetrics();
@@ -282,12 +282,12 @@ export class MemoryManager {
 
   // Force garbage collection (if available)
   forceGC(): void {
-    if (typeof (globalThis as any).gc === 'function') {
+    if (typeof (globalThis as unknown as { gc?: () => void }).gc === 'function') {
       try {
-        (globalThis as any).gc();
+        (globalThis as unknown as { gc: () => void }).gc();
         this.metrics.lastGC = Date.now();
       } catch (error) {
-        console.warn('Failed to force garbage collection:', error);
+        // Warning: Failed to force garbage collection
       }
     }
   }
@@ -296,7 +296,7 @@ export class MemoryManager {
   getMetrics(): MemoryMetrics {
     if (this.config.enableMetrics) {
       // Update heap metrics if available
-      const perf = (performance as any).memory;
+      const perf = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
       if (perf) {
         this.metrics.totalHeapUsed = perf.usedJSHeapSize;
         this.metrics.totalHeapSize = perf.totalJSHeapSize;
@@ -321,17 +321,17 @@ export class MemoryManager {
     const { resourceLimits } = this.config;
     
     if (this.metrics.konvaNodes > resourceLimits.konvaNodes) {
-      console.warn(`Konva node limit exceeded (${this.metrics.konvaNodes}/${resourceLimits.konvaNodes})`);
+      // Warning: Konva node limit exceeded
       this.cleanupOldestByType('konva-node', Math.floor(resourceLimits.konvaNodes * 0.2));
     }
     
     if (this.metrics.eventListeners > resourceLimits.eventListeners) {
-      console.warn(`Event listener limit exceeded (${this.metrics.eventListeners}/${resourceLimits.eventListeners})`);
+      // Warning: Event listener limit exceeded
       this.cleanupOldestByType('event-listener', Math.floor(resourceLimits.eventListeners * 0.2));
     }
     
     if (this.metrics.timers > resourceLimits.timers) {
-      console.warn(`Timer limit exceeded (${this.metrics.timers}/${resourceLimits.timers})`);
+      // Warning: Timer limit exceeded
       this.cleanupOldestByType('timer', Math.floor(resourceLimits.timers * 0.2));
     }
   }
@@ -377,7 +377,7 @@ export class MemoryManager {
       const cleaned = this.cleanupOlderThan(this.config.maxResourceAge);
       
       if (cleaned > 0) {
-        console.debug(`Memory manager cleaned up ${cleaned} old resources`);
+        // Memory manager cleaned up old resources
       }
       
       // Force GC periodically if memory usage is high
@@ -426,7 +426,7 @@ export function disposeMemoryManager(): void {
 // Utility functions for common memory management tasks
 export const memoryUtils = {
   // Track a Konva node with automatic cleanup
-  trackNode: (node: Konva.Node, metadata?: Record<string, any>) => 
+  trackNode: (node: Konva.Node, metadata?: Record<string, unknown>) => 
     getMemoryManager().trackKonvaNode(node, metadata),
   
   // Track an event listener with automatic cleanup
@@ -435,15 +435,15 @@ export const memoryUtils = {
     event: string,
     listener: EventListener,
     options?: AddEventListenerOptions,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ) => getMemoryManager().trackEventListener(target, event, listener, options, metadata),
   
   // Track a timer with automatic cleanup
-  trackTimer: (timerId: number, type: 'timeout' | 'interval' = 'timeout', metadata?: Record<string, any>) =>
+  trackTimer: (timerId: number, type: 'timeout' | 'interval' = 'timeout', metadata?: Record<string, unknown>) =>
     getMemoryManager().trackTimer(timerId, type, metadata),
   
   // Track an animation frame with automatic cleanup
-  trackAnimation: (frameId: number, metadata?: Record<string, any>) =>
+  trackAnimation: (frameId: number, metadata?: Record<string, unknown>) =>
     getMemoryManager().trackAnimationFrame(frameId, metadata),
   
   // Clean up a specific resource

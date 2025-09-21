@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import Konva from 'konva';
 
-type AnyKonvaEvent = Konva.KonvaEventObject<any>;
+type AnyKonvaEvent = Konva.KonvaEventObject<Event>;
 
 export interface ToolEventHandler {
   // Pointer-first
@@ -54,19 +54,19 @@ class LocalCanvasEventManager {
     // 1) active tool first
     if (this.activeToolId) {
       const active = this.tools.get(this.activeToolId);
-      const handler = (active?.[eventType] as any) as (ev: any) => boolean | void;
-      if (handler && (active?.canHandle?.(event as any) !== false)) {
-        const consumed = handler(event as any);
+      const handler = active?.[eventType] as ((ev: AnyKonvaEvent | KeyboardEvent) => boolean | void) | undefined;
+      if (handler && (active?.canHandle?.(event) !== false)) {
+        const consumed = handler(event);
         if (consumed === true) return true;
       }
     }
     // 2) fallbacks by priority
     for (const [id, tool] of this.sortedTools()) {
       if (id === this.activeToolId) continue;
-      const handler = (tool[eventType] as any) as (ev: any) => boolean | void;
+      const handler = tool[eventType] as ((ev: AnyKonvaEvent | KeyboardEvent) => boolean | void) | undefined;
       if (!handler) continue;
-      if (tool.canHandle?.(event as any) === false) continue;
-      const consumed = handler(event as any);
+      if (tool.canHandle?.(event) === false) continue;
+      const consumed = handler(event);
       if (consumed === true) return true;
     }
     return false;
@@ -109,14 +109,16 @@ export default function useCanvasEventManager(
 
   // Keep active tool in sync
   useEffect(() => {
-    managerRef.current!.setActiveTool(params.activeToolId ?? null);
+    if (managerRef.current) {
+      managerRef.current.setActiveTool(params.activeToolId ?? null);
+    }
   }, [params.activeToolId]);
 
   // Stage listeners + drag snapping routing
   useEffect(() => {
     const stage = params.stageRef.current;
-    const mgr = managerRef.current!;
-    if (!stage) return;
+    const mgr = managerRef.current;
+    if (!stage || !mgr) return;
 
     // Pointer-first
     const onPD = (e: AnyKonvaEvent) => mgr.delegateEvent('onPointerDown', e);
@@ -136,7 +138,7 @@ export default function useCanvasEventManager(
     const onDragStart = (e: Konva.KonvaEventObject<DragEvent>) => {
       params.guides?.clear();
       // also delegate to tools if needed
-      mgr.delegateEvent('onPointerDown', e as any);
+      mgr.delegateEvent('onPointerDown', e);
     };
 
     const onDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -161,7 +163,7 @@ export default function useCanvasEventManager(
 
     const onDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
       params.guides?.clear();
-      mgr.delegateEvent('onPointerUp', e as any);
+      mgr.delegateEvent('onPointerUp', e);
     };
 
     // Register
@@ -203,15 +205,15 @@ export default function useCanvasEventManager(
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [params.stageRef, params.activeToolId, params.snapper, params.guides]);
+  }, [params]);
 
   return useMemo<UseCanvasEventManagerApi>(
     () => ({
-      registerTool: (id, handler, priority = 0) => managerRef.current!.registerTool(id, handler, priority),
-      unregisterTool: (id) => managerRef.current!.unregisterTool(id),
-      setActiveTool: (id) => managerRef.current!.setActiveTool(id),
-      setToolPriority: (id, p) => managerRef.current!.setPriority(id, p),
-      delegate: (type, ev) => managerRef.current!.delegateEvent(type as any, ev as any),
+      registerTool: (id, handler, priority = 0) => managerRef.current?.registerTool(id, handler, priority),
+      unregisterTool: (id) => managerRef.current?.unregisterTool(id),
+      setActiveTool: (id) => managerRef.current?.setActiveTool(id),
+      setToolPriority: (id, p) => managerRef.current?.setPriority(id, p),
+      delegate: (type, ev) => managerRef.current?.delegateEvent(type, ev) ?? false,
     }),
     []
   );

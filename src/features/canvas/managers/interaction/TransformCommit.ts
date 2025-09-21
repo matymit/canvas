@@ -10,7 +10,7 @@ type AnyElement = {
   width?: number;
   height?: number;
   rotation?: number;
-  data?: any;
+  data?: Record<string, unknown>;
   colWidths?: number[];
   rowHeights?: number[];
   // per type fields follow...
@@ -38,7 +38,13 @@ function round(n: number) {
 }
 
 function commitRectLike(el: AnyElement, node: Konva.Node, store: Store) {
-  const k = node as any;
+  const k = node as Konva.Node & {
+    scaleX(): number;
+    scaleY(): number;
+    x(): number;
+    y(): number;
+    rotation?(): number;
+  };
   const sx = k.scaleX() ?? 1;
   const sy = k.scaleY() ?? 1;
   const nx = k.x();
@@ -66,7 +72,13 @@ function commitTable(
   node: Konva.Node,
   store: Store,
 ) {
-  const k = node as any;
+  const k = node as Konva.Node & {
+    scaleX(): number;
+    scaleY(): number;
+    x(): number;
+    y(): number;
+    rotation?(): number;
+  };
   const sx = k.scaleX() ?? 1;
   const sy = k.scaleY() ?? 1;
   const nx = k.x();
@@ -114,7 +126,11 @@ function commitMindmapNode(el: AnyElement, node: Konva.Node, store: Store) {
 
 function commitConnector(el: AnyElement, node: Konva.Node, store: Store) {
   // Typically non-resizable; allow move/rotation if enabled
-  const k = node as any;
+  const k = node as Konva.Node & {
+    x(): number;
+    y(): number;
+    rotation?(): number;
+  };
   const nx = k.x();
   const ny = k.y();
   const rot = k.rotation?.() ?? el.rotation ?? 0;
@@ -144,7 +160,7 @@ export function commitTransformForNode(
     case "image":
       return commitImage(el, node, store);
     case "table":
-      return commitTable(el as any, node, store);
+      return commitTable(el, node, store);
     case "text":
       return commitText(el, node, store);
     case "sticky-note":

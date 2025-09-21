@@ -17,6 +17,7 @@ import type {
   MindmapNodeElement,
   MindmapNodeStyle,
 } from "@/features/canvas/types/mindmap";
+import type { CanvasElement } from "../../../../../../types/index";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -50,13 +51,30 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
   stageRef,
   toolId = "mindmap",
 }) => {
-  const selectedTool = useUnifiedCanvasStore((s: any) => s.ui?.selectedTool ?? s.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s: any) => s.ui?.setSelectedTool ?? s.setSelectedTool);
-  const addElement = useUnifiedCanvasStore((s: any) => s.addElement ?? s.element?.addElement);
-  const replaceSelection = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle ?? s.selection?.replaceSelectionWithSingle);
-  const getSelectedIds = useUnifiedCanvasStore((s: any) => s.getSelectedIds ?? s.selection?.getSelectedIds);
-  const beginBatch = useUnifiedCanvasStore((s: any) => s.history?.beginBatch ?? s.beginBatch);
-  const endBatch = useUnifiedCanvasStore((s: any) => s.history?.endBatch ?? s.endBatch);
+  const selectedTool = useUnifiedCanvasStore((s): string => s.selectedTool);
+  const setSelectedTool = useUnifiedCanvasStore(
+    (s): ((tool: string) => void) => s.setSelectedTool,
+  );
+  const addElement = useUnifiedCanvasStore(
+    (
+      s,
+    ): ((
+      element: CanvasElement,
+      opts?: { index?: number; select?: boolean; pushHistory?: boolean },
+    ) => void) => s.addElement,
+  );
+  const replaceSelection = useUnifiedCanvasStore(
+    (s): ((ids: string[]) => void) => s.selection?.set,
+  );
+  const getSelectedIds = useUnifiedCanvasStore(
+    (s): (() => string[]) => s.getSelectedIds,
+  );
+  const beginBatch = useUnifiedCanvasStore(
+    (s): ((label?: string, mergeKey?: string) => void) => s.beginBatch,
+  );
+  const endBatch = useUnifiedCanvasStore(
+    (s): ((commit?: boolean) => void) => s.endBatch,
+  );
 
   const state = useRef<ToolState>({ start: null, preview: null });
 
@@ -64,6 +82,9 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
+
+    // Capture ref value to avoid stale closure issues in cleanup
+    const stateCapture = state.current;
 
     const previewLayer = ensurePreviewLayer(stage);
     if (!previewLayer) return;
@@ -112,7 +133,12 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       previewLayer.batchDraw();
     };
 
-    const commitNode = (x: number, y: number, width: number, height: number) => {
+    const commitNode = (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ) => {
       const { minNodeWidth, minNodeHeight } = MINDMAP_CONFIG;
       const rootId = crypto?.randomUUID?.() ?? nanoid();
       const rootText = "Any question or topic";
@@ -134,13 +160,21 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       node.textHeight = metrics.height;
       const dragWidth = width >= minNodeWidth ? width : 0;
       const dragHeight = height >= minNodeHeight ? height : 0;
-      node.width = Math.max(metrics.width + node.style.paddingX * 2, dragWidth, minNodeWidth);
-      node.height = Math.max(metrics.height + node.style.paddingY * 2, dragHeight, minNodeHeight);
+      node.width = Math.max(
+        metrics.width + node.style.paddingX * 2,
+        dragWidth,
+        minNodeWidth,
+      );
+      node.height = Math.max(
+        metrics.height + node.style.paddingY * 2,
+        dragHeight,
+        minNodeHeight,
+      );
 
       beginBatch?.("create-mindmap", "mindmap:create");
 
       // Add root node
-      addElement?.(node as any, { pushHistory: true, select: false });
+      addElement?.(node, { pushHistory: true, select: false });
 
       // Create three child nodes with different texts
       const childTexts = ["A concept", "An idea", "A thought"];
@@ -171,11 +205,17 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
         const childMetrics = measureMindmapLabel(child.text, child.style);
         child.textWidth = childMetrics.width;
         child.textHeight = childMetrics.height;
-        child.width = Math.max(childMetrics.width + child.style.paddingX * 2, minNodeWidth);
-        child.height = Math.max(childMetrics.height + child.style.paddingY * 2, minNodeHeight);
+        child.width = Math.max(
+          childMetrics.width + child.style.paddingX * 2,
+          minNodeWidth,
+        );
+        child.height = Math.max(
+          childMetrics.height + child.style.paddingY * 2,
+          minNodeHeight,
+        );
 
         // Add child node
-        addElement?.(child as any, { pushHistory: true, select: false });
+        addElement?.(child, { pushHistory: true, select: false });
 
         // Create edge from root to child
         const edgeId = crypto?.randomUUID?.() ?? nanoid();
@@ -188,33 +228,38 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
           }),
         } as MindmapEdgeElement;
 
-        addElement?.(edge as any, { pushHistory: true });
+        addElement?.(edge, { pushHistory: true });
       });
 
       endBatch?.(true);
 
       // Select the root node after creating everything
-      replaceSelection?.(rootId);
+      replaceSelection?.([rootId]);
       // Removed automatic editor opening to prevent duplicate editors
       return rootId;
     };
 
     const spawnChild = (parentId: string) => {
       const store = useUnifiedCanvasStore.getState();
-      const getElement = (store.getElement as any) ?? store.element?.getById;
+      const getElement = store.getElement ?? store.element?.getById;
       const parent = getElement?.(parentId) as MindmapNodeElement | undefined;
       if (!parent) return;
 
       const position = calculateChildPosition(parent);
       const childId = crypto?.randomUUID?.() ?? nanoid();
       const level = (parent.level ?? 0) + 1;
-      const baseChild = createMindmapNode(position.x, position.y, MINDMAP_CONFIG.childText, {
-        parentId,
-        level,
-        style: {
-          fill: "#E5E7EB", // Neutral gray for spawned child nodes
+      const baseChild = createMindmapNode(
+        position.x,
+        position.y,
+        MINDMAP_CONFIG.childText,
+        {
+          parentId,
+          level,
+          style: {
+            fill: "#E5E7EB", // Neutral gray for spawned child nodes
+          },
         },
-      });
+      );
       const child = {
         id: childId,
         ...baseChild,
@@ -224,8 +269,14 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       const childMetrics = measureMindmapLabel(child.text, child.style);
       child.textWidth = childMetrics.width;
       child.textHeight = childMetrics.height;
-      child.width = Math.max(childMetrics.width + child.style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
-      child.height = Math.max(childMetrics.height + child.style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
+      child.width = Math.max(
+        childMetrics.width + child.style.paddingX * 2,
+        MINDMAP_CONFIG.minNodeWidth,
+      );
+      child.height = Math.max(
+        childMetrics.height + child.style.paddingY * 2,
+        MINDMAP_CONFIG.minNodeHeight,
+      );
 
       const edgeId = crypto?.randomUUID?.() ?? nanoid();
       const branchColor = "#6B7280"; // Neutral gray for spawned branches
@@ -238,11 +289,11 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       } as MindmapEdgeElement;
 
       beginBatch?.("create-mindmap-child", "mindmap:create");
-      addElement?.(child as any, { pushHistory: true, select: true });
-      addElement?.(edge as any, { pushHistory: true });
+      addElement?.(child, { pushHistory: true, select: true });
+      addElement?.(edge, { pushHistory: true });
       endBatch?.(true);
 
-      replaceSelection?.(childId);
+      replaceSelection?.([childId]);
       // Removed automatic editor opening to prevent duplicate editors
     };
 
@@ -290,14 +341,25 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       stage.off("pointerup.mindmap", handlePointerUp);
       window.removeEventListener("keydown", handleKeyDown);
 
-      if (state.current.preview) {
-        state.current.preview.destroy();
-        state.current.preview = null;
+      if (stateCapture.preview) {
+        stateCapture.preview.destroy();
+        stateCapture.preview = null;
       }
-      state.current.start = null;
+      stateCapture.start = null;
       previewLayer.batchDraw();
     };
-  }, [isActive, selectedTool, stageRef, toolId, setSelectedTool, addElement, replaceSelection, getSelectedIds, beginBatch, endBatch]);
+  }, [
+    isActive,
+    selectedTool,
+    stageRef,
+    toolId,
+    setSelectedTool,
+    addElement,
+    replaceSelection,
+    getSelectedIds,
+    beginBatch,
+    endBatch,
+  ]);
 
   return null;
 };

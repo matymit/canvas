@@ -132,8 +132,8 @@ export function openMindmapNodeEditor(
 
       // Also update the node in the store (without history)
       const store = useUnifiedCanvasStore.getState();
-      const update: Nullable<(id: string, patch: Partial<any>, opts?: { pushHistory?: boolean }) => void> =
-        (store.updateElement as any) ?? store.element?.update;
+      const update: Nullable<(id: string, patch: Partial<MindmapNodeElement>, opts?: { pushHistory?: boolean }) => void> =
+        store.updateElement ?? store.element?.update;
 
       if (update) {
         update(
@@ -156,12 +156,12 @@ export function openMindmapNodeEditor(
           }
 
           // Directly refresh the transformer for immediate sync
-          const selectionModule = (window as any).selectionModule;
+          const selectionModule = (window as unknown as { selectionModule?: { forceRefresh?: () => void } }).selectionModule;
           if (selectionModule && typeof selectionModule.forceRefresh === "function") {
             selectionModule.forceRefresh();
           } else {
             // Fallback to bumping selection version if direct refresh not available
-            const bumpVersion = (store as any).bumpSelectionVersion;
+            const bumpVersion = (store as unknown as { bumpSelectionVersion?: () => void }).bumpSelectionVersion;
             if (typeof bumpVersion === "function") {
               bumpVersion();
             }
@@ -208,8 +208,8 @@ export function openMindmapNodeEditor(
     if (cancel) return;
 
     const store = useUnifiedCanvasStore.getState();
-    const update: Nullable<(id: string, patch: Partial<any>, opts?: { pushHistory?: boolean }) => void> =
-      (store.updateElement as any) ?? store.element?.update;
+    const update: Nullable<(id: string, patch: Partial<MindmapNodeElement>, opts?: { pushHistory?: boolean }) => void> =
+      store.updateElement ?? store.element?.update;
 
     if (update) {
       const nextText = value || nodeModel.text;
@@ -244,7 +244,7 @@ export function openMindmapNodeEditor(
       );
 
       // Bump selection version to refresh transformer bounds after commit
-      const bumpVersion = (store as any).bumpSelectionVersion;
+      const bumpVersion = (store as unknown as { bumpSelectionVersion?: () => void }).bumpSelectionVersion;
       if (typeof bumpVersion === "function") {
         bumpVersion();
       }

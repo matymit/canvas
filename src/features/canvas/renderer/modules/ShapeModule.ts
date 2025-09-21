@@ -10,7 +10,7 @@ export type RendererLayers = {
 };
 
 export interface StoreAdapter {
-  addElement: (element: any) => void;
+  addElement: (element: Record<string, unknown>) => void;
 }
 
 export type ShapeKind = 'rectangle' | 'circle';

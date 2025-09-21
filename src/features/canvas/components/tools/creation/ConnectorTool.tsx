@@ -6,12 +6,12 @@ import type { AnchorSide } from "../../../types/connector";
 import type { ConnectorElement } from "../../../types/connector";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
 
-type StageRef = React.RefObject<Konva.Stage>;
+type StageRef = React.RefObject<Konva.Stage | null>;
 
 export interface ConnectorToolProps {
   isActive: boolean;
   stageRef: StageRef;
-  toolId?: "connector-line" | "connector-arrow";
+  toolId?: string;
 }
 
 const DEFAULT_STYLE = {
@@ -28,24 +28,15 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
   toolId = "connector-line",
 }) => {
   const selectedTool = useUnifiedCanvasStore(
-    (s: any) => s.selectedTool ?? s.ui?.selectedTool,
+    (s) => s.selectedTool ?? s.ui?.selectedTool,
   );
   const setTool = useUnifiedCanvasStore(
-    (s: any) => s.setSelectedTool ?? s.ui?.setSelectedTool,
+    (s) => s.setSelectedTool ?? s.ui?.setSelectedTool,
   );
-  const addElement = useUnifiedCanvasStore(
-    (s: any) =>
-      s.element?.addElement ||
-      s.element?.createElement ||
-      s.elements?.addElement,
-  );
-  const selectOnly = useUnifiedCanvasStore(
-    (s: any) =>
-      (s as any).replaceSelectionWithSingle ??
-      s.selection?.replaceSelectionWithSingle,
-  );
-  const begin = useUnifiedCanvasStore((s: any) => s.history?.beginBatch);
-  const end = useUnifiedCanvasStore((s: any) => s.history?.endBatch);
+  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
+  const selectOnly = useUnifiedCanvasStore((s) => s.selection?.selectOne);
+  const begin = useUnifiedCanvasStore((s) => s.history?.beginBatch);
+  const end = useUnifiedCanvasStore((s) => s.history?.endBatch);
 
   const ref = useRef<{
     start: { x: number; y: number } | null;
@@ -66,6 +57,8 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
+
+    // Ref value will be captured in cleanup function
 
     const layers = stage.getLayers();
     const previewLayer = layers[layers.length - 2] as Konva.Layer | undefined; // preview
@@ -170,7 +163,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       const variant = isArrow ? "arrow" : "line";
 
-      begin?.("create-connector", "create-connector");
+      begin?.("create-connector");
 
       const id =
         crypto?.randomUUID?.() ||
@@ -193,21 +186,10 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         },
       };
 
-      // Try different addElement signatures based on the store implementation
-      let elementId: string | undefined;
-      if (addElement) {
-        try {
-          elementId = (addElement as any)(element, {
-            select: true,
-            pushHistory: true,
-          });
-        } catch {
-          try {
-            elementId = (addElement as any)(element);
-          } catch {
-            elementId = id;
-          }
-        }
+      // Add element using upsert
+      let elementId: string | undefined = id;
+      if (upsertElement) {
+        elementId = upsertElement(element);
       }
 
       end?.(true);
@@ -231,7 +213,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
             ghost.destroy();
           } catch (error) {
             // Ignore cleanup errors
-            console.debug('[ConnectorTool] Ghost cleanup error:', error);
+            // Ghost cleanup error
           }
           ref.current.preview = null;
           previewLayer.batchDraw();
@@ -258,7 +240,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
           ghost.destroy();
         } catch (error) {
           // Ignore cleanup errors
-          console.debug('[ConnectorTool] Ghost cleanup error:', error);
+          // Debug: Ghost cleanup error
         }
         ref.current.preview = null;
         previewLayer.batchDraw();
@@ -284,7 +266,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
             g.destroy();
           } catch (error) {
             // Ignore cleanup errors
-            console.debug('[ConnectorTool] Escape cleanup error:', error);
+            // Escape cleanup error
           }
           ref.current.preview = null;
           previewLayer.batchDraw();
@@ -302,26 +284,28 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       stage.off("pointerup.connector", onPointerUp);
       window.removeEventListener("keydown", onKeyDown);
 
-      const g = ref.current.preview;
+      // Capture ref values at cleanup time
+      const currentRef = ref.current;
+      const g = currentRef.preview;
       if (g) {
         try {
           g.destroy();
         } catch (error) {
           // Ignore cleanup errors
-          console.debug('[ConnectorTool] Cleanup error:', error);
+          // Cleanup error
         }
-        ref.current.preview = null;
+        currentRef.preview = null;
         previewLayer.batchDraw();
       }
-      ref.current.start = null;
-      ref.current.startSnap = null;
+      currentRef.start = null;
+      currentRef.startSnap = null;
     };
   }, [
     isActive,
     selectedTool,
     toolId,
     stageRef,
-    addElement,
+    upsertElement,
     selectOnly,
     begin,
     end,

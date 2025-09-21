@@ -35,7 +35,7 @@ export interface CanvasElement {
   locked?: boolean;
   draggable?: boolean;
   bounds?: Bounds; // For elements that track their bounds
-  data?: any; // Type-specific data
+  data?: Record<string, unknown>; // Type-specific data
   fill?: string; // Direct fill property for some elements
   text?: string; // Direct text property for text elements
   imageUrl?: string; // Direct image URL for image elements
@@ -47,6 +47,7 @@ export interface CanvasElement {
   rows?: number; // Number of rows for table elements
   cols?: number; // Number of columns for table elements
   cells?: Array<{ text: string }>; // Cell data for table elements
+  subtype?: string; // For drawing tools (pen, marker, etc.)
   style?: {
     fill?: string;
     stroke?: string;
@@ -55,6 +56,10 @@ export interface CanvasElement {
     fontSize?: number;
     fontFamily?: string;
     textAlign?: string;
+    opacity?: number;
+    lineCap?: string;
+    lineJoin?: string;
+    globalCompositeOperation?: string;
   };
 }
 

@@ -1,58 +1,16 @@
 // features/canvas/contexts/CanvasEventContext.tsx
-import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
-import type Konva from 'konva';
-
-export type CanvasEventType =
-  | 'pointerdown'
-  | 'pointermove'
-  | 'pointerup'
-  | 'click'
-  | 'dblclick'
-  | 'contextmenu'
-  | 'wheel'
-  | 'keydown'
-  | 'keyup'
-  | 'dragstart'
-  | 'dragmove'
-  | 'dragend';
-
-export type CanvasEventHandler<T = any> = (evt: T) => boolean | void;
-
-export interface CanvasLayers {
-  background: Konva.Layer;
-  main: Konva.Layer;
-  preview: Konva.Layer;
-  overlay: Konva.Layer;
-}
-
-export interface CanvasEventContextValue {
-  // Stable refs for orchestration
-  stageRef: React.MutableRefObject<Konva.Stage | null>;
-  layersRef: React.MutableRefObject<CanvasLayers | null>;
-
-  // Register Konva stage & layers after setup
-  setStage(stage: Konva.Stage | null): void;
-  setLayers(layers: CanvasLayers | null): void;
-
-  // Lightweight event bus (for tools and cross-module comms)
-  on(type: CanvasEventType, handler: CanvasEventHandler): () => void;
-  off(type: CanvasEventType, handler: CanvasEventHandler): void;
-  emit<T = any>(type: CanvasEventType, evt: T): boolean;
-
-  // Tool-oriented helpers
-  setActiveTool(toolId: string): void;
-  getActiveTool(): string;
-}
+import React, { createContext, useCallback, useMemo, useRef } from 'react';
+import Konva from 'konva';
+import {
+  CanvasEventType,
+  CanvasEventHandler,
+  CanvasLayers,
+  CanvasEventContextValue
+} from './canvasEventTypes';
 
 const CanvasEventContext = createContext<CanvasEventContextValue | null>(null);
 
-export function useCanvasEvents(): CanvasEventContextValue {
-  const ctx = useContext(CanvasEventContext);
-  if (!ctx) {
-    throw new Error('useCanvasEvents must be used within a CanvasEventProvider');
-  }
-  return ctx;
-}
+export default CanvasEventContext;
 
 type HandlersMap = Map<CanvasEventType, Set<CanvasEventHandler>>;
 
@@ -120,5 +78,3 @@ export const CanvasEventProvider: React.FC<React.PropsWithChildren> = ({ childre
 
   return <CanvasEventContext.Provider value={value}>{children}</CanvasEventContext.Provider>;
 };
-
-export default CanvasEventContext;

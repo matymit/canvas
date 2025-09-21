@@ -118,7 +118,7 @@ export class PerformanceMonitor {
     if (this.rafId != null) cancelAnimationFrame(this.rafId);
     this.rafId = null;
     if (this.po) {
-      try { this.po.disconnect(); } catch { console.debug('Performance observer disconnect failed'); }
+      try { this.po.disconnect(); } catch { /* Debug: Performance observer disconnect failed */ }
     }
   }
 

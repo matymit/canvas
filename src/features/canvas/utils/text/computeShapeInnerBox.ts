@@ -104,13 +104,7 @@ export function computeShapeInnerBox(el: BaseShape, pad: number = 8): InnerBox {
     const x = el.x + (el.width - textWidth) / 2;
     const y = el.y + (el.height * textAreaTop); // Use full height, not padding-reduced height
 
-    console.log('[DEBUG] Triangle inner box calculation:', {
-      elementId: el.id,
-      elementPosition: { x: el.x, y: el.y },
-      elementSize: { width: el.width, height: el.height },
-      textAreaFactors: { textAreaTop, textAreaHeight, textAreaWidth },
-      calculatedInnerBox: { x, y, width: textWidth, height: textHeight }
-    });
+    // Debug: Triangle inner box calculation: elementId=${el.id}, elementPosition=${JSON.stringify({ x: el.x, y: el.y })}, elementSize=${JSON.stringify({ width: el.width, height: el.height })}, textAreaFactors=${JSON.stringify({ textAreaTop, textAreaHeight, textAreaWidth })}, calculatedInnerBox=${JSON.stringify({ x, y, width: textWidth, height: textHeight })}
 
     return { x, y, width: textWidth, height: textHeight };
   }

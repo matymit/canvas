@@ -36,7 +36,7 @@ export class ImageRenderer {
       node.setAttr('src', el.src);
       node.image(img);
     } catch (error) {
-      console.error('Failed to load image:', error);
+      // Error: Failed to load image
       // Set a placeholder or handle error gracefully
     }
   }

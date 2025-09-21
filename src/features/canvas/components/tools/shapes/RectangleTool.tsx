@@ -31,20 +31,12 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s) => s.replaceSelectionWithSingle);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  // Debug logging
-  console.log('[RectangleTool] Tool state:', {
-    isActive,
-    selectedTool,
-    toolId,
-    hasStageRef: !!stageRef.current,
-    hasUpsertElement: !!upsertElement,
-    hasReplaceSelection: !!replaceSelectionWithSingle
-  });
+  // Debug logging removed for production
 
   const drawingRef = useRef<{
     rect: Konva.Rect | null;
@@ -56,18 +48,21 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
+    // Capture ref value to avoid stale closure issues in cleanup
+    const drawingRefCapture = drawingRef.current;
+
     const previewLayer =
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
     const onPointerDown = () => {
-      console.log('[RectangleTool] Pointer down triggered');
+      // Log removed for production
       const pos = stage.getPointerPosition();
       if (!pos || !previewLayer) {
-        console.warn('[RectangleTool] Missing pointer position or preview layer:', { pos, previewLayer });
+        // Warning removed
         return;
       }
 
-      console.log('[RectangleTool] Starting rectangle creation at:', pos);
+      // Log removed for production
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
       // Size accounting for current zoom level
@@ -154,11 +149,11 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
 
       // Create element in store
       const id = `rect-${Date.now()}`;
-      console.log('[RectangleTool] Creating rectangle element:', { id, x, y, w, h });
+      // Log removed for production
 
       if (upsertElement) {
         try {
-          const element = upsertElement({
+          upsertElement({
             id,
             type: 'rectangle',
             x,
@@ -174,17 +169,15 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
               strokeWidth,
               fill: fillColor,
             },
-          } as any);
-
-          console.log('[RectangleTool] Element created:', element);
+          });
 
           // Select the new rectangle
           try {
-            console.log('[RectangleTool] Attempting to select element:', id);
-            replaceSelectionWithSingle?.(id as any);
-            console.log('[RectangleTool] Selection successful');
+            // Log removed for production
+            replaceSelectionWithSingle?.(id);
+            // Log removed for production
           } catch (e) {
-            console.error('[RectangleTool] Selection failed:', e);
+            // Error log removed
           }
 
           // Auto-switch to select tool and open text editor
@@ -192,14 +185,14 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
 
           // Small delay to ensure element is rendered before opening editor
           setTimeout(() => {
-            console.log('[RectangleTool] Opening text editor for:', id);
+            // Log removed for production
             openShapeTextEditor(stage, id);
           }, 100);
         } catch (error) {
-          console.error('[RectangleTool] Error creating element:', error);
+          // Error log removed
         }
       } else {
-        console.error('[RectangleTool] No upsertElement function available!');
+        // Error log removed
       }
     };
 
@@ -211,12 +204,12 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
       stage.off('pointermove.recttool');
       stage.off('pointerup.recttool');
 
-      // Cleanup preview
-      if (drawingRef.current.rect) {
-        drawingRef.current.rect.destroy();
-        drawingRef.current.rect = null;
+      // Cleanup preview using captured ref value
+      if (drawingRefCapture.rect) {
+        drawingRefCapture.rect.destroy();
+        drawingRefCapture.rect = null;
       }
-      drawingRef.current.start = null;
+      drawingRefCapture.start = null;
       previewLayer?.batchDraw();
     };
   }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);

@@ -72,7 +72,7 @@ export class QuadTree<T> {
     this.root = new QuadNode<T>(bounds, 0);
     this.maxElements = opts?.maxElements ?? 8;
     this.maxDepth = opts?.maxDepth ?? 8;
-    this.getBounds = opts?.getBounds ?? ((v: any) => v?.bounds as Bounds);
+    this.getBounds = opts?.getBounds ?? ((v: T) => (v as Record<string, unknown>)?.bounds as Bounds);
     this.equals =
       opts?.equals ??
       ((a, b) => {

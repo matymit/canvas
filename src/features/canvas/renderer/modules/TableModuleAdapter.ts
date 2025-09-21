@@ -1,7 +1,7 @@
 // Adapter for TableModule to implement RendererModule interface
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import { TableRenderer } from "./TableModule";
+import { TableRenderer, type RendererLayers } from "./TableModule";
 import type { TableElement } from "../../types/table";
 
 type Id = string;
@@ -11,7 +11,7 @@ export class TableModuleAdapter implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[TableModuleAdapter] Mounting...");
+    // Mounting TableModuleAdapter
 
     // Create TableRenderer instance with store context
     this.renderer = new TableRenderer(ctx.layers, {}, ctx);
@@ -85,12 +85,12 @@ export class TableModuleAdapter implements RendererModule {
   }
 
   private unmount() {
-    console.log("[TableModuleAdapter] Unmounting...");
+    // Unmounting TableModuleAdapter
     if (this.unsubscribe) {
       this.unsubscribe();
     }
     // Cleanup tables manually using correct name
-    const layer = (this.renderer as any)?.layers?.main;
+    const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
       layer.find(".table-group").forEach((node: Konva.Node) => node.destroy());
       layer.batchDraw();
@@ -100,7 +100,7 @@ export class TableModuleAdapter implements RendererModule {
   private reconcile(tables: Map<Id, TableElement>) {
     // Only log when there are actual tables to reconcile (reduce console spam)
     if (tables.size > 0) {
-      console.log("[TableModuleAdapter] Reconciling", tables.size, "tables");
+      // Reconciling tables
     }
 
     if (!this.renderer) return;
@@ -114,7 +114,7 @@ export class TableModuleAdapter implements RendererModule {
     }
 
     // Remove deleted tables manually using correct name
-    const layer = (this.renderer as any)?.layers?.main;
+    const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
       layer.find(".table-group").forEach((node: Konva.Node) => {
         const nodeId = node.id();

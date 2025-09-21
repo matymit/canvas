@@ -31,7 +31,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s) => s.replaceSelectionWithSingle);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
@@ -45,6 +45,9 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
     const stage = stageRef.current;
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
+
+    // Capture ref value to avoid stale closure issues in cleanup
+    const drawingRefCapture = drawingRef.current;
 
     const previewLayer =
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
@@ -178,15 +181,15 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
             strokeWidth,
             fill: fillColor,
           },
-        } as any);
+        });
 
         // Select the new triangle
         try {
-          console.log('[TriangleTool] Attempting to select element:', id);
-          replaceSelectionWithSingle?.(id as any);
-          console.log('[TriangleTool] Selection successful');
+          // Log removed for production
+          replaceSelectionWithSingle?.(id);
+          // Log removed for production
         } catch (e) {
-          console.error('[TriangleTool] Selection failed:', e);
+          // Error log removed
         }
 
         // Auto-switch to select tool and open text editor
@@ -194,7 +197,7 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
 
         // Small delay to ensure element is rendered before opening editor
         setTimeout(() => {
-          console.log('[TriangleTool] Opening text editor for:', id);
+          // Log removed for production
           openShapeTextEditor(stage, id);
         }, 100);
       }
@@ -208,12 +211,12 @@ export const TriangleTool: React.FC<TriangleToolProps> = ({ isActive, stageRef, 
       stage.off('pointermove.triangletool');
       stage.off('pointerup.triangletool');
 
-      // Cleanup preview
-      if (drawingRef.current.triangle) {
-        drawingRef.current.triangle.destroy();
-        drawingRef.current.triangle = null;
+      // Cleanup preview using captured ref value
+      if (drawingRefCapture.triangle) {
+        drawingRefCapture.triangle.destroy();
+        drawingRefCapture.triangle = null;
       }
-      drawingRef.current.start = null;
+      drawingRefCapture.start = null;
       previewLayer?.batchDraw();
     };
   }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);

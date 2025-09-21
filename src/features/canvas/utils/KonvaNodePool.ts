@@ -44,7 +44,7 @@ interface NodeMetadata {
 
 export class KonvaNodePool {
   private readonly pools = new Map<PoolKey, Konva.Node[]>();
-  private readonly factories = new Map<PoolKey, PoolFactory<any>>();
+  private readonly factories = new Map<PoolKey, PoolFactory<Konva.Node>>();
   private readonly maxPerKey = new Map<PoolKey, number>();
   private readonly nodeToKey = new WeakMap<Konva.Node, PoolKey>();
   private readonly nodeMetadata = new WeakMap<Konva.Node, NodeMetadata>();
@@ -75,8 +75,8 @@ export class KonvaNodePool {
 
   register<T extends Konva.Node>(key: PoolKey, factory: PoolFactory<T>, maxPerKey?: number): void {
     if (this.isDisposed) return;
-    
-    this.factories.set(key, factory);
+
+    this.factories.set(key, factory as unknown as PoolFactory<Konva.Node>);
     if (typeof maxPerKey === 'number') this.maxPerKey.set(key, maxPerKey);
     if (!this.pools.has(key)) this.pools.set(key, []);
     if (!this.stats.has(key)) {
@@ -108,8 +108,9 @@ export class KonvaNodePool {
     const factory = this.factories.get(key);
     if (!factory) throw new Error(`KonvaNodePool: no factory registered for key "${key}"`);
     
-    const pool = this.pools.get(key)!;
-    const stats = this.stats.get(key)!;
+    const pool = this.pools.get(key);
+    const stats = this.stats.get(key);
+    if (!pool || !stats) throw new Error(`KonvaNodePool: pool not found for key "${key}"`);
     let node: T;
     
     // Try to reuse an existing node
@@ -245,10 +246,11 @@ export class KonvaNodePool {
     const factory = this.factories.get(key);
     if (!factory) throw new Error(`KonvaNodePool: no factory registered for key "${key}"`);
     
-    const pool = this.pools.get(key)!;
+    const pool = this.pools.get(key);
+    const stats = this.stats.get(key);
+    if (!pool || !stats) throw new Error(`KonvaNodePool: pool not found for key "${key}"`);
     const max = this.maxPerKey.get(key) ?? this.config.defaultMaxPerKey;
     const target = Math.min(count, max);
-    const stats = this.stats.get(key)!;
     
     while (pool.length < target) {
       const node = factory.create();
@@ -292,7 +294,8 @@ export class KonvaNodePool {
     
     for (const [key, pool] of this.pools) {
       const factory = this.factories.get(key);
-      const stats = this.stats.get(key)!;
+      const stats = this.stats.get(key);
+      if (!stats) continue;
       let poolPruned = 0;
       
       // Filter out idle nodes
@@ -311,7 +314,7 @@ export class KonvaNodePool {
       totalPruned += poolPruned;
       
       if (poolPruned > 0 && this.config.enableMetrics) {
-        console.debug(`KonvaNodePool: Pruned ${poolPruned} idle nodes from pool "${key}"`);
+        // Debug: KonvaNodePool: Pruned ${poolPruned} idle nodes from pool "${key}"
       }
     }
     
@@ -352,12 +355,20 @@ export class KonvaNodePool {
     
     const perKey = Array.from(this.pools.entries()).map(([k, v]) => {
       totalNodes += v.length;
-      const stats = this.stats.get(k)!;
+      const stats = this.stats.get(k);
+      if (!stats) {
+        return {
+          key: k,
+          size: v.length,
+          max: this.maxPerKey.get(k),
+          hitRate: 0
+        };
+      }
       totalAcquired += stats.acquired;
       totalReused += stats.reused;
       totalCreated += stats.created;
       totalDisposed += stats.disposed;
-      
+
       const hitRate = stats.acquired > 0 ? stats.reused / stats.acquired : 0;
       
       return { 
@@ -399,7 +410,7 @@ export class KonvaNodePool {
       const usage = memoryMetrics.totalHeapUsed / memoryMetrics.totalHeapSize;
       
       if (usage > this.config.memoryPressureThreshold) {
-        console.warn(`Memory pressure detected (${Math.round(usage * 100)}%), cleaning up node pools`);
+        // Warning: Memory pressure detected (${Math.round(usage * 100)}%), cleaning up node pools
         
         // Prune idle nodes more aggressively
         cleaned += this.pruneIdle(this.config.maxIdleTime * 0.5);
@@ -411,7 +422,8 @@ export class KonvaNodePool {
           
           if (pool.length > targetSize) {
             const factory = this.factories.get(key);
-            const stats = this.stats.get(key)!;
+            const stats = this.stats.get(key);
+      if (!stats) continue;
             const toRemove = pool.length - targetSize;
             
             for (let i = 0; i < toRemove; i++) {
@@ -457,7 +469,8 @@ export class KonvaNodePool {
     const stats = this.stats.get(key)!;
     
     while (pool.length > max) {
-      const node = pool.pop()!;
+      const node = pool.pop();
+      if (!node) break;
       this.safeDispose(node, factory);
       stats.disposed++;
     }
@@ -468,7 +481,7 @@ export class KonvaNodePool {
       try {
         factory.reset(node);
       } catch (error) {
-        console.warn('Error in custom reset function:', error);
+        // Warning: Error in custom reset function: ${error}
         // Fall back to default reset
         this.defaultReset(node);
       }
@@ -510,9 +523,9 @@ export class KonvaNodePool {
     }
     
     // If the node is a container (e.g., Group), clear children so the pooled wrapper is clean.
-    const anyNode = node as unknown as { removeChildren?: () => void };
+    const containerNode = node as unknown as { removeChildren?: () => void };
     try {
-      anyNode.removeChildren?.();
+      containerNode.removeChildren?.();
     } catch {
       // ignore
     }
@@ -532,7 +545,7 @@ export class KonvaNodePool {
         this.cleanupNode(node);
       }
     } catch (error) {
-      console.warn('Error disposing node:', error);
+      // Warning: Error disposing node: ${error}
     }
   }
 
@@ -547,7 +560,7 @@ export class KonvaNodePool {
       // Destroy the node
       node.destroy();
     } catch (error) {
-      console.warn('Error cleaning up node:', error);
+      // Warning: Error cleaning up node: ${error}
     }
   }
 
@@ -566,10 +579,10 @@ export class KonvaNodePool {
         
         const totalCleaned = prunedIdle + cleanedUnderPressure;
         if (totalCleaned > 0 && this.config.enableMetrics) {
-          console.debug(`KonvaNodePool GC: cleaned ${totalCleaned} nodes (${prunedIdle} idle, ${cleanedUnderPressure} pressure)`);
+          // Debug: KonvaNodePool GC: cleaned ${totalCleaned} nodes (${prunedIdle} idle, ${cleanedUnderPressure} pressure)
         }
       } catch (error) {
-        console.warn('Error in KonvaNodePool garbage collection:', error);
+        // Warning: Error in KonvaNodePool garbage collection: ${error}
       }
     }, this.config.gcInterval) as unknown as number;
   }

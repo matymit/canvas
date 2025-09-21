@@ -2,6 +2,25 @@
 import type { StoreSlice } from './types';
 import type { ElementId, CanvasElement } from '../../../../../types/index';
 
+
+// Type for element data properties that may contain large data
+interface ElementDataWithPoints {
+  points?: number[];
+}
+
+interface ElementDataWithDataUrl {
+  dataUrl?: string;
+}
+
+interface ElementDataWithCells {
+  cells?: Array<{ text: string }>;
+}
+
+interface ElementDataWithText {
+  text?: string;
+}
+
+
 // Core store operation types for element state history
 export type StoreHistoryOp =
   | {
@@ -64,8 +83,8 @@ export interface HistoryModuleSlice {
   withUndo(description: string, mutator: () => void): void;
 
   // Compatibility shims for existing calls in modules
-  record(input: any): void;  // normalize and delegate to push()
-  add(input: any): void;     // alias
+  record(input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]): void;  // normalize and delegate to push()
+  add(input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]): void;     // alias
 
   // Navigation
   undo(): void;
@@ -140,28 +159,28 @@ function estimateElementSize(element: CanvasElement): number {
   switch (element.type) {
     case 'drawing': {
       // Drawing elements can be large due to stroke points
-      const points = (element.data as any)?.points || [];
+      const points = (element.data as ElementDataWithPoints)?.points || [];
       size += points.length * 16; // x,y coordinates
       break;
     }
       
     case 'image': {
       // Images store data URLs which can be very large
-      const dataUrl = (element.data as any)?.dataUrl || '';
+      const dataUrl = (element.data as ElementDataWithDataUrl)?.dataUrl || '';
       size += dataUrl.length * 2; // Rough estimate for string storage
       break;
     }
       
     case 'table': {
       // Tables store cell data
-      const cells = (element.data as any)?.cells || [];
+      const cells = (element.data as ElementDataWithCells)?.cells || [];
       size += cells.length * 100; // Estimate per cell
       break;
     }
       
     case 'mindmap-node': {
       // Text content
-      const text = (element.data as any)?.text || '';
+      const text = (element.data as ElementDataWithText)?.text || '';
       size += text.length * 2;
       break;
     }
@@ -235,7 +254,7 @@ function applyOpToStore(state: any, op: StoreHistoryOp, dir: 'undo' | 'redo') {
   const map = new Map<ElementId, CanvasElement>(baseMap);
   const order: ElementId[] = Array.isArray(state.elementOrder) ? state.elementOrder.slice() : [];
 
-  const insertAt = (arr: any[], index: number, value: any) => {
+  const insertAt = <T>(arr: T[], index: number, value: T) => {
     const i = Math.max(0, Math.min(index, arr.length));
     arr.splice(i, 0, value);
   };
@@ -468,9 +487,6 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
         h.entries = pruneResult.entries;
         h.index = pruneResult.newIndex;
         
-        if (pruneResult.pruned > 0) {
-          console.debug(`History pruned ${pruneResult.pruned} entries to manage memory`);
-        }
       }
     }),
 
@@ -521,9 +537,6 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
         h.entries = pruneResult.entries;
         h.index = pruneResult.newIndex;
         
-        if (pruneResult.pruned > 0) {
-          console.debug(`History pruned ${pruneResult.pruned} entries to manage memory`);
-        }
       }
     }),
 

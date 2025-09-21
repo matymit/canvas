@@ -76,8 +76,11 @@ export default function useRAFManager(): UseRAFManager {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
-      subsRef.current.clear();
-      pendingLayersRef.current.clear();
+      // Capture ref values at cleanup time
+      const subs = subsRef.current;
+      const pendingLayers = pendingLayersRef.current;
+      subs.clear();
+      pendingLayers.clear();
     };
   }, []);
 

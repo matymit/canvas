@@ -202,32 +202,32 @@ export class SmartGuidesDetection {
         if (Math.abs(moving.x - target.x) < this.config.snapThreshold) {
           guides.push({ axis: 'x', value: target.x, type: 'edge', source: 'left' });
         }
-        if (Math.abs(moving.x - target.right!) < this.config.snapThreshold) {
-          guides.push({ axis: 'x', value: target.right!, type: 'edge', source: 'right' });
+        if (target.right !== undefined && Math.abs(moving.x - target.right) < this.config.snapThreshold) {
+          guides.push({ axis: 'x', value: target.right, type: 'edge', source: 'right' });
         }
 
         // Right edge
         if (Math.abs(moving.right - target.x) < this.config.snapThreshold) {
           guides.push({ axis: 'x', value: target.x, type: 'edge', source: 'left' });
         }
-        if (Math.abs(moving.right - target.right!) < this.config.snapThreshold) {
-          guides.push({ axis: 'x', value: target.right!, type: 'edge', source: 'right' });
+        if (target.right !== undefined && Math.abs(moving.right - target.right) < this.config.snapThreshold) {
+          guides.push({ axis: 'x', value: target.right, type: 'edge', source: 'right' });
         }
 
         // Top edge
         if (Math.abs(moving.y - target.y) < this.config.snapThreshold) {
           guides.push({ axis: 'y', value: target.y, type: 'edge', source: 'top' });
         }
-        if (Math.abs(moving.y - target.bottom!) < this.config.snapThreshold) {
-          guides.push({ axis: 'y', value: target.bottom!, type: 'edge', source: 'bottom' });
+        if (target.bottom !== undefined && Math.abs(moving.y - target.bottom) < this.config.snapThreshold) {
+          guides.push({ axis: 'y', value: target.bottom, type: 'edge', source: 'bottom' });
         }
 
         // Bottom edge
         if (Math.abs(moving.bottom - target.y) < this.config.snapThreshold) {
           guides.push({ axis: 'y', value: target.y, type: 'edge', source: 'top' });
         }
-        if (Math.abs(moving.bottom - target.bottom!) < this.config.snapThreshold) {
-          guides.push({ axis: 'y', value: target.bottom!, type: 'edge', source: 'bottom' });
+        if (target.bottom !== undefined && Math.abs(moving.bottom - target.bottom) < this.config.snapThreshold) {
+          guides.push({ axis: 'y', value: target.bottom, type: 'edge', source: 'bottom' });
         }
       }
 

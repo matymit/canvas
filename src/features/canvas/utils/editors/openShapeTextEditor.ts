@@ -30,7 +30,7 @@ export function openShapeTextEditor(
   const element = store.elements.get(elementId);
 
   if (!element || !['rectangle', 'circle', 'triangle'].includes(element.type)) {
-    console.warn('[ShapeTextEditor] Invalid element type for text editing:', element?.type);
+    // Warning: Invalid element type for text editing
     return () => {};
   }
 
@@ -39,7 +39,7 @@ export function openShapeTextEditor(
 
   const container = stage.container();
   if (!container) {
-    console.warn('[ShapeTextEditor] No stage container found');
+    // Warning: No stage container found
     return () => {};
   }
 
@@ -52,8 +52,8 @@ export function openShapeTextEditor(
     textColor = '#111827'
   } = options;
 
-  let fontSize = providedFontSize ?? shapeElement.style?.fontSize ?? (shapeElement.type === 'circle' ? 20 : 10);
-  let lineHeight = providedLineHeight ?? (shapeElement.data?.textLineHeight ?? 1.25);
+  const fontSize = providedFontSize ?? (typeof shapeElement.style?.fontSize === 'number' ? shapeElement.style.fontSize : (shapeElement.type === 'circle' ? 20 : 10));
+  const lineHeight = providedLineHeight ?? (typeof shapeElement.data?.textLineHeight === 'number' ? shapeElement.data.textLineHeight : 1.25);
 
   // Compute the inner text area for the shape - this should match exactly with ShapeRenderer
   let shapeSnapshot = shapeElement;
@@ -61,7 +61,7 @@ export function openShapeTextEditor(
   let isCircle = shapeSnapshot.type === 'circle' || shapeSnapshot.type === 'ellipse';
 
   const computeEffectivePadding = (shape: typeof shapeElement) =>
-    shape.data?.padding ?? (isCircle ? 0 : padding);
+    (typeof shape.data?.padding === 'number' ? shape.data.padding : (isCircle ? 0 : padding));
 
   const getCirclePadding = () => Math.max(0, effectivePadding);
 
@@ -80,9 +80,10 @@ export function openShapeTextEditor(
     return shapeSnapshot;
   };
 
-  const shapeRadius = (shapeSnapshot as any).radius ?? shapeSnapshot.data?.radius;
+  // Note: shapeRadius is computed but not used in current implementation
+  // const shapeRadius = (shapeSnapshot as { radius?: number }).radius ?? shapeSnapshot.data?.radius;
 
-  const textNode = typeof (stage as any).findOne === 'function'
+  const textNode = typeof stage.findOne === 'function'
     ? stage.findOne<Konva.Text>(`#${elementId}-text`)
     : null;
   const originalTextNodeOpacity = textNode?.opacity();
@@ -95,13 +96,7 @@ export function openShapeTextEditor(
     textNode.getLayer()?.batchDraw();
   }
 
-  console.log('[DEBUG] Shape text editor initialized (FIXED):', {
-    elementId,
-    elementType: shapeSnapshot.type,
-    elementBounds: { x: shapeSnapshot.x, y: shapeSnapshot.y, width: shapeSnapshot.width, height: shapeSnapshot.height, radius: shapeRadius },
-    computedInnerBox: innerBox,
-    padding: effectivePadding
-  });
+  // Shape text editor initialized
 
   // Create contentEditable DIV with proper styling for circles
   const editor = document.createElement('div');
@@ -158,7 +153,7 @@ export function openShapeTextEditor(
   `;
 
   // Set initial content with proper handling for circles
-  const currentText = shapeSnapshot.data?.text || '';
+  const currentText = (typeof shapeSnapshot.data?.text === 'string' ? shapeSnapshot.data.text : '') || '';
   let latestEditorText = currentText;
 
   if (currentText) {
@@ -174,13 +169,10 @@ export function openShapeTextEditor(
   // FIXED: Enhanced position update function with better coordinate handling
   function updateEditorPosition() {
     try {
-      const liveShape = refreshShapeSnapshot();
+      refreshShapeSnapshot(); // Update shape snapshot
       const liveInnerBox = innerBox;
       const containerRect = container.getBoundingClientRect();
       const stageScale = typeof stage.scaleX === 'function' ? stage.scaleX() : 1;
-
-      let screenX: number;
-      let screenY: number;
 
       const anchorX = liveInnerBox.x;
       const anchorY = liveInnerBox.y;
@@ -190,27 +182,12 @@ export function openShapeTextEditor(
         const stageTransform = stage.getAbsoluteTransform();
         screenPoint = stageTransform.point({ x: anchorX, y: anchorY });
       }
-      screenX = containerRect.left + screenPoint.x;
-      screenY = containerRect.top + screenPoint.y;
+      const screenX = containerRect.left + screenPoint.x;
+      const screenY = containerRect.top + screenPoint.y;
       const scaledWidth = liveInnerBox.width * stageScale;
       const scaledHeight = liveInnerBox.height * stageScale;
 
-      console.log('[DEBUG] Shape text editor positioning (ENHANCED):', {
-        elementId,
-        elementType: liveShape.type,
-        innerBox: liveInnerBox,
-        containerRect: { left: containerRect.left, top: containerRect.top },
-        stageTransform: {
-          x: typeof stage.x === 'function' ? stage.x() : 0,
-          y: typeof stage.y === 'function' ? stage.y() : 0,
-          scaleX: typeof stage.scaleX === 'function' ? stage.scaleX() : 1,
-          scaleY: typeof stage.scaleY === 'function' ? stage.scaleY() : 1
-        },
-        screenPoint,
-        finalScreenCoords: { screenX, screenY },
-        scaledDimensions: { scaledWidth, scaledHeight },
-        isCircle
-      });
+      // Shape text editor positioning
 
       // Position the editor with pixel-perfect accuracy
       editor.style.left = `${Math.round(screenX)}px`;
@@ -234,7 +211,7 @@ export function openShapeTextEditor(
         editor.style.padding = `${Math.round(scaledPadding)}px`;
       }
     } catch (error) {
-      console.warn('[ShapeTextEditor] Error updating position:', error);
+      // Warning: Error updating position
     }
   }
 
@@ -265,7 +242,7 @@ export function openShapeTextEditor(
     try {
       editor.remove();
     } catch (error) {
-      console.warn('[ShapeTextEditor] Error removing editor:', error);
+      // Warning: Error removing editor
     }
 
     if (textNode) {
@@ -287,13 +264,13 @@ export function openShapeTextEditor(
 
   // Commit function
   function commit(save: boolean = true) {
-    const rawSource = latestEditorText || editor.innerText || editor.textContent || '';
+    const rawSource = (typeof latestEditorText === 'string' ? latestEditorText : '') || editor.innerText || editor.textContent || '';
     const rawText = rawSource.replace(ZERO_WIDTH_REGEX, '');
     const newText = rawText.trim();
     cleanup();
 
     if (!save) {
-      console.log('[ShapeTextEditor] Text edit cancelled');
+      // Text edit cancelled
       return;
     }
 
@@ -326,7 +303,7 @@ export function openShapeTextEditor(
       }
     }
 
-    console.log('[ShapeTextEditor] Text committed (FIXED):', newText);
+    // Text committed
   }
 
   // Event handlers
@@ -409,7 +386,7 @@ export function openShapeTextEditor(
         }
       }
     } catch (error) {
-      console.warn('[ShapeTextEditor] Error focusing editor:', error);
+      // Warning: Error focusing editor
     }
   }, 10);
 
@@ -438,7 +415,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
 
   const container = stage.container();
   if (!container) {
-    console.warn('[TextEditor] No stage container found');
+    // Warning: No stage container found
     return;
   }
 
@@ -511,7 +488,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
       editor.style.fontSize = `${fontSize * stageScale}px`;
 
     } catch (error) {
-      console.warn('[TextEditor] Error updating position:', error);
+      // Warning: Error updating position
     }
   }
 
@@ -563,7 +540,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
     try {
       editor.remove();
     } catch (error) {
-      console.warn('[TextEditor] Error removing editor:', error);
+      // Warning: Error removing editor
     }
 
     // Restore original text opacity
@@ -583,10 +560,10 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
     cleanup();
 
     if (save) {
-      console.log('[TextEditor] Committing text:', newText);
+      // Committing text
       onCommit(newText);
     } else {
-      console.log('[TextEditor] Canceling text edit');
+      // Canceling text edit
       onCancel?.();
     }
   }
@@ -648,7 +625,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
       selection.removeAllRanges();
       selection.addRange(range);
     } catch (error) {
-      console.warn('[TextEditor] Error focusing editor:', error);
+      // Warning: Error focusing editor
     }
   }, 10);
 

@@ -66,7 +66,6 @@ export class TableContextMenuHelper {
    * Handle context menu on the table group itself
    */
   private handleTableContextMenu(e: Konva.KonvaEventObject<MouseEvent>) {
-    console.log("[TableContextMenuHelper] Table context menu triggered");
 
     // CRITICAL: Preserve position before any context menu operations
     this.preservePosition();
@@ -95,9 +94,6 @@ export class TableContextMenuHelper {
     // Calculate which row/column this cell belongs to
     const { row, col } = this.getCellCoordinates(cellX, cellY);
 
-    console.log(
-      `[TableContextMenuHelper] Cell [${row}, ${col}] context menu triggered`,
-    );
 
     // CRITICAL: Preserve position before context menu operations
     this.preservePosition();
@@ -107,7 +103,7 @@ export class TableContextMenuHelper {
     e.cancelBubble = false;
 
     // Add cell-specific context menu data to the event
-    (e.evt as any).tableContextData = {
+    (e.evt as Event & { tableContextData?: Record<string, unknown> }).tableContextData = {
       elementId: this.element.id,
       elementType: "table",
       cellRow: row,
@@ -146,10 +142,6 @@ export class TableContextMenuHelper {
       Math.abs(currentPos.y - preservedY) > 0.1;
 
     if (positionDrift) {
-      console.log("[TableContextMenuHelper] Restoring position from drift:", {
-        from: currentPos,
-        to: this.preservedPosition,
-      });
 
       this.tableGroup.position(this.preservedPosition);
       this.tableGroup.getLayer()?.batchDraw();
@@ -285,9 +277,27 @@ export function getTableContextData(event: Event): {
   elementType: string;
   cellRow?: number;
   cellCol?: number;
-  actions?: any;
+  actions?: Record<string, unknown>[];
 } | null {
-  return (event as any).tableContextData || null;
+  const data = (event as Event & { tableContextData?: Record<string, unknown> }).tableContextData;
+
+  // Type guard to ensure data has required properties
+  if (data &&
+      typeof data === 'object' &&
+      'elementId' in data &&
+      'elementType' in data &&
+      typeof data.elementId === 'string' &&
+      typeof data.elementType === 'string') {
+    return {
+      elementId: data.elementId,
+      elementType: data.elementType,
+      cellRow: typeof data.cellRow === 'number' ? data.cellRow : undefined,
+      cellCol: typeof data.cellCol === 'number' ? data.cellCol : undefined,
+      actions: Array.isArray(data.actions) ? data.actions : undefined
+    };
+  }
+
+  return null;
 }
 
 /**

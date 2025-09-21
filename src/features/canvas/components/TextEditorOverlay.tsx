@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import React, { useEffect, useRef, useState } from "react";
+import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 
-function measureTextWidth(text: string, font = '400 16px Inter, system-ui, sans-serif'): number {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+function measureTextWidth(
+  text: string,
+  font = "400 16px Inter, system-ui, sans-serif",
+): number {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
   if (!ctx) return text.length * 8;
   ctx.font = font;
   const m = ctx.measureText(text);
@@ -18,57 +21,80 @@ export default function TextEditorOverlay() {
   const [fontSize] = useState(16);
 
   const elementApi = useUnifiedCanvasStore((s) => s.element);
-  const beginBatch = useUnifiedCanvasStore((s) => (s as any).beginBatch);
-  const endBatch = useUnifiedCanvasStore((s) => (s as any).endBatch);
+  const beginBatch = useUnifiedCanvasStore((s) => s.beginBatch);
+  const endBatch = useUnifiedCanvasStore((s) => s.endBatch);
 
   useEffect(() => {
     const onBegin = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { x: number; y: number };
+      const detail = (e as CustomEvent<{ x: number; y: number }>).detail;
       setPos(detail);
       setVisible(true);
       setTimeout(() => editorRef.current?.focus(), 0);
     };
-    window.addEventListener('canvas:text-begin', onBegin as any);
-    return () => window.removeEventListener('canvas:text-begin', onBegin as any);
+    window.addEventListener("canvas:text-begin", onBegin);
+    return () => window.removeEventListener("canvas:text-begin", onBegin);
   }, []);
 
   const commit = () => {
-    const text = editorRef.current?.textContent ?? '';
+    const text = editorRef.current?.textContent ?? "";
     const font = `400 ${fontSize}px Inter, system-ui, sans-serif`;
     // Height fixed to line-height ≈ fontSize * 1.2 (approximation)
     const lineHeight = Math.round(fontSize * 1.2);
     const width = Math.max(4, measureTextWidth(text, font));
 
-    beginBatch?.('Insert text');
-    elementApi.upsert({ id: crypto.randomUUID(), type: 'text', x: pos.x, y: pos.y, width, height: lineHeight, text, font } as any);
+    beginBatch?.("Insert text");
+    elementApi.upsert({
+      id: crypto.randomUUID(),
+      type: "text",
+      x: pos.x,
+      y: pos.y,
+      width,
+      height: lineHeight,
+      text,
+      style: {
+        fontSize,
+        fontFamily: "Inter, system-ui, sans-serif",
+      },
+    });
     endBatch?.();
 
     setVisible(false);
-    if (editorRef.current) editorRef.current.textContent = '';
+    if (editorRef.current) editorRef.current.textContent = "";
   };
 
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       commit();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       e.preventDefault();
       setVisible(false);
     }
   };
 
   const onInput: React.FormEventHandler<HTMLDivElement> = (e) => {
-    const text = (e.target as HTMLDivElement).textContent ?? '';
+    const text = (e.target as HTMLDivElement).textContent ?? "";
     const font = `400 ${fontSize}px Inter, system-ui, sans-serif`;
     const width = Math.max(4, measureTextWidth(text, font));
-    if (editorRef.current) editorRef.current.style.width = `${width}px`;
-    editorRef.current!.style.height = `${Math.round(fontSize * 1.2)}px`;
+    if (editorRef.current) {
+      editorRef.current.style.width = `${width}px`;
+      editorRef.current.style.height = `${Math.round(fontSize * 1.2)}px`;
+    }
   };
 
   if (!visible) return null;
 
   return (
-    <div ref={containerRef} style={{ position: 'absolute', left: 0, top: 0, inset: 0, pointerEvents: 'none' }}>
+    <div
+      ref={containerRef}
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        inset: 0,
+        pointerEvents: "none",
+      }}
+    >
       <div
         ref={editorRef}
         contentEditable
@@ -79,20 +105,20 @@ export default function TextEditorOverlay() {
         onKeyDown={onKeyDown}
         onInput={onInput}
         style={{
-          position: 'absolute',
+          position: "absolute",
           left: pos.x,
           top: pos.y,
           minWidth: 4,
           padding: 0,
-          outline: '1px dashed #93c5fd',
-          background: 'transparent',
-          color: '#111827',
-          fontFamily: 'Inter, system-ui, sans-serif',
+          outline: "1px dashed #93c5fd",
+          background: "transparent",
+          color: "#111827",
+          fontFamily: "Inter, system-ui, sans-serif",
           fontWeight: 400,
           fontSize: `${fontSize}px`,
           lineHeight: `${Math.round(fontSize * 1.2)}px`,
-          pointerEvents: 'auto',
-          whiteSpace: 'nowrap',
+          pointerEvents: "auto",
+          whiteSpace: "nowrap",
         }}
       />
     </div>

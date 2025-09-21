@@ -14,7 +14,7 @@ class MockKonvaNode {
   private _rotation = 0;
   private _id = "";
 
-  constructor(attrs: any = {}) {
+  constructor(attrs: Record<string, unknown> = {}) {
     this._x = attrs.x || 0;
     this._y = attrs.y || 0;
     this._scaleX = attrs.scaleX || 1;
@@ -49,7 +49,14 @@ class MockKonvaNode {
 }
 
 describe("Geometry Helpers Unit Tests", () => {
-  let mockStore: any;
+  let mockStore: {
+    getElement: ReturnType<typeof vi.fn>;
+    updateElement: ReturnType<typeof vi.fn>;
+    history: {
+      beginBatch: ReturnType<typeof vi.fn>;
+      endBatch: ReturnType<typeof vi.fn>;
+    };
+  };
 
   beforeEach(() => {
     mockStore = {
@@ -86,7 +93,7 @@ describe("Geometry Helpers Unit Tests", () => {
         rotation: Math.PI / 4, // 45 degrees
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       // Verify scale was normalized to width/height
       expect(node.scaleX()).toBe(1);
@@ -126,7 +133,7 @@ describe("Geometry Helpers Unit Tests", () => {
         scaleY: 0.8, // uniform scaling to maintain aspect
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       expect(mockStore.updateElement).toHaveBeenCalledWith(
         "img-1",
@@ -163,7 +170,7 @@ describe("Geometry Helpers Unit Tests", () => {
         scaleY: 0.8,
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       const expectedColWidths = [120, 120, 120]; // 100 * 1.2 each
       const expectedRowHeights = [40, 40, 40, 40]; // 50 * 0.8 each
@@ -203,7 +210,7 @@ describe("Geometry Helpers Unit Tests", () => {
         scaleY: 0.05,
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       // Should enforce minimum 1px dimensions
       expect(mockStore.updateElement).toHaveBeenCalledWith(
@@ -236,7 +243,7 @@ describe("Geometry Helpers Unit Tests", () => {
         scaleY: 0.5,
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       // Should enforce minimum 8px cell dimensions
       expect(mockStore.updateElement).toHaveBeenCalledWith(
@@ -269,7 +276,7 @@ describe("Geometry Helpers Unit Tests", () => {
         rotation: Math.PI / 6, // 30 degrees
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       // Should only update position and rotation, ignore scaling
       expect(mockStore.updateElement).toHaveBeenCalledWith(
@@ -294,7 +301,7 @@ describe("Geometry Helpers Unit Tests", () => {
 
       // Should not throw or call updateElement
       expect(() => {
-        commitTransformForNode(node as any, { getStore: () => mockStore });
+        commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
       }).not.toThrow();
 
       expect(mockStore.updateElement).not.toHaveBeenCalled();
@@ -304,7 +311,7 @@ describe("Geometry Helpers Unit Tests", () => {
       const node = new MockKonvaNode({ id: "" });
 
       expect(() => {
-        commitTransformForNode(node as any, { getStore: () => mockStore });
+        commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
       }).not.toThrow();
 
       expect(mockStore.getElement).not.toHaveBeenCalled();
@@ -374,7 +381,7 @@ describe("Geometry Helpers Unit Tests", () => {
         scaleY: 0.6789,
       });
 
-      commitTransformForNode(node as any, { getStore: () => mockStore });
+      commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
       expect(mockStore.updateElement).toHaveBeenCalledWith(
         "precise-rect",
@@ -426,7 +433,7 @@ describe("Geometry Helpers Unit Tests", () => {
           scaleY: 1.1,
         });
 
-        commitTransformForNode(node as any, { getStore: () => mockStore });
+        commitTransformForNode(node as MockKonvaNode, { getStore: () => mockStore });
 
         expect(mockStore.updateElement).toHaveBeenCalled();
 

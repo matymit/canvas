@@ -31,21 +31,13 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
-  const bumpSelectionVersion = useUnifiedCanvasStore((s: any) => s.bumpSelectionVersion);
+  const replaceSelectionWithSingle = useUnifiedCanvasStore((s) => s.replaceSelectionWithSingle);
+  const bumpSelectionVersion = useUnifiedCanvasStore((s) => s.bumpSelectionVersion);
   const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  // Debug logging
-  console.log('[CircleTool] Tool state:', {
-    isActive,
-    selectedTool,
-    toolId,
-    hasStageRef: !!stageRef.current,
-    hasUpsertElement: !!upsertElement,
-    hasReplaceSelection: !!replaceSelectionWithSingle
-  });
+  // Tool state debugging removed for production
 
   const drawingRef = useRef<{
     circle: Konva.Circle | null;
@@ -57,18 +49,21 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
+    // Capture ref value to avoid stale closure issues in cleanup
+    const drawingRefCapture = drawingRef.current;
+
     const previewLayer =
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
     const onPointerDown = () => {
-      console.log('[CircleTool] Pointer down triggered');
+      // Pointer down triggered
       const pos = stage.getPointerPosition();
       if (!pos || !previewLayer) {
-        console.warn('[CircleTool] Missing pointer position or preview layer:', { pos, previewLayer });
+        // Missing pointer position or preview layer
         return;
       }
 
-      console.log('[CircleTool] Starting circle creation at:', pos);
+      // Starting circle creation
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
       // Size accounting for current zoom level
@@ -128,8 +123,8 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
       if (!circle || !start || !pos || !previewLayer) return;
 
-      let w = Math.abs(pos.x - start.x);
-      let h = Math.abs(pos.y - start.y);
+      const w = Math.abs(pos.x - start.x);
+      const h = Math.abs(pos.y - start.y);
 
       // Remove preview
       circle.remove();
@@ -163,18 +158,11 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       
       // FIXED: Create element with proper center-based positioning and radius property
       const id = `circle-${Date.now()}`;
-      console.log('[CircleTool] Creating circle element (FIXED):', {
-        id,
-        centerX,
-        centerY,
-        diameter,
-        radius,
-        positioning: 'center-based'
-      });
+      // Creating circle element with center-based positioning
 
       if (upsertElement) {
         try {
-          const element = upsertElement({
+          upsertElement({
             id,
             type: 'circle',
             // FIXED: Use center coordinates (Konva.Circle standard)
@@ -205,18 +193,16 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
               fill: fillColor,
               fontSize: 20,
             },
-          } as any);
-
-          console.log('[CircleTool] Element created (FIXED):', element);
+          });
 
           // Select the new circle
           try {
-            console.log('[CircleTool] Attempting to select element:', id);
-            replaceSelectionWithSingle?.(id as any);
+            // Attempting to select element
+            replaceSelectionWithSingle?.(id);
             bumpSelectionVersion?.();
-            console.log('[CircleTool] Selection successful');
+            // Selection successful
           } catch (e) {
-            console.error('[CircleTool] Selection failed:', e);
+            // Selection failed
           }
 
           // Auto-switch to select tool and open text editor
@@ -229,10 +215,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
             if (isSelected || attempt >= 6) {
               requestAnimationFrame(() => {
-                console.log('[CircleTool] Opening text editor for:', id, {
-                  attempt,
-                  isSelected
-                });
+                // Opening text editor for circle
                 openShapeTextEditor(stage, id);
               });
               return;
@@ -243,10 +226,10 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
           openEditorWhenReady(0);
         } catch (error) {
-          console.error('[CircleTool] Error creating element:', error);
+          // Error creating element
         }
       } else {
-        console.error('[CircleTool] No upsertElement function available!');
+        // No upsertElement function available
       }
     };
 
@@ -258,15 +241,15 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       stage.off('pointermove.circletool');
       stage.off('pointerup.circletool');
 
-      // Cleanup preview
-      if (drawingRef.current.circle) {
-        drawingRef.current.circle.destroy();
-        drawingRef.current.circle = null;
+      // Cleanup preview using captured ref value
+      if (drawingRefCapture.circle) {
+        drawingRefCapture.circle.destroy();
+        drawingRefCapture.circle = null;
       }
-      drawingRef.current.start = null;
+      drawingRefCapture.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
+  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle, bumpSelectionVersion]);
 
   return null;
 };

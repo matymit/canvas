@@ -19,7 +19,7 @@ describe("Event Delegation", () => {
     private priorities = new Map<string, number>();
     private activeToolId: string | null = null;
 
-    registerTool(id: string, handler: any, priority = 0) {
+    registerTool(id: string, handler: unknown, priority = 0) {
       this.tools.set(id, handler);
       this.priorities.set(id, priority);
     }
@@ -28,7 +28,7 @@ describe("Event Delegation", () => {
       this.activeToolId = id;
     }
 
-    delegateEvent(eventType: string, event: any): boolean {
+    delegateEvent(eventType: string, event: Event): boolean {
       // Active tool first
       if (this.activeToolId) {
         const active = this.tools.get(this.activeToolId);

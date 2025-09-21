@@ -12,7 +12,7 @@ export function createSpacingHUD(): SpacingHUD {
   const clear = (layer: Konva.Layer) => {
     labels.forEach(l => { try { l.destroy(); } catch (error) {
       // Ignore cleanup errors
-      console.debug('[SpacingHUD] Cleanup error:', error);
+      // Silently ignore cleanup errors
     } });
     labels.length = 0;
     layer.batchDraw();

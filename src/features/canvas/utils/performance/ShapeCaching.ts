@@ -32,7 +32,7 @@ export class ShapeCaching {
     // Don't cache if node is too large
     const rect = node.getClientRect();
     if (rect.width > this.CACHE_SIZE_THRESHOLD || rect.height > this.CACHE_SIZE_THRESHOLD) {
-      console.warn(`[ShapeCaching] Node too large to cache: ${rect.width}x${rect.height}`);
+      // Node too large to cache
       return;
     }
 
@@ -55,7 +55,7 @@ export class ShapeCaching {
         (node as any).shadowForStrokeEnabled(false);
       }
     } catch (error) {
-      console.error('[ShapeCaching] Failed to cache node:', error);
+      // Error: [ShapeCaching] Failed to cache node: ${error}
     }
   }
 
@@ -228,7 +228,7 @@ export class AutoCacheManager {
     // Disable caching if node updates too frequently
     if (count > this.updateThreshold && node.isCached()) {
       ShapeCaching.clearCache(node);
-      console.log(`[AutoCache] Disabled cache for frequently updated node`);
+      // Disabled cache for frequently updated node
     }
   }
 

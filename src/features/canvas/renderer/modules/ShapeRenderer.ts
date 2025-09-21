@@ -4,6 +4,15 @@ import type { ModuleRendererCtx, RendererModule } from "../index";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 import { computeShapeInnerBox, type BaseShape } from "../../utils/text/computeShapeInnerBox";
 
+
+// Extended shape data interface
+interface ShapeDataWithExtras {
+  text?: string;
+  padding?: number;
+  radius?: number;
+  textLineHeight?: number;
+}
+
 type Id = string;
 
 // Safety limits to prevent extreme dimensions
@@ -48,7 +57,7 @@ export class ShapeRenderer implements RendererModule {
   private unsubscribe?: () => void;
 
   mount(ctx: ModuleRendererCtx): () => void {
-    console.log("[ShapeRenderer] Mounting...");
+    // Mounting ShapeRenderer
     this.layer = ctx.layers.main;
 
     // Subscribe to store changes - watch shape elements
@@ -92,7 +101,7 @@ export class ShapeRenderer implements RendererModule {
   }
 
   private unmount() {
-    console.log("[ShapeRenderer] Unmounting...");
+    // Unmounting ShapeRenderer
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -115,7 +124,7 @@ export class ShapeRenderer implements RendererModule {
   private reconcile(shapes: Map<Id, ShapeElement>) {
     // Only log when there are actual shapes to reconcile (reduce console spam)
     if (shapes.size > 0) {
-      console.log("[ShapeRenderer] Reconciling", shapes.size, "shape elements");
+      // Reconciling shape elements
     }
 
     if (!this.layer) return;
@@ -133,7 +142,7 @@ export class ShapeRenderer implements RendererModule {
         if (node) {
           // Add click handler for selection
           node.on("click", (e) => {
-            console.log('[ShapeRenderer] Shape clicked for selection:', shape.id);
+            // Shape clicked for selection
             e.cancelBubble = true; // Prevent event bubbling
 
             // Select this shape element via the SelectionModule (preferred) or store
@@ -142,7 +151,7 @@ export class ShapeRenderer implements RendererModule {
 
           // Add tap handler for mobile
           node.on("tap", (e) => {
-            console.log('[ShapeRenderer] Shape tapped for selection:', shape.id);
+            // Shape tapped for selection
             e.cancelBubble = true;
 
             // Use the same selection logic as click
@@ -151,7 +160,7 @@ export class ShapeRenderer implements RendererModule {
 
           // Add double-click handler for text editing
           node.on("dblclick", (e) => {
-            console.log('[ShapeRenderer] Shape double-clicked for text editing:', shape.id);
+            // Shape double-clicked for text editing
             e.cancelBubble = true; // Prevent event bubbling
 
             // Open text editor for this shape
@@ -168,7 +177,7 @@ export class ShapeRenderer implements RendererModule {
             const shapeNode = e.target as Konva.Shape;
             const nx = shapeNode.x();
             const ny = shapeNode.y();
-            console.log('[ShapeRenderer] Shape dragged to new position:', shape.id, nx, ny);
+            // Shape dragged to new position
 
             try {
               const store = useUnifiedCanvasStore.getState();
@@ -177,10 +186,10 @@ export class ShapeRenderer implements RendererModule {
               } else if (store.updateElement) {
                 store.updateElement(shape.id, { x: nx, y: ny }, { pushHistory: true });
               } else {
-                console.error('[ShapeRenderer] No valid element update method found in store');
+                // Error: No valid element update method found in store
               }
             } catch (error) {
-              console.error('[ShapeRenderer] Error updating element position:', error);
+              // Error: Error updating element position
             }
           });
           this.shapeNodes.set(id, node);
@@ -198,7 +207,7 @@ export class ShapeRenderer implements RendererModule {
     // Remove deleted shape elements
     for (const [id, node] of this.shapeNodes) {
       if (!seen.has(id)) {
-        console.log("[ShapeRenderer] Removing shape:", id);
+        // Removing shape
         node.destroy();
         this.shapeNodes.delete(id);
       }
@@ -207,7 +216,7 @@ export class ShapeRenderer implements RendererModule {
     // Remove deleted text nodes
     for (const [id, attachment] of this.textNodes) {
       if (!seen.has(id)) {
-        console.log("[ShapeRenderer] Removing shape text:", id);
+        // Removing shape text
         attachment.primaryNode.destroy();
         this.textNodes.delete(id);
       }
@@ -246,13 +255,7 @@ export class ShapeRenderer implements RendererModule {
         const radiusX = safeWidth / 2;
         const radiusY = safeHeight / 2;
 
-        console.log('[DEBUG] Creating circle node (ellipse-based):', {
-          elementId: shape.id,
-          position: { x: shape.x, y: shape.y },
-          radiusX,
-          radiusY,
-          dimensions: { width: shape.width, height: shape.height }
-        });
+        // Creating circle node (ellipse-based)
 
         const ellipseNode = new Konva.Ellipse({
           ...commonAttrs,
@@ -265,7 +268,7 @@ export class ShapeRenderer implements RendererModule {
         return ellipseNode;
       }
 
-      case "ellipse":
+      case "ellipse": {
         const ellipseNode = new Konva.Ellipse({
           ...commonAttrs,
           radiusX: safeWidth / 2,
@@ -275,6 +278,7 @@ export class ShapeRenderer implements RendererModule {
         ellipseNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, ellipseNode));
 
         return ellipseNode;
+      }
 
       case "triangle": {
         // Create isosceles triangle using Shape with sceneFunc for proper geometry
@@ -306,7 +310,7 @@ export class ShapeRenderer implements RendererModule {
       }
 
       default:
-        console.warn("[ShapeRenderer] Unknown shape type:", shape.type);
+        // Warning: Unknown shape type
         return undefined;
     }
   }
@@ -339,13 +343,7 @@ export class ShapeRenderer implements RendererModule {
       const radiusX = safeWidth / 2;
       const radiusY = safeHeight / 2;
 
-      console.log('[DEBUG] Updating ellipse-based shape node:', {
-        elementId: shape.id,
-        position: { x: shape.x, y: shape.y },
-        radiusX,
-        radiusY,
-        dimensions: { width: shape.width, height: shape.height }
-      });
+      // Updating ellipse-based shape node
 
       node.setAttrs({
         ...commonAttrs,
@@ -373,32 +371,27 @@ export class ShapeRenderer implements RendererModule {
 
   private selectElementViaStore(elementId: string) {
     try {
-      console.log('[ShapeRenderer] Attempting to select element:', elementId);
+      // Attempting to select element
 
       // Direct store access with multiple fallbacks
       const store = useUnifiedCanvasStore.getState();
-      console.log('[ShapeRenderer] Available store methods:', {
-        hasReplaceSelectionWithSingle: !!store.replaceSelectionWithSingle,
-        hasSetSelection: !!store.setSelection,
-        hasSelectionModule: !!store.selection,
-        hasSelectionSet: !!store.selection?.set
-      });
+      // Checking available store methods
 
       if (store.replaceSelectionWithSingle) {
-        console.log('[ShapeRenderer] Using replaceSelectionWithSingle:', elementId);
+        // Using replaceSelectionWithSingle
         store.replaceSelectionWithSingle(elementId);
       } else if (store.setSelection) {
-        console.log('[ShapeRenderer] Using setSelection:', elementId);
+        // Using setSelection
         store.setSelection([elementId]);
       } else if (store.selection?.set) {
-        console.log('[ShapeRenderer] Using selection.set:', elementId);
+        // Using selection.set
         store.selection.set([elementId]);
       } else {
-        console.error('[ShapeRenderer] No valid selection method found in store');
-        console.log('[ShapeRenderer] Available store keys:', Object.keys(store));
+        // Error: No valid selection method found in store
+        // Available store keys: check object keys
       }
     } catch (error) {
-      console.error('[ShapeRenderer] Error during shape selection:', error);
+      // Error: Error during shape selection
     }
   }
 
@@ -415,7 +408,7 @@ export class ShapeRenderer implements RendererModule {
         if (attachment) {
           this.textNodes.set(id, attachment);
           this.layer?.add(attachment.primaryNode);
-          console.log('[ShapeRenderer] Created text node for shape:', id, shape.data?.text);
+          // Created text node for shape
         }
       } else {
         // Update existing text node
@@ -425,7 +418,7 @@ export class ShapeRenderer implements RendererModule {
       // Shape has no text - remove text node if it exists
       const existingTextNode = this.textNodes.get(id);
       if (existingTextNode) {
-        console.log('[ShapeRenderer] Removing text node for shape (no text):', id);
+        // Removing text node for shape (no text)
         existingTextNode.primaryNode.destroy();
         this.textNodes.delete(id);
       }
@@ -440,7 +433,7 @@ export class ShapeRenderer implements RendererModule {
       const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
       const textColor = shape.textColor || '#111827';
       const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
-      const lineHeight = (shape.data as { textLineHeight?: number } | undefined)?.textLineHeight ?? 1.25;
+      const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
 
       const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
       const textNode = new Konva.Text({
@@ -475,19 +468,11 @@ export class ShapeRenderer implements RendererModule {
       primaryNode.setAttr('elementId', shape.id);
       primaryNode.setAttr('nodeType', 'shape-text-root');
 
-      console.log('[DEBUG] Shape text node created:', {
-        elementId: shape.id,
-        textNodePosition: { x: textNode.x(), y: textNode.y() },
-        textNodeSize: { width: textNode.width(), height: textNode.height() },
-        innerBox,
-        lineHeight,
-        relativeOffsets: { relativeDX, relativeDY },
-        text: shape.data.text
-      });
+      // Shape text node created
 
       return { text: textNode, primaryNode };
     } catch (error) {
-      console.error('[ShapeRenderer] Error creating text node for shape:', shape.id, error);
+      // Error: Error creating text node for shape
       return undefined;
     }
   }
@@ -500,7 +485,7 @@ export class ShapeRenderer implements RendererModule {
       const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
       const textColor = shape.textColor || '#111827';
       const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
-      const lineHeight = (shape.data as { textLineHeight?: number } | undefined)?.textLineHeight ?? 1.25;
+      const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
 
       const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
       const { text: textNode, primaryNode } = attachment;
@@ -524,19 +509,9 @@ export class ShapeRenderer implements RendererModule {
       primaryNode.setAttr('relativeDX', relativeDX);
       primaryNode.setAttr('relativeDY', relativeDY);
 
-      console.log('[DEBUG] Shape text node updated:', {
-        elementId: shape.id,
-        textNodePosition: { x: textNode.x(), y: textNode.y() },
-        textNodeSize: { width: textNode.width(), height: textNode.height() },
-        innerBox,
-        lineHeight,
-        relativeOffsets: { relativeDX, relativeDY },
-        text: shape.data.text,
-        stagePosition: this.layer?.getStage()?.position(),
-        stageScale: this.layer?.getStage()?.scaleX()
-      });
+      // Shape text node updated
     } catch (error) {
-      console.error('[ShapeRenderer] Error updating text node for shape:', shape.id, error);
+      // Error: Error updating text node for shape
     }
   }
 

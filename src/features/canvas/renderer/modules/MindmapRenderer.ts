@@ -4,6 +4,56 @@
 import Konva from "konva";
 import type { RendererLayers } from "../layers";
 import type { CanvasElement } from "../../../../../types";
+
+// Store state interfaces
+interface StoreState {
+  elements?: Map<string, CanvasElement> | Record<string, CanvasElement>;
+  element?: {
+    all?: Map<string, CanvasElement> | Record<string, CanvasElement>;
+    getById?: (id: string) => CanvasElement | undefined;
+    update?: (id: string, changes: Partial<CanvasElement>, options?: { pushHistory?: boolean }) => void;
+  };
+  selection?: {
+    selectOne?: (id: string, additive: boolean) => void;
+    replaceSelectionWithSingle?: (id: string) => void;
+  };
+  history?: {
+    withUndo?: (description: string, fn: () => void) => void;
+  };
+  updateElement?: (id: string, changes: Partial<CanvasElement>, options?: { pushHistory?: boolean }) => void;
+  getElement?: (id: string) => CanvasElement | undefined;
+  replaceSelectionWithSingle?: (id: string) => void;
+}
+
+// Mindmap element interfaces
+interface MindmapNodeData extends Record<string, unknown> {
+  text?: string;
+  parentId?: string | null;
+  level?: number;
+  color?: string;
+  textWidth?: number;
+  textHeight?: number;
+  style?: MindmapNodeStyle;
+}
+
+interface MindmapEdgeData extends Record<string, unknown> {
+  fromId?: string;
+  toId?: string;
+  style?: BranchStyle;
+}
+
+interface MindmapCanvasElement extends CanvasElement {
+  type: 'mindmap-node' | 'mindmap-edge';
+  text?: string;
+  parentId?: string | null;
+  level?: number;
+  color?: string;
+  textWidth?: number;
+  textHeight?: number;
+  fromId?: string;
+  toId?: string;
+  data?: MindmapNodeData | MindmapEdgeData;
+}
 import {
   DEFAULT_BRANCH_STYLE,
   DEFAULT_NODE_STYLE,
@@ -42,7 +92,7 @@ export class MindmapRenderer {
   constructor(
     layers: RendererLayers,
     store: typeof useUnifiedCanvasStore,
-    options?: MindmapRendererOptions
+    options?: MindmapRendererOptions,
   ) {
     this.layers = layers;
     this.store = store;
@@ -63,8 +113,10 @@ export class MindmapRenderer {
   }
 
   private selectElement(elementId: string) {
-    const state = this.store.getState() as any;
-    const replace = state.replaceSelectionWithSingle ?? state.selection?.replaceSelectionWithSingle;
+    const state = this.store.getState() as StoreState;
+    const replace =
+      state.replaceSelectionWithSingle ??
+      state.selection?.replaceSelectionWithSingle;
     if (typeof replace === "function") {
       replace(elementId);
       return;
@@ -77,15 +129,17 @@ export class MindmapRenderer {
   }
 
   private updateNodePosition(elementId: string, x: number, y: number) {
-    const state = this.store.getState() as any;
+    const state = this.store.getState() as StoreState;
     const update = state.updateElement ?? state.element?.update;
     if (typeof update === "function") {
       update(elementId, { x, y }, { pushHistory: true });
     }
   }
 
-  private updateMultipleNodePositions(updates: Map<string, { x: number; y: number }>) {
-    const state = this.store.getState() as any;
+  private updateMultipleNodePositions(
+    updates: Map<string, { x: number; y: number }>,
+  ) {
+    const state = this.store.getState() as StoreState;
     const update = state.updateElement ?? state.element?.update;
     if (typeof update === "function") {
       // Update all nodes in a single history transaction
@@ -107,17 +161,19 @@ export class MindmapRenderer {
 
   private getAllDescendants(nodeId: string): Set<string> {
     const descendants = new Set<string>();
-    const state = this.store.getState() as any;
+    const state = this.store.getState() as StoreState;
     const elements = state.elements ?? state.element?.all;
 
     if (!elements) return descendants;
 
     // Recursive function to find all descendants
     const findDescendants = (parentId: string) => {
-      const elementsMap = elements instanceof Map ? elements : new Map(Object.entries(elements));
-      elementsMap.forEach((element: any, id: string) => {
+      const elementsMap =
+        elements instanceof Map ? elements : new Map(Object.entries(elements));
+      elementsMap.forEach((element: CanvasElement, id: string) => {
         if (element.type === "mindmap-node") {
-          const elementParentId = element.parentId ?? element.data?.parentId;
+          const mindmapElement = element as MindmapCanvasElement;
+          const elementParentId = mindmapElement.parentId ?? mindmapElement.data?.parentId;
           if (elementParentId === parentId) {
             descendants.add(id);
             // Recursively find descendants of this child
@@ -132,22 +188,25 @@ export class MindmapRenderer {
   }
 
   private lookupNode(elementId: string): MindmapNodeElement | null {
-    const state = this.store.getState() as any;
-    const getElement: ((id: string) => CanvasElement | undefined) |
-      undefined = state.getElement ?? state.element?.getById;
+    const state = this.store.getState() as StoreState;
+    const getElement: ((id: string) => CanvasElement | undefined) | undefined =
+      state.getElement ?? state.element?.getById;
     const raw = getElement?.(elementId);
     if (!raw || raw.type !== "mindmap-node") return null;
 
+    const mindmapElement = raw as MindmapCanvasElement;
+    const nodeData = mindmapElement.data as MindmapNodeData | undefined;
+
     const level =
-      (raw as any).level ??
-      (raw as any).data?.level ??
-      ((raw as any).parentId ?? (raw as any).data?.parentId ? 1 : 0);
+      mindmapElement.level ??
+      nodeData?.level ??
+      ((mindmapElement.parentId ?? (nodeData as MindmapNodeData)?.parentId) ? 1 : 0);
     const color =
-      (raw as any).color ??
-      (raw as any).data?.color ??
+      mindmapElement.color ??
+      nodeData?.color ??
       MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
 
-    const style = this.mergeNodeStyle((raw as any).style);
+    const style = this.mergeNodeStyle(mindmapElement.style as MindmapNodeStyle | undefined ?? nodeData?.style);
     const hydratedStyle: MindmapNodeStyle = {
       ...style,
       fill: style.fill ?? color,
@@ -155,8 +214,10 @@ export class MindmapRenderer {
       fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
       fontSize: style.fontSize ?? (level === 0 ? 16 : 14),
       cornerRadius: style.cornerRadius ?? DEFAULT_NODE_STYLE.cornerRadius,
-      stroke: style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
-      strokeWidth: style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+      stroke:
+        style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+      strokeWidth:
+        style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
       shadowColor: style.shadowColor ?? DEFAULT_NODE_STYLE.shadowColor,
       shadowBlur: style.shadowBlur ?? DEFAULT_NODE_STYLE.shadowBlur,
       shadowOffsetX: style.shadowOffsetX ?? DEFAULT_NODE_STYLE.shadowOffsetX,
@@ -169,14 +230,14 @@ export class MindmapRenderer {
       y: raw.y ?? 0,
       width: raw.width ?? MINDMAP_CONFIG.defaultNodeWidth,
       height: raw.height ?? MINDMAP_CONFIG.defaultNodeHeight,
-      text: (raw as any).text ?? (raw as any).data?.text ?? "",
+      text: mindmapElement.text ?? (nodeData as MindmapNodeData)?.text ?? "",
       style: hydratedStyle,
-      parentId: (raw as any).parentId ?? (raw as any).data?.parentId ?? null,
+      parentId: mindmapElement.parentId ?? (nodeData as MindmapNodeData)?.parentId ?? null,
       level,
       color,
       // CRITICAL: Preserve textWidth and textHeight from the raw element
-      textWidth: (raw as any).textWidth ?? (raw as any).data?.textWidth,
-      textHeight: (raw as any).textHeight ?? (raw as any).data?.textHeight,
+      textWidth: mindmapElement.textWidth ?? (nodeData as MindmapNodeData)?.textWidth,
+      textHeight: mindmapElement.textHeight ?? (nodeData as MindmapNodeData)?.textHeight,
     };
   }
 
@@ -270,12 +331,12 @@ export class MindmapRenderer {
       initialPositions.set(node.id, { x: target.x(), y: target.y() });
 
       // Store descendants' initial positions
-      descendants.forEach(descendantId => {
+      descendants.forEach((descendantId) => {
         const descendantGroup = this.nodeGroups.get(descendantId);
         if (descendantGroup) {
           initialPositions.set(descendantId, {
             x: descendantGroup.x(),
-            y: descendantGroup.y()
+            y: descendantGroup.y(),
           });
         }
       });
@@ -284,7 +345,7 @@ export class MindmapRenderer {
       this.draggedNodeData = {
         nodeId: node.id,
         descendants,
-        initialPositions
+        initialPositions,
       };
     });
 
@@ -292,25 +353,30 @@ export class MindmapRenderer {
       if (!this.draggedNodeData) return;
 
       const target = evt.target as Konva.Group;
-      const deltaX = target.x() - (this.draggedNodeData.initialPositions.get(node.id)?.x ?? 0);
-      const deltaY = target.y() - (this.draggedNodeData.initialPositions.get(node.id)?.y ?? 0);
+      const deltaX =
+        target.x() -
+        (this.draggedNodeData.initialPositions.get(node.id)?.x ?? 0);
+      const deltaY =
+        target.y() -
+        (this.draggedNodeData.initialPositions.get(node.id)?.y ?? 0);
 
       // Move all descendant nodes by the same delta
-      this.draggedNodeData.descendants.forEach(descendantId => {
+      this.draggedNodeData.descendants.forEach((descendantId) => {
         const descendantGroup = this.nodeGroups.get(descendantId);
-        const initialPos = this.draggedNodeData?.initialPositions.get(descendantId);
+        const initialPos =
+          this.draggedNodeData?.initialPositions.get(descendantId);
 
         if (descendantGroup && initialPos) {
           descendantGroup.position({
             x: initialPos.x + deltaX,
-            y: initialPos.y + deltaY
+            y: initialPos.y + deltaY,
           });
         }
       });
 
       // Update all connected edges during drag
       const allNodes = new Set([node.id, ...this.draggedNodeData.descendants]);
-      allNodes.forEach(nodeId => {
+      allNodes.forEach((nodeId) => {
         this.updateConnectedEdgesForNode(nodeId);
       });
 
@@ -327,8 +393,12 @@ export class MindmapRenderer {
       }
 
       const target = evt.target as Konva.Group;
-      const deltaX = target.x() - (this.draggedNodeData.initialPositions.get(node.id)?.x ?? 0);
-      const deltaY = target.y() - (this.draggedNodeData.initialPositions.get(node.id)?.y ?? 0);
+      const deltaX =
+        target.x() -
+        (this.draggedNodeData.initialPositions.get(node.id)?.x ?? 0);
+      const deltaY =
+        target.y() -
+        (this.draggedNodeData.initialPositions.get(node.id)?.y ?? 0);
 
       // Prepare batch update for all moved nodes
       const updates = new Map<string, { x: number; y: number }>();
@@ -337,12 +407,13 @@ export class MindmapRenderer {
       updates.set(node.id, { x: target.x(), y: target.y() });
 
       // Add all descendants with their new positions
-      this.draggedNodeData.descendants.forEach(descendantId => {
-        const initialPos = this.draggedNodeData?.initialPositions.get(descendantId);
+      this.draggedNodeData.descendants.forEach((descendantId) => {
+        const initialPos =
+          this.draggedNodeData?.initialPositions.get(descendantId);
         if (initialPos) {
           updates.set(descendantId, {
             x: initialPos.x + deltaX,
-            y: initialPos.y + deltaY
+            y: initialPos.y + deltaY,
           });
         }
       });
@@ -357,32 +428,43 @@ export class MindmapRenderer {
 
   private updateConnectedEdgesForNode(nodeId: string) {
     // Get all edges from the store
-    const state = this.store.getState() as any;
+    const state = this.store.getState() as StoreState;
     const elements = state.elements ?? state.element?.all;
     if (!elements) return;
 
-    const elementsMap = elements instanceof Map ? elements : new Map(Object.entries(elements));
+    const elementsMap =
+      elements instanceof Map ? elements : new Map(Object.entries(elements));
     const edges: MindmapEdgeElement[] = [];
 
-    elementsMap.forEach((element: any) => {
-      if (element.type === "mindmap-edge" &&
-          (element.fromId === nodeId || element.toId === nodeId ||
-           element.data?.fromId === nodeId || element.data?.toId === nodeId)) {
-        const edge: MindmapEdgeElement = {
-          id: element.id,
-          type: "mindmap-edge",
-          fromId: element.fromId ?? element.data?.fromId ?? "",
-          toId: element.toId ?? element.data?.toId ?? "",
-          style: this.mergeBranchStyle(element.style ?? element.data?.style)
-        };
-        edges.push(edge);
+    elementsMap.forEach((element: CanvasElement) => {
+      if (element.type === "mindmap-edge") {
+        const mindmapElement = element as MindmapCanvasElement;
+        const edgeData = mindmapElement.data as MindmapEdgeData | undefined;
+
+        if (
+          mindmapElement.fromId === nodeId ||
+          mindmapElement.toId === nodeId ||
+          edgeData?.fromId === nodeId ||
+          edgeData?.toId === nodeId
+        ) {
+          const edge: MindmapEdgeElement = {
+            id: element.id,
+            type: "mindmap-edge",
+            x: 0,
+            y: 0,
+            fromId: mindmapElement.fromId ?? edgeData?.fromId ?? "",
+            toId: mindmapElement.toId ?? edgeData?.toId ?? "",
+            style: this.mergeBranchStyle((mindmapElement.style as BranchStyle | undefined) ?? edgeData?.style),
+          };
+          edges.push(edge);
+        }
       }
     });
 
     // Helper to get node connection point
     const getNodePoint = (
       id: string,
-      side: 'left' | 'right'
+      side: "left" | "right",
     ): { x: number; y: number } | null => {
       const group = this.nodeGroups.get(id);
       if (!group) return null;
@@ -392,13 +474,13 @@ export class MindmapRenderer {
       const x = group.x();
       const y = group.y();
 
-      return side === 'left'
+      return side === "left"
         ? { x, y: y + height / 2 }
         : { x: x + width, y: y + height / 2 };
     };
 
     // Re-render connected edges
-    edges.forEach(edge => {
+    edges.forEach((edge) => {
       this.renderEdge(edge, getNodePoint);
     });
   }
@@ -417,17 +499,25 @@ export class MindmapRenderer {
 
     // If dimensions aren't provided, calculate them with wrapping
     if (!textWidth || !textHeight) {
-      const maxTextWidth = Math.max(MINDMAP_CONFIG.defaultNodeWidth, totalWidth) - style.paddingX * 2;
+      const maxTextWidth =
+        Math.max(MINDMAP_CONFIG.defaultNodeWidth, totalWidth) -
+        style.paddingX * 2;
       const metrics = measureMindmapLabelWithWrap(
         element.text ?? "",
         style,
         maxTextWidth,
-        MINDMAP_CONFIG.lineHeight
+        MINDMAP_CONFIG.lineHeight,
       );
       textWidth = metrics.width;
       textHeight = metrics.height;
-      totalWidth = Math.max(textWidth + style.paddingX * 2, MINDMAP_CONFIG.minNodeWidth);
-      totalHeight = Math.max(textHeight + style.paddingY * 2, MINDMAP_CONFIG.minNodeHeight);
+      totalWidth = Math.max(
+        textWidth + style.paddingX * 2,
+        MINDMAP_CONFIG.minNodeWidth,
+      );
+      totalHeight = Math.max(
+        textHeight + style.paddingY * 2,
+        MINDMAP_CONFIG.minNodeHeight,
+      );
     }
 
     const normalized: MindmapNodeElement = {
@@ -440,7 +530,7 @@ export class MindmapRenderer {
     };
 
     let group = this.nodeGroups.get(element.id);
-    
+
     // Create group if it doesn't exist or needs recreation
     if (!group || group.getLayer() !== this.layers.main) {
       if (group) {
@@ -457,7 +547,7 @@ export class MindmapRenderer {
         listening: true,
         draggable: true,
       });
-      
+
       this.layers.main.add(group);
       this.nodeGroups.set(element.id, group);
     }
@@ -468,7 +558,7 @@ export class MindmapRenderer {
     group.draggable(true);
     group.listening(true);
     // Ensure the group can receive mouse events
-    group.setAttr('cursor', 'pointer');
+    group.setAttr("cursor", "pointer");
 
     // Clear previous children and rebuild
     group.destroyChildren();
@@ -546,12 +636,15 @@ export class MindmapRenderer {
    */
   renderEdge(
     element: MindmapEdgeElement,
-    getNodePoint: (id: string, side: 'left' | 'right') => { x: number; y: number } | null
+    getNodePoint: (
+      id: string,
+      side: "left" | "right",
+    ) => { x: number; y: number } | null,
   ) {
     const style = this.mergeBranchStyle(element.style);
 
     let shape = this.edgeShapes.get(element.id);
-    
+
     // Create shape if it doesn't exist or needs recreation
     if (!shape || shape.getLayer() !== this.layers.main) {
       if (shape) {
@@ -564,7 +657,7 @@ export class MindmapRenderer {
         listening: false, // Edges are not interactive
         perfectDrawEnabled: false,
       });
-      
+
       this.layers.main.add(shape);
       this.edgeShapes.set(element.id, shape);
     } else if (shape.id() !== element.id) {
@@ -572,14 +665,14 @@ export class MindmapRenderer {
     }
 
     // Get node centers
-    const fromCenter = getNodePoint(element.fromId, 'right');
-    const toCenter = getNodePoint(element.toId, 'left');
-    
+    const fromCenter = getNodePoint(element.fromId, "right");
+    const toCenter = getNodePoint(element.toId, "left");
+
     if (!fromCenter || !toCenter) {
       shape.hide();
       return;
     }
-    
+
     shape.show();
 
     // Calculate curve geometry
@@ -599,7 +692,7 @@ export class MindmapRenderer {
         widthStart,
         widthEnd,
         color,
-        this.options.edgeSegments ?? 12
+        this.options.edgeSegments ?? 12,
       );
     });
 
@@ -619,9 +712,17 @@ export class MindmapRenderer {
     widthStart: number,
     widthEnd: number,
     color: string,
-    segments: number
+    segments: number,
   ) {
-    const ribbon = buildTaperedRibbonPoints(start, c1, c2, end, widthStart, widthEnd, segments);
+    const ribbon = buildTaperedRibbonPoints(
+      start,
+      c1,
+      c2,
+      end,
+      widthStart,
+      widthEnd,
+      segments,
+    );
     if (!ribbon.length) return;
 
     ctx.save();
@@ -681,14 +782,17 @@ export class MindmapRenderer {
   updateConnectedEdges(
     nodeId: string,
     getAllEdges: () => MindmapEdgeElement[],
-    getNodePoint: (id: string, side: 'left' | 'right') => { x: number; y: number } | null
+    getNodePoint: (
+      id: string,
+      side: "left" | "right",
+    ) => { x: number; y: number } | null,
   ) {
     const allEdges = getAllEdges();
     const connectedEdges = allEdges.filter(
-      edge => edge.fromId === nodeId || edge.toId === nodeId
+      (edge) => edge.fromId === nodeId || edge.toId === nodeId,
     );
 
-    connectedEdges.forEach(edge => {
+    connectedEdges.forEach((edge) => {
       this.renderEdge(edge, getNodePoint);
     });
   }
@@ -700,15 +804,18 @@ export class MindmapRenderer {
   renderBatch(
     nodes: MindmapNodeElement[],
     edges: MindmapEdgeElement[],
-    getNodePoint: (id: string, side: 'left' | 'right') => { x: number; y: number } | null
+    getNodePoint: (
+      id: string,
+      side: "left" | "right",
+    ) => { x: number; y: number } | null,
   ) {
     // Render all nodes first
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
       this.renderNode(node);
     });
 
     // Then render all edges
-    edges.forEach(edge => {
+    edges.forEach((edge) => {
       this.renderEdge(edge, getNodePoint);
     });
 
@@ -721,15 +828,15 @@ export class MindmapRenderer {
    */
   clear() {
     // Destroy all node groups
-    this.nodeGroups.forEach(group => {
+    this.nodeGroups.forEach((group) => {
       if (group.getLayer()) {
         group.destroy();
       }
     });
     this.nodeGroups.clear();
 
-    // Destroy all edge shapes  
-    this.edgeShapes.forEach(shape => {
+    // Destroy all edge shapes
+    this.edgeShapes.forEach((shape) => {
       if (shape.getLayer()) {
         shape.destroy();
       }

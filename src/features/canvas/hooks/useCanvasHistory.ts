@@ -43,14 +43,14 @@ export function useCanvasHistory(options: UseCanvasHistoryOptions): UseCanvasHis
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [tick, setTick] = useState(0); // external state bump to expose size/index cheaply
+  // Removed tick state as size/index are now computed directly without triggering re-renders
 
   const updateFlags = useCallback(() => {
     const size = historyRef.current.length;
     const idx = indexRef.current;
     setCanUndo(idx >= 0);
     setCanRedo(idx < size - 1);
-    setTick((t) => t + 1);
+    // No longer need to update tick
   }, []);
 
   const stageOrThrow = useCallback((): Konva.Stage => {
@@ -139,8 +139,8 @@ export function useCanvasHistory(options: UseCanvasHistoryOptions): UseCanvasHis
   }, [updateFlags]);
 
   // expose size/index through memo keyed by tick
-  const size = useMemo(() => historyRef.current.length, [tick]);
-  const index = useMemo(() => indexRef.current, [tick]);
+  const size = useMemo(() => historyRef.current.length, []);
+  const index = useMemo(() => indexRef.current, []);
 
   return {
     pushOps,

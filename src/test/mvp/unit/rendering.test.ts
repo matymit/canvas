@@ -167,7 +167,7 @@ describe.skip("Transformer Constraints (migrated to visual tests)", () => {
 
 describe("Text Layout and Measurement", () => {
   // Mock text measurement functions
-  const mockMeasureText = vi.fn((text: string, font: string) => ({
+  const mockMeasureText = vi.fn((text: string, _font: string) => ({
     width: text.length * 10,
     height: 16,
     actualBoundingBoxAscent: 12,
@@ -255,7 +255,7 @@ describe("Geometry Helpers", () => {
   });
 
   it("should perform hit tests accurately", () => {
-    const pointInRect = (px: number, py: number, rect: any) =>
+    const pointInRect = (px: number, py: number, rect: { x: number; y: number; width: number; height: number }) =>
       px >= rect.x &&
       px <= rect.x + rect.width &&
       py >= rect.y &&
@@ -269,7 +269,7 @@ describe("Geometry Helpers", () => {
 
   it("should compute connector routing for edge cases", () => {
     // Simple connector routing: direct line between centers
-    const routeConnector = (from: any, to: any) => ({
+    const routeConnector = (from: { x: number; y: number; width: number; height: number }, to: { x: number; y: number; width: number; height: number }) => ({
       x1: from.x + from.width / 2,
       y1: from.y + from.height / 2,
       x2: to.x + to.width / 2,

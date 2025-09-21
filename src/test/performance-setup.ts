@@ -6,10 +6,10 @@ import { beforeAll, afterAll } from 'vitest';
 beforeAll(() => {
   // Mock Performance Observer
   global.PerformanceObserver = class MockPerformanceObserver {
-    constructor(_callback: (list: any) => void) {}
+    constructor(_callback: (list: PerformanceObserverEntryList) => void) {}
     observe() {}
     disconnect() {}
-  } as any;
+  } as unknown as PerformanceObserver;
 
   // Mock performance.memory
   Object.defineProperty(global.performance, 'memory', {

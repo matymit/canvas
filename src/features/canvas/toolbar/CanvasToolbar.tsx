@@ -27,10 +27,6 @@ type ToolbarProps = {
   onSelectTool?: (toolId: string) => void;
   onUndo?: () => void;
   onRedo?: () => void;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  onZoomReset?: () => void;
-  onFitToContent?: () => void;
   onTogglePerf?: () => void;
   stroke?: string;
   fill?: string;
@@ -38,7 +34,6 @@ type ToolbarProps = {
   onChangeFill?: (color: string) => void;
   variant?: "modern" | "figma";
 };
-
 
 const getIcon = (toolId: string) => {
   const iconProps = { size: 22, strokeWidth: 2.4 } as const;
@@ -85,17 +80,15 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
   onSelectTool,
   onUndo,
   onRedo,
-  onZoomIn,
-  onZoomOut,
 }) => {
   const store = useUnifiedCanvasStore();
   const currentTool = selectedTool ?? "select";
 
-  const handleToolSelect =
+  const handleToolSelect = useMemo(() =>
     onSelectTool ||
-    ((toolId: string) => {
-      console.log("Tool selected:", toolId);
-    });
+    ((_toolId: string) => {
+      // Tool selection handled
+    }), [onSelectTool]);
 
   const handleUndo = onUndo || (() => store.undo?.());
   const handleRedo = onRedo || (() => store.redo?.());
@@ -141,7 +134,6 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
       }
     } catch (error) {
       // Ignore cleanup errors
-      console.debug('[CanvasToolbar] Cleanup error:', error);
     }
 
     // Force a render by nudging selection version if present
@@ -158,14 +150,13 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
   const shapeAnchorRect = useMemo(
     () => shapesBtnRef.current?.getBoundingClientRect() ?? null,
-    [shapesOpen],
+    [],
   );
 
   const stickyNoteAnchorRect = useMemo(
     () => stickyNoteBtnRef.current?.getBoundingClientRect() ?? null,
-    [stickyNoteColorsOpen],
+    [],
   );
-
 
   const selectAndCloseShapes = useCallback(
     (toolId: string) => {
@@ -180,9 +171,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     setStickyNoteColorsOpen(true);
   }, [handleToolSelect]);
 
-
   const handleSelectStickyColor = useCallback((color: string) => {
-    console.log("🎨 Color selected:", color);
 
     // For now, skip updating existing elements since they're not in the store
     // applyStickyColorToSelection(color);
@@ -191,7 +180,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     const state = useUnifiedCanvasStore.getState();
     if (state.setStickyNoteColor) {
       state.setStickyNoteColor(color);
-      console.log("🎨 Updated default sticky note color to:", color);
+      // Updated default sticky note color
     }
 
     // Close portal, keep tool active for quick placement
@@ -204,7 +193,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     <button
       key={id}
       type="button"
-      className={`tool-button ${currentTool === id ? 'active' : ''}`}
+      className={`tool-button ${currentTool === id ? "active" : ""}`}
       aria-pressed={currentTool === id}
       aria-label={title}
       title={title}
@@ -227,7 +216,6 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     cursor: "pointer",
   };
 
-
   return (
     <>
       {/* Core tools */}
@@ -242,7 +230,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         <button
           type="button"
           ref={stickyNoteBtnRef}
-          className={`tool-button ${currentTool === "sticky-note" ? 'active' : ''}`}
+          className={`tool-button ${currentTool === "sticky-note" ? "active" : ""}`}
           aria-expanded={stickyNoteColorsOpen}
           aria-haspopup="menu"
           aria-label="Sticky Note Colors"
@@ -284,16 +272,14 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         </button>
 
         {/* Connector dropdown */}
-        <div
-          style={{ position: "relative" as const, display: "inline-flex" }}
-        >
+        <div style={{ position: "relative" as const, display: "inline-flex" }}>
           <button
             type="button"
             className={`tool-button ${
               currentTool === "connector-line" ||
               currentTool === "connector-arrow"
-                ? 'active'
-                : ''
+                ? "active"
+                : ""
             }`}
             aria-haspopup="menu"
             aria-label="Connector"
@@ -350,28 +336,6 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         {toolBtn("marker", "Marker")}
         {toolBtn("highlighter", "Highlighter")}
         {toolBtn("eraser", "Eraser")}
-      </div>
-
-      {/* Zoom controls for tests */}
-      <div className="toolbar-group">
-        <button
-          type="button"
-          className="tool-button"
-          title="Zoom In"
-          data-testid="zoom-in"
-          onClick={onZoomIn}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className="tool-button"
-          title="Zoom Out"
-          data-testid="zoom-out"
-          onClick={onZoomOut}
-        >
-          -
-        </button>
       </div>
 
       {/* Undo/Redo/Clear */}

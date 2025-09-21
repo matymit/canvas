@@ -1,6 +1,7 @@
 // CORRECTED table transform logic that properly handles Konva.Transformer
 // Implements the scale→reset→resize pattern correctly for complex elements
 
+import Konva from "konva";
 import type { TableElement } from "../../types/table";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 
@@ -115,25 +116,20 @@ export function applyTableScaleResize(
  */
 export function handleTableTransformEnd(
   element: TableElement,
-  node: any, // Konva.Group
+  node: Konva.Node,
   options: {
     shiftKey?: boolean;
     altKey?: boolean;
     ctrlKey?: boolean;
   } = {},
-): { element: TableElement; resetAttrs: any } {
+): { element: TableElement; resetAttrs: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number } } {
   const keepAspectRatio = options.shiftKey || false;
 
   // Get the current scale from the transformed node
   const currentScaleX = node.scaleX();
   const currentScaleY = node.scaleY();
 
-  console.log("[TableTransform] Transform end:", {
-    elementId: element.id,
-    originalSize: { width: element.width, height: element.height },
-    scale: { x: currentScaleX, y: currentScaleY },
-    keepAspectRatio,
-  });
+  // Debug: Transform end for element
 
   // Apply the scale to get new table structure
   const resizedElement = applyTableScaleResize(
@@ -155,7 +151,7 @@ export function handleTableTransformEnd(
     y: node.y(),
   };
 
-  console.log("[TableTransform] Applying reset attrs:", resetAttrs);
+  // Debug: Applying reset attrs
 
   return {
     element: {
@@ -175,7 +171,7 @@ export function handleTableTransformEnd(
  */
 export function handleTableTransformLive(
   _element: TableElement,
-  node: any, // Konva.Group
+  node: Konva.Node,
   options: {
     shiftKey?: boolean;
   } = {},
@@ -485,9 +481,7 @@ export function handleTableTransform(
     ctrlKey?: boolean;
   } = {},
 ): TableElement {
-  console.warn(
-    "[TableTransform] handleTableTransform is deprecated, use handleTableTransformEnd instead",
-  );
+  // Warning: handleTableTransform is deprecated, use handleTableTransformEnd instead
 
   // Calculate scale from bounds
   const scaleX = newBounds.width / element.width;

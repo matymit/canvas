@@ -9,6 +9,32 @@ import type {
   BranchStyle,
 } from "../../types/mindmap";
 import type { CanvasElement } from "../../../../../types";
+
+// Extended interface for mindmap elements with additional properties
+interface MindmapCanvasElement extends Omit<CanvasElement, 'style'> {
+  level?: number;
+  color?: string;
+  style?: MindmapNodeStyle | BranchStyle;
+  data?: {
+    level?: number;
+    color?: string;
+    style?: MindmapNodeStyle | BranchStyle;
+    text?: string;
+    parentId?: string | null;
+    textWidth?: number;
+    textHeight?: number;
+    width?: number;
+    height?: number;
+    fromId?: string;
+    toId?: string;
+  };
+  text?: string;
+  parentId?: string | null;
+  textWidth?: number;
+  textHeight?: number;
+  fromId?: string;
+  toId?: string;
+}
 import {
   DEFAULT_BRANCH_STYLE,
   DEFAULT_NODE_STYLE,
@@ -36,16 +62,20 @@ function mergeBranchStyle(style?: BranchStyle): BranchStyle {
 function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
   if (element.type !== "mindmap-node") return null;
 
+  const mindmapElement = element as MindmapCanvasElement;
   const level =
-    (element as any).level ??
-    (element as any).data?.level ??
-    ((element as any).parentId ?? (element as any).data?.parentId ? 1 : 0);
+    mindmapElement.level ??
+    mindmapElement.data?.level ??
+    ((mindmapElement.parentId ?? mindmapElement.data?.parentId) ? 1 : 0);
   const color =
-    (element as any).color ??
-    (element as any).data?.color ??
+    mindmapElement.color ??
+    mindmapElement.data?.color ??
     MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
 
-  const style = mergeNodeStyle((element as any).style ?? (element as any).data?.style);
+  const nodeStyle = mindmapElement.style ?? mindmapElement.data?.style;
+  const style = mergeNodeStyle(
+    (nodeStyle && 'fill' in nodeStyle) ? nodeStyle as MindmapNodeStyle : undefined,
+  );
   const hydratedStyle: MindmapNodeStyle = {
     ...style,
     fill: style.fill ?? color,
@@ -53,8 +83,10 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
     fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
     fontSize: style.fontSize ?? (level === 0 ? 16 : 14),
     cornerRadius: style.cornerRadius ?? MINDMAP_THEME.nodeRadius,
-    stroke: style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
-    strokeWidth: style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+    stroke:
+      style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+    strokeWidth:
+      style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
     shadowColor: style.shadowColor ?? DEFAULT_NODE_STYLE.shadowColor,
     shadowBlur: style.shadowBlur ?? DEFAULT_NODE_STYLE.shadowBlur,
     shadowOffsetX: style.shadowOffsetX ?? DEFAULT_NODE_STYLE.shadowOffsetX,
@@ -62,10 +94,12 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
   };
 
   // CRITICAL: Check if we already have stored textWidth/textHeight from editor
-  const existingTextWidth = (element as any).textWidth ?? (element as any).data?.textWidth;
-  const existingTextHeight = (element as any).textHeight ?? (element as any).data?.textHeight;
-  const existingWidth = element.width ?? (element as any).data?.width;
-  const existingHeight = element.height ?? (element as any).data?.height;
+  const existingTextWidth =
+    mindmapElement.textWidth ?? mindmapElement.data?.textWidth;
+  const existingTextHeight =
+    mindmapElement.textHeight ?? mindmapElement.data?.textHeight;
+  const existingWidth = element.width ?? mindmapElement.data?.width;
+  const existingHeight = element.height ?? mindmapElement.data?.height;
 
   let textWidth: number;
   let textHeight: number;
@@ -76,29 +110,35 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
     // Use the stored wrapped dimensions from the editor
     textWidth = existingTextWidth;
     textHeight = existingTextHeight;
-    width = existingWidth ?? Math.max(
-      textWidth + hydratedStyle.paddingX * 2,
-      MINDMAP_CONFIG.minNodeWidth
-    );
-    height = existingHeight ?? Math.max(
-      textHeight + hydratedStyle.paddingY * 2,
-      MINDMAP_CONFIG.minNodeHeight
-    );
+    width =
+      existingWidth ??
+      Math.max(
+        textWidth + hydratedStyle.paddingX * 2,
+        MINDMAP_CONFIG.minNodeWidth,
+      );
+    height =
+      existingHeight ??
+      Math.max(
+        textHeight + hydratedStyle.paddingY * 2,
+        MINDMAP_CONFIG.minNodeHeight,
+      );
   } else {
     // Fallback: measure text (but this won't handle wrapping properly)
     const metrics = measureMindmapLabel(
-      (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
-      hydratedStyle
+      mindmapElement.text ??
+        mindmapElement.data?.text ??
+        MINDMAP_CONFIG.defaultText,
+      hydratedStyle,
     );
     textWidth = metrics.width;
     textHeight = metrics.height;
     width = Math.max(
       textWidth + hydratedStyle.paddingX * 2,
-      MINDMAP_CONFIG.minNodeWidth
+      MINDMAP_CONFIG.minNodeWidth,
     );
     height = Math.max(
       textHeight + hydratedStyle.paddingY * 2,
-      MINDMAP_CONFIG.minNodeHeight
+      MINDMAP_CONFIG.minNodeHeight,
     );
   }
 
@@ -109,9 +149,13 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
     y: element.y ?? 0,
     width,
     height,
-    text: (element as any).text ?? (element as any).data?.text ?? MINDMAP_CONFIG.defaultText,
+    text:
+      mindmapElement.text ??
+      mindmapElement.data?.text ??
+      MINDMAP_CONFIG.defaultText,
     style: hydratedStyle,
-    parentId: (element as any).parentId ?? (element as any).data?.parentId ?? null,
+    parentId:
+      mindmapElement.parentId ?? mindmapElement.data?.parentId ?? null,
     textWidth,
     textHeight,
     level,
@@ -122,7 +166,11 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
 function toMindmapEdge(element: CanvasElement): MindmapEdgeElement | null {
   if (element.type !== "mindmap-edge") return null;
 
-  const rawStyle = mergeBranchStyle((element as any).style ?? (element as any).data?.style);
+  const mindmapElement = element as MindmapCanvasElement;
+  const branchStyle = mindmapElement.style ?? mindmapElement.data?.style;
+  const rawStyle = mergeBranchStyle(
+    (branchStyle && 'color' in branchStyle) ? branchStyle as BranchStyle : undefined,
+  );
   const hydratedStyle: BranchStyle = {
     ...rawStyle,
     color: rawStyle.color ?? MINDMAP_THEME.branchColors[0],
@@ -130,8 +178,10 @@ function toMindmapEdge(element: CanvasElement): MindmapEdgeElement | null {
   return {
     id: element.id,
     type: "mindmap-edge",
-    fromId: (element as any).fromId ?? (element as any).data?.fromId ?? "",
-    toId: (element as any).toId ?? (element as any).data?.toId ?? "",
+    x: 0,
+    y: 0,
+    fromId: mindmapElement.fromId ?? mindmapElement.data?.fromId ?? "",
+    toId: mindmapElement.toId ?? mindmapElement.data?.toId ?? "",
     style: hydratedStyle,
   };
 }
@@ -206,7 +256,7 @@ export class MindmapRendererAdapter implements RendererModule {
       this.unsubscribe();
     }
     // Cleanup mindmap elements manually
-    const layer = (this.renderer as any)?.layers?.main;
+    const layer = (this.renderer as unknown as { layers: { main: Konva.Layer } }).layers.main;
     if (layer) {
       layer
         .find(".mindmap-node, .mindmap-edge")
@@ -227,7 +277,7 @@ export class MindmapRendererAdapter implements RendererModule {
     // Helper function to get node center for edge rendering
     const getNodePoint = (
       nodeId: string,
-      side: 'left' | 'right'
+      side: "left" | "right",
     ): { x: number; y: number } | null => {
       const node = elements.nodes.get(nodeId);
       if (!node) return null;
@@ -251,7 +301,7 @@ export class MindmapRendererAdapter implements RendererModule {
     }
 
     // Remove deleted elements manually
-    const layer = (this.renderer as any)?.layers?.main;
+    const layer = (this.renderer as unknown as { layers: { main: Konva.Layer } }).layers.main;
     if (layer) {
       layer.find(".mindmap-node").forEach((node: Konva.Node) => {
         const nodeId = node.id();
@@ -274,21 +324,24 @@ export class MindmapRendererAdapter implements RendererModule {
    * Repositions sibling nodes when any node's height changes to prevent overlap
    */
   private repositionSiblingsIfNeeded(elements: MindmapElements) {
-    const store = (this.renderer as any)?.store;
+    const store = (this.renderer as unknown as { store: { getState: () => unknown } }).store;
     if (!store) return;
 
     // Group nodes by parent
-    const nodesByParent = new Map<string | null | undefined, MindmapNodeElement[]>();
-    for (const [_id, node] of elements.nodes) {
+    const nodesByParent = new Map<
+      string | null | undefined,
+      MindmapNodeElement[]
+    >();
+    for (const [, node] of elements.nodes) {
       const parentId = node.parentId;
       if (!nodesByParent.has(parentId)) {
         nodesByParent.set(parentId, []);
       }
-      nodesByParent.get(parentId)!.push(node);
+      nodesByParent.get(parentId)?.push(node);
     }
 
     // Process each parent's children
-    for (const [_parentId, siblings] of nodesByParent) {
+    for (const [, siblings] of nodesByParent) {
       if (siblings.length <= 1) continue; // No siblings to reposition
 
       // Check if any sibling has changed height
@@ -335,7 +388,7 @@ export class MindmapRendererAdapter implements RendererModule {
 
       // Apply updates if needed
       if (needsUpdate) {
-        const state = store.getState() as any;
+        const state = store.getState() as { updateElement?: (id: string, data: { y: number }, options?: { pushHistory: boolean }) => void; element?: { update?: (id: string, data: { y: number }, options?: { pushHistory: boolean }) => void } };
         const update = state.updateElement ?? state.element?.update;
 
         if (typeof update === "function") {

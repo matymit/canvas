@@ -28,9 +28,29 @@ export class TableIntegrationExample {
   private tableRenderer: TableRenderer;
   private transformerController?: TableTransformerController;
   private contextMenuHelper?: TableContextMenuHelper;
-  private storeContext: any;
+  private storeContext: {
+    store: {
+      getState: () => {
+        element: {
+          getById: (id: string) => TableElement | undefined;
+          update: (id: string, element: TableElement, options?: { pushHistory?: boolean }) => void;
+          delete: (id: string, options?: { pushHistory?: boolean }) => void;
+        };
+      };
+    };
+  };
 
-  constructor(stage: Konva.Stage, layers: RendererLayers, storeContext: any) {
+  constructor(stage: Konva.Stage, layers: RendererLayers, storeContext: {
+    store: {
+      getState: () => {
+        element: {
+          getById: (id: string) => TableElement | undefined;
+          update: (id: string, element: TableElement, options?: { pushHistory?: boolean }) => void;
+          delete: (id: string, options?: { pushHistory?: boolean }) => void;
+        };
+      };
+    };
+  }) {
     this.stage = stage;
     this.layers = layers;
     this.storeContext = storeContext;
@@ -42,15 +62,24 @@ export class TableIntegrationExample {
         cacheAfterCommit: true, // Enable caching for performance
         usePooling: true, // Enable node pooling for large tables
       },
-      storeContext, // Pass store context for proper position preservation
+      {
+        stage: this.stage,
+        layers: {
+          background: layers.background,
+          main: layers.main,
+          highlighter: layers.main, // Use main layer as highlighter fallback
+          preview: layers.preview,
+          overlay: layers.overlay
+        },
+        store: storeContext.store as any // Cast to match ModuleRendererCtx type
+      },
     );
   }
 
   /**
    * Render a table element with all fixes applied
    */
-  renderTable(element: TableElement) {
-    console.log("[TableIntegration] Rendering table with fixes:", element.id);
+  renderTable(element: TableElement): void {
 
     // Render the table using the fixed renderer
     this.tableRenderer.render(element);
@@ -58,10 +87,7 @@ export class TableIntegrationExample {
     // Get the table group for transformer and context menu setup
     const tableGroup = this.tableRenderer.getTableGroup(element.id);
     if (!tableGroup) {
-      console.error(
-        "[TableIntegration] Failed to get table group for:",
-        element.id,
-      );
+      // Failed to get table group - silently return (TODO: implement proper error handling)
       return;
     }
 
@@ -91,8 +117,13 @@ export class TableIntegrationExample {
       element: element,
 
       // Handle table updates (both live and final transforms)
-      onTableUpdate: (tableElement: any, _resetAttrs?: any) => {
-        this.handleTableTransform(tableElement, tableElement, true);
+      onTableUpdate: (tableElement: TableElement, _resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => {
+        this.handleTableTransform(tableElement, {
+          x: tableElement.x,
+          y: tableElement.y,
+          width: tableElement.width,
+          height: tableElement.height
+        }, true);
       },
     });
 
@@ -135,11 +166,6 @@ export class TableIntegrationExample {
     newBounds: { x: number; y: number; width: number; height: number },
     isCommit: boolean,
   ) {
-    console.log("[TableIntegration] Handling table transform:", {
-      elementId: element.id,
-      newBounds,
-      isCommit,
-    });
 
     // Get keyboard state for aspect ratio locking
     const event = window.event as KeyboardEvent | undefined;
@@ -175,7 +201,6 @@ export class TableIntegrationExample {
    * Handle adding a row to the table
    */
   private handleAddRow(elementId: string, insertIndex?: number) {
-    console.log("[TableIntegration] Adding row:", { elementId, insertIndex });
 
     if (!this.storeContext?.store) return;
 
@@ -194,10 +219,6 @@ export class TableIntegrationExample {
    * Handle adding a column to the table
    */
   private handleAddColumn(elementId: string, insertIndex?: number) {
-    console.log("[TableIntegration] Adding column:", {
-      elementId,
-      insertIndex,
-    });
 
     if (!this.storeContext?.store) return;
 
@@ -216,7 +237,6 @@ export class TableIntegrationExample {
    * Handle deleting a row from the table
    */
   private handleDeleteRow(elementId: string, rowIndex: number) {
-    console.log("[TableIntegration] Deleting row:", { elementId, rowIndex });
 
     if (!this.storeContext?.store) return;
 
@@ -235,10 +255,6 @@ export class TableIntegrationExample {
    * Handle deleting a column from the table
    */
   private handleDeleteColumn(elementId: string, columnIndex: number) {
-    console.log("[TableIntegration] Deleting column:", {
-      elementId,
-      columnIndex,
-    });
 
     if (!this.storeContext?.store) return;
 
@@ -256,8 +272,7 @@ export class TableIntegrationExample {
   /**
    * Handle table properties dialog
    */
-  private handleTableProperties(elementId: string) {
-    console.log("[TableIntegration] Opening table properties:", { elementId });
+  private handleTableProperties(_elementId: string) {
     // TODO: Open table properties dialog
   }
 
@@ -265,7 +280,6 @@ export class TableIntegrationExample {
    * Handle deleting the entire table
    */
   private handleDeleteTable(elementId: string) {
-    console.log("[TableIntegration] Deleting table:", { elementId });
 
     if (!this.storeContext?.store) return;
 
@@ -320,7 +334,17 @@ export class TableIntegrationExample {
 export function createTableIntegration(
   stage: Konva.Stage,
   layers: RendererLayers,
-  storeContext: any,
+  storeContext: {
+    store: {
+      getState: () => {
+        element: {
+          getById: (id: string) => TableElement | undefined;
+          update: (id: string, element: TableElement, options?: { pushHistory?: boolean }) => void;
+          delete: (id: string, options?: { pushHistory?: boolean }) => void;
+        };
+      };
+    };
+  },
 ): TableIntegrationExample {
   return new TableIntegrationExample(stage, layers, storeContext);
 }

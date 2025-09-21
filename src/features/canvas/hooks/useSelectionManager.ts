@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import Konva from 'konva';
 // Store imports are kept defensive, adapt to your store facade
-import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import { useUnifiedCanvasStore, type UnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 import { commitTransformForNode, beginTransformBatch, endTransformBatch } from '../managers/interaction/TransformCommit';
 
 type ElementId = string;
@@ -48,17 +48,17 @@ export default function useSelectionManager(
   const { stageRef, transformerRef, overlayLayerRef } = params;
 
   // Store slices (defensive optional chaining)
-  const selectedIds =
-    useUnifiedCanvasStore((s: any) => (s.selectedElementIds as Set<ElementId>) ?? new Set()) ?? new Set();
-  const selectionSlice = useUnifiedCanvasStore((s: any) => s.selection ?? null);
-  // const elementSlice = useUnifiedCanvasStore((s: any) => s.elements ?? new Map<ElementId, any>());
+  const selectedIdsRaw = useUnifiedCanvasStore((s: UnifiedCanvasStore) => s.selectedElementIds ?? new Set());
+  const selectedIds = useMemo(() => selectedIdsRaw ?? new Set(), [selectedIdsRaw]);
+  const selectionSlice = useUnifiedCanvasStore((s: UnifiedCanvasStore) => s.selection ?? null);
+  // const elementSlice = useUnifiedCanvasStore((s: UnifiedCanvasStore) => s.elements ?? new Map<ElementId, Record<string, unknown>>());
 
   // inject store access for transform commits
   const getStore = useCallback(() => {
-    const state = (useUnifiedCanvasStore as any).getState();
+    const state = useUnifiedCanvasStore.getState();
     return {
       getElement: (id: ElementId) => state.elements?.get?.(id) || state.element?.getById?.(id),
-      updateElement: (id: ElementId, patch: any, opts?: any) => {
+      updateElement: (id: ElementId, patch: Record<string, unknown>, opts?: Record<string, unknown>) => {
         if (state.element?.update) {
           state.element.update(id, patch);
         } else if (state.updateElement) {
@@ -81,33 +81,27 @@ export default function useSelectionManager(
 
   const selectOnly = useCallback(
     (id: ElementId) => {
-      selectionSlice?.clear?.();
-      selectionSlice?.add?.(id);
-      selectionSlice?.commit?.();
+      selectionSlice?.selectOne?.(id, false);
     },
     [selectionSlice]
   );
 
   const addToSelection = useCallback(
     (id: ElementId) => {
-      selectionSlice?.add?.(id);
-      selectionSlice?.commit?.();
+      selectionSlice?.selectOne?.(id, true);
     },
     [selectionSlice]
   );
 
   const toggleSelection = useCallback(
     (id: ElementId) => {
-      if (isSelected(id)) selectionSlice?.remove?.(id);
-      else selectionSlice?.add?.(id);
-      selectionSlice?.commit?.();
+      selectionSlice?.toggle?.(id);
     },
-    [isSelected, selectionSlice]
+    [selectionSlice]
   );
 
   const clearSelection = useCallback(() => {
     selectionSlice?.clear?.();
-    selectionSlice?.commit?.();
   }, [selectionSlice]);
 
   // Create transformer if it doesn't exist and wire lifecycle
@@ -124,7 +118,7 @@ export default function useSelectionManager(
       });
       overlay.add(tr);
       if (transformerRef) {
-        (transformerRef as any).current = tr;
+        (transformerRef.current as Konva.Transformer | null) = tr;
       }
     }
 
@@ -134,14 +128,14 @@ export default function useSelectionManager(
 
     const onStart = () => {
       beginTransformBatch({ getStore });
-      const state = (useUnifiedCanvasStore as any).getState();
+      const state = useUnifiedCanvasStore.getState();
       state.selection?.beginTransform?.();
     };
     
     const onEnd = () => {
       const nodes = tr.nodes();
       nodes.forEach((n) => commitTransformForNode(n, { getStore }));
-      const state = (useUnifiedCanvasStore as any).getState();
+      const state = useUnifiedCanvasStore.getState();
       state.selection?.endTransform?.();
       endTransformBatch({ getStore });
       overlay.getStage()?.batchDraw();
@@ -289,12 +283,15 @@ export default function useSelectionManager(
         return intersects;
       });
 
+      const ids: string[] = [];
       nodes.forEach((n) => {
         const id = n.id();
-        if (id) selectionSlice?.add?.(id);
+        if (id) ids.push(id);
       });
 
-      selectionSlice?.commit?.();
+      if (ids.length > 0) {
+        selectionSlice?.set?.(ids);
+      }
 
       // Re-attach transformer to current selection
       attachTransformerToSelection();

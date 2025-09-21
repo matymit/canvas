@@ -74,14 +74,14 @@ export default function PerformanceDashboard({
   const memHeapMB = metrics.memory?.heapMB as MaybeNumber;
   const memPressure = (metrics.memory?.pressure as string | undefined) ?? "normal";
 
-  const layers = metrics.layers ?? {};
   const layerSummary = useMemo(() => {
+    const layers = metrics.layers ?? {};
     const bg = layers.background?.count ?? layers.background ?? undefined;
     const main = layers.main?.count ?? layers.main ?? undefined;
     const prev = layers.preview?.count ?? layers.preview ?? undefined;
     const over = layers.overlay?.count ?? layers.overlay ?? undefined;
     return { bg, main, prev, over };
-  }, [layers]);
+  }, [metrics.layers]);
 
   const warnings: string[] = useMemo(() => {
     const out: string[] = [];

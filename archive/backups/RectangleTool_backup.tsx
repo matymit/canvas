@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import Konva from 'konva';
-import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
-import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
+import React, { useEffect, useRef } from "react";
+import Konva from "konva";
+import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import { openShapeTextEditor } from "../../../utils/editors/openShapeTextEditor";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -11,7 +11,11 @@ export interface RectangleToolProps {
   toolId?: string; // default: 'draw-rectangle'
 }
 
-function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback: number): Konva.Layer | null {
+function getNamedOrIndexedLayer(
+  stage: Konva.Stage,
+  name: string,
+  indexFallback: number,
+): Konva.Layer | null {
   // Try by name or id; fallback to index if not named
   const named = stage.findOne<Konva.Layer>(`Layer[name='${name}'], #${name}`);
   if (named && named instanceof Konva.Layer) return named;
@@ -19,13 +23,19 @@ function getNamedOrIndexedLayer(stage: Konva.Stage, name: string, indexFallback:
   return layers[indexFallback] ?? null;
 }
 
-export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef, toolId = 'draw-rectangle' }) => {
+export const RectangleTool: React.FC<RectangleToolProps> = ({
+  isActive,
+  stageRef,
+  toolId = "draw-rectangle",
+}) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element.upsert);
-  const replaceSelectionWithSingle = useUnifiedCanvasStore((s: any) => s.replaceSelectionWithSingle);
-  const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? '#333');
-  const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
+  const replaceSelectionWithSingle = useUnifiedCanvasStore(
+    (s: any) => s.replaceSelectionWithSingle,
+  );
+  const strokeColor = useUnifiedCanvasStore((s) => s.ui?.strokeColor ?? "#333");
+  const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? "#ffffff");
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
   const drawingRef = useRef<{
@@ -39,7 +49,9 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
     if (!stage || !active) return;
 
     const previewLayer =
-      getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
+      getNamedOrIndexedLayer(stage, "preview", 2) ||
+      stage.getLayers()[stage.getLayers().length - 2] ||
+      stage.getLayers()[0];
 
     const onPointerDown = () => {
       const pos = stage.getPointerPosition();
@@ -57,15 +69,15 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
         fill: fillColor,
         listening: false,
         perfectDrawEnabled: false,
-        name: 'tool-preview-rect',
+        name: "tool-preview-rect",
       });
 
       drawingRef.current.rect = rect;
       previewLayer.add(rect);
       previewLayer.batchDraw();
 
-      stage.on('pointermove.recttool', onPointerMove);
-      stage.on('pointerup.recttool', onPointerUp);
+      stage.on("pointermove.recttool", onPointerMove);
+      stage.on("pointerup.recttool", onPointerUp);
     };
 
     const onPointerMove = () => {
@@ -86,8 +98,8 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
     };
 
     const onPointerUp = () => {
-      stage.off('pointermove.recttool');
-      stage.off('pointerup.recttool');
+      stage.off("pointermove.recttool");
+      stage.off("pointerup.recttool");
 
       const rect = drawingRef.current.rect;
       const start = drawingRef.current.start;
@@ -119,7 +131,7 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
       const id = `rect-${Date.now()}`;
       const elementId = upsertElement?.({
         id,
-        type: 'rectangle',
+        type: "rectangle",
         x,
         y,
         width: w,
@@ -134,22 +146,30 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
       } as any);
 
       // Select the new rect to ensure transformer sentinel appears
-      try { replaceSelectionWithSingle?.(id as any); } catch {}
+      try {
+        replaceSelectionWithSingle?.(id as any);
+      } catch {
+        /* ignore error */
+      }
 
       // Auto-switch back to select and open text editor
-      setSelectedTool?.('select');
+      setSelectedTool?.("select");
       if (elementId && stage) {
-        openShapeTextEditor(stage, id, { padding: 8, fontSize: 18, lineHeight: 1.3 });
+        openShapeTextEditor(stage, id, {
+          padding: 8,
+          fontSize: 18,
+          lineHeight: 1.3,
+        });
       }
     };
 
     // Attach handlers on stage
-    stage.on('pointerdown.recttool', onPointerDown);
+    stage.on("pointerdown.recttool", onPointerDown);
 
     return () => {
-      stage.off('pointerdown.recttool');
-      stage.off('pointermove.recttool');
-      stage.off('pointerup.recttool');
+      stage.off("pointerdown.recttool");
+      stage.off("pointermove.recttool");
+      stage.off("pointerup.recttool");
 
       // Cleanup preview if any
       if (drawingRef.current.rect) {
@@ -159,7 +179,18 @@ export const RectangleTool: React.FC<RectangleToolProps> = ({ isActive, stageRef
       drawingRef.current.start = null;
       previewLayer?.batchDraw();
     };
-  }, [isActive, selectedTool, toolId, stageRef, strokeColor, fillColor, strokeWidth, upsertElement, setSelectedTool, replaceSelectionWithSingle]);
+  }, [
+    isActive,
+    selectedTool,
+    toolId,
+    stageRef,
+    strokeColor,
+    fillColor,
+    strokeWidth,
+    upsertElement,
+    setSelectedTool,
+    replaceSelectionWithSingle,
+  ]);
 
   return null;
 };

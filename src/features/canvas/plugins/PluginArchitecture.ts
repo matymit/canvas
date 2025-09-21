@@ -21,7 +21,7 @@ export interface ToolEventHandler {
   onKeyUp?: (e: KeyboardEvent) => boolean;
 
   // Lifecycle
-  canHandle?: (e: Konva.KonvaEventObject<any> | Event) => boolean;
+  canHandle?: (e: Konva.KonvaEventObject<Event> | Event) => boolean;
   priority?: number; // higher means earlier handling
 }
 
@@ -59,9 +59,9 @@ export interface CanvasPluginContext {
   stage: Konva.Stage;
   layers: CanvasLayers;
   dpr: number;
-  // Optionally wire to a store facade; use any to avoid tight coupling
-  getState?: () => any;
-  dispatch?: (action: any) => void;
+  // Optionally wire to a store facade; use unknown to avoid tight coupling
+  getState?: () => unknown;
+  dispatch?: (action: Record<string, unknown>) => void;
   // Simple publish/subscribe for inter-plugin communication
   bus: PluginBus;
 }

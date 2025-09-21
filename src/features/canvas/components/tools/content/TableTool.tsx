@@ -51,6 +51,9 @@ export const TableTool: React.FC<TableToolProps> = ({
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
+    // Capture ref value to avoid stale closure issues in cleanup
+    const drawingRefCapture = drawingRef.current;
+
     const previewLayer =
       getNamedOrIndexedLayer(stage, "preview", 2) ||
       stage.getLayers()[stage.getLayers().length - 2] ||
@@ -189,12 +192,12 @@ export const TableTool: React.FC<TableToolProps> = ({
       stage.off("pointerup.tabletool", onPointerUp);
       stage.off("dblclick.tabletool", onDoubleClick);
 
-      const g = drawingRef.current.preview;
+      const g = drawingRefCapture.preview;
       if (g) {
         g.destroy();
-        drawingRef.current.preview = null;
+        drawingRefCapture.preview = null;
       }
-      drawingRef.current.start = null;
+      drawingRefCapture.start = null;
       previewLayer.batchDraw();
     };
   }, [
@@ -224,7 +227,7 @@ function updateGridPreview(group: Konva.Group, width: number, height: number) {
   const rowHeight = height / rows;
 
   const gridShape = new Konva.Shape({
-    sceneFunc: (ctx: any, shape: Konva.Shape) => {
+    sceneFunc: (ctx: Konva.Context, shape: Konva.Shape) => {
       ctx.save();
       ctx.strokeStyle = DEFAULT_TABLE_STYLE.borderColor;
       ctx.lineWidth = 1;
@@ -268,8 +271,10 @@ function openFirstCellEditor(
     stage,
     elementId: tableId,
     element: tableElement,
-    getElement: () =>
-      useUnifiedCanvasStore.getState().element.getById?.(tableId) as TableElement | undefined,
+    getElement: () => {
+      const element = useUnifiedCanvasStore.getState().element.getById?.(tableId);
+      return element as TableElement;
+    },
     row: 0,
     col: 0,
   });

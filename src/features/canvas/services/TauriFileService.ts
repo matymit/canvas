@@ -38,7 +38,7 @@ async function initTauriAPIs() {
     }
     return true;
   } catch (error) {
-    console.warn('Failed to initialize Tauri APIs:', error);
+    // Warning: Failed to initialize Tauri APIs
     return false;
   }
 }
@@ -48,7 +48,7 @@ async function getTauriAPIs() {
   const initialized = await initTauriAPIs();
 
   if (!initialized || !tauriDialog || !tauriFs || !tauriPath) {
-    console.warn('Tauri APIs not available');
+    // Warning: Tauri APIs not available
     return null;
   }
 
@@ -159,33 +159,28 @@ export class TauriFileService {
   ): Promise<string | null> {
     const apis = await getTauriAPIs();
     if (!apis) {
-      console.warn('Save operation requires Tauri environment');
+      // Warning: Save operation requires Tauri environment
       return null;
     }
 
-    try {
-      // Show save dialog using v2 API
-      const filePath = await apis.dialog.save({
-        defaultPath: defaultPath || 'canvas.json',
-        filters: [{
-          name: 'Canvas Document',
-          extensions: ['json']
-        }]
-      });
+    // Show save dialog using v2 API
+    const filePath = await apis.dialog.save({
+      defaultPath: defaultPath || 'canvas.json',
+      filters: [{
+        name: 'Canvas Document',
+        extensions: ['json']
+      }]
+    });
 
-      if (!filePath) return null;
+    if (!filePath) return null;
 
-      // Serialize canvas data
-      const content = await this.serializeCanvas(elements, elementOrder, viewport);
+    // Serialize canvas data
+    const content = await this.serializeCanvas(elements, elementOrder, viewport);
 
-      // Write to file using v2 fs plugin
-      await apis.fs.writeTextFile(filePath, content);
+    // Write to file using v2 fs plugin
+    await apis.fs.writeTextFile(filePath, content);
 
-      return filePath;
-    } catch (error) {
-      console.error('Failed to save canvas:', error);
-      throw error;
-    }
+    return filePath;
   }
 
   /**
@@ -199,40 +194,35 @@ export class TauriFileService {
   } | null> {
     const apis = await getTauriAPIs();
     if (!apis) {
-      console.warn('Load operation requires Tauri environment');
+      // Warning: Load operation requires Tauri environment
       return null;
     }
 
-    try {
-      // Show open dialog using v2 API
-      const selected = await apis.dialog.open({
-        multiple: false,
-        filters: [{
-          name: 'Canvas Document',
-          extensions: ['json']
-        }]
-      });
+    // Show open dialog using v2 API
+    const selected = await apis.dialog.open({
+      multiple: false,
+      filters: [{
+        name: 'Canvas Document',
+        extensions: ['json']
+      }]
+    });
 
-      if (!selected) return null;
+    if (!selected) return null;
 
-      // v2 returns a single path when multiple is false
-      const filePath = Array.isArray(selected) ? selected[0] : selected;
-      if (!filePath) return null;
+    // v2 returns a single path when multiple is false
+    const filePath = Array.isArray(selected) ? selected[0] : selected;
+    if (!filePath) return null;
 
-      // Read file content using v2 fs plugin
-      const content = await apis.fs.readTextFile(filePath);
+    // Read file content using v2 fs plugin
+    const content = await apis.fs.readTextFile(filePath);
 
-      // Deserialize canvas data
-      const canvasData = this.deserializeCanvas(content);
+    // Deserialize canvas data
+    const canvasData = this.deserializeCanvas(content);
 
-      return {
-        ...canvasData,
-        filePath
-      };
-    } catch (error) {
-      console.error('Failed to load canvas:', error);
-      throw error;
-    }
+    return {
+      ...canvasData,
+      filePath
+    };
   }
 
   /**
@@ -244,49 +234,44 @@ export class TauriFileService {
   ): Promise<string | null> {
     const apis = await getTauriAPIs();
     if (!apis) {
-      console.warn('Export operation requires Tauri environment');
+      // Warning: Export operation requires Tauri environment
       return null;
     }
 
-    try {
-      // Get canvas element from stage container
-      const canvas = stageElement.querySelector('canvas');
-      if (!canvas) {
-        throw new Error('Canvas element not found');
-      }
-
-      // Convert to blob
-      const blob = await new Promise<Blob | null>((resolve) => {
-        (canvas as HTMLCanvasElement).toBlob(resolve, 'image/png');
-      });
-
-      if (!blob) {
-        throw new Error('Failed to create image blob');
-      }
-
-      // Show save dialog
-      const filePath = await apis.dialog.save({
-        defaultPath: defaultPath || 'canvas.png',
-        filters: [{
-          name: 'PNG Image',
-          extensions: ['png']
-        }]
-      });
-
-      if (!filePath) return null;
-
-      // Convert blob to buffer
-      const buffer = await blob.arrayBuffer();
-      const uint8Array = new Uint8Array(buffer);
-
-      // Write binary file using v2 fs plugin
-      await apis.fs.writeFile(filePath, uint8Array);
-
-      return filePath;
-    } catch (error) {
-      console.error('Failed to export canvas:', error);
-      throw error;
+    // Get canvas element from stage container
+    const canvas = stageElement.querySelector('canvas');
+    if (!canvas) {
+      throw new Error('Canvas element not found');
     }
+
+    // Convert to blob
+    const blob = await new Promise<Blob | null>((resolve) => {
+      (canvas as HTMLCanvasElement).toBlob(resolve, 'image/png');
+    });
+
+    if (!blob) {
+      throw new Error('Failed to create image blob');
+    }
+
+    // Show save dialog
+    const filePath = await apis.dialog.save({
+      defaultPath: defaultPath || 'canvas.png',
+      filters: [{
+        name: 'PNG Image',
+        extensions: ['png']
+      }]
+    });
+
+    if (!filePath) return null;
+
+    // Convert blob to buffer
+    const buffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(buffer);
+
+    // Write binary file using v2 fs plugin
+    await apis.fs.writeFile(filePath, uint8Array);
+
+    return filePath;
   }
 
   /**
@@ -315,7 +300,7 @@ export class TauriFileService {
 
       return autoSavePath;
     } catch (error) {
-      console.error('Auto-save failed:', error);
+      // Error: Auto-save failed
       return null;
     }
   }
@@ -347,7 +332,7 @@ export class TauriFileService {
       // Deserialize canvas data
       return this.deserializeCanvas(content);
     } catch (error) {
-      console.error('Failed to load auto-save:', error);
+      // Error: Failed to load auto-save
       return null;
     }
   }
@@ -363,7 +348,7 @@ export class TauriFileService {
     if (sanitized.type === 'image' && typeof sanitized.imageUrl === 'string') {
       // Ensure data URLs are preserved
       if (!sanitized.imageUrl.startsWith('data:') && !sanitized.imageUrl.startsWith('http')) {
-        console.warn(`Image URL may not be portable: ${sanitized.imageUrl}`);
+        // Image URL may not be portable
       }
     }
 
@@ -371,7 +356,7 @@ export class TauriFileService {
     if (sanitized.type === 'drawing' && sanitized.path) {
       // Path should already be a string or array of points
       if (typeof sanitized.path !== 'string' && !Array.isArray(sanitized.path)) {
-        console.warn('Drawing path may not serialize correctly');
+        // Drawing path may not serialize correctly
       }
     }
 
