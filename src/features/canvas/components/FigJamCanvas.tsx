@@ -72,41 +72,11 @@ const FigJamCanvas: React.FC = () => {
     (state) => state.setSelectedTool,
   );
 
-  // Stabilize store references for mount effect
-  const storeRef = useRef({
-    selectedTool,
-    elements,
-    selectedElementIds,
-    setSelection,
-    addToSelection,
-    clearSelection,
-    viewport,
-  });
-
-  // Update store ref when values change
-  useEffect(() => {
-    storeRef.current = {
-      selectedTool,
-      elements,
-      selectedElementIds,
-      setSelection,
-      addToSelection,
-      clearSelection,
-      viewport,
-    };
-  }, [
-    selectedTool,
-    elements,
-    selectedElementIds,
-    setSelection,
-    addToSelection,
-    clearSelection,
-    viewport,
-  ]);
-
-  // Initialize stage and renderer system
+  // FIXED: Initialize stage and renderer system ONLY ONCE
   useEffect(() => {
     if (!containerRef.current) return;
+
+    console.log("[FigJamCanvas] Initializing stage and renderer - ONE TIME ONLY");
 
     // Create Konva stage - THIS IS THE ONLY PLACE WHERE KONVA.STAGE SHOULD BE CREATED
     const stage = new Konva.Stage({
@@ -183,6 +153,57 @@ const FigJamCanvas: React.FC = () => {
     const imageDragHandler = new ImageDragHandler(stage);
     imageDragHandlerRef.current = imageDragHandler;
 
+    // Window resize handler
+    const handleResize = () => {
+      stage.width(window.innerWidth);
+      stage.height(window.innerHeight);
+      // Grid updates automatically via GridRenderer
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    // Cleanup
+    return () => {
+      console.log("[FigJamCanvas] Cleaning up stage and renderer");
+      window.removeEventListener("resize", handleResize);
+
+      // Destroy grid renderer
+      if (gridRendererRef.current) {
+        gridRendererRef.current.destroy();
+        gridRendererRef.current = null;
+      }
+
+      // Destroy tool manager
+      if (toolManagerRef.current) {
+        toolManagerRef.current.destroy();
+        toolManagerRef.current = null;
+      }
+
+      // Clean up image drag handler
+      if (imageDragHandlerRef.current) {
+        imageDragHandlerRef.current.cleanup();
+        imageDragHandlerRef.current = null;
+      }
+
+      // Dispose renderer modules
+      if (rendererDisposeRef.current) {
+        rendererDisposeRef.current();
+        rendererDisposeRef.current = null;
+      }
+
+      // Destroy stage
+      stage.destroy();
+      stageRef.current = null;
+    };
+  }, []); // FIXED: Empty dependency array - initialize only once
+
+  // FIXED: Separate effect for stage event handlers that need store access
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    console.log("[FigJamCanvas] Setting up stage event handlers");
+
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       // Skip if not in select mode
@@ -221,8 +242,6 @@ const FigJamCanvas: React.FC = () => {
       }
     };
 
-    stage.on("click", handleStageClick);
-
     // Mouse wheel zoom with viewport store integration
     const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
@@ -242,14 +261,10 @@ const FigJamCanvas: React.FC = () => {
       }
     };
 
-    stage.on("wheel", handleWheel);
-
     // Add stage-level contextmenu handling
     const handleStageContextMenu = (_e: Konva.KonvaEventObject<MouseEvent>) => {
       // Handle context menu events
     };
-
-    stage.on("contextmenu", handleStageContextMenu);
 
     // Pan handling when pan tool is active
     let isPanning = false;
@@ -275,63 +290,24 @@ const FigJamCanvas: React.FC = () => {
       }
     };
 
+    stage.on("click", handleStageClick);
+    stage.on("wheel", handleWheel);
+    stage.on("contextmenu", handleStageContextMenu);
     stage.on("dragstart", handleDragStart);
     stage.on("dragmove", handleDragMove);
     stage.on("dragend", handleDragEnd);
 
-    // Window resize handler
-    const handleResize = () => {
-      stage.width(window.innerWidth);
-      stage.height(window.innerHeight);
-      // Grid updates automatically via GridRenderer
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    // Cleanup
+    // Cleanup event handlers
     return () => {
-      window.removeEventListener("resize", handleResize);
-
-      // Clean up stage event handlers
+      console.log("[FigJamCanvas] Cleaning up stage event handlers");
+      stage.off("click", handleStageClick);
+      stage.off("wheel", handleWheel);
       stage.off("contextmenu", handleStageContextMenu);
-
-      // Destroy grid renderer
-      if (gridRendererRef.current) {
-        gridRendererRef.current.destroy();
-        gridRendererRef.current = null;
-      }
-
-      // Destroy tool manager
-      if (toolManagerRef.current) {
-        toolManagerRef.current.destroy();
-        toolManagerRef.current = null;
-      }
-
-      // Clean up image drag handler
-      if (imageDragHandlerRef.current) {
-        imageDragHandlerRef.current.cleanup();
-        imageDragHandlerRef.current = null;
-      }
-
-      // Dispose renderer modules
-      if (rendererDisposeRef.current) {
-        rendererDisposeRef.current();
-        rendererDisposeRef.current = null;
-      }
-
-      // Destroy stage
-      stage.destroy();
-      stageRef.current = null;
+      stage.off("dragstart", handleDragStart);
+      stage.off("dragmove", handleDragMove);
+      stage.off("dragend", handleDragEnd);
     };
-  }, [
-    addToSelection,
-    clearSelection,
-    elements,
-    selectedElementIds,
-    selectedTool,
-    setSelection,
-    viewport,
-  ]); // Include all store dependencies
+  }, [selectedTool, elements, selectedElementIds, addToSelection, clearSelection, setSelection, viewport]);
 
   // Update viewport when store changes
   useEffect(() => {
@@ -490,7 +466,7 @@ const FigJamCanvas: React.FC = () => {
     // Normalize tool names (handle both old and new naming)
     const normalizedTool = selectedTool.toLowerCase();
 
-    // Debug: Rendering tool - selectedTool, normalizedTool
+    console.log("[FigJamCanvas] Rendering tool:", { selectedTool, normalizedTool });
 
     try {
       switch (normalizedTool) {
@@ -573,7 +549,7 @@ const FigJamCanvas: React.FC = () => {
           return null;
       }
     } catch (error) {
-      // Error: Failed to render tool - selectedTool, error
+      console.error("[FigJamCanvas] Failed to render tool:", { selectedTool, error });
       return null;
     }
   }, [selectedTool]);
