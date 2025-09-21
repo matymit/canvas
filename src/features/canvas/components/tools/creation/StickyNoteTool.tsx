@@ -27,21 +27,34 @@ interface StickyNoteModule {
   triggerImmediateTextEdit?: (elementId: string) => void;
 }
 
+interface SelectionModule {
+  selectElement?: (elementId: string, options?: { autoFocus?: boolean }) => void;
+}
+
 type StickyWindow = Window & {
   stickyNoteModule?: StickyNoteModule;
+  selectionModule?: SelectionModule;
   pendingStickyNoteEdits?: Set<string>;
 };
 
-function requestStickyNoteEditing(elementId: string, attempts = 30) {
+function requestStickyNoteEditing(elementId: string, attempts = 50) {
   if (typeof window === "undefined") return;
   const stickyWindow = window as StickyWindow;
+  
   if (!stickyWindow.pendingStickyNoteEdits) {
     stickyWindow.pendingStickyNoteEdits = new Set();
   }
   stickyWindow.pendingStickyNoteEdits.add(elementId);
 
   const stickyModule = stickyWindow.stickyNoteModule;
+  const selectionModule = stickyWindow.selectionModule;
 
+  // First ensure selection happens
+  if (selectionModule?.selectElement) {
+    selectionModule.selectElement(elementId, { autoFocus: true });
+  }
+
+  // Then trigger text editing
   if (stickyModule?.triggerImmediateTextEdit) {
     stickyModule.triggerImmediateTextEdit(elementId);
     return;
@@ -72,13 +85,19 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     const stage = stageRef.current;
     if (!isActive || !stage) return;
 
-    // Tool activated, adding stage listener
+    // Set cursor when tool is active
+    const container = stage.container();
+    if (container) {
+      container.style.cursor = "crosshair";
+    }
+
+    console.log("[StickyNoteTool] Tool activated, adding stage listener");
 
     const handlePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
-      // Pointer down detected
+      console.log("[StickyNoteTool] Pointer down detected at:", pos);
 
       const elementId = crypto.randomUUID() as ElementId;
 
@@ -101,7 +120,11 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         },
       };
 
-      // Creating sticky note element
+      console.log("[StickyNoteTool] Creating sticky note element:", {
+        elementId,
+        fill: actualFill,
+        position: { x: stickyElement.x, y: stickyElement.y }
+      });
 
       // Use the store's addElement method with auto-selection
       const store = useUnifiedCanvasStore.getState();
@@ -111,19 +134,42 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         store.addElement(stickyElement, { select: true, pushHistory: false }); // withUndo handles history
       });
 
-      // Element added to store
+      console.log("[StickyNoteTool] Element added to store");
 
-      if (typeof window !== "undefined") {
-        window.requestAnimationFrame(() => requestStickyNoteEditing(elementId));
-      } else {
-        setTimeout(() => requestStickyNoteEditing(elementId), 0);
-      }
+      // CRITICAL: Immediate selection and text editing setup
+      // Use multiple timing strategies to ensure reliability
+      const scheduleTextEditing = () => {
+        console.log("[StickyNoteTool] Scheduling text editing for:", elementId);
+        
+        // Strategy 1: Immediate attempt
+        requestStickyNoteEditing(elementId);
+        
+        // Strategy 2: Next frame
+        if (typeof window !== "undefined" && window.requestAnimationFrame) {
+          window.requestAnimationFrame(() => {
+            requestStickyNoteEditing(elementId);
+          });
+        }
+        
+        // Strategy 3: Short delay for reliable DOM updates
+        setTimeout(() => {
+          requestStickyNoteEditing(elementId);
+        }, 16);
+
+        // Strategy 4: Longer delay as fallback
+        setTimeout(() => {
+          requestStickyNoteEditing(elementId);
+        }, 100);
+      };
+
+      scheduleTextEditing();
 
       let finalized = false;
 
       const finalizeToolSwitch = () => {
         if (finalized) return;
         finalized = true;
+        console.log("[StickyNoteTool] Switching back to select tool");
         if (typeof store.setSelectedTool === "function") {
           store.setSelectedTool("select");
         }
@@ -132,6 +178,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       const ensureEditorFocused = (attempt: number) => {
         if (finalized) return;
         if (typeof document === "undefined") {
+          console.log("[StickyNoteTool] No document, finalizing");
           finalizeToolSwitch();
           return;
         }
@@ -141,15 +188,29 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         );
 
         if (editor) {
+          console.log("[StickyNoteTool] Found editor, focusing");
           if (document.activeElement !== editor) {
-            editor.focus();
+            try {
+              editor.focus();
+              editor.select(); // Select all text for immediate typing
+            } catch (error) {
+              console.log("[StickyNoteTool] Focus error, trying fallback:", error);
+              // Fallback focusing
+              setTimeout(() => {
+                try {
+                  editor.focus();
+                } catch (e) {
+                  console.log("[StickyNoteTool] Fallback focus also failed:", e);
+                }
+              }, 10);
+            }
           }
 
           try {
             const caretPosition = editor.value.length;
             editor.setSelectionRange(caretPosition, caretPosition);
           } catch {
-            // Ignore selection errors (e.g., unsupported inputs)
+            // Ignore selection errors
           }
 
           finalizeToolSwitch();
@@ -157,6 +218,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         }
 
         if (attempt >= MAX_FOCUS_ATTEMPTS) {
+          console.log("[StickyNoteTool] Max focus attempts reached, giving up");
           finalizeToolSwitch();
           return;
         }
@@ -168,10 +230,8 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         }
       };
 
-      if (
-        typeof window !== "undefined" &&
-        typeof window.requestAnimationFrame === "function"
-      ) {
+      // Start the editor focus process
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
         window.requestAnimationFrame(() => ensureEditorFocused(0));
       } else {
         setTimeout(() => ensureEditorFocused(0), 16);
@@ -185,8 +245,14 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
     // Cleanup
     return () => {
-      // Tool deactivated, removing stage listener
+      console.log("[StickyNoteTool] Tool deactivated, removing stage listener");
       stage.off("pointerdown.sticky");
+      
+      // Reset cursor
+      const container = stage.container();
+      if (container) {
+        container.style.cursor = "default";
+      }
     };
   }, [isActive, stageRef, width, height, actualFill, text, fontSize]);
 
