@@ -27,34 +27,14 @@ interface StickyNoteModule {
   triggerImmediateTextEdit?: (elementId: string) => void;
 }
 
-interface SelectionModule {
-  selectElement?: (elementId: string, options?: { autoFocus?: boolean }) => void;
-}
-
 type StickyWindow = Window & {
   stickyNoteModule?: StickyNoteModule;
-  selectionModule?: SelectionModule;
-  pendingStickyNoteEdits?: Set<string>;
 };
 
-function requestStickyNoteEditing(elementId: string, attempts = 50) {
+function requestStickyNoteEditing(elementId: string, attempts = 40) {
   if (typeof window === "undefined") return;
-  const stickyWindow = window as StickyWindow;
-  
-  if (!stickyWindow.pendingStickyNoteEdits) {
-    stickyWindow.pendingStickyNoteEdits = new Set();
-  }
-  stickyWindow.pendingStickyNoteEdits.add(elementId);
+  const stickyModule = (window as StickyWindow).stickyNoteModule;
 
-  const stickyModule = stickyWindow.stickyNoteModule;
-  const selectionModule = stickyWindow.selectionModule;
-
-  // First ensure selection happens
-  if (selectionModule?.selectElement) {
-    selectionModule.selectElement(elementId, { autoFocus: true });
-  }
-
-  // Then trigger text editing
   if (stickyModule?.triggerImmediateTextEdit) {
     stickyModule.triggerImmediateTextEdit(elementId);
     return;

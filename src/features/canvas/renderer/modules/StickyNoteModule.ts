@@ -22,7 +22,6 @@ interface SelectionModule {
 interface ExtendedWindow extends Window {
   selectionModule?: SelectionModule;
   stickyNoteModule?: StickyNoteModule;
-  pendingStickyNoteEdits?: Set<string>;
 }
 
 interface StoreWithHistory {
@@ -48,6 +47,7 @@ export class StickyNoteModule implements RendererModule {
   private unsubscribe?: () => void;
   private activeEditor: HTMLTextAreaElement | null = null;
   private editorElementId: string | null = null;
+  private pendingImmediateEdits = new Set<string>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.layers = ctx.layers.main;
@@ -59,9 +59,6 @@ export class StickyNoteModule implements RendererModule {
 
     // FIXED: Make module globally accessible for tool integration
     extendedWindow.stickyNoteModule = this;
-    if (!extendedWindow.pendingStickyNoteEdits) {
-      extendedWindow.pendingStickyNoteEdits = new Set();
-    }
 
     // Subscribe to store changes - watch only sticky-note elements
     this.unsubscribe = ctx.store.subscribe(
@@ -128,6 +125,7 @@ export class StickyNoteModule implements RendererModule {
     if (extendedWindow.stickyNoteModule === this) {
       extendedWindow.stickyNoteModule = undefined;
     }
+    this.pendingImmediateEdits.clear();
   }
 
   private reconcile(stickyNotes: Map<Id, StickySnapshot>) {
@@ -148,11 +146,11 @@ export class StickyNoteModule implements RendererModule {
         group = this.createStickyGroup(sticky);
         this.nodes.set(id, group);
         this.layers.add(group);
-        this.consumePendingImmediateEdit(id, group);
+        this.maybeStartPendingEdit(id, group);
       } else {
         // Update existing sticky note
         this.updateStickyGroup(group, sticky);
-        this.consumePendingImmediateEdit(id, group);
+        this.maybeStartPendingEdit(id, group);
       }
     }
 
@@ -498,9 +496,6 @@ export class StickyNoteModule implements RendererModule {
       return;
     }
 
-    const extendedWindow = window as ExtendedWindow;
-    extendedWindow.pendingStickyNoteEdits?.delete(elementId);
-
     // Get stage and text element for positioning
     const stage = group.getStage();
     const textNode = group.findOne(".sticky-text") as Konva.Text;
@@ -724,49 +719,32 @@ export class StickyNoteModule implements RendererModule {
   // FIXED: Public method for immediate text editing after creation with improved timing
   public triggerImmediateTextEdit(elementId: string) {
     console.log("[StickyNoteModule] triggerImmediateTextEdit called for:", elementId);
-    const extendedWindow = window as ExtendedWindow;
-    if (!extendedWindow.pendingStickyNoteEdits) {
-      extendedWindow.pendingStickyNoteEdits = new Set();
-    }
-    extendedWindow.pendingStickyNoteEdits.add(elementId);
-    this.consumePendingImmediateEdit(elementId);
+    this.pendingImmediateEdits.add(elementId);
+    this.maybeStartPendingEdit(elementId);
   }
 
-  private consumePendingImmediateEdit(
-    elementId: string,
-    group?: Konva.Group,
-    attempt = 0,
-  ) {
-    const extendedWindow = window as ExtendedWindow;
-    const pendingSet = extendedWindow.pendingStickyNoteEdits;
-
-    if (!pendingSet?.has(elementId)) {
-      console.log("[StickyNoteModule] No pending edit for:", elementId);
+  private maybeStartPendingEdit(elementId: string, group?: Konva.Group) {
+    if (!this.pendingImmediateEdits.has(elementId)) {
       return;
     }
 
     const targetGroup = group ?? this.nodes.get(elementId);
     if (!targetGroup) {
-      if (attempt > 120) {
-        console.log("[StickyNoteModule] Max attempts reached for:", elementId);
-        pendingSet.delete(elementId);
-        return;
-      }
-      console.log("[StickyNoteModule] Group not ready, retrying attempt", attempt, "for:", elementId);
-      setTimeout(() => this.consumePendingImmediateEdit(elementId, undefined, attempt + 1), 16);
+      requestAnimationFrame(() => this.maybeStartPendingEdit(elementId));
       return;
     }
-
-    console.log("[StickyNoteModule] Group ready, starting text editing for:", elementId);
-    pendingSet.delete(elementId);
 
     if (this.editorElementId === elementId) {
-      console.log("[StickyNoteModule] Already editing this element:", elementId);
+      this.pendingImmediateEdits.delete(elementId);
       return;
     }
 
-    setTimeout(() => {
+    requestAnimationFrame(() => {
+      if (!this.pendingImmediateEdits.has(elementId)) {
+        return;
+      }
+      this.pendingImmediateEdits.delete(elementId);
       this.startTextEditing(targetGroup, elementId);
-    }, 16);
+    });
   }
 }
