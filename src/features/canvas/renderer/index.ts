@@ -18,6 +18,7 @@ import { TextRenderer } from './modules/TextRenderer';
 import { ShapeRenderer } from './modules/ShapeRenderer';
 import { DrawingRenderer } from './modules/DrawingRenderer';
 import { SelectionModule } from './modules/SelectionModule';
+import { PortHoverModule } from './modules/PortHoverModule';
 
 export interface CanvasElementLike {
   id: string;
@@ -61,7 +62,7 @@ export interface RendererModule {
   mount(ctx: ModuleRendererCtx): () => void; // returns dispose
 }
 
-// Setup renderer modules
+// CRITICAL FIX: Setup renderer modules with proper ordering
 export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['layers']) {
   const modules: RendererModule[] = [
     // Content rendering modules first
@@ -73,13 +74,27 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
     new TextRenderer(),
     new ShapeRenderer(),
     new DrawingRenderer(),
+    // CRITICAL FIX: Add port hover functionality
+    new PortHoverModule(),
     // Selection module last so it can find rendered nodes
     new SelectionModule(),
   ];
 
-  const unsubs = modules.map(m => m.mount({ stage, layers, store: useUnifiedCanvasStore }));
+  console.debug('[Renderer] Setting up modules:', modules.map(m => m.constructor.name));
+
+  const unsubs = modules.map(m => {
+    try {
+      const dispose = m.mount({ stage, layers, store: useUnifiedCanvasStore });
+      console.debug('[Renderer] Module mounted successfully:', m.constructor.name);
+      return dispose;
+    } catch (error) {
+      console.error('[Renderer] Failed to mount module:', m.constructor.name, error);
+      return () => {}; // Return no-op dispose function
+    }
+  });
 
   return () => {
+    console.debug('[Renderer] Disposing all modules');
     unsubs.forEach(u => u && u());
   };
 }
@@ -208,4 +223,3 @@ export class CanvasRenderer {
     }
   }
 }
-
