@@ -68,6 +68,27 @@ export class ConnectorRenderer {
     let g = this.groupById.get(conn.id);
     if (!g || !g.getStage()) {
       g = new Konva.Group({ id: conn.id, name: "connector", listening: true });
+
+      // CRITICAL FIX: Add click handlers for connector re-selection
+      g.setAttr("elementId", conn.id);
+
+      g.on("click tap", (e) => {
+        e.cancelBubble = true;
+        const selectionModule = (window as any).selectionModule;
+        if (selectionModule) {
+          const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
+          if (isAdditive) {
+            // Toggle selection
+            selectionModule.selectElement(conn.id);
+          } else {
+            // Replace selection
+            selectionModule.selectElement(conn.id);
+          }
+        } else {
+          console.warn('[ConnectorRenderer] SelectionModule not available for connector selection');
+        }
+      });
+
       this.layers.main.add(g);
       this.groupById.set(conn.id, g);
     }

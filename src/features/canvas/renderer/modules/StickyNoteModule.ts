@@ -321,7 +321,7 @@ export class StickyNoteModule implements RendererModule {
       storeY: number;
     } | null = null;
 
-    // FIXED: Add transform start data tracking
+    // FIXED: Add transform start data tracking with aspect ratio
     let transformStartData: {
       width: number;
       height: number;
@@ -329,6 +329,7 @@ export class StickyNoteModule implements RendererModule {
       scaleY: number;
       storeWidth: number;
       storeHeight: number;
+      aspectRatio: number;
     } | null = null;
 
     group.on("dragstart", () => {
@@ -385,26 +386,40 @@ export class StickyNoteModule implements RendererModule {
       dragStartData = null;
     });
 
-    // FIXED: Add transform event handlers for resize operations
+    // FIXED: Add transform event handlers for resize operations with aspect ratio
     group.on("transformstart", () => {
       const store = this.storeCtx?.store.getState();
       const element = store?.elements?.get?.(elementId);
 
       if (element) {
+        const width = element.width || 240;
+        const height = element.height || 180;
         transformStartData = {
-          width: group.width() || element.width || 240,
-          height: group.height() || element.height || 180,
+          width: group.width() || width,
+          height: group.height() || height,
           scaleX: group.scaleX() || 1,
           scaleY: group.scaleY() || 1,
-          storeWidth: element.width || 240,
-          storeHeight: element.height || 180,
+          storeWidth: width,
+          storeHeight: height,
+          aspectRatio: width / height,
         };
       }
     });
 
     group.on("transform", () => {
-      // Update the group's width/height during transform for visual feedback
-      // The actual store update happens in transformend
+      // FIXED: Enforce aspect ratio when Shift key is held
+      if (transformStartData && (window.event as KeyboardEvent)?.shiftKey) {
+        // Calculate the average scale to maintain aspect ratio
+        const currentScaleX = group.scaleX() || 1;
+        const currentScaleY = group.scaleY() || 1;
+
+        // For sticky notes, we want to maintain a 1:1 aspect ratio (square)
+        // when Shift is held, regardless of the original aspect ratio
+        const targetScale = Math.min(currentScaleX, currentScaleY);
+
+        group.scaleX(targetScale);
+        group.scaleY(targetScale);
+      }
     });
 
     group.on("transformend", () => {

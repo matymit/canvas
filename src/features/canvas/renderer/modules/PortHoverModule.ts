@@ -106,7 +106,7 @@ export class PortHoverModule implements RendererModule {
     });
 
     // Handle stage mouse move for proximity detection
-    stage.on('mousemove.port-hover', (e) => {
+    stage.on('mousemove.port-hover', () => {
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
 
@@ -117,6 +117,12 @@ export class PortHoverModule implements RendererModule {
 
   private handleElementHover(elementId: string) {
     console.debug('[PortHoverModule] Element hovered:', elementId);
+
+    // CRITICAL FIX: Only show ports when connector tools are active
+    if (!this.shouldShowPorts()) {
+      console.debug('[PortHoverModule] Not showing ports - connector tool not active');
+      return;
+    }
 
     // Clear any pending hide timeout
     this.clearHoverTimeout();
@@ -416,5 +422,29 @@ export class PortHoverModule implements RendererModule {
    */
   public getCurrentHoveredElement(): string | undefined {
     return this.currentHoveredElement;
+  }
+
+  /**
+   * CRITICAL FIX: Check if ports should be shown based on current tool
+   * Ports should ONLY show when connector tools are active
+   */
+  private shouldShowPorts(): boolean {
+    if (!this.storeCtx) return false;
+
+    const store = this.storeCtx.store.getState();
+    const currentTool = store.selectedTool || store.ui?.selectedTool || 'select';
+
+    // Define connector tools that should show ports
+    const connectorTools = [
+      'connector',
+      'connector-line',
+      'connector-arrow',
+      'mindmap' // Mindmap tool also creates connectors
+    ];
+
+    const shouldShow = connectorTools.includes(currentTool);
+    console.debug('[PortHoverModule] Tool check:', { currentTool, shouldShow });
+
+    return shouldShow;
   }
 }

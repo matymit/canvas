@@ -400,11 +400,11 @@ export function openShapeTextEditor(
       editor.style.webkitTextStroke = 'initial';
     } else if (navigator.userAgent.includes('Firefox')) {
       // Firefox-specific caret visibility
-      editor.style.MozTextFillColor = textColor;
+      (editor.style as any).MozTextFillColor = textColor;
     } else if (navigator.userAgent.includes('Safari')) {
       // Safari-specific caret visibility
       editor.style.webkitTextFillColor = textColor;
-      editor.style.textFillColor = textColor;
+      (editor.style as any).textFillColor = textColor;
     }
     
     // Force redraw
