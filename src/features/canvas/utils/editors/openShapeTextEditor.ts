@@ -93,58 +93,82 @@ export function openShapeTextEditor(
   editor.setAttribute('role', 'textbox');
   editor.setAttribute('aria-label', 'Shape text editor');
 
-  // CRITICAL FIX: Enhanced caret visibility for circles and clean styling for all shapes
-  editor.style.cssText = `
-    position: absolute;
-    z-index: 1000;
-    min-width: 1px;
-    outline: none;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    color: ${textColor};
-    font-family: ${fontFamily};
-    font-size: ${fontSize}px;
-    line-height: ${lineHeight};
-    box-sizing: border-box;
-    box-shadow: none;
-    transition: width 0.2s ease, height 0.2s ease;
-    overflow: hidden;
-    cursor: text;
-    /* CRITICAL FIX: Ensure caret visibility across all browsers */
-    caret-color: ${textColor} !important;
-    -webkit-text-fill-color: ${textColor} !important;
-    /* Remove any unwanted borders or dashed frames */
-    border: none !important;
-    outline: none !important;
-    ${isCircle ? `
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      padding: ${getCirclePadding()}px;
-      min-height: 1px;
-      /* Enhanced caret visibility specifically for circles */
-      text-shadow: none;
-    ` : isTriangle ? `
-      text-align: center;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      padding: ${Math.max(0, effectivePadding * 0.25)}px;
-      min-height: ${fontSize * lineHeight}px;
-    ` : `
-      text-align: center;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      padding: ${Math.max(0, effectivePadding * 0.25)}px;
-      min-height: ${fontSize * lineHeight}px;
-    `}
-  `;
+  // CRITICAL FIX: Enhanced caret visibility and clean styling for all shapes
+  const editorStyles = {
+    position: 'absolute',
+    zIndex: '1000',
+    minWidth: '1px',
+    outline: 'none !important',
+    border: 'none !important',
+    borderRadius: '0',
+    background: 'transparent',
+    color: textColor,
+    fontFamily: fontFamily,
+    fontSize: `${fontSize}px`,
+    lineHeight: `${lineHeight}`,
+    boxSizing: 'border-box',
+    boxShadow: 'none !important',
+    transition: 'width 0.2s ease, height 0.2s ease',
+    overflow: 'hidden',
+    cursor: 'text',
+    // CRITICAL FIX: Cross-browser caret visibility
+    caretColor: `${textColor} !important`,
+    webkitTextFillColor: `${textColor} !important`,
+    textFillColor: textColor,
+    // CRITICAL FIX: Remove any unwanted borders or dashed frames completely
+    borderStyle: 'none !important',
+    borderWidth: '0 !important',
+    borderColor: 'transparent !important',
+    outlineStyle: 'none !important',
+    outlineWidth: '0 !important',
+    outlineColor: 'transparent !important',
+    // Additional browser-specific resets
+    webkitAppearance: 'none',
+    mozAppearance: 'none',
+    msAppearance: 'none',
+    appearance: 'none',
+    // Ensure text shadow doesn't interfere
+    textShadow: 'none',
+    // Force hardware acceleration for better rendering
+    transform: 'translateZ(0)',
+    willChange: 'transform'
+  };
+
+  // Apply styles based on shape type
+  if (isCircle) {
+    Object.assign(editorStyles, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      whiteSpace: 'pre-wrap',
+      wordWrap: 'break-word',
+      overflowWrap: 'break-word',
+      padding: `${getCirclePadding()}px`,
+      minHeight: '1px'
+    });
+  } else if (isTriangle) {
+    Object.assign(editorStyles, {
+      textAlign: 'center',
+      whiteSpace: 'pre-wrap',
+      wordWrap: 'break-word',
+      overflowWrap: 'break-word',
+      padding: `${Math.max(0, effectivePadding * 0.25)}px`,
+      minHeight: `${fontSize * lineHeight}px`
+    });
+  } else {
+    Object.assign(editorStyles, {
+      textAlign: 'center',
+      whiteSpace: 'pre-wrap',
+      wordWrap: 'break-word',
+      overflowWrap: 'break-word',
+      padding: `${Math.max(0, effectivePadding * 0.25)}px`,
+      minHeight: `${fontSize * lineHeight}px`
+    });
+  }
+
+  // Apply styles to editor
+  Object.assign(editor.style, editorStyles);
 
   const currentText = (typeof shapeSnapshot.data?.text === 'string' ? shapeSnapshot.data.text : '') || '';
   let latestEditorText = currentText;
@@ -197,7 +221,7 @@ export function openShapeTextEditor(
         editor.style.padding = `${Math.round(scaledPadding)}px`;
       }
     } catch (error) {
-      // Error updating position
+      console.warn('[openShapeTextEditor] Error updating position:', error);
     }
   }
 
@@ -225,7 +249,7 @@ export function openShapeTextEditor(
     try {
       editor.remove();
     } catch (error) {
-      // Error removing editor
+      console.warn('[openShapeTextEditor] Error removing editor:', error);
     }
 
     if (textNode) {
@@ -360,33 +384,62 @@ export function openShapeTextEditor(
         }
       }
     } catch (error) {
-      // Error focusing editor
+      console.warn('[openShapeTextEditor] Error focusing editor:', error);
     }
   };
 
-  // CRITICAL FIX: Multi-strategy focus with enhanced caret visibility for circles
-  if (isCircle) {
-    // Force layout and render
-    editor.offsetHeight;
+  // CRITICAL FIX: Multi-strategy focus with enhanced caret visibility for all shapes
+  const ensureCaretVisibility = () => {
+    // Force caret color and text rendering
+    editor.style.caretColor = textColor;
+    editor.style.webkitTextFillColor = textColor;
+    
+    // Additional browser-specific caret fixes
+    if (navigator.userAgent.includes('Chrome')) {
+      // Chrome-specific caret visibility
+      editor.style.webkitTextStroke = 'initial';
+    } else if (navigator.userAgent.includes('Firefox')) {
+      // Firefox-specific caret visibility
+      editor.style.MozTextFillColor = textColor;
+    } else if (navigator.userAgent.includes('Safari')) {
+      // Safari-specific caret visibility
+      editor.style.webkitTextFillColor = textColor;
+      editor.style.textFillColor = textColor;
+    }
+    
+    // Force redraw
+    editor.style.display = 'none';
+    editor.offsetHeight; // Force reflow
+    
+    if (isCircle) {
+      editor.style.display = 'flex';
+    } else {
+      editor.style.display = 'block';
+    }
+  };
 
-    // Enhanced focus sequence for circles
+  if (isCircle) {
+    // Enhanced focus sequence for circles with caret visibility fixes
+    editor.offsetHeight; // Force layout
+
     requestAnimationFrame(() => {
+      ensureCaretVisibility();
       focusEditor();
       
-      // Additional focus strategies specifically for circle text caret visibility
+      // Multiple focus attempts for circles
       requestAnimationFrame(() => {
-        // Force caret color and text rendering
-        editor.style.caretColor = textColor;
-        editor.style.webkitTextFillColor = textColor;
+        ensureCaretVisibility();
         
-        // Ensure focus and caret are properly set
+        // Blur and refocus strategy
         editor.blur();
         setTimeout(() => {
+          ensureCaretVisibility();
           focusEditor();
           
           // Final caret visibility check
           setTimeout(() => {
             if (document.activeElement !== editor) {
+              ensureCaretVisibility();
               focusEditor();
             }
           }, 50);
@@ -394,17 +447,24 @@ export function openShapeTextEditor(
       });
     });
   } else {
-    // Standard focus strategy for rectangles and triangles
+    // Enhanced focus strategy for rectangles and triangles
+    ensureCaretVisibility();
     focusEditor();
-    setTimeout(focusEditor, 10);
-    requestAnimationFrame(focusEditor);
+    setTimeout(() => {
+      ensureCaretVisibility();
+      focusEditor();
+    }, 10);
+    requestAnimationFrame(() => {
+      ensureCaretVisibility();
+      focusEditor();
+    });
   }
 
   return cleanup;
 }
 
 /**
- * CRITICAL FIX: Legacy text editor with clean styling (no dashed blue frames)
+ * CRITICAL FIX: Legacy text editor with completely clean styling (no dashed blue frames)
  */
 export interface TextEditorOptions {
   stage: Konva.Stage;
@@ -430,29 +490,45 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
   const fontFamily = shape.fontFamily();
   const fill = typeof shape.fill() === 'string' ? shape.fill() : '#111827';
 
-  // CRITICAL FIX: Clean styling without dashed blue frame
-  editor.style.position = 'absolute';
-  editor.style.zIndex = '1000';
-  editor.style.minWidth = '20px';
-  editor.style.minHeight = '20px';
-  editor.style.outline = 'none';
-  // REMOVED: Dashed blue border that was causing visual issues
-  editor.style.border = 'none';
-  editor.style.borderRadius = '2px';
-  editor.style.background = 'rgba(255, 255, 255, 0.95)';
-  editor.style.color = fill as string;
-  editor.style.fontFamily = fontFamily;
-  editor.style.fontSize = `${fontSize}px`;
-  editor.style.lineHeight = '1.2';
-  editor.style.padding = '2px 4px';
-  editor.style.resize = 'none';
-  editor.style.whiteSpace = 'nowrap';
-  editor.style.overflow = 'hidden';
-  editor.style.transformOrigin = '0 0';
-  editor.style.boxSizing = 'border-box';
-  editor.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
-  // CRITICAL: Ensure caret is visible
-  editor.style.caretColor = fill as string;
+  // CRITICAL FIX: Completely clean styling without any unwanted borders
+  const editorStyles = {
+    position: 'absolute',
+    zIndex: '1000',
+    minWidth: '20px',
+    minHeight: '20px',
+    // CRITICAL FIX: Complete border and outline removal
+    outline: 'none !important',
+    border: 'none !important',
+    borderStyle: 'none !important',
+    borderWidth: '0 !important',
+    borderColor: 'transparent !important',
+    outlineStyle: 'none !important',
+    outlineWidth: '0 !important',
+    outlineColor: 'transparent !important',
+    borderRadius: '2px',
+    background: 'rgba(255, 255, 255, 0.95)',
+    color: fill as string,
+    fontFamily: fontFamily,
+    fontSize: `${fontSize}px`,
+    lineHeight: '1.2',
+    padding: '2px 4px',
+    resize: 'none',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    transformOrigin: '0 0',
+    boxSizing: 'border-box',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+    // CRITICAL: Enhanced caret visibility
+    caretColor: fill as string,
+    webkitTextFillColor: fill as string,
+    // Additional browser resets
+    webkitAppearance: 'none',
+    mozAppearance: 'none',
+    msAppearance: 'none',
+    appearance: 'none'
+  };
+
+  Object.assign(editor.style, editorStyles);
 
   document.body.appendChild(editor);
 
@@ -484,7 +560,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
 
       editor.style.fontSize = `${fontSize * stageScale}px`;
     } catch (error) {
-      // Error updating position
+      console.warn('[openKonvaTextEditor] Error updating position:', error);
     }
   }
 
@@ -528,7 +604,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
     try {
       editor.remove();
     } catch (error) {
-      // Error removing editor
+      console.warn('[openKonvaTextEditor] Error removing editor:', error);
     }
 
     shape.opacity(originalOpacity);
@@ -603,7 +679,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
       selection.removeAllRanges();
       selection.addRange(range);
     } catch (error) {
-      // Error focusing editor
+      console.warn('[openKonvaTextEditor] Error focusing editor:', error);
     }
   }, 10);
 
