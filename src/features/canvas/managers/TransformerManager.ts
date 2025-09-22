@@ -259,6 +259,7 @@ export class TransformerManager {
 
   /**
    * CRITICAL FIX: Properly apply aspect ratio constraints for sticky notes
+   * Fixed element type detection and constraint application
    */
   private applyElementConstraints(nodes: Konva.Node[]) {
     if (!this.transformer) return;
@@ -270,23 +271,39 @@ export class TransformerManager {
     const elementResizable = primaryNode.getAttr('resizable');
     const isResizeDisabled = elementResizable === false || isTextElement;
 
+    console.debug('[TransformerManager] Applying constraints:', {
+      elementType,
+      isTextElement,
+      isResizeDisabled,
+      nodeId: primaryNode.id(),
+      nodeName: primaryNode.name(),
+      nodeAttrs: primaryNode.getAttrs()
+    });
+
     if (isResizeDisabled) {
       this.transformer.enabledAnchors([]);
       this.transformer.rotateEnabled(true);
       this.transformer.boundBoxFunc(undefined);
+      this.transformer.keepRatio(false);
+      console.debug('[TransformerManager] Element is not resizable, disabling anchors');
       return;
     }
 
-    // CRITICAL FIX: Enable all anchors but apply constraints based on element type
-    this.transformer.enabledAnchors(this.opts.enabledAnchors || [
-      "top-left", "top-center", "top-right",
-      "middle-left", "middle-right",
-      "bottom-left", "bottom-center", "bottom-right"
-    ]);
+    // CRITICAL FIX: Check for sticky notes with multiple detection methods
+    const isStickyNote = this.isStickyNoteElement(primaryNode);
+    
+    if (isStickyNote) {
+      console.debug('[TransformerManager] Detected sticky note, applying aspect ratio constraints');
+      
+      // CRITICAL FIX: Set corner-only anchors for sticky notes
+      this.transformer.enabledAnchors([
+        "top-left", 
+        "top-right", 
+        "bottom-left", 
+        "bottom-right"
+      ]);
 
-    // CRITICAL FIX: Apply aspect ratio constraints for sticky notes
-    if (elementType === 'sticky-note') {
-      // For sticky notes, lock aspect ratio to maintain square proportions
+      // Get aspect configuration for sticky notes (locked by default)
       const aspectConfig = getElementAspectConfig('sticky-note', true);
       
       // Get original dimensions for constraint reference
@@ -295,36 +312,133 @@ export class TransformerManager {
         height: primaryNode.height() * (primaryNode.scaleY() || 1)
       };
 
+      console.debug('[TransformerManager] Applying aspect ratio constraint:', {
+        aspectConfig,
+        originalDimensions
+      });
+
       // Create and apply constraint function
       const constraintFunc = createAspectRatioConstraint(aspectConfig, originalDimensions);
       this.transformer.boundBoxFunc(constraintFunc);
       
       // CRITICAL: Force aspect ratio to be locked by default for sticky notes
       this.transformer.keepRatio(true);
-      
-      // CRITICAL FIX: Limit to corner anchors only for aspect ratio consistency
-      this.transformer.enabledAnchors([
-        "top-left", "top-right", "bottom-left", "bottom-right"
-      ]);
+
+      console.debug('[TransformerManager] Sticky note constraints applied successfully');
     } else {
+      // CRITICAL FIX: Enable all anchors for non-sticky elements
+      this.transformer.enabledAnchors(this.opts.enabledAnchors || [
+        "top-left", "top-center", "top-right",
+        "middle-left", "middle-right",
+        "bottom-left", "bottom-center", "bottom-right"
+      ]);
+
       // Clear constraints for other element types
       this.transformer.boundBoxFunc(undefined);
       this.transformer.keepRatio(this.opts.lockAspectRatio || false);
+      
+      console.debug('[TransformerManager] Non-sticky element, using standard constraints');
     }
   }
 
-  private getElementType(node: Konva.Node): string {
+  /**
+   * CRITICAL FIX: Enhanced sticky note detection with multiple fallback methods
+   */
+  private isStickyNoteElement(node: Konva.Node): boolean {
+    // Method 1: Check nodeType attribute (most reliable)
     const nodeType = node.getAttr('nodeType');
+    if (nodeType === 'sticky-note' || nodeType === 'stickyNote') {
+      console.debug('[TransformerManager] Sticky note detected via nodeType:', nodeType);
+      return true;
+    }
+
+    // Method 2: Check elementType attribute
+    const elementType = node.getAttr('elementType');
+    if (elementType === 'sticky-note' || elementType === 'stickyNote') {
+      console.debug('[TransformerManager] Sticky note detected via elementType:', elementType);
+      return true;
+    }
+
+    // Method 3: Check node name
     const name = node.name();
+    if (name && (name.includes('sticky') || name.includes('note'))) {
+      console.debug('[TransformerManager] Sticky note detected via name:', name);
+      return true;
+    }
 
-    if (nodeType) return nodeType;
+    // Method 4: Check node ID
+    const id = node.id();
+    if (id && (id.includes('sticky') || id.includes('note'))) {
+      console.debug('[TransformerManager] Sticky note detected via id:', id);
+      return true;
+    }
 
-    if (name.includes('text')) return 'text';
-    if (name.includes('sticky')) return 'sticky-note';
-    if (name.includes('shape')) return 'shape';
-    if (name.includes('image')) return 'image';
-    if (name.includes('table')) return 'table';
-    if (name.includes('mindmap')) return 'mindmap';
+    // Method 5: Check parent group or related nodes (for complex sticky note structures)
+    const parent = node.getParent();
+    if (parent) {
+      const parentName = parent.name();
+      const parentId = parent.id();
+      if ((parentName && (parentName.includes('sticky') || parentName.includes('note'))) ||
+          (parentId && (parentId.includes('sticky') || parentId.includes('note')))) {
+        console.debug('[TransformerManager] Sticky note detected via parent:', { parentName, parentId });
+        return true;
+      }
+    }
+
+    // Method 6: Check for sticky note specific attributes
+    const stickyColor = node.getAttr('stickyColor');
+    const stickySize = node.getAttr('stickySize');
+    if (stickyColor || stickySize) {
+      console.debug('[TransformerManager] Sticky note detected via sticky attributes');
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * CRITICAL FIX: Improved element type detection with better fallbacks
+   */
+  private getElementType(node: Konva.Node): string {
+    // Primary method: check nodeType attribute
+    const nodeType = node.getAttr('nodeType');
+    if (nodeType) {
+      console.debug('[TransformerManager] Element type from nodeType:', nodeType);
+      return nodeType;
+    }
+
+    // Secondary method: check elementType attribute
+    const elementType = node.getAttr('elementType');
+    if (elementType) {
+      console.debug('[TransformerManager] Element type from elementType:', elementType);
+      return elementType;
+    }
+
+    // Tertiary method: analyze node name
+    const name = node.name();
+    if (name) {
+      if (name.includes('text')) return 'text';
+      if (name.includes('sticky') || name.includes('note')) return 'sticky-note';
+      if (name.includes('shape') || name.includes('rect') || name.includes('circle') || name.includes('triangle')) return 'shape';
+      if (name.includes('image')) return 'image';
+      if (name.includes('table')) return 'table';
+      if (name.includes('mindmap')) return 'mindmap';
+      if (name.includes('connector')) return 'connector';
+    }
+
+    // Fallback method: analyze node type
+    const className = node.className;
+    if (className === 'Text') return 'text';
+    if (className === 'Rect') return 'shape';
+    if (className === 'Circle') return 'shape';
+    if (className === 'Image') return 'image';
+
+    console.debug('[TransformerManager] Could not determine element type for node:', {
+      id: node.id(),
+      name: node.name(),
+      className: node.className,
+      attrs: node.getAttrs()
+    });
 
     return 'element';
   }
