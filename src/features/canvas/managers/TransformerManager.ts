@@ -20,16 +20,16 @@ export interface TransformerManagerOptions extends TransformerCallbacks {
     | "bottom-right"
   >;
   rotateEnabled?: boolean;
-  rotationSnapDeg?: number | null; // set to e.g. 15 for snapping on end
+  rotationSnapDeg?: number | null;
   padding?: number;
   anchorSize?: number;
   borderStroke?: string;
   borderStrokeWidth?: number;
   anchorStroke?: string;
   anchorFill?: string;
-  ignoreStroke?: boolean; // ignore element stroke width for bounds
-  keepRatioKey?: "Shift" | "Alt" | "Control" | null; // hold to keep ratio
-  lockAspectRatio?: boolean; // always lock aspect ratio
+  ignoreStroke?: boolean;
+  keepRatioKey?: "Shift" | "Alt" | "Control" | null;
+  lockAspectRatio?: boolean;
 }
 
 export class TransformerManager {
@@ -66,11 +66,11 @@ export class TransformerManager {
       anchorFill: "#E5E7EB",
       ignoreStroke: true,
       keepRatioKey: "Shift",
-      lockAspectRatio: false, // Default: free resize
+      lockAspectRatio: false,
       onTransformStart: options.onTransformStart,
       onTransform: options.onTransform,
       onTransformEnd: options.onTransformEnd,
-      ...options, // Override defaults with provided options
+      ...options,
     };
 
     this.ensureTransformer();
@@ -91,8 +91,7 @@ export class TransformerManager {
       anchorFill: this.opts.anchorFill,
       ignoreStroke: this.opts.ignoreStroke,
       listening: true,
-      draggable: false, // CRITICAL FIX: Transformer should not be draggable itself - transforms should happen through anchors
-      // FIXED: Set default aspect ratio behavior
+      draggable: false,
       keepRatio: this.opts.lockAspectRatio || false,
     });
 
@@ -100,95 +99,81 @@ export class TransformerManager {
       this.overlay.add(this.transformer);
       this.overlay.batchDraw();
 
-      // Wire events to callbacks and snapping behavior
       this.transformer.on("transformstart", () => {
         const nodes = this.transformer?.nodes();
         if (!nodes) return;
         this.opts.onTransformStart?.(nodes);
       });
 
-    // Keep ratio when modifier is pressed (applied per move)
-    const onTransform = () => {
-      const tr = this.transformer;
-      if (!tr) return;
-      if (!tr) return;
-      const nodes = tr.nodes();
-
-      // CRITICAL FIX: Prevent transformer from allowing zero or negative dimensions
-      // This helps prevent images from disappearing during resize
-      nodes.forEach(node => {
-        const scale = node.scale();
-        if (scale) {
-          // Ensure scale never goes to exactly 0 (which would make element invisible)
-          // Allow negative for flipping but with a minimum absolute value
-          const MIN_SCALE = 0.01;
-          if (Math.abs(scale.x) < MIN_SCALE) {
-            node.scaleX(scale.x < 0 ? -MIN_SCALE : MIN_SCALE);
-          }
-          if (Math.abs(scale.y) < MIN_SCALE) {
-            node.scaleY(scale.y < 0 ? -MIN_SCALE : MIN_SCALE);
-          }
-        }
-      });
-
-      this.opts.onTransform?.(nodes);
-      this.overlay.batchDraw();
-    };
-
-    if (this.transformer) {
-      this.transformer.on("transform", onTransform);
-    }
-
-
-    if (this.transformer) {
-      this.transformer.on("transformend", () => {
+      const onTransform = () => {
         const tr = this.transformer;
         if (!tr) return;
-      if (!tr) return;
+        const nodes = tr.nodes();
 
-      // Rotation snapping on transform end (optional)
-      if (this.opts.rotationSnapDeg && this.opts.rotateEnabled !== false) {
-        const step = this.opts.rotationSnapDeg;
-        tr.nodes().forEach((n) => {
-          const rot = n.rotation();
-          const snapped = Math.round(rot / step) * step;
-          n.rotation(snapped);
+        nodes.forEach(node => {
+          const scale = node.scale();
+          if (scale) {
+            const MIN_SCALE = 0.01;
+            if (Math.abs(scale.x) < MIN_SCALE) {
+              node.scaleX(scale.x < 0 ? -MIN_SCALE : MIN_SCALE);
+            }
+            if (Math.abs(scale.y) < MIN_SCALE) {
+              node.scaleY(scale.y < 0 ? -MIN_SCALE : MIN_SCALE);
+            }
+          }
+        });
+
+        this.opts.onTransform?.(nodes);
+        this.overlay.batchDraw();
+      };
+
+      if (this.transformer) {
+        this.transformer.on("transform", onTransform);
+      }
+
+      if (this.transformer) {
+        this.transformer.on("transformend", () => {
+          const tr = this.transformer;
+          if (!tr) return;
+
+          if (this.opts.rotationSnapDeg && this.opts.rotateEnabled !== false) {
+            const step = this.opts.rotationSnapDeg;
+            tr.nodes().forEach((n) => {
+              const rot = n.rotation();
+              const snapped = Math.round(rot / step) * step;
+              n.rotation(snapped);
+            });
+          }
+
+          const nodes = tr.nodes();
+          this.opts.onTransformEnd?.(nodes);
+
+          setTimeout(() => {
+            this.overlay.batchDraw();
+          }, 10);
         });
       }
 
-      const nodes = tr.nodes();
-      this.opts.onTransformEnd?.(nodes);
+      if (this.stage && this.opts.keepRatioKey) {
+        const down = (e: KeyboardEvent) => {
+          if (e.key === this.opts.keepRatioKey && this.transformer) {
+            this.transformer.keepRatio(true);
+          }
+        };
+        const up = (e: KeyboardEvent) => {
+          if (e.key === this.opts.keepRatioKey && this.transformer) {
+            this.transformer.keepRatio(this.opts.lockAspectRatio || false);
+          }
+        };
 
-      // FIXED: Clean overlay draw to prevent duplicate frames
-      setTimeout(() => {
-        this.overlay.batchDraw();
-      }, 10);
-      });
-    }
+        document.addEventListener("keydown", down, true);
+        document.addEventListener("keyup", up, true);
 
-    // FIXED: Enhanced keyboard listener for aspect ratio control
-    if (this.stage && this.opts.keepRatioKey) {
-      const down = (e: KeyboardEvent) => {
-        if (e.key === this.opts.keepRatioKey && this.transformer) {
-          this.transformer.keepRatio(true);
-        }
-      };
-      const up = (e: KeyboardEvent) => {
-        if (e.key === this.opts.keepRatioKey && this.transformer) {
-          this.transformer.keepRatio(this.opts.lockAspectRatio || false);
-        }
-      };
-
-      // Attach listeners to document for global capture
-      document.addEventListener("keydown", down, true);
-      document.addEventListener("keyup", up, true);
-
-      // Store cleanup function
-      this.keyboardCleanup = () => {
-        document.removeEventListener("keydown", down, true);
-        document.removeEventListener("keyup", up, true);
-      };
-    }
+        this.keyboardCleanup = () => {
+          document.removeEventListener("keydown", down, true);
+          document.removeEventListener("keyup", up, true);
+        };
+      }
     }
   }
 
@@ -196,7 +181,6 @@ export class TransformerManager {
     this.ensureTransformer();
     if (!this.transformer) return;
 
-    // Filter nodes that are still in stage
     const live = nodes.filter((n) => {
       try {
         return n.getStage() !== null;
@@ -205,30 +189,22 @@ export class TransformerManager {
       }
     });
 
-    // FIXED: Clear any existing nodes first to prevent frame duplication
     this.transformer.nodes([]);
     this.overlay.batchDraw();
 
-    // Attach directly without delay to prevent timing issues
     if (this.transformer && live.length > 0) {
-      // Apply aspect ratio constraints and resize prevention based on element type
       this.applyElementConstraints(live);
 
-      // CRITICAL FIX: Enable dragging on attached nodes for transformer to work
-      // Store original draggable state and enable dragging
       live.forEach(node => {
-        // Store original draggable state if not already stored
         if (!Object.prototype.hasOwnProperty.call(node, '_originalDraggable')) {
           node.setAttr('_originalDraggable', node.draggable());
         }
-        // Enable dragging so transformer can move the node
         node.draggable(true);
       });
 
       this.transformer.nodes(live);
       this.transformer.visible(true);
       this.overlay.batchDraw();
-
     }
   }
 
@@ -245,13 +221,11 @@ export class TransformerManager {
   detach() {
     if (!this.transformer) return;
 
-    // FIXED: Restore original draggable state when detaching
     const nodes = this.transformer.nodes();
     nodes.forEach(node => {
       const originalDraggable = node.getAttr('_originalDraggable');
       if (originalDraggable !== undefined) {
         node.draggable(originalDraggable);
-        // Clean up the temporary attribute
         node.setAttr('_originalDraggable', undefined);
       }
     });
@@ -267,7 +241,6 @@ export class TransformerManager {
 
   refresh() {
     if (!this.transformer) return;
-
     this.transformer.forceUpdate();
     this.overlay.batchDraw();
   }
@@ -285,69 +258,67 @@ export class TransformerManager {
   }
 
   /**
-   * Apply element-specific constraints for resize and aspect ratio handling
-   * Phase 18A: Foundation Systems - Aspect Ratio System & Text Tool Protection
+   * CRITICAL FIX: Properly apply aspect ratio constraints for sticky notes
    */
   private applyElementConstraints(nodes: Konva.Node[]) {
     if (!this.transformer) return;
 
-    // Determine primary element type from first node
     const primaryNode = nodes[0];
     const elementType = this.getElementType(primaryNode);
     const isTextElement = elementType === 'text';
 
-    // Check if element has resizable property set to false
     const elementResizable = primaryNode.getAttr('resizable');
     const isResizeDisabled = elementResizable === false || isTextElement;
 
-    // Apply resize prevention for text elements or elements with resizable: false
     if (isResizeDisabled) {
-      // Disable resize anchors - only allow rotation and position
       this.transformer.enabledAnchors([]);
       this.transformer.rotateEnabled(true);
-      this.transformer.boundBoxFunc(undefined); // Clear any constraints
+      this.transformer.boundBoxFunc(undefined);
       return;
     }
 
-    // Re-enable all anchors for non-text elements
+    // CRITICAL FIX: Enable all anchors but apply constraints based on element type
     this.transformer.enabledAnchors(this.opts.enabledAnchors || [
       "top-left", "top-center", "top-right",
       "middle-left", "middle-right",
       "bottom-left", "bottom-center", "bottom-right"
     ]);
 
-    // Apply aspect ratio constraints for sticky notes and other elements
+    // CRITICAL FIX: Apply aspect ratio constraints for sticky notes
     if (elementType === 'sticky-note') {
-      // FIXED: Lock aspect ratio for sticky notes by default
-      const aspectConfig = getElementAspectConfig('sticky-note', true); // Lock aspect ratio for consistent proportions
-
+      // For sticky notes, lock aspect ratio to maintain square proportions
+      const aspectConfig = getElementAspectConfig('sticky-note', true);
+      
       // Get original dimensions for constraint reference
       const originalDimensions = {
         width: primaryNode.width() * (primaryNode.scaleX() || 1),
         height: primaryNode.height() * (primaryNode.scaleY() || 1)
       };
 
-      // Create constraint function for sticky notes
+      // Create and apply constraint function
       const constraintFunc = createAspectRatioConstraint(aspectConfig, originalDimensions);
       this.transformer.boundBoxFunc(constraintFunc);
+      
+      // CRITICAL: Force aspect ratio to be locked by default for sticky notes
+      this.transformer.keepRatio(true);
+      
+      // CRITICAL FIX: Limit to corner anchors only for aspect ratio consistency
+      this.transformer.enabledAnchors([
+        "top-left", "top-right", "bottom-left", "bottom-right"
+      ]);
     } else {
-      // Clear any existing constraints for other element types
+      // Clear constraints for other element types
       this.transformer.boundBoxFunc(undefined);
+      this.transformer.keepRatio(this.opts.lockAspectRatio || false);
     }
   }
 
-  /**
-   * Determine element type from Konva node attributes
-   */
   private getElementType(node: Konva.Node): string {
-    // Check element type from various node attributes
     const nodeType = node.getAttr('nodeType');
     const name = node.name();
 
-    // Direct type indicators
     if (nodeType) return nodeType;
 
-    // Name-based detection
     if (name.includes('text')) return 'text';
     if (name.includes('sticky')) return 'sticky-note';
     if (name.includes('shape')) return 'shape';
@@ -355,11 +326,9 @@ export class TransformerManager {
     if (name.includes('table')) return 'table';
     if (name.includes('mindmap')) return 'mindmap';
 
-    // Default to generic element
     return 'element';
   }
 
-  // FIXED: Set aspect ratio locking dynamically
   setKeepRatio(keepRatio: boolean) {
     if (!this.transformer) return;
     this.transformer.keepRatio(keepRatio);
@@ -368,7 +337,6 @@ export class TransformerManager {
   destroy() {
     if (!this.transformer) return;
 
-    // Clean up keyboard listeners
     if (this.keyboardCleanup) {
       this.keyboardCleanup();
       this.keyboardCleanup = null;
