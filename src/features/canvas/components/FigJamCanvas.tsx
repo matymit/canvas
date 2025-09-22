@@ -27,7 +27,13 @@ import MindmapTool from "./tools/content/MindmapTool";
 import CircleTool from "./tools/shapes/CircleTool";
 // Rectangle and Triangle tools have been archived as they are no longer used
 import ToolManager from "../managers/ToolManager";
-// Note: Drawing tools (pen, marker, highlighter, eraser) would be in ./tools/drawing/
+// Drawing tools
+import { PenTool } from "./tools/drawing/PenTool";
+import MarkerTool from "./tools/drawing/MarkerTool";
+import HighlighterTool from "./tools/drawing/HighlighterTool";
+import EraserTool from "./tools/drawing/EraserTool";
+// Navigation tools
+import MarqueeSelectionTool from "./tools/navigation/MarqueeSelectionTool";
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -519,15 +525,15 @@ const FigJamCanvas: React.FC = () => {
             />
           );
 
-        // Drawing tools would go here
-        // case 'pen':
-        //   return <PenTool key="pen-tool" {...toolProps} />;
-        // case 'marker':
-        //   return <MarkerTool key="marker-tool" {...toolProps} />;
-        // case 'highlighter':
-        //   return <HighlighterTool key="highlighter-tool" {...toolProps} />;
-        // case 'eraser':
-        //   return <EraserTool key="eraser-tool" {...toolProps} />;
+        // Drawing tools
+        case "pen":
+          return <PenTool key="pen-tool" {...toolProps} />;
+        case "marker":
+          return <MarkerTool key="marker-tool" {...toolProps} />;
+        case "highlighter":
+          return <HighlighterTool key="highlighter-tool" {...toolProps} />;
+        case "eraser":
+          return <EraserTool key="eraser-tool" {...toolProps} />;
 
         // No tool component needed for select/pan
         case "select":
@@ -560,6 +566,12 @@ const FigJamCanvas: React.FC = () => {
 
       {/* Render active tool components - these handle stage interactions */}
       {renderActiveTool()}
+
+      {/* Marquee selection for select tool - always active when in select mode */}
+      <MarqueeSelectionTool
+        stageRef={stageRef}
+        isActive={selectedTool === "select"}
+      />
 
       {/* Table context menu system */}
       <TableContextMenuManager stageRef={stageRef} />

@@ -26,6 +26,8 @@ import {
   GitBranch,
   Image as ImageIcon,
   Trash2,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 
 type ToolbarProps = {
@@ -76,6 +78,10 @@ const getIcon = (toolId: string) => {
       return <Redo2 {...iconProps} />;
     case "clear":
       return <Trash2 {...iconProps} />;
+    case "zoom-in":
+      return <ZoomIn {...iconProps} />;
+    case "zoom-out":
+      return <ZoomOut {...iconProps} />;
     default:
       return null;
   }
@@ -98,6 +104,21 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
   const handleUndo = onUndo || (() => store.undo?.());
   const handleRedo = onRedo || (() => store.redo?.());
+
+  // Zoom control handlers
+  const handleZoomIn = useCallback(() => {
+    const state = useUnifiedCanvasStore.getState();
+    if (state.viewport?.zoomIn) {
+      state.viewport.zoomIn();
+    }
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const state = useUnifiedCanvasStore.getState();
+    if (state.viewport?.zoomOut) {
+      state.viewport.zoomOut();
+    }
+  }, []);
 
   const handleClearCanvas = useCallback(() => {
     const ok =
@@ -434,6 +455,28 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           onClick={handleClearCanvas}
         >
           {getIcon("clear")}
+        </button>
+      </div>
+
+      {/* Zoom Controls */}
+      <div className="toolbar-group">
+        <button
+          type="button"
+          className="tool-button"
+          title="Zoom In"
+          onClick={handleZoomIn}
+          data-testid="toolbar-zoom-in"
+        >
+          {getIcon("zoom-in")}
+        </button>
+        <button
+          type="button"
+          className="tool-button"
+          title="Zoom Out"
+          onClick={handleZoomOut}
+          data-testid="toolbar-zoom-out"
+        >
+          {getIcon("zoom-out")}
         </button>
       </div>
 

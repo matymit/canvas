@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { createAspectRatioConstraint, getElementAspectConfig } from "../utils/AspectRatioConstraint";
 
 export interface TransformerCallbacks {
   onTransformStart?: (nodes: Konva.Node[]) => void;
@@ -210,6 +211,9 @@ export class TransformerManager {
 
     // Attach directly without delay to prevent timing issues
     if (this.transformer && live.length > 0) {
+      // Apply aspect ratio constraints and resize prevention based on element type
+      this.applyElementConstraints(live);
+
       // CRITICAL FIX: Enable dragging on attached nodes for transformer to work
       // Store original draggable state and enable dragging
       live.forEach(node => {
@@ -278,6 +282,81 @@ export class TransformerManager {
     if (!this.transformer) return;
     this.transformer.visible(false);
     this.overlay.batchDraw();
+  }
+
+  /**
+   * Apply element-specific constraints for resize and aspect ratio handling
+   * Phase 18A: Foundation Systems - Aspect Ratio System & Text Tool Protection
+   */
+  private applyElementConstraints(nodes: Konva.Node[]) {
+    if (!this.transformer) return;
+
+    // Determine primary element type from first node
+    const primaryNode = nodes[0];
+    const elementType = this.getElementType(primaryNode);
+    const isTextElement = elementType === 'text';
+
+    // Check if element has resizable property set to false
+    const elementResizable = primaryNode.getAttr('resizable');
+    const isResizeDisabled = elementResizable === false || isTextElement;
+
+    // Apply resize prevention for text elements or elements with resizable: false
+    if (isResizeDisabled) {
+      // Disable resize anchors - only allow rotation and position
+      this.transformer.enabledAnchors([]);
+      this.transformer.rotateEnabled(true);
+      this.transformer.boundBoxFunc(undefined); // Clear any constraints
+      return;
+    }
+
+    // Re-enable all anchors for non-text elements
+    this.transformer.enabledAnchors(this.opts.enabledAnchors || [
+      "top-left", "top-center", "top-right",
+      "middle-left", "middle-right",
+      "bottom-left", "bottom-center", "bottom-right"
+    ]);
+
+    // Apply aspect ratio constraints for sticky notes and other elements
+    if (elementType === 'sticky-note') {
+      // FIXED: Lock aspect ratio for sticky notes by default
+      const aspectConfig = getElementAspectConfig('sticky-note', true); // Lock aspect ratio for consistent proportions
+
+      // Get original dimensions for constraint reference
+      const originalDimensions = {
+        width: primaryNode.width() * (primaryNode.scaleX() || 1),
+        height: primaryNode.height() * (primaryNode.scaleY() || 1)
+      };
+
+      // Create constraint function for sticky notes
+      const constraintFunc = createAspectRatioConstraint(aspectConfig, originalDimensions);
+      this.transformer.boundBoxFunc(constraintFunc);
+    } else {
+      // Clear any existing constraints for other element types
+      this.transformer.boundBoxFunc(undefined);
+    }
+  }
+
+  /**
+   * Determine element type from Konva node attributes
+   */
+  private getElementType(node: Konva.Node): string {
+    // Check element type from various node attributes
+    const nodeType = node.getAttr('nodeType');
+    const name = node.name();
+
+    // Direct type indicators
+    if (nodeType) return nodeType;
+
+    // Name-based detection
+    if (name.includes('text')) return 'text';
+    if (name.includes('sticky')) return 'sticky-note';
+    if (name.includes('shape')) return 'shape';
+    if (name.includes('image')) return 'image';
+    if (name.includes('table')) return 'table';
+    if (name.includes('mindmap')) return 'mindmap';
+
+    // Default to generic element
+    return 'element';
   }
 
   // FIXED: Set aspect ratio locking dynamically

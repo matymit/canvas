@@ -2,6 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { TransformerManager } from "../../managers/TransformerManager";
+import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import type { TableElement } from "../../types/table";
 import { applyTableScaleResize } from "./tableTransform";
@@ -33,6 +34,7 @@ interface ElementChanges {
 
 export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
+  private connectorSelectionManager?: ConnectorSelectionManager;
   private storeCtx?: ModuleRendererCtx;
   private unsubscribe?: () => void;
   private unsubscribeVersion?: () => void;
@@ -42,6 +44,19 @@ export class SelectionModule implements RendererModule {
 
     // FIXED: Make module globally accessible for tool integration
     (window as { selectionModule?: SelectionModule }).selectionModule = this;
+
+    // Create connector selection manager for custom connector selection
+    this.connectorSelectionManager = new ConnectorSelectionManager(
+      ctx.stage,
+      ctx.store,
+      {
+        overlayLayer: ctx.layers.overlay,
+        onEndpointDrag: (connectorId, endpoint, newPosition) => {
+          // Real-time connector endpoint update during drag
+          this.handleConnectorEndpointDrag(connectorId, endpoint, newPosition);
+        },
+      }
+    );
 
     // Create transformer manager on overlay layer with dynamic aspect ratio control
     this.transformerManager = new TransformerManager(ctx.stage, {
@@ -155,6 +170,10 @@ export class SelectionModule implements RendererModule {
       this.transformerManager.destroy();
       this.transformerManager = undefined;
     }
+    if (this.connectorSelectionManager) {
+      this.connectorSelectionManager.destroy();
+      this.connectorSelectionManager = undefined;
+    }
 
     // Clean up global reference
     const globalWindow = window as { selectionModule?: SelectionModule };
@@ -164,53 +183,71 @@ export class SelectionModule implements RendererModule {
   }
 
   private updateSelection(selectedIds: Set<string>) {
-    if (!this.transformerManager || !this.storeCtx) return;
+    if (!this.transformerManager || !this.connectorSelectionManager || !this.storeCtx) return;
+
+    // Clear both selection systems first
+    this.transformerManager.setKeepRatio(false);
+    this.transformerManager.detach();
+    this.connectorSelectionManager.clearSelection();
 
     if (selectedIds.size === 0) {
-      this.transformerManager.setKeepRatio(false);
-      this.transformerManager.detach();
       return;
     }
 
-    const selectionSnapshot = new Set(selectedIds);
+    // Check if selection contains connectors
+    const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectedIds);
 
-    // FIXED: Slightly longer delay to ensure elements are fully rendered and avoid double frames
-    setTimeout(() => {
-      // Processing selection update
-      // Find Konva nodes for selected elements across all layers
-      const nodes = this.resolveElementsToNodes(selectionSnapshot);
-      // Found nodes
+    // Handle connector selection (only single connector supported for custom selection)
+    if (connectorIds.length === 1 && nonConnectorIds.length === 0) {
+      // Single connector selected - use custom connector selection
+      setTimeout(() => {
+        this.connectorSelectionManager?.showSelection(connectorIds[0]);
+      }, 50);
+      return;
+    }
 
-      if (nodes.length > 0) {
-        // Attaching transformer to nodes
-        // FIXED: Detach first to prevent any lingering transformers, then attach
-        this.transformerManager?.detach();
-        this.transformerManager?.attachToNodes(nodes);
-        const lockAspect = this.shouldLockAspectRatio(selectionSnapshot);
-        this.transformerManager?.setKeepRatio(lockAspect);
+    // Handle non-connector selection or mixed selection (fall back to transformer)
+    if (nonConnectorIds.length > 0) {
+      const selectionSnapshot = new Set(nonConnectorIds);
 
-        // CRITICAL FIX: Ensure transformer is shown and force a batch draw
-        // Showing transformer
-        this.transformerManager?.show();
+      // FIXED: Slightly longer delay to ensure elements are fully rendered and avoid double frames
+      setTimeout(() => {
+        // Processing selection update
+        // Find Konva nodes for selected elements across all layers
+        const nodes = this.resolveElementsToNodes(selectionSnapshot);
+        // Found nodes
 
-        // Additional safety check: force visibility and batch draw
-        setTimeout(() => {
-          if (this.transformerManager) {
-            const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
-            // Safety check - transformer visible
-            if (transformer && !transformer.visible()) {
-              // Transformer was not visible, forcing visibility
-              transformer.visible(true);
-              transformer.getLayer()?.batchDraw();
+        if (nodes.length > 0) {
+          // Attaching transformer to nodes
+          // FIXED: Detach first to prevent any lingering transformers, then attach
+          this.transformerManager?.detach();
+          this.transformerManager?.attachToNodes(nodes);
+          const lockAspect = this.shouldLockAspectRatio(selectionSnapshot);
+          this.transformerManager?.setKeepRatio(lockAspect);
+
+          // CRITICAL FIX: Ensure transformer is shown and force a batch draw
+          // Showing transformer
+          this.transformerManager?.show();
+
+          // Additional safety check: force visibility and batch draw
+          setTimeout(() => {
+            if (this.transformerManager) {
+              const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
+              // Safety check - transformer visible
+              if (transformer && !transformer.visible()) {
+                // Transformer was not visible, forcing visibility
+                transformer.visible(true);
+                transformer.getLayer()?.batchDraw();
+              }
             }
-          }
-        }, 10);
-      } else {
-        // Could not find nodes for selected elements
-        this.transformerManager?.detach();
-        this.transformerManager?.setKeepRatio(false);
-      }
-    }, 75); // Slightly longer delay
+          }, 10);
+        } else {
+          // Could not find nodes for selected elements
+          this.transformerManager?.detach();
+          this.transformerManager?.setKeepRatio(false);
+        }
+      }, 75); // Slightly longer delay
+    }
   }
 
   private resolveElementsToNodes(
@@ -632,23 +669,91 @@ export class SelectionModule implements RendererModule {
 
     if (selectedIds.size === 0) {
       this.transformerManager.detach();
+      this.connectorSelectionManager?.clearSelection();
       return;
     }
 
-    // Find Konva nodes for selected elements
-    const nodes = this.resolveElementsToNodes(selectedIds);
+    // Check if selection contains connectors
+    const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectedIds);
 
-    if (nodes.length > 0) {
-      // Detach and reattach to force bounds recalculation
+    // Handle connector selection refresh
+    if (connectorIds.length === 1 && nonConnectorIds.length === 0) {
       this.transformerManager.detach();
-      this.transformerManager.attachToNodes(nodes);
-      const lockAspect = this.shouldLockAspectRatio(selectedIds);
-      this.transformerManager.setKeepRatio(lockAspect);
-      this.transformerManager.show();
-      // Force immediate update
-      this.transformerManager.refresh();
-    } else {
-      this.transformerManager.detach();
+      this.connectorSelectionManager?.refreshSelection();
+      return;
+    }
+
+    // Handle non-connector selection refresh
+    if (nonConnectorIds.length > 0) {
+      this.connectorSelectionManager?.clearSelection();
+
+      // Find Konva nodes for selected elements
+      const nodes = this.resolveElementsToNodes(new Set(nonConnectorIds));
+
+      if (nodes.length > 0) {
+        // Detach and reattach to force bounds recalculation
+        this.transformerManager.detach();
+        this.transformerManager.attachToNodes(nodes);
+        const lockAspect = this.shouldLockAspectRatio(new Set(nonConnectorIds));
+        this.transformerManager.setKeepRatio(lockAspect);
+        this.transformerManager.show();
+        // Force immediate update
+        this.transformerManager.refresh();
+      } else {
+        this.transformerManager.detach();
+      }
+    }
+  }
+
+  /**
+   * Categorize selected element IDs into connectors and non-connectors
+   */
+  private categorizeSelection(selectedIds: Set<string>): {
+    connectorIds: string[];
+    nonConnectorIds: string[];
+  } {
+    if (!this.storeCtx) {
+      return { connectorIds: [], nonConnectorIds: Array.from(selectedIds) };
+    }
+
+    const state = this.storeCtx.store.getState();
+    const elements = state.elements || new Map();
+
+    const connectorIds: string[] = [];
+    const nonConnectorIds: string[] = [];
+
+    for (const id of selectedIds) {
+      const element = elements.get?.(id) || state.element?.getById?.(id);
+      if (element && element.type === "connector") {
+        connectorIds.push(id);
+      } else {
+        nonConnectorIds.push(id);
+      }
+    }
+
+    return { connectorIds, nonConnectorIds };
+  }
+
+  /**
+   * Handle real-time connector endpoint drag updates
+   */
+  private handleConnectorEndpointDrag(
+    connectorId: string,
+    _endpoint: 'from' | 'to',
+    _newPosition: { x: number; y: number }
+  ): void {
+    // This is called during drag for real-time visual updates
+    // The actual store update happens on drag end in ConnectorSelectionManager
+
+    // Optionally trigger connector re-render for real-time feedback
+    if (this.storeCtx) {
+      const state = this.storeCtx.store.getState();
+      const connector = state.elements?.get?.(connectorId) || state.element?.getById?.(connectorId);
+
+      if (connector && connector.type === "connector") {
+        // We could trigger a temporary re-render here, but for now
+        // the ConnectorSelectionManager handles the visual feedback with endpoint dots
+      }
     }
   }
 }

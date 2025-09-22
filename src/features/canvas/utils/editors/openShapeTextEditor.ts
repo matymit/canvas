@@ -135,6 +135,9 @@ export function openShapeTextEditor(
       padding: ${getCirclePadding()}px;
       min-height: 1px;
       caret-color: ${textColor};
+      /* Enhanced caret visibility for circles */
+      -webkit-text-fill-color: ${textColor};
+      text-shadow: 0 0 0 ${textColor};
     ` : isTriangle ? `
       text-align: center;
       white-space: pre-wrap;
@@ -403,6 +406,9 @@ export function openShapeTextEditor(
       // Double RAF for circles to ensure caret is visible
       requestAnimationFrame(() => {
         editor.style.caretColor = textColor; // Re-apply caret color
+        editor.style.setProperty('-webkit-text-fill-color', textColor); // WebKit fallback
+        // Add subtle outline for better focus visibility in circles
+        editor.style.outline = '1px dashed rgba(59, 130, 246, 0.5)';
         focusEditor(); // Focus again to ensure caret blinks
       });
     });

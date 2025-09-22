@@ -4,6 +4,7 @@ import { TableContextMenu } from "./TableContextMenu";
 import { TableSpatialFeedback } from "./TableSpatialFeedback";
 import { TableConfirmationDialog } from "./TableConfirmationDialog";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
+import { TableContextMenuTool } from "../../tools/TableContextMenuTool";
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
 import {
@@ -38,11 +39,15 @@ export interface TableConfirmationState {
 
 export interface TableContextMenuManagerProps {
   stageRef: React.RefObject<Konva.Stage>;
+  eventManager?: {
+    registerTool: (id: string, handler: any, priority?: number) => void;
+    unregisterTool: (id: string) => void;
+  };
 }
 
 export const TableContextMenuManager: React.FC<
   TableContextMenuManagerProps
-> = ({ stageRef }) => {
+> = ({ stageRef, eventManager }) => {
   const [contextMenuState, setContextMenuState] =
     useState<TableContextMenuState>({
       visible: false,
@@ -387,118 +392,97 @@ export const TableContextMenuManager: React.FC<
     ],
   );
 
-  // Set up right-click event handling on stage with robust initialization
+  // Set up right-click event handling through the event manager
   useEffect(() => {
-    let disposed = false;
-    let contextMenuHandler:
-      | ((e: Konva.KonvaEventObject<MouseEvent>) => void)
-      | null = null;
-    const currentStage = stageRef.current;
+    if (!eventManager) {
+      // Fallback to direct stage registration if no event manager available
+      let disposed = false;
+      let contextMenuHandler: ((e: Konva.KonvaEventObject<MouseEvent>) => void) | null = null;
+      const currentStage = stageRef.current;
 
-    const attachWhenReady = () => {
-      if (disposed) return;
-
-      const stage = currentStage;
-      if (!stage) {
-        setTimeout(attachWhenReady, 100);
-        return;
-      }
-
-      contextMenuHandler = (e: Konva.KonvaEventObject<MouseEvent>) => {
-        const stageInstance = currentStage;
-        if (!stageInstance) {
+      const attachWhenReady = () => {
+        if (disposed) return;
+        const stage = currentStage;
+        if (!stage) {
+          setTimeout(attachWhenReady, 100);
           return;
         }
 
-        // Prevent browser context menu
-        e.evt?.preventDefault?.();
+        contextMenuHandler = (e: Konva.KonvaEventObject<MouseEvent>) => {
+          // Use existing table context menu logic as fallback
+          const target = e.target;
+          if (!target) return;
 
-        const target = e.target;
-        if (!target) {
-          return;
-        }
+          let tableGroup: Konva.Node | null = target;
+          let searchDepth = 0;
 
-        // Check if we clicked on a table cell or table group
-        let tableGroup: Konva.Node | null = target;
-        let searchDepth = 0;
+          const hasTableName = (node: Konva.Node | null) => {
+            if (!node) return false;
+            if (typeof node.hasName === "function") return node.hasName("table-group");
+            return node.name?.() === "table-group";
+          };
 
-        const hasTableName = (node: Konva.Node | null) => {
-          if (!node) return false;
-          if (typeof node.hasName === "function")
-            return node.hasName("table-group");
-          return node.name?.() === "table-group";
-        };
-
-        while (tableGroup && !hasTableName(tableGroup) && searchDepth < 10) {
-          tableGroup = tableGroup.getParent();
-          searchDepth++;
-          if (!tableGroup) {
-            return;
+          while (tableGroup && !hasTableName(tableGroup) && searchDepth < 10) {
+            tableGroup = tableGroup.getParent();
+            searchDepth++;
+            if (!tableGroup) return;
           }
-        }
 
-        if (!tableGroup || !hasTableName(tableGroup)) {
-          return;
-        }
+          if (!tableGroup || !hasTableName(tableGroup)) return;
 
-        // Find the cell that was clicked
-        const tableId = tableGroup.id();
-        const pointerPos = stageInstance.getPointerPosition() ?? {
-          x: e.evt?.offsetX ?? e.evt?.layerX ?? 0,
-          y: e.evt?.offsetY ?? e.evt?.layerY ?? 0,
+          e.evt?.preventDefault?.();
+
+          const tableId = tableGroup.id();
+          const pointerPos = stage.getPointerPosition() ?? {
+            x: e.evt?.offsetX ?? e.evt?.layerX ?? 0,
+            y: e.evt?.offsetY ?? e.evt?.layerY ?? 0,
+          };
+
+          const tableElement = getElement(tableId);
+          if (!tableElement || tableElement.type !== "table") return;
+
+          const tableTransform = tableGroup.getAbsoluteTransform();
+          const localPos = tableTransform.copy().invert().point(pointerPos);
+
+          const cellWidth = (tableElement as TableElement).width / (tableElement as TableElement).cols;
+          const cellHeight = (tableElement as TableElement).height / (tableElement as TableElement).rows;
+
+          const col = Math.floor(localPos.x / cellWidth);
+          const row = Math.floor(localPos.y / cellHeight);
+
+          if (
+            row >= 0 && row < (tableElement as TableElement).rows &&
+            col >= 0 && col < (tableElement as TableElement).cols
+          ) {
+            const rect = stage.container().getBoundingClientRect();
+            const screenX = rect.left + pointerPos.x;
+            const screenY = rect.top + pointerPos.y;
+            showContextMenu(screenX, screenY, tableId, row, col);
+          }
         };
 
-        // Get table element to calculate cell position
-        const tableElement = getElement(tableId);
-        if (!tableElement || tableElement.type !== "table") {
-          return;
-        }
-
-        // Calculate which cell was clicked based on pointer position and table transform
-        const tableTransform = tableGroup.getAbsoluteTransform();
-        const localPos = tableTransform.copy().invert().point(pointerPos);
-
-        const cellWidth =
-          (tableElement as TableElement).width /
-          (tableElement as TableElement).cols;
-        const cellHeight =
-          (tableElement as TableElement).height /
-          (tableElement as TableElement).rows;
-
-        const col = Math.floor(localPos.x / cellWidth);
-        const row = Math.floor(localPos.y / cellHeight);
-
-        // Ensure we're within bounds
-        if (
-          row >= 0 &&
-          row < (tableElement as TableElement).rows &&
-          col >= 0 &&
-          col < (tableElement as TableElement).cols
-        ) {
-          // Convert stage coordinates to screen coordinates
-          const rect = stageInstance.container().getBoundingClientRect();
-          const screenX = rect.left + pointerPos.x;
-          const screenY = rect.top + pointerPos.y;
-
-          showContextMenu(screenX, screenY, tableId, row, col);
-        }
+        stage.on("contextmenu.table-menu", contextMenuHandler);
       };
 
-      stage.on("contextmenu.table-menu", contextMenuHandler);
-    };
+      attachWhenReady();
 
-    attachWhenReady();
-
-    return () => {
-      disposed = true;
-      if (currentStage) {
-        if (contextMenuHandler) {
+      return () => {
+        disposed = true;
+        if (currentStage && contextMenuHandler) {
           currentStage.off("contextmenu", contextMenuHandler);
+          currentStage.off("contextmenu.table-menu");
         }
-        currentStage.off("contextmenu.table-menu");
-      }
-    };
-  }, [stageRef, showContextMenu, getElement]);
+      };
+    } else {
+      // Use the event manager for better integration
+      const tableContextMenuTool = new TableContextMenuTool(showContextMenu);
+      eventManager.registerTool('table-context-menu', tableContextMenuTool, 10);
+
+      return () => {
+        eventManager.unregisterTool('table-context-menu');
+      };
+    }
+  }, [stageRef, showContextMenu, getElement, eventManager]);
 
   // Close menus on escape key
   useEffect(() => {

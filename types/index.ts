@@ -34,6 +34,7 @@ export interface CanvasElement {
   visible?: boolean;
   locked?: boolean;
   draggable?: boolean;
+  resizable?: boolean; // Phase 18A: Control whether element can be resized via transformer
   bounds?: Bounds; // For elements that track their bounds
   data?: Record<string, unknown>; // Type-specific data
   fill?: string; // Direct fill property for some elements

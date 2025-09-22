@@ -14,6 +14,8 @@ export interface ToolEventHandler {
   onMouseDown?: (e: AnyKonvaEvent) => boolean | void;
   onMouseMove?: (e: AnyKonvaEvent) => boolean | void;
   onMouseUp?: (e: AnyKonvaEvent) => boolean | void;
+  // Context menu
+  onContextMenu?: (e: AnyKonvaEvent) => boolean | void;
   // Wheel/keyboard
   onWheel?: (e: AnyKonvaEvent) => boolean | void;
   onKeyDown?: (e: KeyboardEvent) => boolean | void;
@@ -131,6 +133,9 @@ export default function useCanvasEventManager(
     const onMM = (e: AnyKonvaEvent) => mgr.delegateEvent('onMouseMove', e);
     const onMU = (e: AnyKonvaEvent) => mgr.delegateEvent('onMouseUp', e);
 
+    // Context menu
+    const onContextMenu = (e: AnyKonvaEvent) => mgr.delegateEvent('onContextMenu', e);
+
     // Wheel
     const onWheel = (e: AnyKonvaEvent) => mgr.delegateEvent('onWheel', e);
 
@@ -176,6 +181,7 @@ export default function useCanvasEventManager(
     stage.on('mousemove', onMM);
     stage.on('mouseup', onMU);
 
+    stage.on('contextmenu', onContextMenu);
     stage.on('wheel', onWheel);
 
     stage.on('dragstart', onDragStart);
@@ -196,6 +202,7 @@ export default function useCanvasEventManager(
       stage.off('mousedown', onMD);
       stage.off('mousemove', onMM);
       stage.off('mouseup', onMU);
+      stage.off('contextmenu', onContextMenu);
       stage.off('wheel', onWheel);
 
       stage.off('dragstart', onDragStart);

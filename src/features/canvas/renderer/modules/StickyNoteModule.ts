@@ -2,6 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { debug, error as logError } from "../../../../utils/debug";
+import { getTextConfig } from "../../constants/TextConstants";
 
 type Id = string;
 
@@ -199,6 +200,8 @@ export class StickyNoteModule implements RendererModule {
       shadowOffset: { x: 0, y: 2 },
     });
 
+    // Apply consistent text styling for sticky notes
+    const textConfig = getTextConfig('STICKY_NOTE');
     const text = new Konva.Text({
       name: "sticky-text",
       x: 12,
@@ -206,11 +209,12 @@ export class StickyNoteModule implements RendererModule {
       width: Math.max(0, sticky.width - 24),
       height: Math.max(0, sticky.height - 24),
       text: sticky.text || "",
-      fontSize: 14,
-      fontFamily: "Inter, system-ui, sans-serif",
+      fontSize: textConfig.fontSize,
+      fontFamily: textConfig.fontFamily,
+      fontWeight: textConfig.fontWeight,
+      lineHeight: textConfig.lineHeight,
       fill: "#374151",
       wrap: "word",
-      lineHeight: 1.4,
       verticalAlign: "top",
     });
 

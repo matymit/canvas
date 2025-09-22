@@ -3,6 +3,7 @@ import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 import { computeShapeInnerBox, type BaseShape } from "../../utils/text/computeShapeInnerBox";
+import { getTextConfig } from "../../constants/TextConstants";
 
 
 // Extended shape data interface
@@ -429,8 +430,10 @@ export class ShapeRenderer implements RendererModule {
     if (!shape.data?.text || !this.layer) return undefined;
 
     try {
-      const fontSize = shape.style?.fontSize ?? (shape.type === 'circle' ? 20 : 10);
-      const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
+      // Apply consistent text styling based on shape type
+      const textConfig = getTextConfig(shape.type === 'circle' ? 'CIRCLE' : 'SHAPE');
+      const fontSize = shape.style?.fontSize ?? textConfig.fontSize;
+      const fontFamily = shape.style?.fontFamily || textConfig.fontFamily;
       const textColor = shape.textColor || '#111827';
       const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
       const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
@@ -481,8 +484,10 @@ export class ShapeRenderer implements RendererModule {
     if (!shape.data?.text) return;
 
     try {
-      const fontSize = shape.style?.fontSize ?? (shape.type === 'circle' ? 20 : 10);
-      const fontFamily = shape.style?.fontFamily || 'Inter, system-ui, sans-serif';
+      // Apply consistent text styling based on shape type
+      const textConfig = getTextConfig(shape.type === 'circle' ? 'CIRCLE' : 'SHAPE');
+      const fontSize = shape.style?.fontSize ?? textConfig.fontSize;
+      const fontFamily = shape.style?.fontFamily || textConfig.fontFamily;
       const textColor = shape.textColor || '#111827';
       const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
       const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;

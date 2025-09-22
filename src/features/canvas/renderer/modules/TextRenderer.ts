@@ -2,6 +2,7 @@
 import Konva from 'konva';
 import type { ModuleRendererCtx, RendererModule } from '../index';
 import { openKonvaTextEditor } from '../../utils/editors/openShapeTextEditor';
+import { getTextConfig } from '../../constants/TextConstants';
 
 type Id = string;
 
@@ -29,6 +30,7 @@ interface TextElement {
   };
   rotation?: number;
   opacity?: number;
+  resizable?: boolean; // Phase 18A: Control resize behavior
 }
 
 export class TextRenderer implements RendererModule {
@@ -179,9 +181,15 @@ export class TextRenderer implements RendererModule {
       y: text.y,
       width: text.width,
       text: text.text,
-      fontSize: text.style?.fontSize || 18,
-      fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
-      fontStyle: text.style?.fontWeight || 'normal',
+      // Apply consistent text styling with fallback support
+      ...(() => {
+        const textConfig = getTextConfig('TEXT');
+        return {
+          fontSize: text.style?.fontSize || textConfig.fontSize,
+          fontFamily: text.style?.fontFamily || textConfig.fontFamily,
+          fontStyle: text.style?.fontWeight || textConfig.fontWeight.toString(),
+        };
+      })(),
       fill: text.style?.fill || '#111827', // Use element's fill color
       align: text.style?.align || 'left',
       rotation: text.rotation || 0,
@@ -197,6 +205,7 @@ export class TextRenderer implements RendererModule {
     // Set element ID for selection system - use both methods for compatibility
     node.setAttr('elementId', text.id);
     node.setAttr('nodeType', 'text'); // Additional attribute to help with identification
+    node.setAttr('resizable', text.resizable !== undefined ? text.resizable : false); // Phase 18A: Text elements not resizable by default
 
     // Add event handlers
     this.addEventHandlers(node, text);
@@ -228,8 +237,14 @@ export class TextRenderer implements RendererModule {
         y: text.y,
         width: text.width,
         text: text.text,
-        fontSize: text.style?.fontSize || 18,
-        fontFamily: text.style?.fontFamily || 'Inter, system-ui, sans-serif',
+        // Apply consistent text styling with fallback support
+        ...(() => {
+          const textConfig = getTextConfig('TEXT');
+          return {
+            fontSize: text.style?.fontSize || textConfig.fontSize,
+            fontFamily: text.style?.fontFamily || textConfig.fontFamily,
+          };
+        })(),
         fontStyle: text.style?.fontWeight || 'normal',
         fill: text.style?.fill || '#111827', // Use element's fill color
         align: text.style?.align || 'left',

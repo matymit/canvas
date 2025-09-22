@@ -4,6 +4,7 @@
 import Konva from "konva";
 import type { RendererLayers } from "../layers";
 import type { CanvasElement } from "../../../../../types";
+import { getTextConfig } from "../../constants/TextConstants";
 
 // Store state interfaces
 interface StoreState {
@@ -212,7 +213,11 @@ export class MindmapRenderer {
       fill: style.fill ?? color,
       textColor: style.textColor ?? DEFAULT_NODE_STYLE.textColor,
       fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
-      fontSize: style.fontSize ?? (level === 0 ? 16 : 14),
+      // Apply consistent text styling for mindmap nodes
+      fontSize: style.fontSize ?? (() => {
+        const textConfig = getTextConfig(level === 0 ? 'MINDMAP_ROOT' : 'MINDMAP_CHILD');
+        return textConfig.fontSize;
+      })(),
       cornerRadius: style.cornerRadius ?? DEFAULT_NODE_STYLE.cornerRadius,
       stroke:
         style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
