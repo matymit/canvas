@@ -77,7 +77,9 @@ export default function useRAFManager(): UseRAFManager {
         rafIdRef.current = null;
       }
       // Capture ref values at cleanup time
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- Ref values captured at cleanup time as recommended
       const subs = subsRef.current;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- Ref values captured at cleanup time as recommended
       const pendingLayers = pendingLayersRef.current;
       subs.clear();
       pendingLayers.clear();

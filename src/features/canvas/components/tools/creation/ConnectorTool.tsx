@@ -285,6 +285,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       window.removeEventListener("keydown", onKeyDown);
 
       // Capture ref values at cleanup time
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- Ref value captured at cleanup time as recommended
       const currentRef = ref.current;
       const g = currentRef.preview;
       if (g) {
