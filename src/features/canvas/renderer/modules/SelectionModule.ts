@@ -45,18 +45,23 @@ export class SelectionModule implements RendererModule {
     // FIXED: Make module globally accessible for tool integration
     (window as { selectionModule?: SelectionModule }).selectionModule = this;
 
-    // Create connector selection manager for custom connector selection
-    this.connectorSelectionManager = new ConnectorSelectionManager(
-      ctx.stage,
-      ctx.store,
-      {
-        overlayLayer: ctx.layers.overlay,
-        onEndpointDrag: (connectorId, endpoint, newPosition) => {
-          // Real-time connector endpoint update during drag
-          this.handleConnectorEndpointDrag(connectorId, endpoint, newPosition);
-        },
-      }
-    );
+    // CRITICAL FIX: Create connector selection manager with proper error handling
+    try {
+      this.connectorSelectionManager = new ConnectorSelectionManager(
+        ctx.stage,
+        ctx.store,
+        {
+          overlayLayer: ctx.layers.overlay,
+          onEndpointDrag: (connectorId, endpoint, newPosition) => {
+            // Real-time connector endpoint update during drag
+            this.handleConnectorEndpointDrag(connectorId, endpoint, newPosition);
+          },
+        }
+      );
+      console.debug('[SelectionModule] ConnectorSelectionManager created successfully');
+    } catch (error) {
+      console.error('[SelectionModule] Failed to create ConnectorSelectionManager:', error);
+    }
 
     // Create transformer manager on overlay layer with dynamic aspect ratio control
     this.transformerManager = new TransformerManager(ctx.stage, {
@@ -183,42 +188,80 @@ export class SelectionModule implements RendererModule {
   }
 
   private updateSelection(selectedIds: Set<string>) {
-    if (!this.transformerManager || !this.connectorSelectionManager || !this.storeCtx) return;
+    if (!this.transformerManager || !this.storeCtx) {
+      console.warn('[SelectionModule] Missing required managers for selection update');
+      return;
+    }
 
-    // Clear both selection systems first
+    console.debug('[SelectionModule] Updating selection:', {
+      selectedIds: Array.from(selectedIds),
+      size: selectedIds.size
+    });
+
+    // CRITICAL FIX: Always clear both selection systems first to prevent conflicts
     this.transformerManager.setKeepRatio(false);
     this.transformerManager.detach();
-    this.connectorSelectionManager.clearSelection();
+    
+    if (this.connectorSelectionManager) {
+      this.connectorSelectionManager.clearSelection();
+    }
 
     if (selectedIds.size === 0) {
+      console.debug('[SelectionModule] No elements selected, clearing all selection');
       return;
     }
 
-    // Check if selection contains connectors
+    // CRITICAL FIX: Categorize selection with enhanced debugging
     const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectedIds);
+    
+    console.debug('[SelectionModule] Selection categorized:', {
+      connectorIds,
+      nonConnectorIds,
+      hasConnectorManager: !!this.connectorSelectionManager
+    });
 
-    // Handle connector selection (only single connector supported for custom selection)
+    // CRITICAL FIX: Handle connector selection with proper integration
     if (connectorIds.length === 1 && nonConnectorIds.length === 0) {
-      // Single connector selected - use custom connector selection
-      setTimeout(() => {
-        this.connectorSelectionManager?.showSelection(connectorIds[0]);
-      }, 50);
+      console.debug('[SelectionModule] Single connector selected, using ConnectorSelectionManager');
+      
+      if (this.connectorSelectionManager) {
+        // Use longer delay to ensure connector is fully rendered
+        setTimeout(() => {
+          console.debug('[SelectionModule] Showing connector selection for:', connectorIds[0]);
+          this.connectorSelectionManager?.showSelection(connectorIds[0]);
+        }, 100);
+      } else {
+        console.warn('[SelectionModule] ConnectorSelectionManager not available for connector selection');
+      }
       return;
     }
 
-    // Handle non-connector selection or mixed selection (fall back to transformer)
+    // CRITICAL FIX: Handle mixed or non-connector selection
+    if (connectorIds.length > 1) {
+      console.debug('[SelectionModule] Multiple connectors selected, falling back to transformer');
+    }
+    
     if (nonConnectorIds.length > 0) {
+      console.debug('[SelectionModule] Non-connector elements selected, using TransformerManager');
+      
       const selectionSnapshot = new Set(nonConnectorIds);
 
-      // FIXED: Slightly longer delay to ensure elements are fully rendered and avoid double frames
+      // Enhanced delay to ensure elements are fully rendered
       setTimeout(() => {
-        // Processing selection update
+        console.debug('[SelectionModule] Processing non-connector selection');
+        
         // Find Konva nodes for selected elements across all layers
         const nodes = this.resolveElementsToNodes(selectionSnapshot);
-        // Found nodes
+        
+        console.debug('[SelectionModule] Resolved nodes for selection:', {
+          requestedIds: Array.from(selectionSnapshot),
+          foundNodes: nodes.length,
+          nodeDetails: nodes.map(n => ({ id: n.id(), name: n.name(), className: n.className }))
+        });
 
         if (nodes.length > 0) {
-          // Attaching transformer to nodes
+          console.debug('[SelectionModule] Attaching transformer to nodes');
+          
           // FIXED: Detach first to prevent any lingering transformers, then attach
           this.transformerManager?.detach();
           this.transformerManager?.attachToNodes(nodes);
@@ -226,27 +269,25 @@ export class SelectionModule implements RendererModule {
           this.transformerManager?.setKeepRatio(lockAspect);
 
           // CRITICAL FIX: Ensure transformer is shown and force a batch draw
-          // Showing transformer
           this.transformerManager?.show();
 
           // Additional safety check: force visibility and batch draw
           setTimeout(() => {
             if (this.transformerManager) {
               const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
-              // Safety check - transformer visible
               if (transformer && !transformer.visible()) {
-                // Transformer was not visible, forcing visibility
+                console.debug('[SelectionModule] Transformer was not visible, forcing visibility');
                 transformer.visible(true);
                 transformer.getLayer()?.batchDraw();
               }
             }
           }, 10);
         } else {
-          // Could not find nodes for selected elements
+          console.warn('[SelectionModule] Could not find nodes for selected elements');
           this.transformerManager?.detach();
           this.transformerManager?.setKeepRatio(false);
         }
-      }, 75); // Slightly longer delay
+      }, 75);
     }
   }
 
@@ -266,7 +307,7 @@ export class SelectionModule implements RendererModule {
     const validLayers = allLayers
       .filter(({ layer }) => {
         if (!layer) {
-          // Layer is undefined, skipping search
+          console.debug('[SelectionModule] Layer is undefined, skipping search');
           return false;
         }
         return true;
@@ -274,7 +315,7 @@ export class SelectionModule implements RendererModule {
       .map(({ layer }) => layer);
 
     if (validLayers.length === 0) {
-      // Error: [SelectionModule] No valid layers available for element resolution
+      console.error('[SelectionModule] No valid layers available for element resolution');
       return [];
     }
 
@@ -285,7 +326,7 @@ export class SelectionModule implements RendererModule {
       for (const layer of validLayers) {
         // Additional safety check before calling find()
         if (!layer || typeof layer.find !== "function") {
-          // Invalid layer encountered, skipping
+          console.warn('[SelectionModule] Invalid layer encountered, skipping');
           continue;
         }
 
@@ -311,15 +352,21 @@ export class SelectionModule implements RendererModule {
           if (selectedNode) {
             nodes.push(selectedNode);
             found = true;
+            console.debug('[SelectionModule] Found node for element:', {
+              elementId,
+              nodeId: selectedNode.id(),
+              nodeName: selectedNode.name(),
+              nodeClassName: selectedNode.className
+            });
           } else {
-            // Found candidates but selectedNode is null for element
+            console.warn('[SelectionModule] Found candidates but selectedNode is null for element:', elementId);
           }
           break;
         }
       }
 
       if (!found) {
-        // Could not find node for element
+        console.warn('[SelectionModule] Could not find node for element:', elementId);
       }
     }
 
@@ -337,7 +384,7 @@ export class SelectionModule implements RendererModule {
     const withUndo = store.withUndo;
 
     if (!updateElement) {
-      // Error: [SelectionModule] No element update method available
+      console.error('[SelectionModule] No element update method available');
       return;
     }
 
@@ -362,7 +409,7 @@ export class SelectionModule implements RendererModule {
 
       // Log for debugging
       if (elementId && (rawScaleX !== 1 || rawScaleY !== 1)) {
-        // Processing transform for element
+        console.debug('[SelectionModule] Processing transform for element:', elementId);
       }
 
       // CRITICAL FIX: Ensure dimensions never become 0 or negative
@@ -415,9 +462,9 @@ export class SelectionModule implements RendererModule {
           nextWidth = tableResizeResult.width;
           nextHeight = tableResizeResult.height;
 
-          // Table dimensions scaled via helper
+          console.debug('[SelectionModule] Table dimensions scaled via helper');
         } else {
-          // Table element missing colWidths/rowHeights
+          console.warn('[SelectionModule] Table element missing colWidths/rowHeights');
         }
       }
 
@@ -452,7 +499,7 @@ export class SelectionModule implements RendererModule {
           const minTableHeight =
             tableResizeResult.rows * DEFAULT_TABLE_CONFIG.minCellHeight;
           if (nextWidth < minTableWidth || nextHeight < minTableHeight) {
-            // Table size fell below minimums after transform reset
+            console.warn('[SelectionModule] Table size fell below minimums after transform reset');
           }
         }
       }
@@ -473,7 +520,7 @@ export class SelectionModule implements RendererModule {
             const storeState = this.storeCtx?.store?.getState();
             storeState?.updateElement?.(id, changes, { pushHistory: false });
           } catch (error) {
-            // Failed to update element during transform
+            console.error('[SelectionModule] Failed to update element during transform:', error);
           }
         }
       });
@@ -484,7 +531,7 @@ export class SelectionModule implements RendererModule {
           const storeState = this.storeCtx.store.getState();
           storeState.updateElement(id, changes, { pushHistory: false });
         } catch (error) {
-          // Failed to update element
+          console.error('[SelectionModule] Failed to update element:', error);
         }
       }
     }
@@ -493,7 +540,7 @@ export class SelectionModule implements RendererModule {
   // FIXED: Public API for other modules to trigger selection with proper store integration
   selectElement(elementId: string) {
     if (!this.storeCtx) {
-      // Error: [SelectionModule] No store context available for selection
+      console.error('[SelectionModule] No store context available for selection');
       return;
     }
 
@@ -519,10 +566,10 @@ export class SelectionModule implements RendererModule {
           selectedElementIds: store.selectedElementIds,
         });
       } else {
-        // Error: [SelectionModule] No valid selection method found in store
+        console.error('[SelectionModule] No valid selection method found in store');
       }
     } catch (error) {
-      // Error: [SelectionModule] Error during element selection: ${error}
+      console.error('[SelectionModule] Error during element selection:', error);
     }
   }
 
@@ -561,7 +608,7 @@ export class SelectionModule implements RendererModule {
           this.selectElement(elementId);
           attemptSelection(); // Recursive retry
         } else {
-          // Auto-selection failed after max attempts
+          console.warn('[SelectionModule] Auto-selection failed after max attempts');
         }
       }, delay);
     };
@@ -619,7 +666,7 @@ export class SelectionModule implements RendererModule {
           this.transformerManager?.show();
         }, 10);
       } else {
-        // Could not find nodes for refresh
+        console.warn('[SelectionModule] Could not find nodes for refresh');
         this.transformerManager?.detach();
         this.transformerManager?.setKeepRatio(false);
       }
@@ -706,13 +753,14 @@ export class SelectionModule implements RendererModule {
   }
 
   /**
-   * Categorize selected element IDs into connectors and non-connectors
+   * CRITICAL FIX: Enhanced categorize selection with better element type detection
    */
   private categorizeSelection(selectedIds: Set<string>): {
     connectorIds: string[];
     nonConnectorIds: string[];
   } {
     if (!this.storeCtx) {
+      console.warn('[SelectionModule] No store context for categorization');
       return { connectorIds: [], nonConnectorIds: Array.from(selectedIds) };
     }
 
@@ -723,13 +771,28 @@ export class SelectionModule implements RendererModule {
     const nonConnectorIds: string[] = [];
 
     for (const id of selectedIds) {
+      // CRITICAL FIX: Enhanced connector detection
       const element = elements.get?.(id) || state.element?.getById?.(id);
+      
+      console.debug('[SelectionModule] Categorizing element:', {
+        id,
+        element,
+        elementType: element?.type
+      });
+      
       if (element && element.type === "connector") {
         connectorIds.push(id);
+        console.debug('[SelectionModule] Element categorized as connector:', id);
       } else {
         nonConnectorIds.push(id);
+        console.debug('[SelectionModule] Element categorized as non-connector:', id);
       }
     }
+
+    console.debug('[SelectionModule] Final categorization:', {
+      connectorIds,
+      nonConnectorIds
+    });
 
     return { connectorIds, nonConnectorIds };
   }
@@ -745,6 +808,12 @@ export class SelectionModule implements RendererModule {
     // This is called during drag for real-time visual updates
     // The actual store update happens on drag end in ConnectorSelectionManager
 
+    console.debug('[SelectionModule] Connector endpoint drag:', {
+      connectorId,
+      endpoint: _endpoint,
+      position: _newPosition
+    });
+
     // Optionally trigger connector re-render for real-time feedback
     if (this.storeCtx) {
       const state = this.storeCtx.store.getState();
@@ -753,6 +822,7 @@ export class SelectionModule implements RendererModule {
       if (connector && connector.type === "connector") {
         // We could trigger a temporary re-render here, but for now
         // the ConnectorSelectionManager handles the visual feedback with endpoint dots
+        console.debug('[SelectionModule] Connector found for real-time update');
       }
     }
   }
