@@ -264,16 +264,16 @@ function applyOpToStore(state: any, op: StoreHistoryOp, dir: 'undo' | 'redo') {
       if (dir === 'redo') {
         // add elements; honor indices if provided
         op.elements.forEach((el, i) => {
-          map.set(el.id as unknown as ElementId, el);
+          map.set(el.id as ElementId, el);
           const idx = op.indices?.[i];
-          if (typeof idx === 'number') insertAt(order, idx, el.id as unknown as ElementId);
-          else order.push(el.id as unknown as ElementId);
+          if (typeof idx === 'number') insertAt(order, idx, el.id as ElementId);
+          else order.push(el.id as ElementId);
         });
       } else {
         // undo add = remove
         op.elements.forEach((el) => {
-          map.delete(el.id as unknown as ElementId);
-          const idx = order.indexOf(el.id as unknown as ElementId);
+          map.delete(el.id as ElementId);
+          const idx = order.indexOf(el.id as ElementId);
           if (idx >= 0) order.splice(idx, 1);
         });
       }
@@ -285,17 +285,17 @@ function applyOpToStore(state: any, op: StoreHistoryOp, dir: 'undo' | 'redo') {
       if (dir === 'redo') {
         // remove elements
         op.elements.forEach((el) => {
-          map.delete(el.id as unknown as ElementId);
-          const idx = order.indexOf(el.id as unknown as ElementId);
+          map.delete(el.id as ElementId);
+          const idx = order.indexOf(el.id as ElementId);
           if (idx >= 0) order.splice(idx, 1);
         });
       } else {
         // undo remove = re-add; honor indices if provided
         op.elements.forEach((el, i) => {
-          map.set(el.id as unknown as ElementId, el);
+          map.set(el.id as ElementId, el);
           const idx = op.indices?.[i];
-          if (typeof idx === 'number') insertAt(order, idx, el.id as unknown as ElementId);
-          else order.push(el.id as unknown as ElementId);
+          if (typeof idx === 'number') insertAt(order, idx, el.id as ElementId);
+          else order.push(el.id as ElementId);
         });
       }
       state.elements = map;
@@ -305,11 +305,11 @@ function applyOpToStore(state: any, op: StoreHistoryOp, dir: 'undo' | 'redo') {
     case 'update': {
       if (dir === 'redo') {
         op.after.forEach((el) => {
-          map.set(el.id as unknown as ElementId, el);
+          map.set(el.id as ElementId, el);
         });
       } else {
         op.before.forEach((el) => {
-          map.set(el.id as unknown as ElementId, el);
+          map.set(el.id as ElementId, el);
         });
       }
       state.elements = map;
@@ -555,7 +555,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
   },
 
   getMemoryUsage: () => {
-    const h = pickHistoryState(get() as any);
+    const h = pickHistoryState(get() as HistoryModuleSlice);
     const totalBytes = h.entries.reduce((sum: number, entry: HistoryEntry) => sum + (entry.estimatedSize || 0), 0);
     return {
       entriesCount: h.entries.length,
@@ -665,12 +665,12 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
     }),
 
   canUndo: () => {
-    const h = pickHistoryState(get() as any);
+    const h = pickHistoryState(get() as HistoryModuleSlice);
     return h.index >= 0;
   },
 
   canRedo: () => {
-    const h = pickHistoryState(get() as any);
+    const h = pickHistoryState(get() as HistoryModuleSlice);
     return h.index < h.entries.length - 1;
   },
 
