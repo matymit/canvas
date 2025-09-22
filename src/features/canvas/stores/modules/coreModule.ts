@@ -219,12 +219,13 @@ function __deepClone<T>(v: T): T {
   }
 }
 
-function __sanitize<T extends Record<string, any>>(v: T): T {
+function __sanitize<T>(v: T): T {
   try {
-    if (v && typeof v === "object") {
-      const copy: any = Array.isArray(v) ? v.slice() : { ...v };
+    if (v && typeof v === "object" && v !== null) {
+      // Handle both arrays and objects properly
+      const copy = Array.isArray(v) ? v.slice() : { ...v };
       for (const k of Object.keys(copy)) {
-        if (k.startsWith("_")) delete copy[k];
+        if (k.startsWith("_")) delete (copy as Record<string, unknown>)[k];
       }
       return copy as T;
     }
@@ -253,12 +254,14 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
   }
 
   function toWorld(x: number, y: number) {
-    const vp = (get() as any).viewport;
+    const state = get();
+    const vp = (state as CoreModuleSlice).viewport;
     return { x: (x - vp.x) / vp.scale, y: (y - vp.y) / vp.scale };
   }
 
   function toStage(x: number, y: number) {
-    const vp = (get() as any).viewport;
+    const state = get();
+    const vp = (state as CoreModuleSlice).viewport;
     return { x: x * vp.scale + vp.x, y: y * vp.scale + vp.y };
   }
 
@@ -407,7 +410,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         if (!prev) return;
         const next = __sanitize(
           typeof patch === "function"
-            ? (patch as any)(prev)
+            ? (patch as (el: CanvasElement) => CanvasElement)(prev)
             : { ...prev, ...patch },
         );
 
@@ -657,7 +660,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
     duplicateElement: (id, opts) => {
       const el = get().elements.get(id);
       if (!el) return undefined;
-      const clone = { ...el } as any;
+      const clone = { ...el } as CanvasElement;
       const newId = (crypto?.randomUUID?.() ??
         `${id}-copy`) as unknown as ElementId;
       clone.id = newId;
@@ -950,7 +953,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         selectedIds.forEach((id) => {
           const updateElement =
             (state as any).updateElement ?? (state as any).element?.update;
-          updateElement?.(id, (el: any) => ({
+          updateElement?.(id, (el: CanvasElement) => ({
             ...el,
             x: el.x + dx,
             y: el.y + dy,
@@ -1054,8 +1057,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
           maxY = -Infinity;
 
         entries.forEach((entry) => {
-          const [, el] = entry as [any, any];
-          const b = getElementBounds(el as any);
+          const [, el] = entry as [ElementId, CanvasElement];
+          const b = getElementBounds(el);
           if (!b) return;
           minX = Math.min(minX, b.x);
           minY = Math.min(minY, b.y);
