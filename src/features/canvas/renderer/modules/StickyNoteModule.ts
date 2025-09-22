@@ -578,10 +578,13 @@ export class StickyNoteModule implements RendererModule {
       white-space: pre-wrap;
       word-wrap: break-word;
       border-radius: 8px;
-      box-shadow: 0 0 0 2px #3B82F6;
+      box-shadow: none;
     `;
 
     document.body.appendChild(editor);
+    editor.style.boxShadow = "none";
+    editor.style.border = "none";
+    editor.style.outline = "none";
 
     // FIXED: Immediate focus with visible caret
     console.log("[StickyNoteModule] Focusing editor");

@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // We will test the overlay growth logic by isolating the DOM/CSS and store update calls.
 // The Konva Stage dependency will be faked to return identity transforms for simplicity.
 
-import { openShapeTextEditor } from '../../utils/editors/openShapeTextEditor';
-import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import { openShapeTextEditor } from '../../features/canvas/utils/editors/openShapeTextEditor';
+import { useUnifiedCanvasStore } from '../../features/canvas/stores/unifiedCanvasStore';
 
 // Minimal fake stage that returns container bounds and identity transform
 class FakeStage {

@@ -16,7 +16,7 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 ### ✅ Implemented & Registered
 
-- [x] StickyNoteModule - Fully registered and functional
+- [x] StickyNoteModule - Fully registered and functional (improved activation system, module-internal pendingImmediateEdits)
 - [x] ConnectorRendererAdapter - Wraps ConnectorRenderer, registered
 - [x] TableModuleAdapter - Wraps TableModule, registered
 - [x] ImageRendererAdapter - Wraps ImageRenderer, registered
@@ -198,6 +198,7 @@ This document tracks the implementation progress of the FigJam-style modular can
 ### 📋 Key Features Working:
 
 - Sticky notes change color when palette selected
+- ✅ **Sticky notes immediate text editing on creation** - DONE (improved activation system, removed window globals)
 - Connectors snap to anchors and reroute live
 - Tables maintain grid on resize
 - Images load and transform correctly

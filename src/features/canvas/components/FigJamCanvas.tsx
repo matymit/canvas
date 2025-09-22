@@ -23,9 +23,8 @@ import TextTool, { TextCanvasTool } from "./tools/content/TextTool";
 import ImageTool from "./tools/content/ImageTool";
 import TableTool from "./tools/content/TableTool";
 import MindmapTool from "./tools/content/MindmapTool";
-import RectangleTool from "./tools/shapes/RectangleTool";
 import CircleTool from "./tools/shapes/CircleTool";
-import TriangleTool from "./tools/shapes/TriangleTool";
+// Rectangle and Triangle tools have been archived as they are no longer used
 import ToolManager from "../managers/ToolManager";
 // Note: Drawing tools (pen, marker, highlighter, eraser) would be in ./tools/drawing/
 
@@ -489,16 +488,6 @@ const FigJamCanvas: React.FC = () => {
           return <MindmapTool key="mindmap-tool" {...toolProps} />;
 
         // Shape tools
-        case "rectangle":
-        case "draw-rectangle":
-          return (
-            <RectangleTool
-              key="rectangle-tool"
-              {...toolProps}
-              toolId={selectedTool}
-            />
-          );
-
         case "circle":
         case "ellipse":
         case "draw-circle":
@@ -510,15 +499,12 @@ const FigJamCanvas: React.FC = () => {
             />
           );
 
+        // Rectangle and Triangle tools have been archived as they are no longer used
+        case "rectangle":
+        case "draw-rectangle":
         case "triangle":
         case "draw-triangle":
-          return (
-            <TriangleTool
-              key="triangle-tool"
-              {...toolProps}
-              toolId={selectedTool}
-            />
-          );
+          return null; // These tools are no longer available
 
         // Connector tools
         case "connector":

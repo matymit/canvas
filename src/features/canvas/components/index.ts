@@ -16,5 +16,4 @@ export * from './tools/content/TextTool';
 export * from './tools/drawing/HighlighterTool';
 export * from './tools/drawing/MarkerTool';
 export * from './tools/drawing/PenTool';
-export * from './tools/shapes/RectangleTool';
-export * from './tools/shapes/TriangleTool';
+// RectangleTool and TriangleTool exports removed - tools have been archived

@@ -208,23 +208,11 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
           // Auto-switch to select tool and open text editor
           setSelectedTool?.('select');
 
-          const openEditorWhenReady = (attempt: number) => {
-            const state = useUnifiedCanvasStore.getState();
-            const selectedIds: Set<string> = state.selectedElementIds ?? new Set();
-            const isSelected = selectedIds.has(id);
-
-            if (isSelected || attempt >= 6) {
-              requestAnimationFrame(() => {
-                // Opening text editor for circle
-                openShapeTextEditor(stage, id);
-              });
-              return;
-            }
-
-            requestAnimationFrame(() => openEditorWhenReady(attempt + 1));
-          };
-
-          openEditorWhenReady(0);
+          // Open editor immediately after element creation
+          // The editor itself will handle waiting for rendering
+          requestAnimationFrame(() => {
+            openShapeTextEditor(stage, id);
+          });
         } catch (error) {
           // Error creating element
         }

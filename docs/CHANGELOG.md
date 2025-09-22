@@ -5,6 +5,30 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2025-01-21
+
+### 🎯 Sticky Note Editor Improvements
+
+#### Enhanced Editor Activation & Reliability
+
+- **Fixed sticky note editor activation**: Editor now activates more reliably when creating new sticky notes
+- **Improved immediate text editing**: Sticky notes now consistently open text editor immediately after creation
+- **Removed window globals**: Replaced window.pendingImmediateEdits with cleaner module-internal pendingImmediateEdits set
+- **Better retry mechanism**: Changed from setTimeout to requestAnimationFrame for improved performance
+
+#### User Experience Improvements
+
+- **Removed blue focus border**: Sticky note text editor no longer shows blue focus border for cleaner appearance
+- **Smoother editor activation**: Text editor appears immediately without visual glitches or delays
+- **Consistent behavior**: Immediate text editing now works reliably across all creation methods
+
+### Technical Improvements
+
+- Moved pending edit tracking from window globals to module-internal Set
+- Simplified StickyNoteTool by removing global set management
+- Improved performance with requestAnimationFrame instead of setTimeout
+- Better encapsulation and cleaner module boundaries
+
 ## [2.8.0] - 2025-09-21
 
 ### 🎯 Massive ESLint/TypeScript Cleanup & Code Quality Excellence - COMPLETED

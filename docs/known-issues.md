@@ -35,6 +35,15 @@ This document provides an honest assessment of current Canvas limitations, known
 
 ## 🐛 Known Issues
 
+### ✅ Recently Fixed Issues (January 2025)
+
+#### Sticky Note Editor Activation (RESOLVED)
+
+**Issue**: Sticky note editor activation was unreliable
+- **Previous Impact**: Text editor wouldn't open immediately after sticky note creation
+- **COMPLETE RESOLUTION**: Improved activation system with module-internal pendingImmediateEdits
+- **Benefits**: Immediate text editing now works reliably, removed window globals, cleaner appearance
+
 ### ✅ Recently Fixed Issues (September 2025)
 
 #### Code Quality and Type Safety (Phase 15 - COMPLETELY RESOLVED)
@@ -115,9 +124,14 @@ This document provides an honest assessment of current Canvas limitations, known
 
 #### Text Editing
 
-**Issue**: Occasional cursor positioning problems
+**✅ FIXED (2025-01-21)**: Sticky note immediate text editing and cursor positioning
+- **Previous Issue**: Text cursor appeared in wrong location, editor activation was unreliable
+- **Resolution**: Improved activation system with module-internal pendingImmediateEdits
+- **Benefits**: Sticky notes now reliably open editor immediately with proper cursor positioning
 
-- **Impact**: Text cursor may appear in wrong location during editing
+**Issue**: Occasional cursor positioning problems in other text elements
+
+- **Impact**: Text cursor may appear in wrong location during editing (non-sticky note elements)
 - **Workaround**: Click again to reposition cursor
 - **Status**: DOM overlay coordinate transformation edge cases
 

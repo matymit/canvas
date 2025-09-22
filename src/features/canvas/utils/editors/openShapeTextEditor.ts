@@ -356,8 +356,8 @@ export function openShapeTextEditor(
   editor.addEventListener('input', onInput);
   editor.addEventListener('blur', onBlur);
 
-  // FIXED: Better caret positioning for all shapes
-  setTimeout(() => {
+  // FIXED: Immediate focus with multiple fallback strategies for reliable caret blinking
+  const focusEditor = () => {
     try {
       editor.focus();
 
@@ -385,10 +385,38 @@ export function openShapeTextEditor(
           selection.addRange(range);
         }
       }
+      // Shape text editor focused
     } catch (error) {
       // Warning: Error focusing editor
     }
-  }, 10);
+  };
+
+  // Multiple strategies to ensure immediate focus and caret visibility
+  // For circles, we need special handling to ensure the editor is properly rendered
+  if (isCircle) {
+    // Force browser to render the editor first
+    editor.offsetHeight; // Force reflow
+
+    // Immediate focus for circles with caret positioning
+    requestAnimationFrame(() => {
+      focusEditor();
+      // Double RAF for circles to ensure caret is visible
+      requestAnimationFrame(() => {
+        editor.style.caretColor = textColor; // Re-apply caret color
+        focusEditor(); // Focus again to ensure caret blinks
+      });
+    });
+  } else {
+    // Original logic for other shapes
+    // Strategy 1: Immediate focus attempt
+    focusEditor();
+
+    // Strategy 2: Delayed focus as first backup (10ms)
+    setTimeout(focusEditor, 10);
+
+    // Strategy 3: RAF focus as second backup
+    requestAnimationFrame(focusEditor);
+  }
 
   return cleanup;
 }

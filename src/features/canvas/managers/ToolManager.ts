@@ -28,9 +28,8 @@ import { PenTool, type PenToolProps } from "../components/tools/drawing/PenTool"
 import MarkerTool, { type MarkerToolProps } from "../components/tools/drawing/MarkerTool";
 import HighlighterTool, { type HighlighterToolProps } from "../components/tools/drawing/HighlighterTool";
 import EraserTool, { type EraserToolProps } from "../components/tools/drawing/EraserTool";
-import { RectangleTool, type RectangleToolProps } from "../components/tools/shapes/RectangleTool";
 import { CircleTool, type CircleToolProps } from "../components/tools/shapes/CircleTool";
-import { TriangleTool, type TriangleToolProps } from "../components/tools/shapes/TriangleTool";
+// RectangleTool and TriangleTool have been archived as they are no longer used
 import StickyNoteTool, { type StickyNoteToolProps } from "../components/tools/creation/StickyNoteTool";
 import { ConnectorTool, type ConnectorToolProps } from "../components/tools/creation/ConnectorTool";
 
@@ -44,9 +43,7 @@ type ToolProps =
   | MarkerToolProps
   | HighlighterToolProps
   | EraserToolProps
-  | RectangleToolProps
   | CircleToolProps
-  | TriangleToolProps
   | StickyNoteToolProps
   | ConnectorToolProps;
 
@@ -146,24 +143,7 @@ export class ToolManager {
       cursor: "crosshair",
       shortcut: "G",
     },
-    "draw-rectangle": {
-      id: "draw-rectangle",
-      name: "Rectangle",
-      description: "Draw rectangles",
-      category: "shapes",
-      component: RectangleTool,
-      cursor: "crosshair",
-      shortcut: "R",
-    },
-    "draw-triangle": {
-      id: "draw-triangle",
-      name: "Triangle",
-      description: "Draw triangles",
-      category: "shapes",
-      component: TriangleTool,
-      cursor: "crosshair",
-      shortcut: "T",
-    },
+    // Rectangle and Triangle tools have been archived as they are no longer used
     line: {
       id: "line",
       name: "Line",
