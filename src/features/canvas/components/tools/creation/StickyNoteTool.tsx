@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "@features/canvas/stores/unifiedCanvasStore";
 import type { CanvasElement, ElementId } from "../../../../../../types/index";
+import { debug } from "../../../../../utils/debug";
 
 export interface StickyNoteToolProps {
   isActive: boolean;
@@ -71,13 +72,13 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       container.style.cursor = "crosshair";
     }
 
-    console.log("[StickyNoteTool] Tool activated, adding stage listener");
+    debug("Tool activated, adding stage listener", { category: 'StickyNoteTool' });
 
     const handlePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
-      console.log("[StickyNoteTool] Pointer down detected at:", pos);
+      debug("Pointer down detected", { category: 'StickyNoteTool', data: pos });
 
       const elementId = crypto.randomUUID() as ElementId;
 
@@ -100,11 +101,11 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         },
       };
 
-      console.log("[StickyNoteTool] Creating sticky note element:", {
+      debug("Creating sticky note element", { category: 'StickyNoteTool', data: {
         elementId,
         fill: actualFill,
         position: { x: stickyElement.x, y: stickyElement.y }
-      });
+      }});
 
       // Use the store's addElement method with auto-selection
       const store = useUnifiedCanvasStore.getState();
@@ -114,12 +115,12 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         store.addElement(stickyElement, { select: true, pushHistory: false }); // withUndo handles history
       });
 
-      console.log("[StickyNoteTool] Element added to store");
+      debug("Element added to store", { category: 'StickyNoteTool' });
 
       // CRITICAL: Immediate selection and text editing setup
       // Use multiple timing strategies to ensure reliability
       const scheduleTextEditing = () => {
-        console.log("[StickyNoteTool] Scheduling text editing for:", elementId);
+        debug("Scheduling text editing", { category: 'StickyNoteTool', data: elementId });
         
         // Strategy 1: Immediate attempt
         requestStickyNoteEditing(elementId);
@@ -149,7 +150,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       const finalizeToolSwitch = () => {
         if (finalized) return;
         finalized = true;
-        console.log("[StickyNoteTool] Switching back to select tool");
+        debug("Switching back to select tool", { category: 'StickyNoteTool' });
         if (typeof store.setSelectedTool === "function") {
           store.setSelectedTool("select");
         }
@@ -158,7 +159,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       const ensureEditorFocused = (attempt: number) => {
         if (finalized) return;
         if (typeof document === "undefined") {
-          console.log("[StickyNoteTool] No document, finalizing");
+          debug("No document, finalizing", { category: 'StickyNoteTool' });
           finalizeToolSwitch();
           return;
         }
@@ -168,19 +169,19 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         );
 
         if (editor) {
-          console.log("[StickyNoteTool] Found editor, focusing");
+          debug("Found editor, focusing", { category: 'StickyNoteTool' });
           if (document.activeElement !== editor) {
             try {
               editor.focus();
               editor.select(); // Select all text for immediate typing
             } catch (error) {
-              console.log("[StickyNoteTool] Focus error, trying fallback:", error);
+              debug("Focus error, trying fallback", { category: 'StickyNoteTool', data: error });
               // Fallback focusing
               setTimeout(() => {
                 try {
                   editor.focus();
                 } catch (e) {
-                  console.log("[StickyNoteTool] Fallback focus also failed:", e);
+                  debug("Fallback focus also failed", { category: 'StickyNoteTool', data: e });
                 }
               }, 10);
             }
@@ -198,7 +199,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         }
 
         if (attempt >= MAX_FOCUS_ATTEMPTS) {
-          console.log("[StickyNoteTool] Max focus attempts reached, giving up");
+          debug("Max focus attempts reached, giving up", { category: 'StickyNoteTool' });
           finalizeToolSwitch();
           return;
         }
@@ -225,7 +226,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
     // Cleanup
     return () => {
-      console.log("[StickyNoteTool] Tool deactivated, removing stage listener");
+      debug("Tool deactivated, removing stage listener", { category: 'StickyNoteTool' });
       stage.off("pointerdown.sticky");
       
       // Reset cursor

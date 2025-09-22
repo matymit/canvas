@@ -6,6 +6,7 @@ import CanvasToolbar from "../toolbar/CanvasToolbar";
 import ZoomControls from "./ZoomControls";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import GridRenderer from "./GridRenderer";
+import { debug, error as logError } from "../../../utils/debug";
 
 // Import cell editor for table functionality
 import "../utils/editors/openCellEditorWithTracking";
@@ -75,7 +76,7 @@ const FigJamCanvas: React.FC = () => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    console.log("[FigJamCanvas] Initializing stage and renderer - ONE TIME ONLY");
+    debug("Initializing stage and renderer - ONE TIME ONLY", { category: 'FigJamCanvas' });
 
     // Create Konva stage - THIS IS THE ONLY PLACE WHERE KONVA.STAGE SHOULD BE CREATED
     const stage = new Konva.Stage({
@@ -163,7 +164,7 @@ const FigJamCanvas: React.FC = () => {
 
     // Cleanup
     return () => {
-      console.log("[FigJamCanvas] Cleaning up stage and renderer");
+      debug("Cleaning up stage and renderer", { category: 'FigJamCanvas' });
       window.removeEventListener("resize", handleResize);
 
       // Destroy grid renderer
@@ -201,7 +202,7 @@ const FigJamCanvas: React.FC = () => {
     const stage = stageRef.current;
     if (!stage) return;
 
-    console.log("[FigJamCanvas] Setting up stage event handlers");
+    debug("Setting up stage event handlers", { category: 'FigJamCanvas' });
 
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -298,7 +299,7 @@ const FigJamCanvas: React.FC = () => {
 
     // Cleanup event handlers
     return () => {
-      console.log("[FigJamCanvas] Cleaning up stage event handlers");
+      debug("Cleaning up stage event handlers", { category: 'FigJamCanvas' });
       stage.off("click", handleStageClick);
       stage.off("wheel", handleWheel);
       stage.off("contextmenu", handleStageContextMenu);
@@ -465,7 +466,7 @@ const FigJamCanvas: React.FC = () => {
     // Normalize tool names (handle both old and new naming)
     const normalizedTool = selectedTool.toLowerCase();
 
-    console.log("[FigJamCanvas] Rendering tool:", { selectedTool, normalizedTool });
+    debug("Rendering tool", { category: 'FigJamCanvas', data: { selectedTool, normalizedTool } });
 
     try {
       switch (normalizedTool) {
@@ -535,7 +536,7 @@ const FigJamCanvas: React.FC = () => {
           return null;
       }
     } catch (error) {
-      console.error("[FigJamCanvas] Failed to render tool:", { selectedTool, error });
+      logError("Failed to render tool", { category: 'FigJamCanvas', data: { selectedTool, error } });
       return null;
     }
   }, [selectedTool]);

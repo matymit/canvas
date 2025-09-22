@@ -1,6 +1,7 @@
 // features/canvas/renderer/modules/StickyNoteModule.ts
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
+import { debug, error as logError } from "../../../../utils/debug";
 
 type Id = string;
 
@@ -55,7 +56,7 @@ export class StickyNoteModule implements RendererModule {
 
     const extendedWindow = window as ExtendedWindow;
 
-    console.log("[StickyNoteModule] Mounting module");
+    debug("Mounting module", { category: 'StickyNoteModule' });
 
     // FIXED: Make module globally accessible for tool integration
     extendedWindow.stickyNoteModule = this;
@@ -106,7 +107,7 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private unmount() {
-    console.log("[StickyNoteModule] Unmounting module");
+    debug("Unmounting module", { category: 'StickyNoteModule' });
     this.closeActiveEditor();
     if (this.unsubscribe) {
       this.unsubscribe();
@@ -142,7 +143,7 @@ export class StickyNoteModule implements RendererModule {
 
       if (!group) {
         // Create new sticky note
-        console.log("[StickyNoteModule] Creating new sticky note:", id, sticky);
+        debug("Creating new sticky note", { category: 'StickyNoteModule', data: { id, sticky } });
         group = this.createStickyGroup(sticky);
         this.nodes.set(id, group);
         this.layers.add(group);
@@ -157,7 +158,7 @@ export class StickyNoteModule implements RendererModule {
     // Remove deleted sticky notes
     for (const [id, group] of this.nodes) {
       if (!seen.has(id)) {
-        console.log("[StickyNoteModule] Removing sticky note:", id);
+        debug("Removing sticky note", { category: 'StickyNoteModule', data: id });
         group.destroy();
         this.nodes.delete(id);
       }
@@ -268,7 +269,7 @@ export class StickyNoteModule implements RendererModule {
         e.cancelBubble = true; // Prevent stage click
       }
 
-      console.log("[StickyNoteModule] Click on sticky note:", elementId);
+      debug("Click on sticky note", { category: 'StickyNoteModule', data: elementId });
 
       const selectionModule = getSelectionModule();
       if (selectionModule) {
@@ -277,7 +278,7 @@ export class StickyNoteModule implements RendererModule {
         selectionModule.selectElement(elementId, { autoFocus: !isAdditive });
       } else {
         // Fallback to direct store integration
-        console.log("[StickyNoteModule] No SelectionModule, using fallback");
+        debug("No SelectionModule, using fallback", { category: 'StickyNoteModule' });
         if (!this.storeCtx) return;
 
         const store = this.storeCtx.store.getState();
@@ -456,7 +457,7 @@ export class StickyNoteModule implements RendererModule {
     // Double-click to edit text
     group.on("dblclick dbltap", (e) => {
       e.cancelBubble = true;
-      console.log("[StickyNoteModule] Double-click - starting text editing:", elementId);
+      debug("Double-click - starting text editing", { category: 'StickyNoteModule', data: elementId });
       this.startTextEditing(group, elementId);
     });
 
@@ -476,23 +477,23 @@ export class StickyNoteModule implements RendererModule {
 
   // Public method to trigger immediate text editing (called by StickyNoteTool)
   public startTextEditingForElement(elementId: string) {
-    console.log("[StickyNoteModule] Public startTextEditingForElement:", elementId);
+    debug("Public startTextEditingForElement", { category: 'StickyNoteModule', data: elementId });
     const group = this.nodes.get(elementId);
     if (group) {
       this.startTextEditing(group, elementId);
     } else {
-      console.log("[StickyNoteModule] Group not found for:", elementId);
+      debug("Group not found", { category: 'StickyNoteModule', data: elementId });
     }
   }
 
   private startTextEditing(group: Konva.Group, elementId: string) {
-    console.log("[StickyNoteModule] Starting text editing for:", elementId);
+    debug("Starting text editing", { category: 'StickyNoteModule', data: elementId });
     
     // Close any existing editor
     this.closeActiveEditor();
 
     if (!this.storeCtx) {
-      console.log("[StickyNoteModule] No store context");
+      debug("No store context", { category: 'StickyNoteModule' });
       return;
     }
 
@@ -501,7 +502,7 @@ export class StickyNoteModule implements RendererModule {
     const textNode = group.findOne(".sticky-text") as Konva.Text;
     const bgNode = group.findOne(".sticky-bg") as Konva.Rect;
     if (!stage || !textNode || !bgNode) {
-      console.log("[StickyNoteModule] Missing required nodes:", { stage: !!stage, textNode: !!textNode, bgNode: !!bgNode });
+      debug("Missing required nodes", { category: 'StickyNoteModule', data: { stage: !!stage, textNode: !!textNode, bgNode: !!bgNode } });
       return;
     }
 
@@ -509,11 +510,11 @@ export class StickyNoteModule implements RendererModule {
     const rect = container.getBoundingClientRect();
     const textAbsPos = textNode.absolutePosition();
 
-    console.log("[StickyNoteModule] Editor positioning:", {
+    debug("Editor positioning", { category: 'StickyNoteModule', data: {
       containerRect: rect,
       textAbsPos,
       finalPos: { x: rect.left + textAbsPos.x, y: rect.top + textAbsPos.y }
-    });
+    }});
 
     // Create seamlessly integrated text editor
     const fillValue = bgNode.fill();
@@ -554,7 +555,7 @@ export class StickyNoteModule implements RendererModule {
 
     editor.value = currentText;
 
-    console.log("[StickyNoteModule] Creating editor:", { elementId, currentText, position: { pageX, pageY, width, height }, bgColor });
+    debug("Creating editor", { category: 'StickyNoteModule', data: { elementId, currentText, position: { pageX, pageY, width, height }, bgColor } });
 
     // FIXED: Seamless integration styling with background color matching
     editor.style.cssText = `
@@ -587,7 +588,7 @@ export class StickyNoteModule implements RendererModule {
     editor.style.outline = "none";
 
     // FIXED: Immediate focus with visible caret
-    console.log("[StickyNoteModule] Focusing editor");
+    debug("Focusing editor", { category: 'StickyNoteModule' });
     
     // Use multiple strategies to ensure focus
     const focusEditor = () => {
@@ -598,9 +599,9 @@ export class StickyNoteModule implements RendererModule {
         } else {
           editor.setSelectionRange(0, 0);
         }
-        console.log("[StickyNoteModule] Editor focused and caret positioned");
+        debug("Editor focused and caret positioned", { category: 'StickyNoteModule' });
       } catch (error) {
-        console.log("[StickyNoteModule] Focus error:", error);
+        debug("Focus error", { category: 'StickyNoteModule', data: error });
       }
     };
 
@@ -615,7 +616,7 @@ export class StickyNoteModule implements RendererModule {
 
     const commit = () => {
       const newText = editor.value;
-      console.log("[StickyNoteModule] Committing text:", { elementId, newText });
+      debug("Committing text", { category: 'StickyNoteModule', data: { elementId, newText } });
 
       if (this.storeCtx) {
         const store = this.storeCtx.store.getState();
@@ -693,7 +694,7 @@ export class StickyNoteModule implements RendererModule {
   private closeActiveEditor() {
     if (!this.activeEditor || !this.editorElementId) return;
 
-    console.log("[StickyNoteModule] Closing editor for:", this.editorElementId);
+    debug("Closing editor", { category: 'StickyNoteModule', data: this.editorElementId });
 
     // Show the Konva text again
     const group = this.nodes.get(this.editorElementId);
@@ -709,7 +710,7 @@ export class StickyNoteModule implements RendererModule {
     try {
       this.activeEditor.remove();
     } catch (error) {
-      console.log("[StickyNoteModule] Cleanup error:", error);
+      logError("Cleanup error", { category: 'StickyNoteModule', data: error });
     }
 
     this.activeEditor = null;
@@ -721,7 +722,7 @@ export class StickyNoteModule implements RendererModule {
 
   // FIXED: Public method for immediate text editing after creation with improved timing
   public triggerImmediateTextEdit(elementId: string) {
-    console.log("[StickyNoteModule] triggerImmediateTextEdit called for:", elementId);
+    debug("triggerImmediateTextEdit called", { category: 'StickyNoteModule', data: elementId });
     this.pendingImmediateEdits.add(elementId);
     this.maybeStartPendingEdit(elementId);
   }
