@@ -234,13 +234,13 @@ export class SmartGuidesDetection {
       // Center alignment
       if (this.config.showCenterGuides) {
         // Horizontal center
-        if (Math.abs(moving.centerX - target.centerX!) < this.config.snapThreshold) {
-          guides.push({ axis: 'x', value: target.centerX!, type: 'center', source: 'centerX' });
+        if (target.centerX !== undefined && Math.abs(moving.centerX - target.centerX) < this.config.snapThreshold) {
+          guides.push({ axis: 'x', value: target.centerX, type: 'center', source: 'centerX' });
         }
 
         // Vertical center
-        if (Math.abs(moving.centerY - target.centerY!) < this.config.snapThreshold) {
-          guides.push({ axis: 'y', value: target.centerY!, type: 'center', source: 'centerY' });
+        if (target.centerY !== undefined && Math.abs(moving.centerY - target.centerY) < this.config.snapThreshold) {
+          guides.push({ axis: 'y', value: target.centerY, type: 'center', source: 'centerY' });
         }
       }
     });

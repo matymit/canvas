@@ -72,6 +72,7 @@ export class QuadTree<T> {
       const kept: Entry<T>[] = [];
       for (const e of this.items) {
         const idx = this.childIndex(e.r);
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         if (idx !== -1) this.children![idx].insert(e.d, e.r);
         else kept.push(e);
       }

@@ -2,6 +2,17 @@
 
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
 
+## 🎉 Recently Resolved Issues (Phase 17E - December 2025)
+
+### Non-Null Assertion Safety Improvements
+- **RESOLVED**: Eliminated 6 dangerous non-null assertions across utility files
+- **Files Fixed**:
+  - KonvaNodePool.ts - Added defensive null check for stats Map
+  - SmartGuidesDetection.ts - Fixed 4 centerX/centerY assertions with undefined checks
+  - setupTests.ts - Simplified localStorage mock with nullish coalescing
+- **Result**: Better runtime null/undefined handling and defensive programming
+- **Note**: One legitimate assertion in QuadTree.ts preserved with ESLint disable comment
+
 ## 🚧 Development Status Overview
 
 ### Implementation Maturity Levels

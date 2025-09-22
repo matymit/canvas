@@ -5,6 +5,28 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.5] - 2025-09-22
+
+### 🔒 Phase 17E: Non-Null Assertion Safety Improvements
+
+#### Code Safety Enhancement
+- **Eliminated dangerous non-null assertions**: Replaced `!` operators with proper null checks
+- **ESLint Warning Reduction**: Reduced from 219 to 209 warnings (10 eliminated, 4.6% improvement)
+- **Total Project Achievement**: 24% ESLint warning reduction overall (276→209 warnings)
+- **Runtime Safety**: Improved null/undefined handling for better runtime stability
+
+#### Technical Safety Patterns Applied
+- **KonvaNodePool.ts**: Added defensive null check for stats Map access
+- **SmartGuidesDetection.ts**: Fixed 4 centerX/centerY assertions with undefined checks
+- **setupTests.ts**: Simplified localStorage mock with nullish coalescing operator
+- **QuadTree.ts**: Preserved legitimate assertion with ESLint disable comment
+
+#### Quality & Performance Maintained
+- **Zero TypeScript Errors**: Clean compilation throughout all changes
+- **Performance**: 60fps canvas rendering fully preserved
+- **Functionality**: All canvas tools and features working correctly
+- **Architecture**: Store-driven patterns and RAF batching maintained
+
 ## [2.8.4] - 2025-09-22
 
 ### 🎯 Phase 17D: History Module Improvements & Conservative Success

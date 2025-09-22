@@ -461,13 +461,14 @@ export class KonvaNodePool {
   private pruneOne(key: PoolKey): void {
     const pool = this.pools.get(key);
     if (!pool) return;
-    
+
     const max = this.maxPerKey.get(key) ?? this.config.defaultMaxPerKey;
     if (pool.length <= max) return;
-    
+
     const factory = this.factories.get(key);
-    const stats = this.stats.get(key)!;
-    
+    const stats = this.stats.get(key);
+    if (!stats) return; // Safety check - stats should exist for registered pools
+
     while (pool.length > max) {
       const node = pool.pop();
       if (!node) break;
