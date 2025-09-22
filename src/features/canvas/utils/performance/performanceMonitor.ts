@@ -57,7 +57,7 @@ export class PerformanceMonitor {
           }
         });
         // "longtask" is the Long Tasks API entryType in supporting browsers.
-        this.po.observe({ entryTypes: ['longtask'] as any });
+        this.po.observe({ entryTypes: ['longtask'] as string[] });
       } catch {
         // ignore if unsupported
       }

@@ -16,10 +16,10 @@ export class AnimationIntegration {
     const state = this.getAnimationState();
     const konvaEasingKey = state.easingPresets[easingName];
     
-    if (konvaEasingKey && Konva.Easings && (Konva.Easings as any)[konvaEasingKey]) {
-      const easingFn = (Konva.Easings as any)[konvaEasingKey];
+    if (konvaEasingKey && Konva.Easings && (Konva.Easings as Record<string, unknown>)[konvaEasingKey]) {
+      const easingFn = (Konva.Easings as Record<string, unknown>)[konvaEasingKey];
       // Konva easing functions have signature (t, b, c, d) but we need (t) => number
-      return (t: number) => easingFn(t, 0, 1, 1);
+      return (t: number) => (easingFn as (t: number, b: number, c: number, d: number) => number)(t, 0, 1, 1);
     }
     
     // Fallback to linear if not found

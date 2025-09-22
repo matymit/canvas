@@ -48,11 +48,11 @@ export class CursorManager {
   // Bind hover cursor to any Konva.Node, restoring on leave automatically.
   bindHover(node: Konva.Node, opts: CursorBindingOptions = {}) {
     const cursor = opts.cursor ?? 'pointer';
-    const enter = (e: Konva.KonvaEventObject<any>) => {
+    const enter = (e: Konva.KonvaEventObject<MouseEvent>) => {
       this.push(cursor);
       opts.onEnter?.(e);
     };
-    const leave = (e: Konva.KonvaEventObject<any>) => {
+    const leave = (e: Konva.KonvaEventObject<MouseEvent>) => {
       this.pop();
       opts.onLeave?.(e);
     };

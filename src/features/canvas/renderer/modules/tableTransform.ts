@@ -198,7 +198,7 @@ export function handleTableTransformLive(
  * Always returns a constrained newBox instead
  */
 export function createTableBoundBoxFunc(element: TableElement) {
-  return (_oldBox: any, newBox: any) => {
+  return (_oldBox: Konva.NodeConfig, newBox: Konva.NodeConfig) => {
     const { minCellWidth, minCellHeight } = DEFAULT_TABLE_CONFIG;
 
     // Calculate minimum dimensions based on table structure
@@ -207,8 +207,8 @@ export function createTableBoundBoxFunc(element: TableElement) {
 
     // CRITICAL FIX: Always return a constrained newBox, never oldBox
     // This prevents the horizontal "dead stop" when shrinking
-    const constrainedWidth = Math.max(newBox.width, minTableWidth);
-    const constrainedHeight = Math.max(newBox.height, minTableHeight);
+    const constrainedWidth = Math.max(newBox.width ?? 0, minTableWidth);
+    const constrainedHeight = Math.max(newBox.height ?? 0, minTableHeight);
 
     // Handle aspect ratio locking with shift key
     const event = (typeof window !== "undefined" && window.event) as

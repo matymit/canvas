@@ -19,7 +19,7 @@ export interface BaseShape {
   padding?: number;
   data?: {
     radius?: number; // for circle - stored in data object
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
