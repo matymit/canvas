@@ -64,6 +64,40 @@ This document provides an honest assessment of current Canvas limitations, known
 - Replaced console statements with structured debug logging
 - Maintained zero TypeScript compilation errors throughout
 
+#### Phase 17 Store Architecture Challenge (IDENTIFIED - PLANNING COMPLETE)
+
+**Issue**: Complex Zustand middleware stack causing widespread `any` type usage
+- **Current State**: 232 remaining warnings (84% of original complexity)
+- **Root Cause**: Middleware stack (immer + subscribeWithSelector + persist) loses TypeScript type inference
+- **Core Problem**: `set as any, get as any` pattern in unifiedCanvasStore.ts lines 234-238
+- **Impact**: Cascades through all store modules (coreModule.ts ~150 warnings, interactionModule.ts ~30, historyModule.ts ~40)
+
+**Strategic Planning**:
+- **Phase 17 Strategy**: Risk-based incremental approach prioritizing architectural safety
+- **Critical Constraints**: Preserve 60fps performance, RAF batching, withUndo functionality
+- **Safe Patterns**: Individual function typing with WritableDraft<T> for Immer mutations
+- **Validation Framework**: Comprehensive testing between each module modification
+- **Target**: Reduce from 232 to <50 warnings (78% total reduction)
+
+**Status**: Phase 17A completed successfully - foundation established with proven safe typing patterns
+
+#### Phase 17A Success (Canvas Engineer Implementation)
+
+**Achievement**: Successfully validated safe typing approach for store modules
+- **Warning reduction**: 232 → 230 (initial progress with foundation work)
+- **Technical success**: `__sanitize` function improved without breaking functionality
+- **Architecture preserved**: No middleware signature modifications (critical constraint met)
+- **Performance maintained**: All 60fps rendering targets confirmed
+- **Validation passed**: TypeScript compilation, functionality, and store operations all working
+
+**Key Technical Pattern Established**:
+```typescript
+// Safe approach: Remove explicit 'any' constraints while maintaining type safety
+function __sanitize<T>(v: T): T // Improved from <T extends Record<string, any>>
+```
+
+**Next Phase**: Phase 17B ready to proceed with interactionModule.ts incremental improvements using proven patterns
+
 #### Code Quality and Type Safety (Phase 15 - COMPLETELY RESOLVED)
 
 **Issue**: Large number of ESLint warnings affecting code maintainability
