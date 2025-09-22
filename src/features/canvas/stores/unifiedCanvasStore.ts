@@ -231,11 +231,11 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
     subscribeWithSelector(
       immer((set, get) => {
         // Create consolidated modules
-        const historyModule = createHistoryModule(set as any, get as any);
-        const coreModule = createCoreModule(set as any, get as any);
+        const historyModule = createHistoryModule(set as Parameters<typeof createHistoryModule>[0], get as Parameters<typeof createHistoryModule>[1]);
+        const coreModule = createCoreModule(set as Parameters<typeof createCoreModule>[0], get as Parameters<typeof createCoreModule>[1]);
         const interactionModule = createInteractionModule(
-          set as any,
-          get as any,
+          set as Parameters<typeof createInteractionModule>[0],
+          get as Parameters<typeof createInteractionModule>[1],
         );
 
         return {
@@ -344,7 +344,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
       version: 2,
       partialize: partializeForPersist,
       merge: (persisted, current) =>
-        mergeAfterHydration(persisted as PersistedState, current as any),
+        mergeAfterHydration(persisted as PersistedState, current as UnifiedCanvasStore),
     },
   ),
 );

@@ -13,6 +13,15 @@ export interface CacheConfig {
 }
 
 /**
+ * Extended Konva node interface with performance optimization methods
+ */
+interface OptimizableNode extends Konva.Node {
+  perfectDrawEnabled?: (enabled: boolean) => void;
+  shadowForStrokeEnabled?: (enabled: boolean) => void;
+  [key: string]: unknown;
+}
+
+/**
  * Performance optimization for shape caching with HiDPI support
  */
 export class ShapeCaching {
@@ -49,10 +58,10 @@ export class ShapeCaching {
 
       // Apply performance optimizations
       if ('perfectDrawEnabled' in node) {
-        (node as any).perfectDrawEnabled(false);
+        (node as OptimizableNode).perfectDrawEnabled?.(false);
       }
       if ('shadowForStrokeEnabled' in node) {
-        (node as any).shadowForStrokeEnabled(false);
+        (node as OptimizableNode).shadowForStrokeEnabled?.(false);
       }
     } catch (error) {
       // Error: [ShapeCaching] Failed to cache node: ${error}
@@ -119,10 +128,10 @@ export class ShapeCaching {
     if (node instanceof Konva.Line || node instanceof Konva.Rect) {
       // Apply performance optimizations without caching
       if ('perfectDrawEnabled' in node) {
-        (node as any).perfectDrawEnabled(false);
+        (node as unknown as OptimizableNode).perfectDrawEnabled?.(false);
       }
       if ('shadowForStrokeEnabled' in node) {
-        (node as any).shadowForStrokeEnabled(false);
+        (node as unknown as OptimizableNode).shadowForStrokeEnabled?.(false);
       }
       return;
     }
@@ -182,7 +191,10 @@ export class ShapeCaching {
 
     Object.entries(optimizations).forEach(([key, value]) => {
       if (key in node) {
-        (node as any)[key](value);
+        const method = (node as unknown as OptimizableNode)[key];
+        if (typeof method === 'function') {
+          method.call(node, value);
+        }
       }
     });
   }

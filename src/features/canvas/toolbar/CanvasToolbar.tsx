@@ -107,11 +107,11 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           )
         : true;
     if (!ok) return;
-    const s: any = useUnifiedCanvasStore.getState();
+    const s = useUnifiedCanvasStore.getState();
     const begin = s.history?.beginBatch;
     const end = s.history?.endBatch;
     begin?.("clear-canvas");
-    const order: any[] =
+    const order: string[] =
       s.elementOrder && Array.isArray(s.elementOrder)
         ? [...s.elementOrder]
         : [];
@@ -127,7 +127,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
     // Clear Konva main/preview/overlay layers immediately (keep background)
     try {
-      const stages = (Konva as any).stages as Konva.Stage[] | undefined;
+      const stages = (Konva as { stages?: Konva.Stage[] }).stages;
       const stage = stages && stages.length > 0 ? stages[0] : undefined;
       if (stage) {
         const layers = stage.getLayers();
@@ -143,7 +143,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     }
 
     // Force a render by nudging selection version if present
-    const set = s as any;
+    const set = s as { bumpSelectionVersion?: () => void };
     if (typeof set.bumpSelectionVersion === "function")
       set.bumpSelectionVersion();
   }, []);

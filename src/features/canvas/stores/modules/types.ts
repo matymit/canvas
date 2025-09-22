@@ -1,5 +1,7 @@
 // features/canvas/stores/modules/types.ts
 
+import type { CanvasElement } from '../../../../../types/index';
+
 /**
  * Type definition for Zustand store slice creators with Immer
  */
@@ -21,7 +23,7 @@ export interface StoreOptions {
  */
 export interface HistoryOperation {
   op: 'add' | 'update' | 'remove' | 'move';
-  before?: any[];
-  after?: any[];
-  elements?: any[];
+  before?: CanvasElement[];
+  after?: CanvasElement[];
+  elements?: CanvasElement[];
 }

@@ -10,6 +10,7 @@ import {
 import { TableTransformerController } from "../../renderer/modules/TableTransformerController";
 import { TableContextMenuHelper } from "./TableContextMenuHelper";
 import type { TableElement } from "../../types/table";
+import type { ModuleRendererCtx } from "../../renderer/index";
 import { handleTableTransform } from "../../renderer/modules/tableTransform";
 import {
   addTableRow,
@@ -71,7 +72,7 @@ export class TableIntegrationExample {
           preview: layers.preview,
           overlay: layers.overlay
         },
-        store: storeContext.store as any // Cast to match ModuleRendererCtx type
+        store: storeContext.store as ModuleRendererCtx['store'] // Cast to match ModuleRendererCtx type
       },
     );
   }
