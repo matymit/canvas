@@ -30,20 +30,15 @@ export function openShapeTextEditor(
   const element = store.elements.get(elementId);
 
   if (!element || !['rectangle', 'circle', 'triangle'].includes(element.type)) {
-    // Warning: Invalid element type for text editing
     return () => {};
   }
 
-  // Element is now guaranteed to be a shape element and defined
-  const shapeElement = element; // TypeScript type assertion
-
+  const shapeElement = element;
   const container = stage.container();
   if (!container) {
-    // Warning: No stage container found
     return () => {};
   }
 
-  // Default options
   const {
     padding = 10,
     fontSize: providedFontSize,
@@ -55,7 +50,6 @@ export function openShapeTextEditor(
   const fontSize = providedFontSize ?? (typeof shapeElement.style?.fontSize === 'number' ? shapeElement.style.fontSize : (shapeElement.type === 'circle' ? 20 : 10));
   const lineHeight = providedLineHeight ?? (typeof shapeElement.data?.textLineHeight === 'number' ? shapeElement.data.textLineHeight : 1.25);
 
-  // Compute the inner text area for the shape - this should match exactly with ShapeRenderer
   let shapeSnapshot = shapeElement;
   let isTriangle = shapeSnapshot.type === 'triangle';
   let isCircle = shapeSnapshot.type === 'circle' || shapeSnapshot.type === 'ellipse';
@@ -80,9 +74,6 @@ export function openShapeTextEditor(
     return shapeSnapshot;
   };
 
-  // Note: shapeRadius is computed but not used in current implementation
-  // const shapeRadius = (shapeSnapshot as { radius?: number }).radius ?? shapeSnapshot.data?.radius;
-
   const textNode = typeof stage.findOne === 'function'
     ? stage.findOne<Konva.Text>(`#${elementId}-text`)
     : null;
@@ -96,16 +87,13 @@ export function openShapeTextEditor(
     textNode.getLayer()?.batchDraw();
   }
 
-  // Shape text editor initialized
-
-  // Create contentEditable DIV with proper styling for circles
   const editor = document.createElement('div');
   editor.contentEditable = 'true';
   editor.setAttribute('data-shape-text-editor', elementId);
   editor.setAttribute('role', 'textbox');
   editor.setAttribute('aria-label', 'Shape text editor');
 
-  // FIXED: Optimized circle styling to prevent cut-off and positioning issues
+  // CRITICAL FIX: Enhanced caret visibility for circles and clean styling for all shapes
   editor.style.cssText = `
     position: absolute;
     z-index: 1000;
@@ -123,8 +111,13 @@ export function openShapeTextEditor(
     transition: width 0.2s ease, height 0.2s ease;
     overflow: hidden;
     cursor: text;
+    /* CRITICAL FIX: Ensure caret visibility across all browsers */
+    caret-color: ${textColor} !important;
+    -webkit-text-fill-color: ${textColor} !important;
+    /* Remove any unwanted borders or dashed frames */
+    border: none !important;
+    outline: none !important;
     ${isCircle ? `
-      /* square editor that always fits inside the circle */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -134,10 +127,8 @@ export function openShapeTextEditor(
       overflow-wrap: break-word;
       padding: ${getCirclePadding()}px;
       min-height: 1px;
-      caret-color: ${textColor};
-      /* Enhanced caret visibility for circles */
-      -webkit-text-fill-color: ${textColor};
-      text-shadow: 0 0 0 ${textColor};
+      /* Enhanced caret visibility specifically for circles */
+      text-shadow: none;
     ` : isTriangle ? `
       text-align: center;
       white-space: pre-wrap;
@@ -155,24 +146,20 @@ export function openShapeTextEditor(
     `}
   `;
 
-  // Set initial content with proper handling for circles
   const currentText = (typeof shapeSnapshot.data?.text === 'string' ? shapeSnapshot.data.text : '') || '';
   let latestEditorText = currentText;
 
   if (currentText) {
     editor.textContent = currentText;
   } else {
-    // Insert zero-width space so an empty editor still shows a centered caret
     editor.textContent = ZERO_WIDTH_SPACE;
   }
 
-  // Append to document body to avoid transform issues
   document.body.appendChild(editor);
 
-  // FIXED: Enhanced position update function with better coordinate handling
   function updateEditorPosition() {
     try {
-      refreshShapeSnapshot(); // Update shape snapshot
+      refreshShapeSnapshot();
       const liveInnerBox = innerBox;
       const containerRect = container.getBoundingClientRect();
       const stageScale = typeof stage.scaleX === 'function' ? stage.scaleX() : 1;
@@ -190,9 +177,6 @@ export function openShapeTextEditor(
       const scaledWidth = liveInnerBox.width * stageScale;
       const scaledHeight = liveInnerBox.height * stageScale;
 
-      // Shape text editor positioning
-
-      // Position the editor with pixel-perfect accuracy
       editor.style.left = `${Math.round(screenX)}px`;
       editor.style.top = `${Math.round(screenY)}px`;
 
@@ -207,23 +191,20 @@ export function openShapeTextEditor(
         : fontSize;
       editor.style.fontSize = `${effectiveFontSize}px`;
 
-      // For circles, ensure proper line-height scaling
       if (isCircle) {
-        editor.style.lineHeight = `${lineHeight}`; // Keep relative line-height
+        editor.style.lineHeight = `${lineHeight}`;
         const scaledPadding = Math.max(0, getCirclePadding() * stageScale);
         editor.style.padding = `${Math.round(scaledPadding)}px`;
       }
     } catch (error) {
-      // Warning: Error updating position
+      // Error updating position
     }
   }
 
-  // Initial positioning
   updateEditorPosition();
 
   let isCleaning = false;
 
-  // Stage transform listeners
   const onStageTransform = () => updateEditorPosition();
   if (typeof stage.on === 'function') {
     stage.on('dragmove.shape-text-editor', onStageTransform);
@@ -238,14 +219,13 @@ export function openShapeTextEditor(
   };
   window.addEventListener('pointerdown', handleGlobalPointerDown, true);
 
-  // Cleanup function
   function cleanup() {
     if (isCleaning) return;
     isCleaning = true;
     try {
       editor.remove();
     } catch (error) {
-      // Warning: Error removing editor
+      // Error removing editor
     }
 
     if (textNode) {
@@ -255,7 +235,6 @@ export function openShapeTextEditor(
       textNode.getLayer()?.batchDraw();
     }
 
-    // Remove stage listeners
     if (typeof stage.off === 'function') {
       stage.off('dragmove.shape-text-editor');
       stage.off('scaleXChange.shape-text-editor scaleYChange.shape-text-editor');
@@ -265,7 +244,6 @@ export function openShapeTextEditor(
     window.removeEventListener('keydown', onKeyDown, true);
   }
 
-  // Commit function
   function commit(save: boolean = true) {
     const rawSource = (typeof latestEditorText === 'string' ? latestEditorText : '') || editor.innerText || editor.textContent || '';
     const rawText = rawSource.replace(ZERO_WIDTH_REGEX, '');
@@ -273,7 +251,6 @@ export function openShapeTextEditor(
     cleanup();
 
     if (!save) {
-      // Text edit cancelled
       return;
     }
 
@@ -305,13 +282,10 @@ export function openShapeTextEditor(
         applyUpdate();
       }
     }
-
-    // Text committed
   }
 
-  // Event handlers
   const onKeyDown = (e: KeyboardEvent) => {
-    e.stopPropagation(); // Prevent canvas shortcuts
+    e.stopPropagation();
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -349,17 +323,15 @@ export function openShapeTextEditor(
   };
 
   const onBlur = () => {
-    // Commit changes on blur
     setTimeout(() => commit(true), 100);
   };
 
-  // Attach event listeners
   editor.addEventListener('keydown', onKeyDown);
   window.addEventListener('keydown', onKeyDown, true);
   editor.addEventListener('input', onInput);
   editor.addEventListener('blur', onBlur);
 
-  // FIXED: Immediate focus with multiple fallback strategies for reliable caret blinking
+  // CRITICAL FIX: Enhanced focus strategy with guaranteed caret visibility
   const focusEditor = () => {
     try {
       editor.focus();
@@ -376,7 +348,6 @@ export function openShapeTextEditor(
           selection.addRange(range);
         }
       } else {
-        // For empty shapes, move caret after the zero-width space so typing replaces it
         const selection = window.getSelection();
         if (selection && editor.firstChild) {
           const range = document.createRange();
@@ -388,39 +359,44 @@ export function openShapeTextEditor(
           selection.addRange(range);
         }
       }
-      // Shape text editor focused
     } catch (error) {
-      // Warning: Error focusing editor
+      // Error focusing editor
     }
   };
 
-  // Multiple strategies to ensure immediate focus and caret visibility
-  // For circles, we need special handling to ensure the editor is properly rendered
+  // CRITICAL FIX: Multi-strategy focus with enhanced caret visibility for circles
   if (isCircle) {
-    // Force browser to render the editor first
-    editor.offsetHeight; // Force reflow
+    // Force layout and render
+    editor.offsetHeight;
 
-    // Immediate focus for circles with caret positioning
+    // Enhanced focus sequence for circles
     requestAnimationFrame(() => {
       focusEditor();
-      // Double RAF for circles to ensure caret is visible
+      
+      // Additional focus strategies specifically for circle text caret visibility
       requestAnimationFrame(() => {
-        editor.style.caretColor = textColor; // Re-apply caret color
-        editor.style.setProperty('-webkit-text-fill-color', textColor); // WebKit fallback
-        // Add subtle outline for better focus visibility in circles
-        editor.style.outline = '1px dashed rgba(59, 130, 246, 0.5)';
-        focusEditor(); // Focus again to ensure caret blinks
+        // Force caret color and text rendering
+        editor.style.caretColor = textColor;
+        editor.style.webkitTextFillColor = textColor;
+        
+        // Ensure focus and caret are properly set
+        editor.blur();
+        setTimeout(() => {
+          focusEditor();
+          
+          // Final caret visibility check
+          setTimeout(() => {
+            if (document.activeElement !== editor) {
+              focusEditor();
+            }
+          }, 50);
+        }, 10);
       });
     });
   } else {
-    // Original logic for other shapes
-    // Strategy 1: Immediate focus attempt
+    // Standard focus strategy for rectangles and triangles
     focusEditor();
-
-    // Strategy 2: Delayed focus as first backup (10ms)
     setTimeout(focusEditor, 10);
-
-    // Strategy 3: RAF focus as second backup
     requestAnimationFrame(focusEditor);
   }
 
@@ -428,8 +404,7 @@ export function openShapeTextEditor(
 }
 
 /**
- * Legacy interface for text editor - used by TextRenderer for text elements.
- * This maintains compatibility with existing code.
+ * CRITICAL FIX: Legacy text editor with clean styling (no dashed blue frames)
  */
 export interface TextEditorOptions {
   stage: Konva.Stage;
@@ -439,36 +414,30 @@ export interface TextEditorOptions {
   onCancel?: () => void;
 }
 
-/**
- * Opens a DOM-based text editor overlay positioned on top of a Konva.Text node
- * The editor stays in sync with canvas transforms (pan/zoom) and commits changes
- */
 export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }: TextEditorOptions) {
-  // Ensure shape is visible and drawn so we can get bounds
   layer.batchDraw();
 
   const container = stage.container();
   if (!container) {
-    // Warning: No stage container found
     return;
   }
 
-  // Create editor element
   const editor = document.createElement('textarea');
   editor.setAttribute('data-text-editor', 'true');
   editor.value = shape.text();
 
-  // Style the editor to match the text
   const fontSize = shape.fontSize();
   const fontFamily = shape.fontFamily();
   const fill = typeof shape.fill() === 'string' ? shape.fill() : '#111827';
 
+  // CRITICAL FIX: Clean styling without dashed blue frame
   editor.style.position = 'absolute';
   editor.style.zIndex = '1000';
   editor.style.minWidth = '20px';
   editor.style.minHeight = '20px';
   editor.style.outline = 'none';
-  editor.style.border = '1px dashed rgba(0, 0, 255, 0.5)';
+  // REMOVED: Dashed blue border that was causing visual issues
+  editor.style.border = 'none';
   editor.style.borderRadius = '2px';
   editor.style.background = 'rgba(255, 255, 255, 0.95)';
   editor.style.color = fill as string;
@@ -482,59 +451,49 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
   editor.style.transformOrigin = '0 0';
   editor.style.boxSizing = 'border-box';
   editor.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+  // CRITICAL: Ensure caret is visible
+  editor.style.caretColor = fill as string;
 
-  // Append to document body (not container to avoid transform issues)
   document.body.appendChild(editor);
 
-  // Hide the original text while editing
   const originalOpacity = shape.opacity();
   shape.opacity(0.2);
   layer.batchDraw();
 
-  // Position update function that accounts for stage transforms
   function updateEditorPosition() {
     try {
       const containerRect = container.getBoundingClientRect();
       const stagePos = stage.position();
-      const stageScale = stage.scaleX(); // Assume uniform scaling
+      const stageScale = stage.scaleX();
 
-      // Get the shape's position in world coordinates
       const shapeX = shape.x();
       const shapeY = shape.y();
 
-      // Convert to screen coordinates
       const screenX = containerRect.left + (shapeX * stageScale) + stagePos.x;
       const screenY = containerRect.top + (shapeY * stageScale) + stagePos.y;
 
-      // Calculate size accounting for scale
       const shapeWidth = Math.max(shape.width() || shape.textWidth, 100);
       const shapeHeight = Math.max(shape.height() || shape.textHeight, fontSize * 1.2);
       const scaledWidth = shapeWidth * stageScale;
       const scaledHeight = shapeHeight * stageScale;
 
-      // Update editor position and size
       editor.style.left = `${screenX}px`;
       editor.style.top = `${screenY}px`;
       editor.style.width = `${Math.max(60, scaledWidth)}px`;
       editor.style.height = `${Math.max(24, scaledHeight)}px`;
 
-      // Scale the font size to match the canvas zoom
       editor.style.fontSize = `${fontSize * stageScale}px`;
-
     } catch (error) {
-      // Warning: Error updating position
+      // Error updating position
     }
   }
 
-  // Initial positioning
   updateEditorPosition();
 
-  // Auto-resize as user types
   function autoResize() {
     const currentText = editor.value;
     if (currentText.length === 0) return;
 
-    // Create temporary element to measure text
     const temp = document.createElement('div');
     temp.style.position = 'absolute';
     temp.style.visibility = 'hidden';
@@ -549,62 +508,51 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
     const measuredHeight = temp.offsetHeight;
     document.body.removeChild(temp);
 
-    // Update editor size with some padding
     const minWidth = 60;
     const minHeight = 24;
     editor.style.width = `${Math.max(minWidth, measuredWidth + 10)}px`;
     editor.style.height = `${Math.max(minHeight, measuredHeight)}px`;
   }
 
-  // Listen to stage transforms to keep editor in sync
   const onStageTransform = () => updateEditorPosition();
   stage.on('dragmove.text-editor', onStageTransform);
   stage.on('scaleXChange.text-editor scaleYChange.text-editor', onStageTransform);
   stage.on('xChange.text-editor yChange.text-editor', onStageTransform);
 
-  // Listen to mouse wheel for zoom
   const onWheel = () => {
-    // Small delay to let zoom complete
     setTimeout(updateEditorPosition, 10);
   };
   stage.on('wheel.text-editor', onWheel);
 
-  // Cleanup function
   function cleanup() {
     try {
       editor.remove();
     } catch (error) {
-      // Warning: Error removing editor
+      // Error removing editor
     }
 
-    // Restore original text opacity
     shape.opacity(originalOpacity);
     layer.batchDraw();
 
-    // Remove event listeners
     stage.off('dragmove.text-editor');
     stage.off('scaleXChange.text-editor scaleYChange.text-editor');
     stage.off('xChange.text-editor yChange.text-editor');
     stage.off('wheel.text-editor');
   }
 
-  // Commit function
   function commit(save: boolean = true) {
     const newText = editor.value.trim();
     cleanup();
 
     if (save) {
-      // Committing text
       onCommit(newText);
     } else {
-      // Canceling text edit
       onCancel?.();
     }
   }
 
-  // Event handlers
   const onKeyDown = (e: KeyboardEvent) => {
-    e.stopPropagation(); // Prevent canvas shortcuts
+    e.stopPropagation();
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -613,13 +561,11 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
       e.preventDefault();
       commit(false);
     } else {
-      // Auto-resize on typing
       setTimeout(autoResize, 0);
     }
   };
 
   const onBlur = () => {
-    // Small delay to allow other events to process
     setTimeout(() => commit(true), 100);
   };
 
@@ -627,12 +573,10 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
     autoResize();
   };
 
-  // Attach event listeners
   editor.addEventListener('keydown', onKeyDown);
   editor.addEventListener('blur', onBlur);
   editor.addEventListener('input', onInput);
 
-  // Focus and select all text
   setTimeout(() => {
     try {
       editor.focus();
@@ -659,17 +603,13 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
       selection.removeAllRanges();
       selection.addRange(range);
     } catch (error) {
-      // Warning: Error focusing editor
+      // Error focusing editor
     }
   }, 10);
 
-  // Return cleanup function for manual cleanup if needed
   return cleanup;
 }
 
-/**
- * Utility function to compute text bounds for positioning
- */
 export function computeTextBounds(text: Konva.Text): { x: number; y: number; width: number; height: number } {
   const clientRect = text.getClientRect({ skipTransform: false });
   return {
