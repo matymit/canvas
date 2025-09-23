@@ -86,6 +86,10 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
   const unsubs = modules.map(m => {
     try {
       const dispose = m.mount({ stage, layers, store: useUnifiedCanvasStore });
+      // Expose PortHoverModule for tools wanting to hide ports immediately after commit
+      if ((m as any).constructor?.name === 'PortHoverModule') {
+        (window as any).portHoverModule = m;
+      }
       console.debug('[Renderer] Module mounted successfully:', m.constructor.name);
       return dispose;
     } catch (error) {

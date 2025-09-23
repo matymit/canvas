@@ -29,6 +29,7 @@ export class ConnectorRenderer {
     if (ep.kind === "point") return { x: ep.x, y: ep.y };
     const node = this.deps.getNodeById(ep.elementId);
     if (!node) return null;
+    // Use the same rect policy everywhere (skip stroke/shadow) so endpoints sit flush
     const rect = node.getClientRect({ skipStroke: true, skipShadow: true });
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
@@ -68,26 +69,27 @@ export class ConnectorRenderer {
     let g = this.groupById.get(conn.id);
     if (!g || !g.getStage()) {
       g = new Konva.Group({ id: conn.id, name: "connector", listening: true });
+      // Explicitly mark type so any generic selection code can detect and skip transformer
+      g.setAttr('nodeType', 'connector');
+      g.setAttr('elementType', 'connector');
 
       // CRITICAL FIX: Add click handlers for connector re-selection
       g.setAttr("elementId", conn.id);
 
-      g.on("click tap", (e) => {
+      // Use pointerdown for more reliable hit on thin lines
+      const onSelect = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
         e.cancelBubble = true;
         const selectionModule = (window as any).selectionModule;
         if (selectionModule) {
           const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
-          if (isAdditive) {
-            // Toggle selection
-            selectionModule.selectElement(conn.id);
-          } else {
-            // Replace selection
-            selectionModule.selectElement(conn.id);
-          }
+          // Always delegate to selection module; it will choose connector mode
+          selectionModule.selectElement(conn.id, { additive: isAdditive });
         } else {
           console.warn('[ConnectorRenderer] SelectionModule not available for connector selection');
         }
-      });
+      };
+      g.on("pointerdown", onSelect);
+      g.on("tap", onSelect as any);
 
       this.layers.main.add(g);
       this.groupById.set(conn.id, g);
@@ -125,6 +127,9 @@ export class ConnectorRenderer {
           name: "connector-shape",
         });
         g.add(shape);
+        // Mark shape with metadata as well (defensive)
+        shape.setAttr('nodeType', 'connector');
+        shape.setAttr('elementType', 'connector');
         this.shapeById.set(conn.id, shape);
       } else {
         shape.points(points);
@@ -155,6 +160,8 @@ export class ConnectorRenderer {
           name: "connector-shape",
         });
         g.add(shape);
+        shape.setAttr('nodeType', 'connector');
+        shape.setAttr('elementType', 'connector');
         this.shapeById.set(conn.id, shape);
       } else {
         shape.points(points);

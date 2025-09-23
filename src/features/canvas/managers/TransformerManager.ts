@@ -268,6 +268,14 @@ export class TransformerManager {
     const elementType = this.getElementType(primaryNode);
     const isTextElement = elementType === 'text';
 
+    // Hard guard: NEVER show a transformer for connectors
+    if (elementType === 'connector') {
+      this.transformer.nodes([]);
+      this.transformer.visible(false);
+      this.overlay.batchDraw();
+      return;
+    }
+
     const elementResizable = primaryNode.getAttr('resizable');
     const isResizeDisabled = elementResizable === false || isTextElement;
 

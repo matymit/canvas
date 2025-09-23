@@ -91,7 +91,7 @@ export class ConnectorRendererAdapter implements RendererModule {
 
     if (!this.renderer) return;
 
-    // Update element node cache for endpoint resolution
+    // Update element node cache for endpoint resolution with accurate rect alignment
     this.elementNodes.clear();
     for (const [id, element] of elements) {
       // Create a temporary group representing the element bounds
@@ -102,6 +102,8 @@ export class ConnectorRendererAdapter implements RendererModule {
         width: (typeof element.width === 'number' ? element.width : 100),
         height: (typeof element.height === 'number' ? element.height : 100),
       });
+      // Mark as element container for consistent rect calculations downstream
+      group.setAttr('elementId', id);
       this.elementNodes.set(id, group);
     }
 

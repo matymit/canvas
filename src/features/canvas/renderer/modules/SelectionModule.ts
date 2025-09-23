@@ -220,14 +220,16 @@ export class SelectionModule implements RendererModule {
     });
 
     // CRITICAL FIX: Handle connector selection with proper integration
-    if (connectorIds.length === 1 && nonConnectorIds.length === 0) {
+    // If ANY connector is selected, prefer connector mode and never attach a transformer
+    if (connectorIds.length >= 1) {
       console.debug('[SelectionModule] Single connector selected, using ConnectorSelectionManager');
       
       if (this.connectorSelectionManager) {
         // Use longer delay to ensure connector is fully rendered
         setTimeout(() => {
-          console.debug('[SelectionModule] Showing connector selection for:', connectorIds[0]);
-          this.connectorSelectionManager?.showSelection(connectorIds[0]);
+          const id = connectorIds[0];
+          console.debug('[SelectionModule] Showing connector selection for:', id);
+          this.connectorSelectionManager?.showSelection(id);
         }, 100);
       } else {
         console.warn('[SelectionModule] ConnectorSelectionManager not available for connector selection');
@@ -250,7 +252,9 @@ export class SelectionModule implements RendererModule {
         console.debug('[SelectionModule] Processing non-connector selection');
         
         // Find Konva nodes for selected elements across all layers
-        const nodes = this.resolveElementsToNodes(selectionSnapshot);
+        const nodes = this.resolveElementsToNodes(selectionSnapshot)
+          // Extra guard: filter out connector nodes if any slipped in
+          .filter((n) => this.getElementTypeForNode?.(n) !== 'connector');
         
         console.debug('[SelectionModule] Resolved nodes for selection:', {
           requestedIds: Array.from(selectionSnapshot),
@@ -288,6 +292,17 @@ export class SelectionModule implements RendererModule {
         }
       }, 75);
     }
+  }
+
+  // Helper to infer element type for a given node using attrs/names
+  private getElementTypeForNode(node: import("konva/lib/Node").Node): string {
+    const nodeType = (node as any).getAttr?.('nodeType');
+    if (nodeType) return nodeType;
+    const elementType = (node as any).getAttr?.('elementType');
+    if (elementType) return elementType;
+    const name = (node as any).name?.() || '';
+    if (name.includes('connector')) return 'connector';
+    return 'element';
   }
 
   private resolveElementsToNodes(
@@ -481,6 +496,11 @@ export class SelectionModule implements RendererModule {
         continue;
       }
 
+      // Live-move commits (position-only) during transform to keep dependent renders (connectors) in sync
+      if (!shouldCommitSizeNow) {
+        updates.push({ id: elementId, changes: { x: changes.x, y: changes.y, rotation: changes.rotation } });
+      }
+
       // Reset scale after applying to dimensions
       if (
         scale &&
@@ -537,7 +557,7 @@ export class SelectionModule implements RendererModule {
   }
 
   // FIXED: Public API for other modules to trigger selection with proper store integration
-  selectElement(elementId: string) {
+  selectElement(elementId: string, options?: { additive?: boolean }) {
     if (!this.storeCtx) {
       console.error('[SelectionModule] No store context available for selection');
       return;
@@ -548,17 +568,40 @@ export class SelectionModule implements RendererModule {
     // Try different store selection methods with proper error handling
     try {
       if (store.setSelection) {
-        store.setSelection([elementId]);
+        if (options?.additive) {
+          const cur = (store.selectedElementIds instanceof Set ? store.selectedElementIds : new Set<string>(store.selectedElementIds || [])) as Set<string>;
+          const next = new Set(cur);
+          if (next.has(elementId)) next.delete(elementId); else next.add(elementId);
+          store.setSelection(Array.from(next));
+        } else {
+          store.setSelection([elementId]);
+        }
       } else if (store.selection?.set) {
-        store.selection.set([elementId]);
+        if (options?.additive && store.selectedElementIds instanceof Set) {
+          const next = new Set(store.selectedElementIds);
+          if (next.has(elementId)) next.delete(elementId); else next.add(elementId);
+          store.selection.set(Array.from(next));
+        } else {
+          store.selection.set([elementId]);
+        }
       } else if (store.selectedElementIds) {
         // Handle Set-based selection
         if (store.selectedElementIds instanceof Set) {
-          store.selectedElementIds.clear();
-          store.selectedElementIds.add(elementId);
+          if (options?.additive) {
+            if (store.selectedElementIds.has(elementId)) store.selectedElementIds.delete(elementId); else store.selectedElementIds.add(elementId);
+          } else {
+            store.selectedElementIds.clear();
+            store.selectedElementIds.add(elementId);
+          }
         } else if (Array.isArray(store.selectedElementIds)) {
-          (store.selectedElementIds as string[]).length = 0;
-          (store.selectedElementIds as string[]).push(elementId);
+          if (options?.additive) {
+            const arr = store.selectedElementIds as string[];
+            const idx = arr.indexOf(elementId);
+            if (idx >= 0) arr.splice(idx, 1); else arr.push(elementId);
+          } else {
+            (store.selectedElementIds as string[]).length = 0;
+            (store.selectedElementIds as string[]).push(elementId);
+          }
         }
         // Trigger state update if using Zustand
         this.storeCtx.store.setState?.({
@@ -650,10 +693,24 @@ export class SelectionModule implements RendererModule {
 
     const selectionSnapshot = new Set(selectedIds);
 
+    // NEW: Respect connector selection here too – never attach transformer
+    const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectionSnapshot);
+    if (connectorIds.length >= 1) {
+      // Ensure transformer is detached and show connector endpoint UI
+      this.transformerManager.detach();
+      this.connectorSelectionManager?.clearSelection();
+      setTimeout(() => {
+        const id = connectorIds[0];
+        this.connectorSelectionManager?.showSelection(id);
+      }, 50);
+      return;
+    }
+
     // Small delay to ensure elements are fully re-rendered after dimension changes
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
-      const nodes = this.resolveElementsToNodes(selectionSnapshot);
+      const nodes = this.resolveElementsToNodes(selectionSnapshot)
+        .filter((n) => this.getElementTypeForNode?.(n) !== 'connector');
 
       if (nodes.length > 0) {
         // Force detach and reattach to recalculate bounds

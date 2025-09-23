@@ -110,6 +110,20 @@ export class PortHoverModule implements RendererModule {
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
 
+      // If hovering a connector, hide all ports immediately
+      const hit = stage.getIntersection(pointer) as Konva.Node | null;
+      if (hit) {
+        const isConnector =
+          hit.name?.() === 'connector' ||
+          hit.getAttr?.('elementType') === 'connector' ||
+          hit.getAttr?.('nodeType') === 'connector' ||
+          hit.getParent?.()?.name?.() === 'connector';
+        if (isConnector) {
+          this.hideAllPorts();
+          return;
+        }
+      }
+
       // Check if mouse is near any ports to keep them visible
       this.checkPortProximity(pointer);
     });
@@ -289,6 +303,21 @@ export class PortHoverModule implements RendererModule {
     this.currentHoveredElement = undefined;
   }
 
+  /**
+   * Public method: hide ports immediately (no animations) – used after committing a connector
+   */
+  public hideNow(): void {
+    if (!this.portGroup) return;
+    for (const elementId of Array.from(this.ports.keys())) {
+      const circles = this.ports.get(elementId) || [];
+      circles.forEach((c) => c.destroy());
+      this.ports.delete(elementId);
+    }
+    this.portGroup.visible(false);
+    if (this.storeCtx) this.storeCtx.layers.overlay.batchDraw();
+    this.currentHoveredElement = undefined;
+  }
+
   private calculatePortPositions(element: ConnectableElement): Port[] {
     const ports: Port[] = [];
     const { x, y, width, height } = element;
@@ -383,7 +412,8 @@ export class PortHoverModule implements RendererModule {
     if (nodes.length === 0) return null;
 
     const node = nodes[0];
-    const rect = node.getClientRect({ skipTransform: false });
+    // Align with connector endpoint resolution: skip stroke and shadow for perfect seam
+    const rect = node.getClientRect({ skipTransform: false, skipStroke: true, skipShadow: true });
 
     return {
       id: elementId,
@@ -441,6 +471,17 @@ export class PortHoverModule implements RendererModule {
       'connector-arrow',
       'mindmap' // Mindmap tool also creates connectors
     ];
+
+    // Never show ports when hovering connector elements themselves
+    const hit = this.storeCtx.stage.getIntersection(this.storeCtx.stage.getPointerPosition() || { x: -99999, y: -99999 }) as Konva.Node | null;
+    if (hit) {
+      const isConnector =
+        hit.name?.() === 'connector' ||
+        hit.getAttr?.('elementType') === 'connector' ||
+        hit.getAttr?.('nodeType') === 'connector' ||
+        hit.getParent?.()?.name?.() === 'connector';
+      if (isConnector) return false;
+    }
 
     const shouldShow = connectorTools.includes(currentTool);
     console.debug('[PortHoverModule] Tool check:', { currentTool, shouldShow });

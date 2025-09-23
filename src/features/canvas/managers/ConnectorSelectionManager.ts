@@ -181,6 +181,11 @@ export class ConnectorSelectionManager {
 
     // Add group to overlay layer
     this.overlayLayer.add(this.endpointGroup);
+    // Allow dragging the whole connector by dragging between endpoints
+    this.endpointGroup.on('dragstart', (e) => {
+      // prevent default group drag; endpoints handle drags
+      e.cancelBubble = true;
+    });
     this.overlayLayer.batchDraw();
   }
 

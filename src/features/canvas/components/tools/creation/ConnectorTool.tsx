@@ -58,13 +58,15 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
   const getCandidates = (stage: Konva.Stage): Konva.Node[] => {
     const mainLayer = layers?.main ?? (stage.getLayers()[2] as Konva.Layer | undefined);
     if (!mainLayer) return [];
-    return mainLayer.find<Konva.Node>("Group, Rect, Line, Image, Text");
+    // Include ellipse/circle nodes so connectors attach to circles
+    return mainLayer.find<Konva.Node>("Group, Rect, Ellipse, Circle, Image, Text");
   };
 
   // Compute anchor ports by mapping local anchors through absolute transform
-  const getPortsByAbsoluteTransform = (node: Konva.Node): Array<{ x: number; y: number; side: AnchorSide }> => {
+    const getPortsByAbsoluteTransform = (node: Konva.Node): Array<{ x: number; y: number; side: AnchorSide }> => {
     // Try to infer local width/height
-    const localRect = node.getClientRect({ skipTransform: true });
+    // Use skipStroke/skipShadow so port sits exactly on the visual edge
+    const localRect = node.getClientRect({ skipTransform: true, skipStroke: true, skipShadow: true });
     const w = localRect.width || (node as any).width?.() || 0;
     const h = localRect.height || (node as any).height?.() || 0;
     const localAnchors: Array<{ x: number; y: number; side: AnchorSide }> = [
@@ -187,6 +189,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       const isArrow = toolId === "connector-arrow";
 
+      // Force crosshair cursor while tool is active
+      try { stage.container().style.cursor = 'crosshair'; } catch {}
+
     // Cache candidate nodes once on activation to avoid per-move queries
     const cachedCandidates = getCandidates(stage);
 
@@ -233,7 +238,13 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       }
     };
 
-    const onPointerDown = () => {
+    const onPointerDown = (evt: Konva.KonvaEventObject<PointerEvent>) => {
+      // If pointer down originated from a port dot, do not override startSnap set by the dot handler
+      const targetName = evt?.target?.name?.() || '';
+      if (targetName === 'connector-port-dot' || evt?.target?.getParent?.()?.name?.() === 'connector-endpoints') {
+        return;
+      }
+
       const pos = stage.getPointerPosition();
       if (!pos) return;
       hideAllPorts(stage);
@@ -318,6 +329,16 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       if ((elementId || id) && selectOnly) selectOnly(elementId || id);
       setTool?.("select");
+
+      // Hide any hover ports after successful connection
+      try {
+        const portHoverModule = (window as any).portHoverModule;
+        if (portHoverModule?.hideNow) {
+          portHoverModule.hideNow();
+        } else {
+          hideAllPorts(stage);
+        }
+      } catch {}
     };
 
     const onPointerUp = () => {
@@ -386,6 +407,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         }
         ref.current.start = null;
         ref.current.startSnap = null;
+        try { stage.container().style.cursor = ''; } catch {}
       };
     } catch (e) {
       console.error('[ConnectorTool] Fatal error during activation', e);

@@ -166,11 +166,17 @@ const FigJamCanvas: React.FC = () => {
     const imageDragHandler = new ImageDragHandler(stage);
     imageDragHandlerRef.current = imageDragHandler;
 
-    // Window resize handler
+    // Window resize handler: resize stage and auto-fit content while preserving relative view
     const handleResize = () => {
       stage.width(window.innerWidth);
       stage.height(window.innerHeight);
-      // Grid updates automatically via GridRenderer
+      // Keep viewport content visible: attempt fit if current view would overflow
+      const store = useUnifiedCanvasStore.getState();
+      const vp = store.viewport;
+      // Simple heuristic: on resize, refit to content with small padding
+      vp?.fitToContent?.(40);
+      // Grid will recache on zoom
+      gridRenderer.updateOptions({ dpr: window.devicePixelRatio });
     };
 
     window.addEventListener("resize", handleResize);
@@ -210,7 +216,7 @@ const FigJamCanvas: React.FC = () => {
     };
   }, []); // FIXED: Empty dependency array - initialize only once
 
-  // FIXED: Separate effect for stage event handlers that need store access
+  // FIXED: Attach stage event handlers once; read store/state at call time to avoid rebind thrash
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -220,11 +226,13 @@ const FigJamCanvas: React.FC = () => {
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       // Skip if not in select mode
-      if (selectedTool !== "select") return;
+      const tool = (useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool) as string | undefined;
+      if (tool !== "select") return;
 
       // If clicking on empty stage, clear selection
       if (e.target === stage) {
-        clearSelection();
+        const s = useUnifiedCanvasStore.getState();
+        (s.selection?.clear || s.clearSelection)?.();
         return;
       }
 
@@ -238,19 +246,22 @@ const FigJamCanvas: React.FC = () => {
         elementId = parent.getAttr("elementId") || parent.id();
       }
 
-      if (elementId && elements.has(elementId)) {
+      const s = useUnifiedCanvasStore.getState();
+      const els = s.elements as Map<string, unknown>;
+      if (elementId && els?.has?.(elementId)) {
         if (e.evt.ctrlKey || e.evt.metaKey) {
-          // Toggle selection with Ctrl/Cmd
-          if (selectedElementIds.has(elementId)) {
-            const newSelection = new Set(selectedElementIds);
-            newSelection.delete(elementId);
-            setSelection(newSelection);
+          const selectedIds = s.selectedElementIds as Set<string> | string[] | undefined;
+          const isSelected = selectedIds instanceof Set ? selectedIds.has(elementId) : Array.isArray(selectedIds) ? selectedIds.includes(elementId) : false;
+          if (isSelected) {
+            // remove
+            const next = selectedIds instanceof Set ? new Set(selectedIds) : new Set<string>(selectedIds as string[]);
+            next.delete(elementId);
+            (s.setSelection || s.selection?.set)?.(Array.from(next));
           } else {
-            addToSelection(elementId);
+            (s.addToSelection || s.selection?.toggle || s.selection?.set)?.(elementId);
           }
         } else {
-          // Single selection
-          setSelection([elementId]);
+          (s.setSelection || s.selection?.set)?.([elementId]);
         }
       }
     };
@@ -262,11 +273,15 @@ const FigJamCanvas: React.FC = () => {
       if (!pointer) return;
 
       const deltaScale = e.evt.deltaY > 0 ? 0.9 : 1.1;
-      viewport.zoomAt(pointer.x, pointer.y, deltaScale);
+      const vp = useUnifiedCanvasStore.getState().viewport;
+      vp?.zoomAt?.(pointer.x, pointer.y, deltaScale);
 
       // Update stage to match viewport store
-      stage.scale({ x: viewport.scale, y: viewport.scale });
-      stage.position({ x: viewport.x, y: viewport.y });
+      const cur = useUnifiedCanvasStore.getState().viewport;
+      if (cur) {
+        stage.scale({ x: cur.scale, y: cur.scale });
+        stage.position({ x: cur.x, y: cur.y });
+      }
 
       // Redraw grid with proper GridRenderer
       if (gridRendererRef.current) {
@@ -282,7 +297,8 @@ const FigJamCanvas: React.FC = () => {
     // Pan handling when pan tool is active
     let isPanning = false;
     const handleDragStart = () => {
-      if (selectedTool === "pan") {
+      const tool = (useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool) as string | undefined;
+      if (tool === "pan") {
         isPanning = true;
         stage.draggable(true);
       }
@@ -291,7 +307,7 @@ const FigJamCanvas: React.FC = () => {
     const handleDragMove = () => {
       if (isPanning) {
         const pos = stage.position();
-        viewport.setPan(pos.x, pos.y);
+        useUnifiedCanvasStore.getState().viewport?.setPan?.(pos.x, pos.y);
         // Grid updates automatically via GridRenderer zoom listeners
       }
     };

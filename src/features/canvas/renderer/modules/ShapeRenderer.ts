@@ -56,10 +56,12 @@ export class ShapeRenderer implements RendererModule {
   private textNodes = new Map<Id, ShapeTextAttachment>(); // Track text nodes for shapes
   private layer?: Konva.Layer;
   private unsubscribe?: () => void;
+  private store?: typeof import("../../stores/unifiedCanvasStore").useUnifiedCanvasStore;
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Mounting ShapeRenderer
     this.layer = ctx.layers.main;
+    this.store = ctx.store;
 
     // Subscribe to store changes - watch shape elements
     this.unsubscribe = ctx.store.subscribe(
@@ -197,6 +199,9 @@ export class ShapeRenderer implements RendererModule {
           });
 
           // Add dragend handler for position commit
+          // Live update during drag so connectors follow immediately
+          this.attachLiveDragUpdate(node, shape.id);
+
           node.on("dragend", (e) => {
             const shapeNode = e.target as Konva.Shape;
             const nx = shapeNode.x();
@@ -213,6 +218,8 @@ export class ShapeRenderer implements RendererModule {
       } else {
         // Update existing shape node
         this.updateShapeNode(node, shape);
+        // Ensure live updates are attached for existing nodes as well
+        this.attachLiveDragUpdate(node, shape.id);
       }
 
       // Handle text rendering for shapes with text
@@ -238,6 +245,22 @@ export class ShapeRenderer implements RendererModule {
     }
 
     this.layer.batchDraw();
+  }
+
+  private attachLiveDragUpdate(node: Konva.Shape, id: string) {
+    let ticking = false;
+    node.off('dragmove.live-update');
+    node.on('dragmove.live-update', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        try {
+          const s = this.store?.getState?.();
+          s?.updateElement?.(id, { x: Math.round(node.x()), y: Math.round(node.y()) }, { pushHistory: false });
+        } catch {}
+      });
+    });
   }
 
   private createShapeNode(shape: ShapeElement): Konva.Shape | undefined {
