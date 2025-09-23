@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import { StoreActions } from "../stores/facade";
 import { setupRenderer } from "../renderer";
 import CanvasToolbar from "../toolbar/CanvasToolbar";
 import ZoomControls from "./ZoomControls";
@@ -74,9 +75,7 @@ const FigJamCanvas: React.FC = () => {
   const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
   const undo = useUnifiedCanvasStore((state) => state.undo);
   const redo = useUnifiedCanvasStore((state) => state.redo);
-  const setSelectedTool = useUnifiedCanvasStore(
-    (state) => state.setSelectedTool,
-  );
+  const setSelectedTool = StoreActions.setSelectedTool;
 
   // FIXED: Initialize stage and renderer system ONLY ONCE
   useEffect(() => {

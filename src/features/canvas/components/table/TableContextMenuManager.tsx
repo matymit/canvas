@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { TableContextMenu } from "./TableContextMenu";
 import { TableSpatialFeedback } from "./TableSpatialFeedback";
 import { TableConfirmationDialog } from "./TableConfirmationDialog";
-import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
+import { StoreSelectors, StoreActions } from "../../stores/facade";
 import { TableContextMenuTool } from "../../tools/TableContextMenuTool";
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
@@ -38,7 +38,7 @@ export interface TableConfirmationState {
 }
 
 export interface TableContextMenuManagerProps {
-  stageRef: React.RefObject<Konva.Stage>;
+  stageRef: React.RefObject<Konva.Stage | null>;
   eventManager?: {
     registerTool: (id: string, handler: any, priority?: number) => void;
     unregisterTool: (id: string) => void;
@@ -73,12 +73,10 @@ export const TableContextMenuManager: React.FC<
     });
 
   // Get store methods directly from the hook for reactive access
-  const getElement = useUnifiedCanvasStore((state) => state.element.getById);
-  const updateElement = useUnifiedCanvasStore((state) => state.element.update);
-  const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
-  const bumpSelectionVersion = useUnifiedCanvasStore(
-    (state) => state.bumpSelectionVersion,
-  );
+  const getElement = StoreSelectors.getElementById;
+  const updateElement = StoreActions.updateElement;
+  const withUndo = StoreActions.withUndo;
+  const bumpSelectionVersion = StoreActions.bumpSelectionVersion;
 
   // Close context menu
   const closeContextMenu = useCallback(() => {
