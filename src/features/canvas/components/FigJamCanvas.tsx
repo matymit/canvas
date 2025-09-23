@@ -52,6 +52,8 @@ const FigJamCanvas: React.FC = () => {
     preview: null,
     overlay: null,
   });
+  // Stable connector layers object to avoid re-creating on each render
+  const connectorLayersRef = useRef<{ main: Konva.Layer; preview: Konva.Layer; overlay: Konva.Layer } | null>(null);
   const rendererDisposeRef = useRef<(() => void) | null>(null);
   const toolManagerRef = useRef<ToolManager | null>(null);
   const gridRendererRef = useRef<GridRenderer | null>(null);
@@ -59,7 +61,7 @@ const FigJamCanvas: React.FC = () => {
 
   // Store subscriptions
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
-  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool);
+  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool ?? state.ui?.selectedTool);
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const selectedElementIds = useUnifiedCanvasStore(
     (state) => state.selectedElementIds,
@@ -75,7 +77,12 @@ const FigJamCanvas: React.FC = () => {
   const withUndo = useUnifiedCanvasStore((state) => state.withUndo);
   const undo = useUnifiedCanvasStore((state) => state.undo);
   const redo = useUnifiedCanvasStore((state) => state.redo);
-  const setSelectedTool = StoreActions.setSelectedTool;
+  const setSelectedTool = useCallback((tool: string) => {
+    // Only update if different to avoid render loops
+    const cur = useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool;
+    if (cur === tool) return;
+    StoreActions.setSelectedTool?.(tool);
+  }, []);
 
   // FIXED: Initialize stage and renderer system ONLY ONCE
   useEffect(() => {
@@ -110,6 +117,7 @@ const FigJamCanvas: React.FC = () => {
       preview: previewLayer,
       overlay: overlayLayer,
     };
+    connectorLayersRef.current = { main: mainLayer, preview: previewLayer, overlay: overlayLayer };
 
     // Add layers to stage in correct order
     stage.add(backgroundLayer);
@@ -516,21 +524,14 @@ const FigJamCanvas: React.FC = () => {
         case "connector":
         case "connector-line":
         case "connector-arrow": {
-          const allLayers = layersRef.current;
-          // Guard: render only when stage and required layers are ready
-          if (!stageRef.current || !allLayers?.main || !allLayers?.preview || !allLayers?.overlay) {
-            return null;
-          }
+          const lyr = connectorLayersRef.current;
+          if (!stageRef.current || !lyr) return null;
           return (
             <ConnectorTool
               key="connector-tool"
               {...toolProps}
               toolId={selectedTool as "connector-line" | "connector-arrow"}
-              layers={{
-                main: allLayers.main,
-                preview: allLayers.preview,
-                overlay: allLayers.overlay,
-              }}
+              layers={lyr}
             />
           );
         }
