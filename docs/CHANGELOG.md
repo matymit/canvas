@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0] - 2025-09-23
 
+### 🚨 CRITICAL FIX: Connector Zoom Coordinate Corruption
+- **Fixed**: Connectors no longer permanently disconnect from elements after zoom operations
+- **Issue**: Connectors would become permanently broken after ANY zoom operation, never recovering even when returning to original zoom level
+- **Root Cause**: ConnectorTool.tsx stored absolute coordinates in ConnectorEndpointPoint which became invalid after zoom transformations
+- **Technical Solution**:
+  - Added aggressive element attachment with 50px threshold instead of falling back to absolute coordinates
+  - Modified commit() function to use `findNearestAnchor` for non-snapped endpoints
+  - Ensures connectors almost always use ConnectorEndpointElement references
+- **Impact**: Eliminates permanent coordinate corruption, connectors now survive any number of zoom operations
+- **Files Modified**: `ConnectorTool.tsx`, `SelectionModule.ts`
+
+### 🚨 CRITICAL FIX: Connector Viewport Subscription Bug
+- **Fixed**: Connectors no longer disappear during zoom operations
+- **Issue**: Connectors would vanish temporarily during zoom operations due to coordinate transformation mismatch
+- **Root Cause**: ConnectorRendererAdapter only subscribed to element changes, not viewport changes, causing stale coordinate calculations
+- **Technical Solution**:
+  - Updated ConnectorRendererAdapter selector to watch both elements AND viewport state (x, y, scale)
+  - Ensures connector re-render triggers on any viewport transformation
+  - Connector endpoints recalculated with fresh element positions during zoom
+- **Impact**: Eliminates connector disappearing bug, maintains visual consistency during all zoom/pan operations
+- **Files Modified**: `ConnectorRendererAdapter.ts`
+
+### 🚨 CRITICAL FIX: Window Resize Zoom Override
+- **Fixed**: Window resize no longer overrides manual zoom settings
+- **Issue**: Users setting zoom to 100% would see it jump to 165% when maximizing/minimizing window
+- **Root Cause**: `fitToContent()` was called on every window resize in FigJamCanvas.tsx
+- **Solution**: Resize handler now only updates stage dimensions and grid DPR, preserving user zoom
+
 ### 🚀 Phase 18C: Advanced Tool Implementation - MVP Feature Complete
 ### 🔧 Connector System Stabilization (post-MVP hardening)
 

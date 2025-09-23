@@ -29,35 +29,80 @@ export class ConnectorRenderer {
     if (ep.kind === "point") return { x: ep.x, y: ep.y };
     const node = this.deps.getNodeById(ep.elementId);
     if (!node) return null;
-    // Use the same rect policy everywhere (skip stroke/shadow) so endpoints sit flush
-    const rect = node.getClientRect({ skipStroke: true, skipShadow: true });
-    const cx = rect.x + rect.width / 2;
-    const cy = rect.y + rect.height / 2;
+
+    // CRITICAL FIX: Use element's raw properties instead of getClientRect()
+    // getClientRect() returns stage coordinates which become invalid during zoom
+    // The cached nodes in ConnectorRendererAdapter store the raw element properties
+    const elementX = node.x();
+    const elementY = node.y();
+    const elementWidth = node.width();
+    const elementHeight = node.height();
+
+    const cx = elementX + elementWidth / 2;
+    const cy = elementY + elementHeight / 2;
     let x = cx;
     let y = cy;
-    switch (ep.anchor) {
-      case "left":
-        x = rect.x;
-        y = cy;
-        break;
-      case "right":
-        x = rect.x + rect.width;
-        y = cy;
-        break;
-      case "top":
-        x = cx;
-        y = rect.y;
-        break;
-      case "bottom":
-        x = cx;
-        y = rect.y + rect.height;
-        break;
-      case "center":
-      default:
-        x = cx;
-        y = cy;
-        break;
+
+    // CRITICAL FIX: Handle circular elements with trigonometric calculations
+    const elementType = node.getAttr('elementType') || node.name() || '';
+    const isCircular = elementType.includes('circle') || elementType.includes('ellipse') ||
+                      node.getAttr('shapeType') === 'circle' || node.getAttr('shapeType') === 'ellipse';
+
+    if (isCircular) {
+      // For circles/ellipses, calculate anchor points on the perimeter using trigonometry
+      const radiusX = elementWidth / 2;  // For ellipses, this is the horizontal radius
+      const radiusY = elementHeight / 2; // For ellipses, this is the vertical radius
+
+      switch (ep.anchor) {
+        case "left":
+          x = cx + radiusX * Math.cos(Math.PI); // π radians = leftmost point
+          y = cy + radiusY * Math.sin(Math.PI);
+          break;
+        case "right":
+          x = cx + radiusX * Math.cos(0); // 0 radians = rightmost point
+          y = cy + radiusY * Math.sin(0);
+          break;
+        case "top":
+          x = cx + radiusX * Math.cos(3 * Math.PI / 2); // 3π/2 radians = topmost point
+          y = cy + radiusY * Math.sin(3 * Math.PI / 2);
+          break;
+        case "bottom":
+          x = cx + radiusX * Math.cos(Math.PI / 2); // π/2 radians = bottommost point
+          y = cy + radiusY * Math.sin(Math.PI / 2);
+          break;
+        case "center":
+        default:
+          x = cx;
+          y = cy;
+          break;
+      }
+    } else {
+      // For rectangular elements, use existing edge-based logic
+      switch (ep.anchor) {
+        case "left":
+          x = elementX;
+          y = cy;
+          break;
+        case "right":
+          x = elementX + elementWidth;
+          y = cy;
+          break;
+        case "top":
+          x = cx;
+          y = elementY;
+          break;
+        case "bottom":
+          x = cx;
+          y = elementY + elementHeight;
+          break;
+        case "center":
+        default:
+          x = cx;
+          y = cy;
+          break;
+      }
     }
+
     if (ep.offset) {
       x += ep.offset.dx;
       y += ep.offset.dy;

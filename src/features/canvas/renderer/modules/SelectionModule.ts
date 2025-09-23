@@ -694,7 +694,7 @@ export class SelectionModule implements RendererModule {
     const selectionSnapshot = new Set(selectedIds);
 
     // NEW: Respect connector selection here too – never attach transformer
-    const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectionSnapshot);
+    const { connectorIds } = this.categorizeSelection(selectionSnapshot);
     if (connectorIds.length >= 1) {
       // Ensure transformer is detached and show connector endpoint UI
       this.transformerManager.detach();

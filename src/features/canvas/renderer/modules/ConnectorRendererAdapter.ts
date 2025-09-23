@@ -25,9 +25,9 @@ export class ConnectorRendererAdapter implements RendererModule {
       },
     });
 
-    // Subscribe to store changes - watch connector elements
+    // Subscribe to store changes - watch connector elements AND viewport changes
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract connectors and cache element positions
+      // Selector: extract connectors, elements, and viewport state
       (state) => {
         const connectors = new Map<Id, ConnectorElement>();
         const elements = new Map<Id, CanvasElement>();
@@ -41,9 +41,16 @@ export class ConnectorRendererAdapter implements RendererModule {
           }
         }
 
-        return { connectors, elements };
+        // CRITICAL FIX: Include viewport state to detect zoom/pan changes
+        const viewport = {
+          x: state.viewport.x,
+          y: state.viewport.y,
+          scale: state.viewport.scale,
+        };
+
+        return { connectors, elements, viewport };
       },
-      // Callback: reconcile changes
+      // Callback: reconcile changes when elements OR viewport changes
       ({ connectors, elements }) => {
         this.reconcile(connectors, elements);
       },

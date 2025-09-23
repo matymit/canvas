@@ -27,7 +27,8 @@
       "Bash(awk:*)",
       "Bash(find:*)",
       "mcp__mcphub__memory-create_relations",
-      "mcp__mcphub__puppeteer-puppeteer_click"
+      "mcp__mcphub__puppeteer-puppeteer_click",
+      "mcp__mcphub__perplexity-perplexity_ask"
     ],
     "deny": [],
     "ask": []

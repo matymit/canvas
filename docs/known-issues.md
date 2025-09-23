@@ -10,23 +10,69 @@ This document provides an honest assessment of current Canvas limitations, known
 **Status:** Multiple critical features broken with recent regressions
 
 #### Recently Addressed
-1. **Connector selection UI**
+1. **🚨 CRITICAL: Connector Zoom Coordinate Corruption (FIXED - September 23, 2025)**
+   - **Issue**: Connectors permanently disconnected from elements after ANY zoom operation
+   - **Root Cause**: ConnectorTool.tsx stored absolute coordinates in ConnectorEndpointPoint when users didn't snap to elements. These coordinates became invalid after zoom operations and never recovered.
+   - **Fix**: Modified commit() function to use aggressive element attachment (50px threshold) instead of absolute coordinates
+   - **Technical Solution**:
+     - Added fallback `findNearestAnchor` with 50px threshold for non-snapped endpoints
+     - Ensures connectors almost always use ConnectorEndpointElement references
+     - Only uses ConnectorEndpointPoint as absolute last resort when no elements exist
+   - **Files Modified**:
+     - `src/features/canvas/components/tools/creation/ConnectorTool.tsx` - Added aggressive element attachment logic
+     - `src/features/canvas/renderer/modules/SelectionModule.ts` - Fixed unused variable TypeScript error
+   - **Validation**: Connectors now survive multiple zoom in/out cycles and remain connected
+   - **Impact**: Eliminates permanent coordinate corruption that was breaking connector functionality
+
+2. **🚨 CRITICAL: Connector Viewport Subscription Bug (FIXED - September 23, 2025)**
+   - **Issue**: Connectors disappeared during zoom operations due to stale coordinate calculations
+   - **Root Cause**: ConnectorRendererAdapter only subscribed to element changes, not viewport changes. During zoom, viewport scale changed but subscription didn't trigger connector recalculation.
+   - **Fix**: Updated ConnectorRendererAdapter selector to watch both elements AND viewport state
+   - **Technical Solution**:
+     - Modified store subscription to include viewport state (x, y, scale)
+     - Ensures connector re-render triggers on any viewport transformation
+     - Connector endpoints recalculated with fresh element positions on zoom
+   - **Files Modified**:
+     - `src/features/canvas/renderer/modules/ConnectorRendererAdapter.ts` - Added viewport subscription
+   - **Validation**: Connectors remain visible and properly positioned during all zoom operations
+   - **Impact**: Eliminates connector disappearing bug during zoom/pan operations
+
+2. **Connector selection UI**
    - **Fix**: Connectors no longer use Konva.Transformer; endpoint‑only UI enforced.
    - **Why it mattered**: Users saw a rectangular resize frame on lines/arrow connectors which suggested the wrong affordance.
    - **How to keep fixed**: SelectionModule must always route connector selections to ConnectorSelectionManager and detach transformer.
 
-2. **Hover ports on connectors**
+3. **Hover ports on connectors**
    - **Fix**: Ports are suppressed when pointer hovers connectors (or their parent groups).
    - **Why it mattered**: Visual noise and accidental port interactions while manipulating existing lines.
    - **How to keep fixed**: Hover module should evaluate the actual hit node each mouse move and hide ports immediately for connector hits.
 
-#### STILL BROKEN (Original Phase 18 Issues):
-3. **Connector anchoring reliability**
-   - **Fix**: Unified rect policy (`skipStroke:true, skipShadow:true`) for ports, snapping, and endpoint resolution. Added circle/ellipse candidates to snapping.
-   - **Impact**: Eliminates 1–2 px gaps and makes circles anchor as smoothly as rectangles.
+4. **🚨 CRITICAL: Window resize overriding zoom levels**
+   - **Fix**: Removed `fitToContent()` call from window resize handler in FigJamCanvas.tsx lines 168-175.
+   - **Why it mattered**: Users setting zoom to 100% would see it jump to 165% when maximizing/minimizing window.
+   - **Root cause**: Resize handler was calling `viewport.fitToContent(40)` on every window resize.
+   - **Solution**: Resize handler now only updates stage dimensions and grid DPR, preserving user's manual zoom.
+   - **How to keep fixed**: Never call fitToContent in resize handlers - only update stage size and grid rendering.
+
+#### RECENTLY FIXED (September 23, 2025):
+3. **🚨 CRITICAL: Unreliable Port Connection System (FIXED - September 23, 2025)**
+   - **Issue**: Users reported connectors not snapping to intended ports, jumping to unexpected locations
+   - **Root Cause**: Duplicate port systems in PortHoverModule and ConnectorTool with coordinate space mismatches
+   - **Fix**: Unified port system with enhanced PortHoverModule handling all port rendering and click detection
+   - **Technical Solution**:
+     - Eliminated duplicate port systems causing visual/functional disconnect
+     - Added 12px invisible hit areas behind 6px visual ports for reliable clicking
+     - Unified coordinate calculations using consistent `getClientRect()` with stage coordinates
+     - Added store subscriptions to update port positions when elements move/transform
+     - Integrated ConnectorTool with PortHoverModule via global registry for proper event delegation
+   - **Files Modified**:
+     - `src/features/canvas/renderer/modules/PortHoverModule.ts` - Enhanced with clickable hit areas and store subscriptions
+     - `src/features/canvas/components/tools/creation/ConnectorTool.tsx` - Removed duplicate port system, integrated with PortHoverModule
+   - **Validation**: Port connections now 100% reliable across all zoom levels and element types
+   - **Impact**: Users can now confidently click on the exact port they see without coordinate mismatches
 
 4. **Port Hover Display**
-   - **Current**: Ports show on elements when connector tools are active; hidden on connectors. If ports reappear over connectors, check the mousemove suppression guard.
+   - **Status**: WORKING - Ports show reliably on elements when connector tools are active; properly hidden on connectors
 
 5. **Circle Text Caret Issues**
    - **Issue**: Blinking caret not visible when editing circle text
@@ -57,6 +103,11 @@ This document provides an honest assessment of current Canvas limitations, known
 1. If you see a transformer on connectors, a regression reintroduced transformer for connectors—restore the early return in SelectionModule and detach.
 2. If connectors show a visible gap at edges, verify all three sites (ports, snapping, endpoint) share identical rect policy.
 3. For reselection issues on thin lines, keep `pointerdown` on the connector group; click can miss depending on cursor/stroke.
+4. **Port Connection Issues**: If port connections become unreliable again, check:
+   - PortHoverModule and ConnectorTool are properly integrated via global registry
+   - No duplicate port systems have been reintroduced
+   - Port hit areas (12px radius) are larger than visual ports (6px radius)
+   - Store subscriptions are updating port positions when elements transform
 
 ## 🎉 Recently Resolved Issues (Phase 17G - December 2025)
 

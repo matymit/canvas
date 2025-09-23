@@ -4,7 +4,6 @@ import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 import { StoreActions } from "../stores/facade";
 import { setupRenderer } from "../renderer";
 import CanvasToolbar from "../toolbar/CanvasToolbar";
-import ZoomControls from "./ZoomControls";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import GridRenderer from "./GridRenderer";
 import { debug, error as logError } from "../../../utils/debug";
@@ -166,16 +165,12 @@ const FigJamCanvas: React.FC = () => {
     const imageDragHandler = new ImageDragHandler(stage);
     imageDragHandlerRef.current = imageDragHandler;
 
-    // Window resize handler: resize stage and auto-fit content while preserving relative view
+    // Window resize handler: resize stage only, preserve user's zoom level
     const handleResize = () => {
       stage.width(window.innerWidth);
       stage.height(window.innerHeight);
-      // Keep viewport content visible: attempt fit if current view would overflow
-      const store = useUnifiedCanvasStore.getState();
-      const vp = store.viewport;
-      // Simple heuristic: on resize, refit to content with small padding
-      vp?.fitToContent?.(40);
-      // Grid will recache on zoom
+      // FIXED: Do not call fitToContent - preserve user's manual zoom settings
+      // Only update grid DPR for crisp rendering on new window size
       gridRenderer.updateOptions({ dpr: window.devicePixelRatio });
     };
 
@@ -589,7 +584,7 @@ const FigJamCanvas: React.FC = () => {
         className="konva-stage-container"
         data-testid="konva-stage-container"
       />
-      <ZoomControls />
+      {/* Zoom controls removed - now only in toolbar */}
 
       {/* Render active tool components - these handle stage interactions */}
       {renderActiveTool()}

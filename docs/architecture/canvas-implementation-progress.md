@@ -13,6 +13,13 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 ### Connector, Ports, and Tooling Improvements (What changed & why)
 
+- **🚨 CRITICAL FIX (September 23, 2025): Connector Zoom Coordinate Corruption RESOLVED**
+  - **Issue**: Connectors permanently disconnected from elements after ANY zoom operation
+  - **Root Cause**: ConnectorTool.tsx stored absolute coordinates in ConnectorEndpointPoint which became invalid after zoom transformations
+  - **Technical Solution**: Modified commit() function to use aggressive element attachment (50px threshold) instead of absolute coordinates
+  - **Impact**: Eliminates permanent coordinate corruption, connectors now survive any number of zoom operations
+  - **Files Modified**: `ConnectorTool.tsx` (aggressive element attachment logic), `SelectionModule.ts` (TypeScript fix)
+
 - Implemented a parallel selection path for connectors that never uses Konva.Transformer. Endpoint-only UI is now enforced in all code paths, including refresh and version-bump cases. This prevents the blue resize frame from ever attaching to connectors (root cause of user confusion).
 - Harmonized geometry for ports, snapping, and endpoint placement by adopting a single rect policy: getClientRect with `skipStroke:true, skipShadow:true`. This eliminates the 1–2 px visual gap users saw between connectors and element edges under various stroke widths and zoom levels.
 - Added aggressive suppression of hover ports while the pointer is over connectors. Previously, the hover module only looked at the tool; now it considers the hit target (and its parent) on every mouse move to ensure ports do not appear on drawn connectors.

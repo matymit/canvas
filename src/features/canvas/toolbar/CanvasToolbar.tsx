@@ -119,10 +119,8 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
   const handleZoomReset = useCallback(() => {
     const state = useUnifiedCanvasStore.getState();
-    // Reset to 100%
-    state.viewport?.setScale?.(1);
-    // Fit to content neatly with padding
-    state.viewport?.fitToContent?.(40);
+    // Reset to exactly 100% zoom and center viewport
+    state.viewport?.reset?.();
   }, []);
 
   const handleClearCanvas = useCallback(() => {

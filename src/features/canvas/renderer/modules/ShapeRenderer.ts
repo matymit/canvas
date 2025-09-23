@@ -301,6 +301,10 @@ export class ShapeRenderer implements RendererModule {
           radiusY,
         });
 
+        // CRITICAL FIX: Set elementType attribute for circle detection in AnchorSnapping
+        ellipseNode.setAttr('elementType', 'circle');
+        ellipseNode.setAttr('shapeType', 'circle');
+
         ellipseNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, ellipseNode));
 
         return ellipseNode;
@@ -312,6 +316,10 @@ export class ShapeRenderer implements RendererModule {
           radiusX: safeWidth / 2,
           radiusY: safeHeight / 2,
         });
+
+        // CRITICAL FIX: Set elementType attribute for ellipse detection in AnchorSnapping
+        ellipseNode.setAttr('elementType', 'ellipse');
+        ellipseNode.setAttr('shapeType', 'ellipse');
 
         ellipseNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, ellipseNode));
 
