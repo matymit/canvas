@@ -5,7 +5,7 @@ import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { AnchorSide } from "../../../types/connector";
 import type { ConnectorElement } from "../../../types/connector";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
-import { getWorldPointer } from "../../../utils/pointer";
+// We will use stage.getPointerPosition() and getClientRect({ relativeTo: stage })
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -56,14 +56,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     return main.find<Konva.Node>("Group, Rect, Line, Image, Text"); // broad; filter as needed
   };
 
-  // Map a node's client rect into stage/world coordinates using the stage inverse transform
-  const getWorldRect = (node: Konva.Node, stage: Konva.Stage) => {
-    const cr = node.getClientRect({ skipStroke: true, skipShadow: true });
-    const inv = stage.getAbsoluteTransform().copy().invert();
-    const tl = inv.point({ x: cr.x, y: cr.y });
-    const br = inv.point({ x: cr.x + cr.width, y: cr.y + cr.height });
-    return { x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y };
-  };
+  // Get node bounds in the same coordinate space as the stage for overlay alignment
+  const getStageRect = (node: Konva.Node, stage: Konva.Stage) =>
+    node.getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage });
 
   // Helper to show connection ports on hover
   const showPortsForElement = (elementId: string, stage: Konva.Stage) => {
@@ -80,7 +75,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     ref.current.portDots.forEach(dot => dot.destroy());
     ref.current.portDots = [];
 
-    const rect = getWorldRect(element, stage);
+    const rect = getStageRect(element, stage);
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
 
@@ -200,7 +195,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         const ghost = ref.current.preview;
         if (!start || !ghost) return;
 
-        const pos = getWorldPointer(stage);
+        const pos = stage.getPointerPosition();
         if (!pos) return;
 
         // Try snapping the "to" endpoint
@@ -227,7 +222,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         let hoveredElement: Konva.Node | null = null;
 
         for (const candidate of candidates) {
-          const rect = getWorldRect(candidate, stage);
+          const rect = getStageRect(candidate, stage);
           if (pos.x >= rect.x && pos.x <= rect.x + rect.width &&
               pos.y >= rect.y && pos.y <= rect.y + rect.height) {
             hoveredElement = candidate;
@@ -250,7 +245,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     };
 
     const onPointerDown = () => {
-      const pos = getWorldPointer(stage);
+      const pos = stage.getPointerPosition();
       if (!pos) return;
 
       // Hide ports when starting to draw
@@ -366,7 +361,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       const start = ref.current.start;
       const startSnap = ref.current.startSnap;
       const ghost = ref.current.preview;
-      const pos = getWorldPointer(stage);
+      const pos = stage.getPointerPosition();
 
       if (!pos || !start) {
         // cleanup and bail
