@@ -521,6 +521,11 @@ const FigJamCanvas: React.FC = () => {
               key="connector-tool"
               {...toolProps}
               toolId={selectedTool as "connector-line" | "connector-arrow"}
+              layers={{
+                main: layersRef.current?.main!,
+                preview: layersRef.current?.preview!,
+                overlay: layersRef.current?.overlay!,
+              }}
             />
           );
 

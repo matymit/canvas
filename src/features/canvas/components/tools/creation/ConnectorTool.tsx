@@ -5,7 +5,12 @@ import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { AnchorSide } from "../../../types/connector";
 import type { ConnectorElement } from "../../../types/connector";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
-// We will use stage.getPointerPosition() and getClientRect({ relativeTo: stage })
+
+export interface ConnectorToolLayers {
+  main: Konva.Layer;
+  preview: Konva.Layer;
+  overlay: Konva.Layer;
+}
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -13,6 +18,7 @@ export interface ConnectorToolProps {
   isActive: boolean;
   stageRef: StageRef;
   toolId?: string;
+  layers?: ConnectorToolLayers;
 }
 
 const DEFAULT_STYLE = {
@@ -27,6 +33,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
   isActive,
   stageRef,
   toolId = "connector-line",
+  layers,
 }) => {
   const selectedTool = useUnifiedCanvasStore(
     (s) => s.selectedTool ?? s.ui?.selectedTool,
@@ -49,24 +56,37 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
   // Helper to list candidate nodes (main-layer nodes) for snapping
   const getCandidates = (stage: Konva.Stage): Konva.Node[] => {
-    // All interactive shapes/groups on main layer
-    const layers = stage.getLayers();
-    const main = layers[1] as Konva.Layer | undefined; // background(0), main(1), preview(2), overlay(3)
-    if (!main) return [];
-    return main.find<Konva.Node>("Group, Rect, Line, Image, Text"); // broad; filter as needed
+    const mainLayer = layers?.main ?? (stage.getLayers()[2] as Konva.Layer | undefined);
+    if (!mainLayer) return [];
+    return mainLayer.find<Konva.Node>("Group, Rect, Line, Image, Text");
   };
 
-  // Get node bounds in the same coordinate space as the stage for overlay alignment
-  const getStageRect = (node: Konva.Node, stage: Konva.Stage) =>
-    node.getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage });
+  // Compute anchor ports by mapping local anchors through absolute transform
+  const getPortsByAbsoluteTransform = (node: Konva.Node): Array<{ x: number; y: number; side: AnchorSide }> => {
+    // Try to infer local width/height
+    const localRect = node.getClientRect({ skipTransform: true });
+    const w = localRect.width || (node as any).width?.() || 0;
+    const h = localRect.height || (node as any).height?.() || 0;
+    const localAnchors: Array<{ x: number; y: number; side: AnchorSide }> = [
+      { x: 0, y: h / 2, side: 'left' },
+      { x: w, y: h / 2, side: 'right' },
+      { x: w / 2, y: 0, side: 'top' },
+      { x: w / 2, y: h, side: 'bottom' },
+      { x: w / 2, y: h / 2, side: 'center' },
+    ];
+    const abs = node.getAbsoluteTransform();
+    return localAnchors.map(a => {
+      const p = abs.point({ x: a.x + localRect.x, y: a.y + localRect.y });
+      return { x: p.x, y: p.y, side: a.side };
+    });
+  };
 
   // Helper to show connection ports on hover
   const showPortsForElement = (elementId: string, stage: Konva.Stage) => {
-    const layers = stage.getLayers();
-    const overlayLayer = layers[3] as Konva.Layer | undefined; // overlay layer
+    const overlayLayer = layers?.overlay ?? (stage.getLayers()[4] as Konva.Layer | undefined);
     if (!overlayLayer) return;
 
-    // Find the element to get its bounds
+    // Find the element node
     const candidates = getCandidates(stage);
     const element = candidates.find(node => node.id() === elementId);
     if (!element) return;
@@ -75,20 +95,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     ref.current.portDots.forEach(dot => dot.destroy());
     ref.current.portDots = [];
 
-    const rect = getStageRect(element, stage);
-    const cx = rect.x + rect.width / 2;
-    const cy = rect.y + rect.height / 2;
+    // Compute transform-aware ports
+    const ports = getPortsByAbsoluteTransform(element);
 
-    // Create port positions (left, right, top, bottom, center)
-    const ports = [
-      { x: rect.x, y: cy, side: 'left' },
-      { x: rect.x + rect.width, y: cy, side: 'right' },
-      { x: cx, y: rect.y, side: 'top' },
-      { x: cx, y: rect.y + rect.height, side: 'bottom' },
-      { x: cx, y: cy, side: 'center' }
-    ];
-
-    // Create visual port dots
     ports.forEach(port => {
       const dot = new Konva.Circle({
         x: port.x,
@@ -97,21 +106,18 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         fill: '#4F46E5',
         stroke: '#FFFFFF',
         strokeWidth: 2,
-        opacity: 0.8,
+        opacity: 0.9,
         listening: true,
         perfectDrawEnabled: false,
         name: 'connector-port-dot'
       });
 
-      // Allow starting a connector directly from a port
       dot.on('pointerdown', (e) => {
         e.cancelBubble = true;
         // initialize drawing from this port
         ref.current.start = { x: port.x, y: port.y };
-        ref.current.startSnap = { elementId, side: port.side as AnchorSide };
-        // create a preview line anchored at start
-        const layers = stage.getLayers();
-        const previewLayer = layers[layers.length - 2] as Konva.Layer | undefined; // preview
+        ref.current.startSnap = { elementId, side: port.side } as any;
+        const previewLayer = layers?.preview ?? (stage.getLayers()[3] as Konva.Layer | undefined);
         if (!previewLayer) return;
         const isArrow = toolId === 'connector-arrow';
         const s = ref.current.start!;
@@ -159,12 +165,8 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     ref.current.portDots.forEach(dot => dot.destroy());
     ref.current.portDots = [];
     ref.current.hoveredElementId = null;
-
-    const layers = stage.getLayers();
-    const overlayLayer = layers[3] as Konva.Layer | undefined;
-    if (overlayLayer) {
-      overlayLayer.batchDraw();
-    }
+    const overlayLayer = layers?.overlay ?? (stage.getLayers()[4] as Konva.Layer | undefined);
+    overlayLayer?.batchDraw();
   };
 
   useEffect(() => {
@@ -179,18 +181,13 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       else if (s.selection?.clear) s.selection.clear();
     } catch {}
 
-    // Ref value will be captured in cleanup function
-
-    const layers = stage.getLayers();
-    const previewLayer = layers[layers.length - 2] as Konva.Layer | undefined; // preview
+    const previewLayer = layers?.preview ?? (stage.getLayers()[3] as Konva.Layer | undefined);
     if (!previewLayer) return;
 
     const isArrow = toolId === "connector-arrow";
 
-    // FIXED: Add hover detection for port display
     const onPointerMove = () => {
       if (ref.current.start) {
-        // Drawing mode - update preview line
         const start = ref.current.start;
         const ghost = ref.current.preview;
         if (!start || !ghost) return;
@@ -198,14 +195,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         const pos = stage.getPointerPosition();
         if (!pos) return;
 
-        // Try snapping the "to" endpoint
-        const candidates = getCandidates(stage);
-        const snap = findNearestAnchor(pos, candidates, {
-          pixelThreshold: 12,
-          includeCenter: true,
-        });
-        const end = snap ? { x: snap.x, y: snap.y } : { x: pos.x, y: pos.y };
-
+        const end = { x: pos.x, y: pos.y };
         if (ghost instanceof Konva.Arrow) {
           ghost.points([start.x, start.y, end.x, end.y]);
         } else if (ghost instanceof Konva.Line) {
@@ -213,33 +203,23 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         }
         previewLayer.batchDraw();
       } else {
-        // Hover mode - show ports on hovered elements
-        const pos = getWorldPointer(stage);
+        const pos = stage.getPointerPosition();
         if (!pos) return;
 
-        // Find element under cursor
         const candidates = getCandidates(stage);
-        let hoveredElement: Konva.Node | null = null;
-
+        let hovered: Konva.Node | null = null;
         for (const candidate of candidates) {
-          const rect = getStageRect(candidate, stage);
-          if (pos.x >= rect.x && pos.x <= rect.x + rect.width &&
-              pos.y >= rect.y && pos.y <= rect.y + rect.height) {
-            hoveredElement = candidate;
+          const rect = candidate.getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage });
+          if (pos.x >= rect.x && pos.x <= rect.x + rect.width && pos.y >= rect.y && pos.y <= rect.y + rect.height) {
+            hovered = candidate;
             break;
           }
         }
-
-        const hoveredElementId = hoveredElement?.id() || null;
-
-        // Update port display if hovered element changed
-        if (hoveredElementId !== ref.current.hoveredElementId) {
-          if (hoveredElementId) {
-            showPortsForElement(hoveredElementId, stage);
-          } else {
-            hideAllPorts(stage);
-          }
-          ref.current.hoveredElementId = hoveredElementId;
+        const hoveredId = hovered?.id() || null;
+        if (hoveredId !== ref.current.hoveredElementId) {
+          if (hoveredId) showPortsForElement(hoveredId, stage);
+          else hideAllPorts(stage);
+          ref.current.hoveredElementId = hoveredId;
         }
       }
     };
@@ -247,8 +227,6 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     const onPointerDown = () => {
       const pos = stage.getPointerPosition();
       if (!pos) return;
-
-      // Hide ports when starting to draw
       hideAllPorts(stage);
 
       const candidates = getCandidates(stage);
@@ -303,29 +281,16 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       endSnap: { elementId: string; side: AnchorSide } | null,
     ) => {
       const from: ConnectorElement["from"] = startSnap
-        ? {
-            kind: "element",
-            elementId: startSnap.elementId,
-            anchor: startSnap.side,
-          }
+        ? { kind: "element", elementId: startSnap.elementId, anchor: startSnap.side }
         : { kind: "point", x: startPoint.x, y: startPoint.y };
-
       const to: ConnectorElement["to"] = endSnap
-        ? {
-            kind: "element",
-            elementId: endSnap.elementId,
-            anchor: endSnap.side,
-          }
+        ? { kind: "element", elementId: endSnap.elementId, anchor: endSnap.side }
         : { kind: "point", x: endPoint.x, y: endPoint.y };
 
       const variant = isArrow ? "arrow" : "line";
-
       begin?.("create-connector");
 
-      const id =
-        crypto?.randomUUID?.() ||
-        `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
+      const id = crypto?.randomUUID?.() || `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const element: ConnectorElement = {
         id,
         type: "connector",
@@ -335,25 +300,14 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         style: DEFAULT_STYLE,
         x: 0,
         y: 0,
-        bounds: {
-          x: 0,
-          y: 0,
-          width: 0,
-          height: 0,
-        },
+        bounds: { x: 0, y: 0, width: 0, height: 0 },
       };
 
-      // Add element using upsert
       let elementId: string | undefined = id;
-      if (upsertElement) {
-        elementId = upsertElement(element);
-      }
-
+      if (upsertElement) elementId = upsertElement(element);
       end?.(true);
 
-      if ((elementId || id) && selectOnly) {
-        selectOnly(elementId || id);
-      }
+      if ((elementId || id) && selectOnly) selectOnly(elementId || id);
       setTool?.("select");
     };
 
@@ -364,14 +318,8 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       const pos = stage.getPointerPosition();
 
       if (!pos || !start) {
-        // cleanup and bail
         if (ghost) {
-          try {
-            ghost.destroy();
-          } catch (error) {
-            // Ignore cleanup errors
-            // Ghost cleanup error
-          }
+          try { ghost.destroy(); } catch {}
           ref.current.preview = null;
           previewLayer.batchDraw();
         }
@@ -380,33 +328,18 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         return;
       }
 
-      // Snap to end anchor if available
       const candidates = getCandidates(stage);
-      const snap = findNearestAnchor(pos, candidates, {
-        pixelThreshold: 12,
-        includeCenter: true,
-      });
+      const snap = findNearestAnchor(pos, candidates, { pixelThreshold: 12, includeCenter: true });
       const endPoint = snap ? { x: snap.x, y: snap.y } : { x: pos.x, y: pos.y };
-      const endSnap = snap
-        ? { elementId: snap.elementId, side: snap.side }
-        : null;
+      const endSnap = snap ? { elementId: snap.elementId, side: snap.side } : null;
 
-      // cleanup preview before committing
       if (ghost) {
-        try {
-          ghost.destroy();
-        } catch (error) {
-          // Ignore cleanup errors
-          // Debug: Ghost cleanup error
-        }
+        try { ghost.destroy(); } catch {}
         ref.current.preview = null;
         previewLayer.batchDraw();
       }
 
-      // commit using captured start/startSnap
       commit(start, startSnap, endPoint, endSnap);
-
-      // reset state
       ref.current.start = null;
       ref.current.startSnap = null;
     };
@@ -419,12 +352,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       if (e.key === "Escape") {
         const g = ref.current.preview;
         if (g) {
-          try {
-            g.destroy();
-          } catch (error) {
-            // Ignore cleanup errors
-            // Escape cleanup error
-          }
+          try { g.destroy(); } catch {}
           ref.current.preview = null;
           previewLayer.batchDraw();
         }
@@ -440,38 +368,17 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       stage.off("pointermove.connector", onPointerMove);
       stage.off("pointerup.connector", onPointerUp);
       window.removeEventListener("keydown", onKeyDown);
-
-      // Clean up port dots
       hideAllPorts(stage);
-
-      // Capture ref values at cleanup time
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- Ref value captured at cleanup time as recommended
-      const currentRef = ref.current;
-      const g = currentRef.preview;
+      const g = ref.current.preview;
       if (g) {
-        try {
-          g.destroy();
-        } catch (error) {
-          // Ignore cleanup errors
-          // Cleanup error
-        }
-        currentRef.preview = null;
+        try { g.destroy(); } catch {}
+        ref.current.preview = null;
         previewLayer.batchDraw();
       }
-      currentRef.start = null;
-      currentRef.startSnap = null;
+      ref.current.start = null;
+      ref.current.startSnap = null;
     };
-  }, [
-    isActive,
-    selectedTool,
-    toolId,
-    stageRef,
-    upsertElement,
-    selectOnly,
-    begin,
-    end,
-    setTool,
-  ]);
+  }, [isActive, selectedTool, toolId, stageRef, upsertElement, selectOnly, begin, end, setTool, layers]);
 
   return null;
 };
