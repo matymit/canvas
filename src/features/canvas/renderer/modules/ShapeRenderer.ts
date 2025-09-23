@@ -147,7 +147,7 @@ export class ShapeRenderer implements RendererModule {
             e.cancelBubble = true; // Prevent event bubbling
 
             // Select this shape element via the SelectionModule (preferred) or store
-            this.selectElementViaStore(shape.id);
+            StoreActions.selectSingle(shape.id);
           });
 
           // Add tap handler for mobile
@@ -156,7 +156,7 @@ export class ShapeRenderer implements RendererModule {
             e.cancelBubble = true;
 
             // Use the same selection logic as click
-            this.selectElementViaStore(shape.id);
+            StoreActions.selectSingle(shape.id);
           });
 
           // Add double-click handler for text editing
@@ -384,31 +384,7 @@ export class ShapeRenderer implements RendererModule {
     }
   }
 
-  private selectElementViaStore(elementId: string) {
-    try {
-      // Attempting to select element
-
-      // Direct store access with multiple fallbacks
-      const store = useUnifiedCanvasStore.getState();
-      // Checking available store methods
-
-      if (store.replaceSelectionWithSingle) {
-        // Using replaceSelectionWithSingle
-        store.replaceSelectionWithSingle(elementId);
-      } else if (store.setSelection) {
-        // Using setSelection
-        store.setSelection([elementId]);
-      } else if (store.selection?.set) {
-        // Using selection.set
-        store.selection.set([elementId]);
-      } else {
-        // Error: No valid selection method found in store
-        // Available store keys: check object keys
-      }
-    } catch (error) {
-      // Error: Error during shape selection
-    }
-  }
+  // selection via StoreActions.selectSingle now
 
   private handleShapeText(shape: ShapeElement, id: Id) {
     const hasText = shape.data?.text && shape.data.text.trim().length > 0;

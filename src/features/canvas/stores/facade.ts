@@ -14,4 +14,10 @@ export const StoreActions = {
   updateElement: (id: ElementId, patch: Partial<CanvasElement>) => useUnifiedCanvasStore.getState().element.update(id, patch),
   bumpSelectionVersion: () => useUnifiedCanvasStore.getState().bumpSelectionVersion?.(),
   setSelectedTool: (tool: string) => useUnifiedCanvasStore.getState().setSelectedTool?.(tool),
+  selectSingle: (id: ElementId) => {
+    const s: any = useUnifiedCanvasStore.getState();
+    if (typeof s.replaceSelectionWithSingle === 'function') return s.replaceSelectionWithSingle(id);
+    if (typeof s.setSelection === 'function') return s.setSelection([id]);
+    if (s.selection && typeof s.selection.set === 'function') return s.selection.set([id]);
+  },
 };
