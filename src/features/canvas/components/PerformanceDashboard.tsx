@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { JSX } from "react";
 // import usePerformanceMonitoring from "@features/canvas/hooks/usePerformanceMonitoring";
 // import usePerformanceCircuitBreaker from "@features/canvas/hooks/usePerformanceCircuitBreaker";
 

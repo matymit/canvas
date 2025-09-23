@@ -69,101 +69,12 @@ describe("NodeFactory Pooling", () => {
   });
 });
 
-describe.skip("Layer Contract (migrated to visual tests)", () => {
-  let stage: any;
-  let manager: any;
+// NOTE: Layer Contract tests migrated to visual tests - removed from unit tests
+// // NOTE: Layer Contract tests migrated to visual tests - removed from unit tests
+// This section was skipped and contained outdated architecture assumptions
 
-  beforeEach(async () => {
-    const K = (await import("konva")).default;
-    const { CanvasLayerManager } = await import(
-      "../../../features/canvas/plugins/CanvasLayerManager"
-    );
-    stage = new (vi.mocked(K.Stage as any))();
-    manager = new CanvasLayerManager(stage, {
-      backgroundListening: false,
-      mainListening: true,
-      previewListening: true,
-      overlayListening: true,
-    });
-  });
-
-  it("should have background listening false", () => {
-    const background = manager.get("background");
-    expect(background.listening).toHaveBeenCalledWith(false);
-  });
-
-  it("should have main/preview/overlay listening true", () => {
-    const main = manager.get("main");
-    const preview = manager.get("preview");
-    const overlay = manager.get("overlay");
-
-    expect(main.listening).toHaveBeenCalledWith(true);
-    expect(preview.listening).toHaveBeenCalledWith(true);
-    expect(overlay.listening).toHaveBeenCalledWith(true);
-  });
-
-  it("should respect ordering and draw calls", () => {
-    const layers = manager.all();
-    const order = manager.ids();
-
-    expect(order).toEqual(["background", "main", "preview", "overlay"]);
-
-    // Verify zIndex calls
-    expect(layers.background.zIndex).toHaveBeenCalledWith(0);
-    expect(layers.main.zIndex).toHaveBeenCalledWith(1);
-    expect(layers.preview.zIndex).toHaveBeenCalledWith(2);
-    expect(layers.overlay.zIndex).toHaveBeenCalledWith(3);
-  });
-});
-
-describe.skip("Transformer Constraints (migrated to visual tests)", () => {
-  let stage: any;
-  let layer: any;
-  let transformer: any;
-
-  beforeEach(async () => {
-    const K = (await import("konva")).default;
-    const { TransformerController } = await import(
-      "../../../features/canvas/renderer/TransformerController"
-    );
-    stage = new (vi.mocked(K.Stage as any))();
-    layer = new (vi.mocked(K.Layer as any))();
-    transformer = new TransformerController({
-      stage,
-      layer,
-      minSize: 10,
-      keepRatio: true,
-    });
-  });
-
-  it("should enforce rotation, scaling with aspect lock, min size", () => {
-    const tr = transformer.getNode();
-
-    expect(tr.keepRatio).toHaveBeenCalledWith(true);
-    expect(tr.rotateEnabled).toHaveBeenCalledWith(true);
-  });
-
-  it("should update element props and bounds accurately", () => {
-    const mockNode = {
-      x: vi.fn(),
-      y: vi.fn(),
-      width: vi.fn(),
-      height: vi.fn(),
-    };
-
-    transformer.attach([mockNode as any]);
-
-    const tr = transformer.getNode();
-    expect(tr.nodes).toHaveBeenCalledWith([mockNode]);
-    expect(tr.visible).toHaveBeenCalledWith(true);
-  });
-
-  it("should handle handle hit regions", () => {
-    // Test that anchors are configured
-    const tr = transformer.getNode();
-    expect(tr.enabledAnchors).toHaveBeenCalled();
-  });
-});
+// NOTE: Transformer Constraints tests migrated to visual tests - removed from unit tests
+// This section was skipped and contained outdated transformer patterns
 
 describe("Text Layout and Measurement", () => {
   // Mock text measurement functions
@@ -255,7 +166,11 @@ describe("Geometry Helpers", () => {
   });
 
   it("should perform hit tests accurately", () => {
-    const pointInRect = (px: number, py: number, rect: { x: number; y: number; width: number; height: number }) =>
+    const pointInRect = (
+      px: number,
+      py: number,
+      rect: { x: number; y: number; width: number; height: number },
+    ) =>
       px >= rect.x &&
       px <= rect.x + rect.width &&
       py >= rect.y &&
@@ -269,7 +184,10 @@ describe("Geometry Helpers", () => {
 
   it("should compute connector routing for edge cases", () => {
     // Simple connector routing: direct line between centers
-    const routeConnector = (from: { x: number; y: number; width: number; height: number }, to: { x: number; y: number; width: number; height: number }) => ({
+    const routeConnector = (
+      from: { x: number; y: number; width: number; height: number },
+      to: { x: number; y: number; width: number; height: number },
+    ) => ({
       x1: from.x + from.width / 2,
       y1: from.y + from.height / 2,
       x2: to.x + to.width / 2,

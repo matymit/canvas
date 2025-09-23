@@ -13,7 +13,7 @@ export interface TableSpatialFeedbackState {
 
 export interface TableSpatialFeedbackProps {
   state: TableSpatialFeedbackState;
-  stageRef: React.RefObject<Konva.Stage>;
+  stageRef: React.RefObject<Konva.Stage | null>;
 }
 
 export const TableSpatialFeedback: React.FC<TableSpatialFeedbackProps> = ({

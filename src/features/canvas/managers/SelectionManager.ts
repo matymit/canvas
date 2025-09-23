@@ -10,7 +10,7 @@
 import Konva from "konva";
 import { TransformerManager, type TransformerManagerOptions } from "./TransformerManager";
 import { ConnectorSelectionManager, type ConnectorSelectionOptions } from "./ConnectorSelectionManager";
-import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import { StoreSelectors, StoreActions } from "../stores/facade";
 
 export interface SelectionManagerOptions {
   stage: Konva.Stage;
@@ -32,7 +32,7 @@ export class SelectionManager {
   private overlayLayer: Konva.Layer;
   private transformerManager: TransformerManager;
   private connectorSelectionManager: ConnectorSelectionManager;
-  private store: typeof useUnifiedCanvasStore;
+  private getElementById = StoreSelectors.getElementById;
   
   // Track current selection state
   private selectedElementIds: Set<string> = new Set();
@@ -41,7 +41,6 @@ export class SelectionManager {
   constructor(options: SelectionManagerOptions) {
     this.stage = options.stage;
     this.overlayLayer = options.overlayLayer;
-    this.store = useUnifiedCanvasStore;
 
     // Initialize TransformerManager for standard elements
     this.transformerManager = new TransformerManager(this.stage, {
@@ -160,10 +159,8 @@ export class SelectionManager {
    * Determine which selection system to use based on element types
    */
   private determineSelectionType(elementIds: string[]): 'transformer' | 'connector' {
-    const state = this.store.getState();
-    
     for (const id of elementIds) {
-      const element = state.elements?.get?.(id) || state.element?.getById?.(id);
+      const element = this.getElementById(id);
       if (element && element.type === 'connector') {
         // If any element is a connector, use connector selection
         // Note: Mixed selections with connectors default to connector mode
@@ -209,9 +206,8 @@ export class SelectionManager {
     newPosition: { x: number; y: number }
   ) {
     // Default implementation - update connector endpoint in store
-    const state = this.store.getState();
-    const updateElement = state.element?.update;
-    const withUndo = state.withUndo;
+    const updateElement = StoreActions.updateElement;
+    const withUndo = StoreActions.withUndo;
 
     if (!updateElement || !withUndo) return;
 
@@ -223,7 +219,7 @@ export class SelectionManager {
       }
     };
 
-    withUndo(`Move connector ${endpoint} endpoint`, () => {
+    withUndo?.(`Move connector ${endpoint} endpoint`, () => {
       updateElement(connectorId, updates);
     });
   }

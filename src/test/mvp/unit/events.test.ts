@@ -1,16 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-
-let CursorManager: any;
-let DirectKonvaDrawer: any;
-
-beforeEach(async () => {
-  ({ CursorManager } = await import(
-    "../../../features/canvas/utils/performance/cursorManager"
-  ));
-  ({ DirectKonvaDrawer } = await import(
-    "../../../features/canvas/utils/DirectKonvaDrawing"
-  ));
-});
+import { describe, it, expect, vi } from "vitest";
 
 describe("Event Delegation", () => {
   // Mock event manager similar to LocalCanvasEventManager
@@ -72,7 +60,7 @@ describe("Event Delegation", () => {
     manager.registerTool("tool2", tool2, 2);
     manager.setActiveTool("tool1");
 
-    const event = {};
+    const event = new Event("pointerdown") as any;
     const consumed = manager.delegateEvent("onPointerDown", event);
 
     expect(tool1.onPointerDown).toHaveBeenCalledWith(event);
@@ -96,7 +84,7 @@ describe("Event Delegation", () => {
     manager.registerTool("tool2", tool2, 2);
     manager.setActiveTool("tool1");
 
-    const event = {};
+    const event = new Event("pointerdown") as any;
     const consumed = manager.delegateEvent("onPointerDown", event);
 
     expect(tool1.onPointerDown).toHaveBeenCalledWith(event);
@@ -115,7 +103,7 @@ describe("Event Delegation", () => {
     manager.registerTool("tool", tool);
     manager.setActiveTool("tool");
 
-    const event = {};
+    const event = new Event("pointerdown") as any;
     const consumed = manager.delegateEvent("onPointerDown", event);
 
     expect(tool.canHandle).toHaveBeenCalledWith(event);
@@ -124,124 +112,9 @@ describe("Event Delegation", () => {
   });
 });
 
-describe.skip("Cursor Manager (relocated to integration/visual tests)", () => {
-  let stage: any;
-  let manager: any;
+// NOTE: Cursor Manager tests relocated to integration/visual tests - removed from unit tests
+// // NOTE: Cursor Manager tests relocated to integration/visual tests - removed from unit tests
+// This section was skipped and contained outdated cursor management patterns
 
-  beforeEach(async () => {
-    const K = (await import("konva")).default;
-    stage = new (vi.mocked(K.Stage as any))();
-    manager = new CursorManager(stage, "default");
-  });
-
-  it("should update cursor on selection", () => {
-    manager.set("pointer");
-    expect(stage.container().style.cursor).toBe("pointer");
-  });
-
-  it("should push/pop cursor stack", () => {
-    manager.set("default");
-    manager.push("pointer");
-    expect(stage.container().style.cursor).toBe("pointer");
-
-    manager.push("grab");
-    expect(stage.container().style.cursor).toBe("grab");
-
-    manager.pop();
-    expect(stage.container().style.cursor).toBe("pointer");
-
-    manager.pop();
-    expect(stage.container().style.cursor).toBe("default");
-  });
-
-  it("should reset to default", () => {
-    manager.push("pointer");
-    manager.push("grab");
-    manager.reset();
-
-    expect(stage.container().style.cursor).toBe("default");
-  });
-
-  it("should handle pan drag grabbing", () => {
-    manager.push("grab");
-    expect(stage.container().style.cursor).toBe("grab");
-
-    manager.set("grabbing");
-    expect(stage.container().style.cursor).toBe("grabbing");
-  });
-
-  it("should reset on tool switch", () => {
-    manager.push("crosshair");
-    manager.reset();
-    expect(stage.container().style.cursor).toBe("default");
-  });
-});
-
-describe.skip("Direct Drawing Options (relocated to visual tests)", () => {
-  let layer: any;
-  let drawer: any;
-
-  beforeEach(async () => {
-    const K = (await import("konva")).default;
-    layer = new (vi.mocked(K.Layer as any))();
-    drawer = new DirectKonvaDrawer(layer);
-  });
-
-  it("should create Konva.Line with listening false", () => {
-    const line = drawer.begin(
-      { x: 10, y: 10 },
-      { tool: "pen", color: "black", width: 2 },
-    );
-
-    expect(line.listening).toHaveBeenCalledWith(false);
-    expect(drawer.isDrawing).toBe(true);
-  });
-
-  it("should use perfectDrawEnabled false for high-performance", () => {
-    const line = drawer.begin(
-      { x: 10, y: 10 },
-      { tool: "pen", color: "black", width: 2 },
-    );
-
-    expect(line.perfectDrawEnabled).toHaveBeenCalledWith(false);
-    expect(line.shadowForStrokeEnabled).toHaveBeenCalledWith(false);
-  });
-
-  it("should use FastLayer for high-performance drawing", () => {
-    // The layer is passed in constructor, assuming it's a FastLayer
-    expect(layer).toBeDefined();
-  });
-
-  it("should handle freehand tools correctly", () => {
-    const line = drawer.begin(
-      { x: 0, y: 0 },
-      { tool: "pen", color: "blue", width: 3 },
-    );
-
-    drawer.extend({ x: 10, y: 10 });
-    drawer.extend({ x: 20, y: 20 });
-
-    expect(line.points).toHaveBeenCalledWith([0, 0, 10, 10, 20, 20]);
-  });
-
-  it("should finalize stroke on end", () => {
-    drawer.begin({ x: 0, y: 0 }, { tool: "pen", color: "red", width: 2 });
-    drawer.extend({ x: 10, y: 10 });
-
-    const result = drawer.end();
-
-    expect(result).toBeDefined();
-    expect(result?.points).toEqual([0, 0, 10, 10]);
-    expect(drawer.isDrawing).toBe(false);
-  });
-
-  it("should cancel drawing properly", () => {
-    drawer.begin({ x: 0, y: 0 }, { tool: "pen", color: "green", width: 2 });
-    drawer.extend({ x: 10, y: 10 });
-
-    drawer.cancel();
-
-    expect(drawer.isDrawing).toBe(false);
-    expect(drawer.line).toBeNull();
-  });
-});
+// NOTE: Direct Drawing Options tests relocated to visual tests - removed from unit tests
+// This section was skipped and contained outdated drawing patterns

@@ -339,7 +339,9 @@ export default function UnifiedColorPicker({
             return (
               <button
                 key={`${swatch}-${i}`}
-                ref={(el) => (swatchRefs.current[i] = el)}
+                ref={(el) => {
+                  swatchRefs.current[i] = el;
+                }}
                 role="option"
                 aria-selected={isSelected}
                 aria-label={`Color ${swatch}`}
@@ -373,7 +375,9 @@ export default function UnifiedColorPicker({
             return (
               <button
                 key={`${swatch}-${i}`}
-                ref={(el) => (swatchRefs.current[i] = el)}
+                ref={(el) => {
+                  swatchRefs.current[i] = el;
+                }}
                 role="option"
                 aria-selected={isSelected}
                 aria-label={`Color ${swatch}`}

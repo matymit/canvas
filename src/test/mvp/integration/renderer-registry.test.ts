@@ -4,6 +4,9 @@ import { setupRenderer } from "../../../features/canvas/renderer";
 import { createRendererLayers } from "../../../features/canvas/renderer/layers";
 import { useUnifiedCanvasStore } from "../../../features/canvas/stores/unifiedCanvasStore";
 
+// NOTE: This test updated for current store-driven architecture
+// Tests now reflect the actual renderer registry implementation
+
 function nextTick() {
   return new Promise((r) => setTimeout(r, 0));
 }
@@ -26,8 +29,12 @@ describe("Renderer Registry - mounts modules and reconciles nodes", () => {
     });
   });
 
-  it.skip("mounts all modules and renders text, then removes it; disposer detaches", async () => {
-    const layers = createRendererLayers(stage, { listeningPreview: false });
+  it("mounts all modules and renders text, then removes it; disposer detaches", async () => {
+    const layers = createRendererLayers(stage, {
+      listeningPreview: false,
+      listeningMain: true,
+      listeningOverlay: true,
+    });
 
     const dispose = setupRenderer(stage, layers);
 

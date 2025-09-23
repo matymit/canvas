@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { JSX } from "react";
 // import usePerformanceMonitoring from "@features/canvas/hooks/usePerformanceMonitoring";
 
 type MaybeNumber = number | undefined;

@@ -48,6 +48,11 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Impact**: Visual inconsistency across canvas
    - **Status**: TextConstants updated but not properly applied
 
+8. **Drawing Tools Cursor Positioning Broken**
+   - **Issue**: Pen, highlighter, and marker don't render near the cursor
+   - **Impact**: Drawing appears disconnected from cursor position
+   - **Status**: Cursor positioning logic incorrect for drawing tools
+
 #### WORKING (Confirmed):
 ✅ **Text Editor Dashed Blue Frame Fixed** - Clean text input without unwanted borders
 ✅ **Sticky Note Aspect Ratio** - Maintains proportions when resizable (currently broken due to selection issue)

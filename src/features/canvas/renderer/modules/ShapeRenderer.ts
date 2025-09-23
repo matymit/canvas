@@ -1,7 +1,7 @@
 // Shape renderer module for rendering basic shapes (rectangle, circle, triangle)
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
+import { StoreActions } from "../../stores/facade";
 import { computeShapeInnerBox, type BaseShape } from "../../utils/text/computeShapeInnerBox";
 import { getTextConfig } from "../../constants/TextConstants";
 
@@ -204,17 +204,8 @@ export class ShapeRenderer implements RendererModule {
             // Shape dragged to new position
 
             try {
-              const store = useUnifiedCanvasStore.getState();
-              if (store.element?.update) {
-                store.element.update(shape.id, { x: nx, y: ny });
-              } else if (store.updateElement) {
-                store.updateElement(shape.id, { x: nx, y: ny }, { pushHistory: true });
-              } else {
-                // Error: No valid element update method found in store
-              }
-            } catch (error) {
-              // Error: Error updating element position
-            }
+              StoreActions.updateElement(shape.id, { x: nx, y: ny });
+            } catch {}
           });
           this.shapeNodes.set(id, node);
           this.layer.add(node);
