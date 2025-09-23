@@ -54,7 +54,6 @@ export class SelectionManager {
     // Initialize ConnectorSelectionManager for connector elements
     this.connectorSelectionManager = new ConnectorSelectionManager(
       this.stage,
-      this.store,
       {
         overlayLayer: this.overlayLayer,
         onEndpointDrag: options.onConnectorEndpointDrag || this.handleConnectorEndpointDrag.bind(this),

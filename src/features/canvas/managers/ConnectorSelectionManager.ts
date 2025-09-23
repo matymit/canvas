@@ -4,7 +4,7 @@
 
 import Konva from "konva";
 import type { ConnectorElement } from "../types/connector";
-import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import { StoreSelectors, StoreActions } from "../stores/facade";
 
 export interface ConnectorSelectionOptions {
   overlayLayer: Konva.Layer;
@@ -18,7 +18,7 @@ export interface ConnectorSelectionOptions {
 export class ConnectorSelectionManager {
   private stage: Konva.Stage;
   private overlayLayer: Konva.Layer;
-  private store: typeof useUnifiedCanvasStore;
+  // facade-based access
   private options: Required<ConnectorSelectionOptions>;
 
   // Track selected connector and its endpoint dots
@@ -40,12 +40,10 @@ export class ConnectorSelectionManager {
 
   constructor(
     stage: Konva.Stage,
-    store: typeof useUnifiedCanvasStore,
     options: ConnectorSelectionOptions
   ) {
     this.stage = stage;
     this.overlayLayer = options.overlayLayer;
-    this.store = store;
 
     // Set default options
     this.options = {
@@ -126,14 +124,8 @@ export class ConnectorSelectionManager {
   }
 
   private getConnectorElement(connectorId: string): ConnectorElement | null {
-    const state = this.store.getState();
-    const element = state.elements?.get?.(connectorId) || state.element?.getById?.(connectorId);
-
-    if (element && element.type === "connector") {
-      return element as ConnectorElement;
-    }
-
-    return null;
+    const el = StoreSelectors.getElementById(connectorId) as any;
+    return el && el.type === 'connector' ? (el as ConnectorElement) : null;
   }
 
   private createEndpointDots(connector: ConnectorElement): void {
@@ -342,11 +334,8 @@ export class ConnectorSelectionManager {
     endpoint: 'from' | 'to',
     newPosition: { x: number; y: number }
   ): void {
-    const state = this.store.getState();
-    const updateElement = state.element?.update;
-    const withUndo = state.withUndo;
-
-    if (!updateElement || !withUndo) return;
+    const updateElement = StoreActions.updateElement;
+    const withUndo = StoreActions.withUndo;
 
     // Update the connector endpoint to be a point
     const updates = {
@@ -357,7 +346,7 @@ export class ConnectorSelectionManager {
       }
     };
 
-    withUndo(`Move connector ${endpoint} endpoint`, () => {
+    withUndo?.(`Move connector ${endpoint} endpoint`, () => {
       updateElement(connectorId, updates);
     });
   }
