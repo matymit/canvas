@@ -71,7 +71,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     ref.current.portDots.forEach(dot => dot.destroy());
     ref.current.portDots = [];
 
-    const rect = element.getClientRect({ skipStroke: true, skipShadow: true });
+    const rect = (element as any).getClientRect
+      ? (element as any).getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage })
+      : element.getClientRect({ skipStroke: true, skipShadow: true });
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
 
@@ -124,6 +126,13 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     const active = isActive && selectedTool === toolId;
     if (!stage || !active) return;
 
+    // Deselect all elements when connector tool activates
+    try {
+      const s = useUnifiedCanvasStore.getState();
+      if (s.setSelection) s.setSelection([]);
+      else if (s.selection?.clear) s.selection.clear();
+    } catch {}
+
     // Ref value will be captured in cleanup function
 
     const layers = stage.getLayers();
@@ -167,7 +176,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         let hoveredElement: Konva.Node | null = null;
 
         for (const candidate of candidates) {
-          const rect = candidate.getClientRect({ skipStroke: true, skipShadow: true });
+          const rect = (candidate as any).getClientRect
+            ? (candidate as any).getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage })
+            : candidate.getClientRect({ skipStroke: true, skipShadow: true });
           if (pos.x >= rect.x && pos.x <= rect.x + rect.width &&
               pos.y >= rect.y && pos.y <= rect.y + rect.height) {
             hoveredElement = candidate;
