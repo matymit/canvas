@@ -186,6 +186,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
     const isArrow = toolId === "connector-arrow";
 
+    // Cache candidate nodes once on activation to avoid per-move queries
+    const cachedCandidates = getCandidates(stage);
+
     const onPointerMove = () => {
       if (ref.current.start) {
         const start = ref.current.start;
@@ -206,16 +209,21 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         const pos = stage.getPointerPosition();
         if (!pos) return;
 
-        const candidates = getCandidates(stage);
-        let hovered: Konva.Node | null = null;
-        for (const candidate of candidates) {
-          const rect = candidate.getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage });
-          if (pos.x >= rect.x && pos.x <= rect.x + rect.width && pos.y >= rect.y && pos.y <= rect.y + rect.height) {
-            hovered = candidate;
-            break;
+        // Prefer Konva hit graph for fast lookup
+        let hit: Konva.Node | null = stage.getIntersection(pos) as Konva.Node | null;
+        while (hit && hit.className !== 'Group') hit = hit.getParent();
+        let hoveredId = hit?.id() || null;
+
+        // Fallback: scan cached groups if no hit
+        if (!hoveredId) {
+          for (const candidate of cachedCandidates) {
+            const rect = candidate.getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage });
+            if (pos.x >= rect.x && pos.x <= rect.x + rect.width && pos.y >= rect.y && pos.y <= rect.y + rect.height) {
+              hoveredId = candidate.id();
+              break;
+            }
           }
         }
-        const hoveredId = hovered?.id() || null;
         if (hoveredId !== ref.current.hoveredElementId) {
           if (hoveredId) showPortsForElement(hoveredId, stage);
           else hideAllPorts(stage);
