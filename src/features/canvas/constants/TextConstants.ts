@@ -29,25 +29,25 @@ export const FONT_FAMILIES = {
  */
 export const FONT_SIZES = {
   /** Large headings and primary text elements */
-  LARGE: 18,
+  LARGE: 16,
 
   /** Standard body text and most canvas elements */
   MEDIUM: 16,
 
   /** Secondary text, sticky notes, mindmap child nodes */
-  SMALL: 14,
+  SMALL: 16,
 
   /** UI labels, annotations, spacing indicators */
-  TINY: 12,
+  TINY: 16,
 
   /** Circle text (special case for readability in constrained space) */
-  CIRCLE: 20,
+  CIRCLE: 16,
 
   /** Mindmap root nodes (emphasis for hierarchy) */
   MINDMAP_ROOT: 16,
 
   /** Mindmap child nodes */
-  MINDMAP_CHILD: 14
+  MINDMAP_CHILD: 16
 } as const;
 
 /**
@@ -145,7 +145,7 @@ export const TEXT_ELEMENT_CONFIGS = {
   /** Configuration for table cells */
   TABLE: {
     fontFamily: FONT_FAMILIES.PRIMARY,
-    fontSize: FONT_SIZES.SMALL,
+    fontSize: FONT_SIZES.MEDIUM,
     fontWeight: FONT_WEIGHTS.NORMAL,
     lineHeight: LINE_HEIGHTS.NORMAL
   }

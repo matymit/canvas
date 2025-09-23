@@ -161,14 +161,37 @@ export class ShapeRenderer implements RendererModule {
 
           // Add double-click handler for text editing
           node.on("dblclick", (e) => {
-            // Shape double-clicked for text editing
+            console.log('[ShapeRenderer] Double-click detected on shape:', shape.id, shape.type);
             e.cancelBubble = true; // Prevent event bubbling
 
             // Open text editor for this shape
             const stage = this.layer?.getStage();
+            console.log('[ShapeRenderer] Stage available:', !!stage);
+
+            if (stage) {
+              console.log('[ShapeRenderer] Opening text editor for shape:', shape.id);
+              import('../../utils/editors/openShapeTextEditor').then(({ openShapeTextEditor }) => {
+                console.log('[ShapeRenderer] Module loaded, calling openShapeTextEditor');
+                openShapeTextEditor(stage, shape.id);
+              }).catch(error => {
+                console.error('[ShapeRenderer] Error loading openShapeTextEditor:', error);
+              });
+            } else {
+              console.warn('[ShapeRenderer] No stage available for text editor');
+            }
+          });
+
+          // Also add dbltap for mobile support
+          node.on("dbltap", (e) => {
+            console.log('[ShapeRenderer] Double-tap detected on shape:', shape.id, shape.type);
+            e.cancelBubble = true;
+
+            const stage = this.layer?.getStage();
             if (stage) {
               import('../../utils/editors/openShapeTextEditor').then(({ openShapeTextEditor }) => {
                 openShapeTextEditor(stage, shape.id);
+              }).catch(error => {
+                console.error('[ShapeRenderer] Error loading openShapeTextEditor:', error);
               });
             }
           });

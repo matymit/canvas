@@ -298,7 +298,7 @@ export class PortHoverModule implements RendererModule {
     const centerY = y + height / 2;
 
     // Define port positions
-    const portPositions = [
+    const portPositions: Array<{ anchor: 'top' | 'right' | 'bottom' | 'left' | 'center'; x: number; y: number }> = [
       { anchor: 'top' as const, x: centerX, y: y },
       { anchor: 'right' as const, x: x + width, y: centerY },
       { anchor: 'bottom' as const, x: centerX, y: y + height },

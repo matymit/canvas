@@ -145,7 +145,7 @@ export class EraserTool {
 
   private setupEventListeners(): void {
     // Mouse/touch move for preview
-    const onPointerMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const onPointerMove = (_e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
       if (!this.isActive || !this.previewCircle) return;
       
       const pos = this.stage.getPointerPosition();
@@ -283,7 +283,7 @@ export class EraserTool {
     const eraserRadius = this.options.size / 2;
     
     // Check each element for intersection
-    for (const [elementId, element] of elements) {
+    for (const [elementId] of elements) {
       if (this.elementsToErase.has(elementId)) continue;
       
       // Find the Konva node for this element

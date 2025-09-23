@@ -80,7 +80,7 @@ export class TableRenderer {
             height: 0,
             text: "",
             fontFamily: "",
-            fontSize: 12,
+            fontSize: 16,
             fill: "",
             align: "left",
             verticalAlign: "top",

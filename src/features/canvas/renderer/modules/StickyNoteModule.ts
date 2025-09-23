@@ -181,6 +181,10 @@ export class StickyNoteModule implements RendererModule {
     // FIXED: Set elementId attribute for SelectionModule integration
     group.setAttr("elementId", sticky.id);
 
+    // CRITICAL FIX: Set nodeType attribute for TransformerManager aspect ratio detection
+    group.setAttr("nodeType", "sticky-note");
+    group.setAttr("elementType", "sticky-note");
+
     // Add interaction handlers
     this.setupStickyInteractions(group, sticky.id);
 
@@ -235,6 +239,10 @@ export class StickyNoteModule implements RendererModule {
 
     // Ensure elementId attribute is maintained
     group.setAttr("elementId", sticky.id);
+
+    // CRITICAL FIX: Ensure nodeType attribute is maintained for TransformerManager
+    group.setAttr("nodeType", "sticky-note");
+    group.setAttr("elementType", "sticky-note");
 
     // Update rectangle
     const rect = group.findOne(".sticky-bg") as Konva.Rect;

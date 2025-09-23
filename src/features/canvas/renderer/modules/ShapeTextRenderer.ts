@@ -107,7 +107,7 @@ export class ShapeTextRenderer implements RendererModule {
 
     const padding = el.data?.padding ?? 8;
     const fontFamily = el.style?.fontFamily ?? 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial';
-    const fontSize = el.style?.fontSize ?? 18;
+    const fontSize = el.style?.fontSize ?? 16;
     const fill = el.textColor ?? el.style?.textColor ?? '#111827';
     const align = el.style?.textAlign ?? 'center';
     const w = Math.max(0, (el.width ?? 0) - padding * 2);
