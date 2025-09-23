@@ -56,6 +56,15 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     return main.find<Konva.Node>("Group, Rect, Line, Image, Text"); // broad; filter as needed
   };
 
+  // Map a node's client rect into stage/world coordinates using the stage inverse transform
+  const getWorldRect = (node: Konva.Node, stage: Konva.Stage) => {
+    const cr = node.getClientRect({ skipStroke: true, skipShadow: true });
+    const inv = stage.getAbsoluteTransform().copy().invert();
+    const tl = inv.point({ x: cr.x, y: cr.y });
+    const br = inv.point({ x: cr.x + cr.width, y: cr.y + cr.height });
+    return { x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y };
+  };
+
   // Helper to show connection ports on hover
   const showPortsForElement = (elementId: string, stage: Konva.Stage) => {
     const layers = stage.getLayers();
@@ -71,9 +80,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     ref.current.portDots.forEach(dot => dot.destroy());
     ref.current.portDots = [];
 
-    const rect = (element as any).getClientRect
-      ? (element as any).getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage })
-      : element.getClientRect({ skipStroke: true, skipShadow: true });
+    const rect = getWorldRect(element, stage);
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
 
@@ -96,9 +103,53 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         stroke: '#FFFFFF',
         strokeWidth: 2,
         opacity: 0.8,
-        listening: false,
+        listening: true,
         perfectDrawEnabled: false,
         name: 'connector-port-dot'
+      });
+
+      // Allow starting a connector directly from a port
+      dot.on('pointerdown', (e) => {
+        e.cancelBubble = true;
+        // initialize drawing from this port
+        ref.current.start = { x: port.x, y: port.y };
+        ref.current.startSnap = { elementId, side: port.side as AnchorSide };
+        // create a preview line anchored at start
+        const layers = stage.getLayers();
+        const previewLayer = layers[layers.length - 2] as Konva.Layer | undefined; // preview
+        if (!previewLayer) return;
+        const isArrow = toolId === 'connector-arrow';
+        const s = ref.current.start!;
+        const shape = isArrow
+          ? new Konva.Arrow({
+              points: [s.x, s.y, s.x, s.y],
+              stroke: DEFAULT_STYLE.stroke,
+              strokeWidth: DEFAULT_STYLE.strokeWidth,
+              pointerLength: DEFAULT_STYLE.arrowSize,
+              pointerWidth: DEFAULT_STYLE.arrowSize * 0.7,
+              lineCap: DEFAULT_STYLE.rounded ? 'round' : 'butt',
+              lineJoin: DEFAULT_STYLE.rounded ? 'round' : 'miter',
+              opacity: DEFAULT_STYLE.opacity,
+              listening: false,
+              perfectDrawEnabled: false,
+              shadowForStrokeEnabled: false,
+              name: 'connector-preview',
+            })
+          : new Konva.Line({
+              points: [s.x, s.y, s.x, s.y],
+              stroke: DEFAULT_STYLE.stroke,
+              strokeWidth: DEFAULT_STYLE.strokeWidth,
+              lineCap: DEFAULT_STYLE.rounded ? 'round' : 'butt',
+              lineJoin: DEFAULT_STYLE.rounded ? 'round' : 'miter',
+              opacity: DEFAULT_STYLE.opacity,
+              listening: false,
+              perfectDrawEnabled: false,
+              shadowForStrokeEnabled: false,
+              name: 'connector-preview',
+            });
+        ref.current.preview = shape;
+        previewLayer.add(shape);
+        previewLayer.batchDraw();
       });
 
       ref.current.portDots.push(dot);
@@ -176,9 +227,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         let hoveredElement: Konva.Node | null = null;
 
         for (const candidate of candidates) {
-          const rect = (candidate as any).getClientRect
-            ? (candidate as any).getClientRect({ skipStroke: true, skipShadow: true, relativeTo: stage })
-            : candidate.getClientRect({ skipStroke: true, skipShadow: true });
+          const rect = getWorldRect(candidate, stage);
           if (pos.x >= rect.x && pos.x <= rect.x + rect.width &&
               pos.y >= rect.y && pos.y <= rect.y + rect.height) {
             hoveredElement = candidate;
