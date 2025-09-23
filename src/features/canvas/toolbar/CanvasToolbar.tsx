@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import { StoreActions } from "../stores/facade";
 import ShapesDropdown from "@features/canvas/toolbar/ShapesDropdown";
 import UnifiedColorPicker from "@features/canvas/components/UnifiedColorPicker";
 import {
@@ -108,16 +109,12 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
   // Zoom control handlers
   const handleZoomIn = useCallback(() => {
     const state = useUnifiedCanvasStore.getState();
-    if (state.viewport?.zoomIn) {
-      state.viewport.zoomIn();
-    }
+    state.viewport?.zoomIn?.();
   }, []);
 
   const handleZoomOut = useCallback(() => {
     const state = useUnifiedCanvasStore.getState();
-    if (state.viewport?.zoomOut) {
-      state.viewport.zoomOut();
-    }
+    state.viewport?.zoomOut?.();
   }, []);
 
   const handleClearCanvas = useCallback(() => {
@@ -164,9 +161,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     }
 
     // Force a render by nudging selection version if present
-    const set = s as { bumpSelectionVersion?: () => void };
-    if (typeof set.bumpSelectionVersion === "function")
-      set.bumpSelectionVersion();
+    StoreActions.bumpSelectionVersion?.();
   }, []);
 
   const [shapesOpen, setShapesOpen] = useState(false);
