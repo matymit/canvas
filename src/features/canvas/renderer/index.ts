@@ -9,7 +9,7 @@ import {
 } from './layers';
 import { TransformerController, TransformerControllerOptions } from './TransformerController';
 import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
-import { StoreActions, StoreSelectors } from '../stores/facade';
+// facade not used directly here
 import { StickyNoteModule } from './modules/StickyNoteModule';
 import { ConnectorRendererAdapter } from './modules/ConnectorRendererAdapter';
 import { TableModuleAdapter } from './modules/TableModuleAdapter';

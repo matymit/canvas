@@ -49,10 +49,9 @@ export class SelectionModule implements RendererModule {
     try {
       this.connectorSelectionManager = new ConnectorSelectionManager(
         ctx.stage,
-        ctx.store,
         {
           overlayLayer: ctx.layers.overlay,
-          onEndpointDrag: (connectorId, endpoint, newPosition) => {
+          onEndpointDrag: (connectorId: string, endpoint: 'from' | 'to', newPosition: { x: number; y: number }) => {
             // Real-time connector endpoint update during drag
             this.handleConnectorEndpointDrag(connectorId, endpoint, newPosition);
           },
