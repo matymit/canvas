@@ -52,6 +52,9 @@ This document provides an honest assessment of current Canvas limitations, known
 ✅ **Text Editor Dashed Blue Frame Fixed** - Clean text input without unwanted borders
 ✅ **Sticky Note Aspect Ratio** - Maintains proportions when resizable (currently broken due to selection issue)
 
+#### BROKEN BUT MISTAKENLY DOCUMENTED AS WORKING:
+❌ **Circle Text Editing** - BROKEN - Double-click on circles doesn't open text editor
+
 ### Next Developer Guidance:
 1. **Fix sticky note selection FIRST** - critical regression blocking all testing
 2. **Verify font sizes actually change** - don't trust constants, check rendered output

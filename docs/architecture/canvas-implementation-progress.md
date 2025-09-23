@@ -20,11 +20,11 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 #### ✅ WORKING:
 1. **Text editing dashed blue frames eliminated** - Clean text input without borders
-2. **Sticky note aspect ratio constraints** - Works when sticky notes are selectable
-3. **Circle text editing enhanced** - Double-click functionality improved
+2. **Sticky note aspect ratio constraints** - Works when sticky notes are selectable (currently broken due to selection regression)
 
 #### ❌ STILL BROKEN:
-4. **Sticky note selection system** - CRITICAL REGRESSION (no resize frame)
+3. **Sticky note selection system** - CRITICAL REGRESSION (no resize frame)
+4. **Circle text editing** - BROKEN - Double-click doesn't open text editor
 5. **Font size consistency** - Not actually 16px across all elements
 6. **Connector selection frames** - Still shows rectangular transformer instead of endpoint dots
 7. **Port hover display** - Ports not showing on element hover when using connector tools
