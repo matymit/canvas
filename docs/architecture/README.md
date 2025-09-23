@@ -102,7 +102,7 @@ A FigJam-style collaborative canvas application built with **React 19**, **TypeS
 - Selecting a tool sets **global input mode**, highlights icon, updates cursor, and may open an **options palette** (stroke, fill, thickness, color, etc.).
 - Hover → tooltip + shortcut.
 - Cursor modes:
-  - Crosshair = creation tools.
+  - Crosshair = creation tools (connector tools enforce crosshair until commit).
   - Caret = text.
   - Grab/grabbing = pan.
 
@@ -163,7 +163,7 @@ A FigJam-style collaborative canvas application built with **React 19**, **TypeS
 - Sticky size independent of content size.
 - Options: sticky color palette.
 - Duplication keeps content + style.
-- Connectors snap to edges, reroute when sticky moves.
+- Connectors snap to edges, reroute when sticky moves. (Shares the same rect policy as connectors to prevent edge gaps.)
 
 #### Text Tool
 
@@ -201,10 +201,15 @@ A FigJam-style collaborative canvas application built with **React 19**, **TypeS
 - **Anchor System**: Element-to-element connections via side anchors (left, right, top, bottom, center).
 - **Live Routing**: Dynamic re-routing when connected elements are dragged/transformed.
 - **Endpoint Types**: Support for both free points and element-anchored connections.
-- Implementation: ConnectorRenderer for rendering, LiveRoutingManager for dynamic updates.
-- Styles: stroke, width, dash, caps/joins, opacity, arrow size.
-- Auto-selects after creation, switches back to select tool.
-- ESC cancels during creation.
+- **Selection Policy**: Connectors use endpoint-only selection via ConnectorSelectionManager. Konva.Transformer must never attach to connectors.
+- **Geometry Contract**: Ports, snapping, and endpoint placement all use `getClientRect({ skipStroke:true, skipShadow:true })` to avoid visible gaps at edges.
+- **Hover Rules**: Hover ports are suppressed while hovering connectors; ports show only when the connector tool is active and the pointer is over connectable elements.
+- **Tool UX**: While the connector tool is active the cursor is forced to crosshair; after a successful commit the tool returns to Select.
+- **Reselection Reliability**: Connector groups listen on pointerdown so clicking anywhere on a thin line re-selects reliably; additive toggling is supported.
+- **Implementation**: ConnectorRenderer for rendering, LiveRoutingManager for dynamic updates.
+- **Styles**: stroke, width, dash, caps/joins, opacity, arrow size.
+- **Auto-selects after creation, switches back to select tool.**
+- **ESC cancels during creation.**
 
 #### Table Tool
 
@@ -961,6 +966,6 @@ The architecture is designed to support a full-featured collaborative canvas app
 
 ---
 
-_Last Updated: January 2025_
+_Last Updated: September 2025_
 
-_Version: 3.1.0 - Production-Ready Architecture with Table Cell Editing Enhancements_
+_Version: 3.1.1 – Connector System Stabilization & UX Policies_

@@ -136,7 +136,7 @@ npm run audit:security        # Security audit
 - **Desktop Framework**: Tauri integration and build system
 
 ### 🚧 In Development
-- **Advanced Tools**: Connector tools with live routing
+- **Advanced Tools**: Connector tools with live routing (stabilized selection: endpoint-only; consistent rect policy; hover-port suppression)
 - **Mindmap System**: Node creation and hierarchical branching
 - **Image Handling**: Upload and manipulation features
 - **Performance**: Optimization and monitoring systems
@@ -200,7 +200,7 @@ This project is actively maintained with regular updates focusing on:
 - Core feature completion
 - Performance optimization
 - Developer experience improvements
-- Documentation quality
+- Documentation quality (see [Known Issues](./docs/known-issues.md) and [Changelog](./docs/CHANGELOG.md))
 
 ---
 
