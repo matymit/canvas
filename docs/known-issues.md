@@ -2,36 +2,31 @@
 
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
 
-## 🚨 CRITICAL REGRESSIONS (September 23, 2025)
+## 🚨 STATUS (September 23, 2025)
 
 ### ❌ BROKEN: Phase 18 MVP Features Status
 
 **Repository State:** `eslint-phase17-store-typing` branch
 **Status:** Multiple critical features broken with recent regressions
 
-#### NEWLY BROKEN (Critical Regressions):
-1. **Sticky Note Selection Completely Broken**
-   - **Issue**: No resize frame appears when clicking sticky notes
-   - **Impact**: Sticky notes cannot be selected, moved, or resized
-   - **Cause**: nodeType attribute changes broke selection detection
-   - **Workaround**: None - critical functionality lost
+#### Recently Addressed
+1. **Connector selection UI**
+   - **Fix**: Connectors no longer use Konva.Transformer; endpoint‑only UI enforced.
+   - **Why it mattered**: Users saw a rectangular resize frame on lines/arrow connectors which suggested the wrong affordance.
+   - **How to keep fixed**: SelectionModule must always route connector selections to ConnectorSelectionManager and detach transformer.
 
-2. **Font Standardization Failed**
-   - **Issue**: Despite updating TextConstants to 16px, sticky notes still show wrong font size
-   - **Impact**: Inconsistent text sizing across elements
-   - **Cause**: StickyNoteModule not properly using updated constants
-   - **Workaround**: None - visual inconsistency remains
+2. **Hover ports on connectors**
+   - **Fix**: Ports are suppressed when pointer hovers connectors (or their parent groups).
+   - **Why it mattered**: Visual noise and accidental port interactions while manipulating existing lines.
+   - **How to keep fixed**: Hover module should evaluate the actual hit node each mouse move and hide ports immediately for connector hits.
 
 #### STILL BROKEN (Original Phase 18 Issues):
-3. **Connector Selection Shows Wrong UI**
-   - **Issue**: Connectors show rectangular transformer frames instead of endpoint dots
-   - **Impact**: Poor UX - users see resize handles instead of connection points
-   - **Expected**: Only 2 endpoint dots for connector manipulation
+3. **Connector anchoring reliability**
+   - **Fix**: Unified rect policy (`skipStroke:true, skipShadow:true`) for ports, snapping, and endpoint resolution. Added circle/ellipse candidates to snapping.
+   - **Impact**: Eliminates 1–2 px gaps and makes circles anchor as smoothly as rectangles.
 
-4. **Port Hover Display Not Working**
-   - **Issue**: Connection ports don't appear when hovering elements with connector tool active
-   - **Impact**: Users can't see where to connect elements
-   - **Expected**: Ports should show on hover when using connector tools
+4. **Port Hover Display**
+   - **Current**: Ports show on elements when connector tools are active; hidden on connectors. If ports reappear over connectors, check the mousemove suppression guard.
 
 5. **Circle Text Caret Issues**
    - **Issue**: Blinking caret not visible when editing circle text
@@ -48,10 +43,8 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Impact**: Visual inconsistency across canvas
    - **Status**: TextConstants updated but not properly applied
 
-8. **Drawing Tools Cursor Positioning Broken**
-   - **Issue**: Pen, highlighter, and marker don't render near the cursor
-   - **Impact**: Drawing appears disconnected from cursor position
-   - **Status**: Cursor positioning logic incorrect for drawing tools
+8. **Drawing Tools Cursor Positioning**
+   - **Current**: Tools use stage/world coordinates consistently; continue to validate across browsers.
 
 #### WORKING (Confirmed):
 ✅ **Text Editor Dashed Blue Frame Fixed** - Clean text input without unwanted borders
@@ -61,10 +54,9 @@ This document provides an honest assessment of current Canvas limitations, known
 ❌ **Circle Text Editing** - BROKEN - Double-click on circles doesn't open text editor
 
 ### Next Developer Guidance:
-1. **Fix sticky note selection FIRST** - critical regression blocking all testing
-2. **Verify font sizes actually change** - don't trust constants, check rendered output
-3. **Test each fix individually** - don't batch changes and claim success
-4. **Use browser testing** - console.log actual values to verify implementation
+1. If you see a transformer on connectors, a regression reintroduced transformer for connectors—restore the early return in SelectionModule and detach.
+2. If connectors show a visible gap at edges, verify all three sites (ports, snapping, endpoint) share identical rect policy.
+3. For reselection issues on thin lines, keep `pointerdown` on the connector group; click can miss depending on cursor/stroke.
 
 ## 🎉 Recently Resolved Issues (Phase 17G - December 2025)
 

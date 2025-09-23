@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2025-09-23
 
 ### 🚀 Phase 18C: Advanced Tool Implementation - MVP Feature Complete
+### 🔧 Connector System Stabilization (post-MVP hardening)
+
+- Enforced endpoint‑only selection for connectors across all code paths (no Konva.Transformer for connectors). SelectionModule detaches transformer and delegates to ConnectorSelectionManager whenever connectors are involved.
+- Unified geometry for ports, snapping, and endpoint placement using `getClientRect({ skipStroke:true, skipShadow:true })`. Fixes subtle 1–2 px gaps on high‑DPI and non‑1px stroke widths.
+- Aggressive hover‑ports suppression when hovering connectors: PortHoverModule hides ports immediately if hit target (or parent) is a connector.
+- Reselection reliability: connector group now listens on `pointerdown` (and tap) and delegates selection with additive toggling support; clicking anywhere on the line reselects it.
+- Live drag streaming: shapes (rectangles, circles, triangles, ellipses) push position deltas during drags so connectors track in real time. Circles already had smooth behavior; parity added for other shapes.
+- Snapping improvements: included `Ellipse/Circle` nodes in candidate search; ensured consistent rect policy to avoid off‑by‑pixel snaps.
+- Tool UX: connector tool forces crosshair while active; returns to Select on commit or cancel. After commit, hover ports are hidden immediately through a small public `hideNow()` on the hover module.
+
+#### Developer Notes
+- If you ever see a blue transform frame on a connector, a regression reintroduced transformer attachment. Keep the early return in SelectionModule and the detach call sequence intact.
+- When modifying port or snapping math, update endpoint resolution to the same rect policy—mixing policies re‑introduces visible gaps.
 
 #### MVP Implementation Completion Achievement
 

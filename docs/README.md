@@ -18,6 +18,7 @@ Welcome to the Canvas application documentation. This directory contains compreh
 - [**Security CSP Hardening**](guides/security-csp-hardening.md) - Content Security Policy implementation
 - [**Security Fix Report**](guides/security-fix-report.md) - Security vulnerability fixes
 - [**Dependency Graph**](guides/dependency-graph.md) - Generate diagrams and hotspot metrics
+  - Includes scripts/Makefile usage, DOT→SVG pipeline (@hpcc-js/wasm), and focused graphs
 
 ### 🔧 API Reference
 *Coming soon - API documentation for Canvas components and services*
@@ -39,7 +40,7 @@ Welcome to the Canvas application documentation. This directory contains compreh
 
 1. **For Developers**: Start with [Architecture Overview](architecture/README.md)
 2. **For Deployment**: Check [Production Checklist](guides/production-checklist.md)
-3. **For Issues**: See [Fixes Summary](guides/fixes-summary.md) for known problems
+3. **For Issues**: See [Fixes Summary](guides/fixes-summary.md) for known problems and [Known Issues](../docs/known-issues.md) for current status
 
 ## Change Log
 

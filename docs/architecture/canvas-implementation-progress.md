@@ -4,39 +4,55 @@
 
 This document tracks the implementation progress of the FigJam-style modular canvas application, ensuring all tools and systems follow the four-layer pipeline architecture with store-driven rendering.
 
-## 🚨 CRITICAL STATUS UPDATE (September 23, 2025)
+## 🚨 STATUS UPDATE (September 23, 2025)
 
-### ⚠️ CURRENT STATE: MULTIPLE REGRESSIONS AND BROKEN FEATURES
+### ⚠️ CURRENT STATE: CONNECTOR SYSTEM REWRITE + STABILIZATION
 
 **Repository:** `eslint-phase17-store-typing`
-**Last Commit:** `86d0b1b` - WIP with critical regressions
+**Last Commit:** `a2f26a7` - Connector UX/stability, ports suppression, live drag streaming
 
-### CRITICAL REGRESSIONS INTRODUCED:
+### Connector, Ports, and Tooling Improvements (What changed & why)
 
-1. **❌ BROKEN: Sticky note selection** - No resize frame appears when clicked
-2. **❌ BROKEN: Font standardization incomplete** - Sticky notes not actually 16px despite changes
-3. **❌ BROKEN: Selection system damaged** - nodeType changes may have broken detection
+- Implemented a parallel selection path for connectors that never uses Konva.Transformer. Endpoint-only UI is now enforced in all code paths, including refresh and version-bump cases. This prevents the blue resize frame from ever attaching to connectors (root cause of user confusion).
+- Harmonized geometry for ports, snapping, and endpoint placement by adopting a single rect policy: getClientRect with `skipStroke:true, skipShadow:true`. This eliminates the 1–2 px visual gap users saw between connectors and element edges under various stroke widths and zoom levels.
+- Added aggressive suppression of hover ports while the pointer is over connectors. Previously, the hover module only looked at the tool; now it considers the hit target (and its parent) on every mouse move to ensure ports do not appear on drawn connectors.
+- Improved reselection reliability for thin lines by listening on `pointerdown` at the connector group level (and shape), then delegating to the SelectionModule with additive toggling support. Any click along the line reselects the connector.
+- Implemented live drag streaming for shapes (rectangles, circles, triangles, ellipses) so connectors remain latched with real‑time updates while elements are dragged. Circles were already smooth; the same approach now applies to all shapes.
+- Ensured ellipse/circle nodes are included in snapping candidates so connectors anchor cleanly to circular geometry.
+- Connector tool UX: while active, the cursor is forced to crosshair and only reverts to Select after a successful commit or when cancelled.
+- After creating a connection, ports are hidden immediately via a small public hook on the hover module. This avoids lingering dots in the overlay.
 
-### PHASE 18 MVP FEATURES STATUS:
+Notes for future devs:
+- The connector system depends on consistent coordinate contracts across three places: port rendering, snap detection, and endpoint resolution. If you change how bounds are computed in any one area, update all three to match (or you will reintroduce gaps). Keep the `skipStroke/skipShadow` policy consistent.
+- Connectors must never receive Transformer selection. If you modify SelectionModule, retain the early return for connectors and the detach/clear logic. Mixing the two selection systems leads to crashes and UX regressions.
+- For reselection reliability on thin lines, prefer `pointerdown` on the connector group; click/tap alone may miss under some cursors.
 
-#### ✅ WORKING:
+### PHASE 18 MVP FEATURES STATUS (updated)
+
+#### ✅ WORKING (after stabilization):
 
 1. **Text editing dashed blue frames eliminated** - Clean text input without borders
-2. **Sticky note aspect ratio constraints** - Works when sticky notes are selectable (currently broken due to selection regression)
+2. **Sticky note aspect ratio constraints** - Works when sticky notes are selectable
 3. **Test suite documentation completed** - All broken features properly documented with regression tests
 
-#### ❌ STILL BROKEN:
+#### ❌ STILL BROKEN / PARTIAL:
 
 4. **Sticky note selection system** - CRITICAL REGRESSION (no resize frame)
 5. **Circle text editing** - BROKEN - Double-click doesn't open text editor
 6. **Font size consistency** - Not actually 16px across all elements
-7. **Connector selection frames** - Still shows rectangular transformer instead of endpoint dots
-8. **Port hover display** - Ports not showing on element hover when using connector tools
-9. **Drawing tool cursor positioning** - Pen/highlighter/marker don't render near cursor
+7. **Connector selection frames** - Addressed: endpoint‑only selection enforced. If you see a frame, a regression reintroduced transformer attachment for connectors.
+8. **Port hover display** - Addressed: ports show on elements only when connector tools are active; suppressed on connectors themselves.
+9. **Drawing tool cursor positioning** - Improved: all drawing tools now use stage/world coordinates uniformly; continue to validate across browsers.
 
-### ROOT CAUSE: Integration Disconnects
+### ROOT CAUSE & LESSONS LEARNED
 
-Multiple conflicting systems developed independently without proper integration testing. Each individual component may be well-implemented but fails to work together due to timing dependencies and architectural inconsistencies.
+Multiple subsystems (selection, ports, snapping, endpoint placement) were implemented in isolation. Inconsistent bounding‑box policies and mixed selection mechanisms produced subtle but severe UX bugs (blue frames, visible gaps, hover conflicts). The fix was not one change but aligning contracts and enforcing a single selection strategy for connectors.
+
+Avoid repeating these mistakes:
+- Do not attach Transformer to connectors. If you need a resize UX for connectors, implement a separate handle system, not the generic transformer.
+- Keep rect policy identical across port render, snap, and endpoint resolution. Differences in stroke/shadow handling will cause visual gaps.
+- When enhancing hover logic, consider both current tool and hit target; suppress ports on connectors to prevent noise.
+- Prefer `pointerdown` for line reselection; thin strokes are easy to miss with click in some environments.
 
 ## Recent Progress
 
