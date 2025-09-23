@@ -110,7 +110,15 @@ export default function TextEditorOverlay() {
           top: pos.y,
           minWidth: 4,
           padding: 0,
-          outline: "1px dashed #93c5fd",
+          // CRITICAL FIX: Use clean styling pattern from openShapeTextEditor.ts
+          outline: "none !important",
+          border: "none !important",
+          borderStyle: "none !important",
+          borderWidth: "0 !important",
+          borderColor: "transparent !important",
+          outlineStyle: "none !important",
+          outlineWidth: "0 !important",
+          outlineColor: "transparent !important",
           background: "transparent",
           color: "#111827",
           fontFamily: "Inter, system-ui, sans-serif",
@@ -119,6 +127,14 @@ export default function TextEditorOverlay() {
           lineHeight: `${Math.round(fontSize * 1.2)}px`,
           pointerEvents: "auto",
           whiteSpace: "nowrap",
+          // Enhanced caret visibility and browser compatibility
+          caretColor: "#111827",
+          WebkitTextFillColor: "#111827",
+          WebkitAppearance: "none",
+          MozAppearance: "none",
+          // @ts-expect-error - msAppearance not in React CSSProperties but valid CSS
+          msAppearance: "none",
+          appearance: "none",
         }}
       />
     </div>

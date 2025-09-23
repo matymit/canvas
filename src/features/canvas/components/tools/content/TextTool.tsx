@@ -30,9 +30,16 @@ function createTextarea(
   ta.style.width = "20px";
   ta.style.height = `${Math.round(fontSize * 1.2)}px`;
   ta.style.padding = "2px 4px";
-  ta.style.border = "1px dashed rgba(0, 0, 255, 0.5)";
+  // CRITICAL FIX: Use clean styling pattern from openShapeTextEditor.ts
+  ta.style.border = "none !important";
+  ta.style.outline = "none !important";
+  ta.style.borderStyle = "none !important";
+  ta.style.borderWidth = "0 !important";
+  ta.style.borderColor = "transparent !important";
+  ta.style.outlineStyle = "none !important";
+  ta.style.outlineWidth = "0 !important";
+  ta.style.outlineColor = "transparent !important";
   ta.style.borderRadius = "2px";
-  ta.style.outline = "none";
   ta.style.resize = "none";
   ta.style.cursor = "text";
   ta.style.background = "rgba(255, 255, 255, 0.95)";
@@ -46,6 +53,13 @@ function createTextarea(
   ta.style.whiteSpace = "nowrap";
   ta.style.overflow = "hidden";
   ta.style.boxSizing = "border-box";
+  // Enhanced caret visibility and browser compatibility
+  ta.style.caretColor = DEFAULT_TEXT_COLOR;
+  (ta.style as any).webkitTextFillColor = DEFAULT_TEXT_COLOR;
+  (ta.style as any).webkitAppearance = "none";
+  (ta.style as any).mozAppearance = "none";
+  (ta.style as any).msAppearance = "none";
+  ta.style.appearance = "none";
   return ta;
 }
 
