@@ -13,6 +13,13 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 ### Connector, Ports, and Tooling Improvements (What changed & why)
 
+- **🚨 CRITICAL FIX (September 23, 2025): Circle Port Connection Coordinate Issues RESOLVED**
+  - **Issue**: Circle port connections failed while rectangle connections worked reliably
+  - **Root Cause**: Coordinate system inconsistencies between PortHoverModule (stage coordinates), AnchorSnapping (element coordinates), and ConnectorRenderer (raw element properties)
+  - **Technical Solution**: Standardized all modules to use `getClientRect({ relativeTo: stage })` for consistent stage coordinates
+  - **Impact**: Circle port clicks now connect to intended ports with same reliability as rectangles
+  - **Files Modified**: `AnchorSnapping.ts`, `ConnectorRenderer.ts`, `PortHoverModule.ts` (enhanced hit radius for circles)
+
 - **🚨 CRITICAL FIX (September 23, 2025): Connector Zoom Coordinate Corruption RESOLVED**
   - **Issue**: Connectors permanently disconnected from elements after ANY zoom operation
   - **Root Cause**: ConnectorTool.tsx stored absolute coordinates in ConnectorEndpointPoint which became invalid after zoom transformations

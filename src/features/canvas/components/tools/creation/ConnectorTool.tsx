@@ -51,6 +51,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     startSnap: { elementId: string; side: AnchorSide } | null;
     preview: Konva.Shape | null;
     toolInstance: any; // Store tool instance for global access
+    cleanupCursor?: () => void; // Cleanup function for cursor interval
   }>({ start: null, startSnap: null, preview: null, toolInstance: null });
 
   // Helper to list candidate nodes (main-layer nodes) for snapping
@@ -71,8 +72,53 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     try {
       const stage = stageRef.current;
       const active = isActive && selectedTool === toolId;
-      if (!stage || !active) return;
-      if (!layers?.main || !layers?.preview || !layers?.overlay) return;
+
+      // Force crosshair cursor whenever this tool is active
+      if (stage && active) {
+        const setCrosshairCursor = () => {
+          try {
+            stage.container().style.cursor = 'crosshair';
+          } catch (error) {
+            console.warn('[ConnectorTool] Failed to set crosshair cursor:', error);
+          }
+        };
+
+        // Set cursor immediately
+        setCrosshairCursor();
+
+        // Set up periodic enforcement to handle cursor conflicts
+        const cursorInterval = setInterval(setCrosshairCursor, 100);
+
+        // Cleanup function will clear the interval
+        const cleanupCursor = () => {
+          clearInterval(cursorInterval);
+          try {
+            stage.container().style.cursor = '';
+          } catch (error) {
+            console.warn('[ConnectorTool] Failed to reset cursor:', error);
+          }
+        };
+
+        // Store cleanup function for later use
+        ref.current.cleanupCursor = cleanupCursor;
+      }
+
+      if (!stage || !active) {
+        // Clean up cursor if tool is not active
+        if (ref.current.cleanupCursor) {
+          ref.current.cleanupCursor();
+          ref.current.cleanupCursor = undefined;
+        }
+        return;
+      }
+      if (!layers?.main || !layers?.preview || !layers?.overlay) {
+        // Clean up cursor if layers are not available
+        if (ref.current.cleanupCursor) {
+          ref.current.cleanupCursor();
+          ref.current.cleanupCursor = undefined;
+        }
+        return;
+      }
 
       // Deselect all elements when connector tool activates
       try {
@@ -133,13 +179,6 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         handlePortClick: handlePortClick
       };
       ref.current.toolInstance = (window as any).activeConnectorTool;
-
-      // Force crosshair cursor while tool is active
-      try {
-        stage.container().style.cursor = 'crosshair';
-      } catch {
-        // Ignore cursor setting errors
-      }
 
     const onPointerMove = () => {
       if (ref.current.start) {
@@ -301,7 +340,11 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       if (!pos || !start) {
         if (ghost) {
-          try { ghost.destroy(); } catch {}
+          try {
+            ghost.destroy();
+          } catch (error) {
+            console.warn('[ConnectorTool] Failed to destroy ghost during pointer move cleanup:', error);
+          }
           ref.current.preview = null;
           previewLayer.batchDraw();
         }
@@ -316,7 +359,11 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       const endSnap = snap ? { elementId: snap.elementId, side: snap.side } : null;
 
       if (ghost) {
-        try { ghost.destroy(); } catch {}
+        try {
+          ghost.destroy();
+        } catch (error) {
+          console.warn('[ConnectorTool] Failed to destroy ghost during commit:', error);
+        }
         ref.current.preview = null;
         previewLayer.batchDraw();
       }
@@ -360,6 +407,12 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
           (window as any).activeConnectorTool = null;
         }
 
+        // Clean up cursor interval
+        if (ref.current.cleanupCursor) {
+          ref.current.cleanupCursor();
+          ref.current.cleanupCursor = undefined;
+        }
+
         const g = ref.current.preview;
         if (g) {
           try {
@@ -372,11 +425,6 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         }
         ref.current.start = null;
         ref.current.startSnap = null;
-        try {
-          stage.container().style.cursor = '';
-        } catch {
-          // Ignore cursor cleanup errors
-        }
       };
     } catch (e) {
       console.error('[ConnectorTool] Fatal error during activation', e);

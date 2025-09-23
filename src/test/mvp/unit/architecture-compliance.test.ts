@@ -111,9 +111,9 @@ describe("Architecture Compliance (dependency graph)", () => {
     expect(deg).toBeGreaterThan(0);
   });
 
-  it("selectors module exists to reduce coupling", () => {
-    const fs = require('node:fs');
-    const p = require('node:path');
+  it("selectors module exists to reduce coupling", async () => {
+    const fs = await import('node:fs');
+    const p = await import('node:path');
     const sel = p.resolve(__dirname, '../../../../src/features/canvas/stores/selectors.ts');
     expect(fs.existsSync(sel)).toBe(true);
   });

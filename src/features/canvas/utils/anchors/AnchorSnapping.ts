@@ -78,7 +78,12 @@ export function findNearestAnchor(
 
   for (const node of candidates) {
     if (!node || !node.getStage()) continue;
-    const rect = node.getClientRect({ skipStroke: true, skipShadow: true });
+    const stage = node.getStage();
+    const rect = node.getClientRect({
+      skipStroke: true,
+      skipShadow: true,
+      relativeTo: stage || undefined // CRITICAL FIX: Use stage coordinates for consistency with PortHoverModule
+    });
 
     // CRITICAL FIX: Detect circular elements and use appropriate anchor calculation
     const elementType = node.getAttr('elementType') || node.name() || '';

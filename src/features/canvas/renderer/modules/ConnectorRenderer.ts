@@ -30,13 +30,18 @@ export class ConnectorRenderer {
     const node = this.deps.getNodeById(ep.elementId);
     if (!node) return null;
 
-    // CRITICAL FIX: Use element's raw properties instead of getClientRect()
-    // getClientRect() returns stage coordinates which become invalid during zoom
-    // The cached nodes in ConnectorRendererAdapter store the raw element properties
-    const elementX = node.x();
-    const elementY = node.y();
-    const elementWidth = node.width();
-    const elementHeight = node.height();
+    // CRITICAL FIX: Use getClientRect with stage coordinates for consistency across modules
+    // This ensures consistent coordinate system with PortHoverModule and AnchorSnapping
+    const stage = node.getStage();
+    const rect = node.getClientRect({
+      skipStroke: true,
+      skipShadow: true,
+      relativeTo: stage || undefined // Use stage coordinates consistently
+    });
+    const elementX = rect.x;
+    const elementY = rect.y;
+    const elementWidth = rect.width;
+    const elementHeight = rect.height;
 
     const cx = elementX + elementWidth / 2;
     const cy = elementY + elementHeight / 2;

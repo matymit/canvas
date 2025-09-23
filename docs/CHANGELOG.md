@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0] - 2025-09-23
 
+### 🚨 CRITICAL FIX: Circle Port Connection Coordinate Issues
+- **Fixed**: Circle port connections now work as reliably as rectangle connections
+- **Issue**: Users clicking on circle ports would see connectors attach to different positions than expected
+- **Root Cause**: Three modules used different coordinate systems - PortHoverModule (stage coordinates), AnchorSnapping (element coordinates), ConnectorRenderer (raw element properties)
+- **Technical Solution**:
+  - Standardized all modules to use `getClientRect({ relativeTo: stage })` for consistent stage coordinates
+  - Enhanced PortHoverModule hit radius for circles (18px) vs rectangles (12px) for better trigonometric precision
+  - Unified coordinate system across AnchorSnapping, ConnectorRenderer, and PortHoverModule
+- **Impact**: Circle port clicks now connect to intended ports with visual accuracy matching user expectations
+- **Files Modified**: `AnchorSnapping.ts`, `ConnectorRenderer.ts`, `PortHoverModule.ts`
+
 ### 🚨 CRITICAL FIX: Connector Zoom Coordinate Corruption
 - **Fixed**: Connectors no longer permanently disconnect from elements after zoom operations
 - **Issue**: Connectors would become permanently broken after ANY zoom operation, never recovering even when returning to original zoom level

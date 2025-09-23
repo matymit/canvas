@@ -210,7 +210,9 @@ export class ShapeRenderer implements RendererModule {
 
             try {
               StoreActions.updateElement(shape.id, { x: nx, y: ny });
-            } catch {}
+            } catch (error) {
+              console.warn('[ShapeRenderer] Failed to update element position during drag:', error);
+            }
           });
           this.shapeNodes.set(id, node);
           this.layer.add(node);
@@ -258,7 +260,9 @@ export class ShapeRenderer implements RendererModule {
         try {
           const s = this.store?.getState?.();
           s?.updateElement?.(id, { x: Math.round(node.x()), y: Math.round(node.y()) }, { pushHistory: false });
-        } catch {}
+        } catch (error) {
+          console.warn('[ShapeRenderer] Failed to update element position during transform end:', error);
+        }
       });
     });
   }

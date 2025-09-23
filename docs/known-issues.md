@@ -10,7 +10,25 @@ This document provides an honest assessment of current Canvas limitations, known
 **Status:** Multiple critical features broken with recent regressions
 
 #### Recently Addressed
-1. **🚨 CRITICAL: Connector Zoom Coordinate Corruption (FIXED - September 23, 2025)**
+1. **🚨 CRITICAL: Circle Port Connection Coordinate Issues (FIXED - September 23, 2025)**
+   - **Issue**: Circle port connections failed while rectangle connections worked reliably
+   - **Root Cause**: Three modules used different coordinate systems for the same geometric calculations:
+     - PortHoverModule used stage coordinates (`relativeTo: this.storeCtx.stage`)
+     - AnchorSnapping used element coordinates (no `relativeTo` parameter)
+     - ConnectorRenderer used raw element properties (`node.x(), node.y()`)
+   - **Fix**: Standardized all modules to use stage coordinates consistently
+   - **Technical Solution**:
+     - Updated AnchorSnapping.ts to use `getClientRect({ relativeTo: stage })` instead of element coordinates
+     - Updated ConnectorRenderer.ts to use `getClientRect({ relativeTo: stage })` instead of raw element properties
+     - Enhanced PortHoverModule.ts with larger hit radius for circles (18px) vs rectangles (12px)
+   - **Files Modified**:
+     - `src/features/canvas/utils/anchors/AnchorSnapping.ts` - Added stage coordinate consistency
+     - `src/features/canvas/renderer/modules/ConnectorRenderer.ts` - Replaced raw properties with stage coordinates
+     - `src/features/canvas/renderer/modules/PortHoverModule.ts` - Enhanced circle hit radius
+   - **Validation**: Circle port clicks now connect to intended ports with same reliability as rectangles
+   - **Impact**: Eliminates coordinate system mismatches that prevented accurate circle port connections
+
+2. **🚨 CRITICAL: Connector Zoom Coordinate Corruption (FIXED - September 23, 2025)**
    - **Issue**: Connectors permanently disconnected from elements after ANY zoom operation
    - **Root Cause**: ConnectorTool.tsx stored absolute coordinates in ConnectorEndpointPoint when users didn't snap to elements. These coordinates became invalid after zoom operations and never recovered.
    - **Fix**: Modified commit() function to use aggressive element attachment (50px threshold) instead of absolute coordinates

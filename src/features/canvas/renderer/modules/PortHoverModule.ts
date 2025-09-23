@@ -35,7 +35,9 @@ export class PortHoverModule implements RendererModule {
   private readonly PORT_STROKE_WIDTH = 2;
   private readonly HOVER_DELAY = 100; // ms delay before showing ports
   private readonly HIDE_DELAY = 300; // ms delay before hiding ports
-  private readonly PORT_HIT_RADIUS = 12; // Larger hit area for reliable clicking
+  // CRITICAL FIX: Enhanced hit radius for better circle precision
+  private readonly PORT_HIT_RADIUS_CIRCLE = 18; // Larger radius for trigonometric precision on circles
+  private readonly PORT_HIT_RADIUS_RECT = 12;   // Standard radius for rectangles
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
@@ -250,11 +252,16 @@ export class PortHoverModule implements RendererModule {
         opacity: 0 // Start invisible for animation
       });
 
+      // CRITICAL FIX: Use appropriate hit radius based on element type for better precision
+      const element = this.getElement(port.elementId);
+      const isCircular = element ? this.isElementCircular(element) : false;
+      const hitRadius = isCircular ? this.PORT_HIT_RADIUS_CIRCLE : this.PORT_HIT_RADIUS_RECT;
+
       // Create larger invisible hit area for reliable clicking
       const hitArea = new Konva.Circle({
         x: port.position.x,
         y: port.position.y,
-        radius: this.PORT_HIT_RADIUS,
+        radius: hitRadius,
         fill: 'transparent',
         listening: true, // CRITICAL FIX: Enable click detection
         perfectDrawEnabled: false,
