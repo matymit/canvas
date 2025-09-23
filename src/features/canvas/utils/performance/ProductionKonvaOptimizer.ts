@@ -131,10 +131,7 @@ export class ProductionKonvaOptimizer {
     // Disable listening to reduce hit-testing overhead
     layer.listening(false);
     
-    // Disable hit graph for non-interactive layers
-    if (typeof (layer as unknown as { hitGraphEnabled?: (enabled: boolean) => void }).hitGraphEnabled === 'function') {
-      (layer as unknown as { hitGraphEnabled: (enabled: boolean) => void }).hitGraphEnabled(false);
-    }
+    // Do NOT use deprecated hitGraphEnabled; rely on listening(false)
     
     layer.batchDraw();
   }

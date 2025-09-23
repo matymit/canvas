@@ -46,10 +46,7 @@ export function applyHiDPI(
 export function configureStaticLayer(layer: Konva.Layer): void {
   // listening false removes event detection overhead
   layer.listening(false);
-  // hitGraphEnabled false avoids redrawing the hit graph; useful for non-interactive layers
-  if (typeof (layer as Konva.Layer & { hitGraphEnabled?: (enabled: boolean) => void }).hitGraphEnabled === 'function') {
-    (layer as Konva.Layer & { hitGraphEnabled: (enabled: boolean) => void }).hitGraphEnabled(false);
-  }
+  // Do not use deprecated hitGraphEnabled; listening(false) is sufficient per Konva docs
   layer.batchDraw();
 }
 
