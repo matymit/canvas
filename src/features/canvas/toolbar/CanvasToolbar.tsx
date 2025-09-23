@@ -117,6 +117,14 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     state.viewport?.zoomOut?.();
   }, []);
 
+  const handleZoomReset = useCallback(() => {
+    const state = useUnifiedCanvasStore.getState();
+    // Reset to 100%
+    state.viewport?.setScale?.(1);
+    // Fit to content neatly with padding
+    state.viewport?.fitToContent?.(40);
+  }, []);
+
   const handleClearCanvas = useCallback(() => {
     const ok =
       typeof window !== "undefined"
@@ -463,6 +471,17 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           data-testid="toolbar-zoom-in"
         >
           {getIcon("zoom-in")}
+        </button>
+        <button
+          type="button"
+          className="tool-button"
+          title="Reset Zoom (100%)"
+          onClick={handleZoomReset}
+          aria-label="Reset Zoom"
+          data-testid="toolbar-zoom-indicator"
+          style={{ minWidth: 56 }}
+        >
+          {Math.round(((useUnifiedCanvasStore.getState().viewport?.scale) ?? 1) * 100)}%
         </button>
         <button
           type="button"
