@@ -2,6 +2,62 @@
 
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
 
+## 🚨 CRITICAL REGRESSIONS (September 23, 2025)
+
+### ❌ BROKEN: Phase 18 MVP Features Status
+
+**Repository State:** `eslint-phase17-store-typing` branch
+**Status:** Multiple critical features broken with recent regressions
+
+#### NEWLY BROKEN (Critical Regressions):
+1. **Sticky Note Selection Completely Broken**
+   - **Issue**: No resize frame appears when clicking sticky notes
+   - **Impact**: Sticky notes cannot be selected, moved, or resized
+   - **Cause**: nodeType attribute changes broke selection detection
+   - **Workaround**: None - critical functionality lost
+
+2. **Font Standardization Failed**
+   - **Issue**: Despite updating TextConstants to 16px, sticky notes still show wrong font size
+   - **Impact**: Inconsistent text sizing across elements
+   - **Cause**: StickyNoteModule not properly using updated constants
+   - **Workaround**: None - visual inconsistency remains
+
+#### STILL BROKEN (Original Phase 18 Issues):
+3. **Connector Selection Shows Wrong UI**
+   - **Issue**: Connectors show rectangular transformer frames instead of endpoint dots
+   - **Impact**: Poor UX - users see resize handles instead of connection points
+   - **Expected**: Only 2 endpoint dots for connector manipulation
+
+4. **Port Hover Display Not Working**
+   - **Issue**: Connection ports don't appear when hovering elements with connector tool active
+   - **Impact**: Users can't see where to connect elements
+   - **Expected**: Ports should show on hover when using connector tools
+
+5. **Circle Text Caret Issues**
+   - **Issue**: Blinking caret not visible when editing circle text
+   - **Impact**: No visual feedback during text input
+   - **Status**: Partially improved but may still have issues
+
+6. **Eraser Tool Incomplete**
+   - **Issue**: Eraser doesn't properly remove elements on drag
+   - **Impact**: Drawing deletion workflow broken
+   - **Status**: Partial implementation exists
+
+7. **Text Consistency Incomplete**
+   - **Issue**: Not all elements actually use standardized 16px font
+   - **Impact**: Visual inconsistency across canvas
+   - **Status**: TextConstants updated but not properly applied
+
+#### WORKING (Confirmed):
+✅ **Text Editor Dashed Blue Frame Fixed** - Clean text input without unwanted borders
+✅ **Sticky Note Aspect Ratio** - Maintains proportions when resizable (currently broken due to selection issue)
+
+### Next Developer Guidance:
+1. **Fix sticky note selection FIRST** - critical regression blocking all testing
+2. **Verify font sizes actually change** - don't trust constants, check rendered output
+3. **Test each fix individually** - don't batch changes and claim success
+4. **Use browser testing** - console.log actual values to verify implementation
+
 ## 🎉 Recently Resolved Issues (Phase 17G - December 2025)
 
 ### Miscellaneous Warning Categories Systematic Cleanup (COMPLETED)
