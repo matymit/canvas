@@ -17,6 +17,7 @@ Welcome to the Canvas application documentation. This directory contains compreh
 - [**Production Implementation**](guides/production-implementation-summary.md) - Production setup summary
 - [**Security CSP Hardening**](guides/security-csp-hardening.md) - Content Security Policy implementation
 - [**Security Fix Report**](guides/security-fix-report.md) - Security vulnerability fixes
+- [**Dependency Graph**](guides/dependency-graph.md) - Generate diagrams and hotspot metrics
 
 ### 🔧 API Reference
 *Coming soon - API documentation for Canvas components and services*
