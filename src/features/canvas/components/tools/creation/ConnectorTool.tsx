@@ -170,21 +170,22 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
   };
 
   useEffect(() => {
-    const stage = stageRef.current;
-    const active = isActive && selectedTool === toolId;
-    if (!stage || !active) return;
-
-    // Deselect all elements when connector tool activates
     try {
-      const s = useUnifiedCanvasStore.getState();
-      if (s.setSelection) s.setSelection([]);
-      else if (s.selection?.clear) s.selection.clear();
-    } catch {}
+      const stage = stageRef.current;
+      const active = isActive && selectedTool === toolId;
+      if (!stage || !active) return;
+      if (!layers?.main || !layers?.preview || !layers?.overlay) return;
 
-    const previewLayer = layers?.preview ?? (stage.getLayers()[3] as Konva.Layer | undefined);
-    if (!previewLayer) return;
+      // Deselect all elements when connector tool activates
+      try {
+        const s = useUnifiedCanvasStore.getState();
+        if (s.setSelection) s.setSelection([]);
+        else if (s.selection?.clear) s.selection.clear();
+      } catch {}
 
-    const isArrow = toolId === "connector-arrow";
+      const previewLayer = layers.preview;
+
+      const isArrow = toolId === "connector-arrow";
 
     // Cache candidate nodes once on activation to avoid per-move queries
     const cachedCandidates = getCandidates(stage);
@@ -352,9 +353,9 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       ref.current.startSnap = null;
     };
 
-    stage.on("pointerdown.connector", onPointerDown);
-    stage.on("pointermove.connector", onPointerMove);
-    stage.on("pointerup.connector", onPointerUp);
+      stage.on("pointerdown.connector", onPointerDown);
+      stage.on("pointermove.connector", onPointerMove);
+      stage.on("pointerup.connector", onPointerUp);
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -369,23 +370,27 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         setTool?.("select");
       }
     };
-    window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("keydown", onKeyDown);
 
-    return () => {
-      stage.off("pointerdown.connector", onPointerDown);
-      stage.off("pointermove.connector", onPointerMove);
-      stage.off("pointerup.connector", onPointerUp);
-      window.removeEventListener("keydown", onKeyDown);
-      hideAllPorts(stage);
-      const g = ref.current.preview;
-      if (g) {
-        try { g.destroy(); } catch {}
-        ref.current.preview = null;
-        previewLayer.batchDraw();
-      }
-      ref.current.start = null;
-      ref.current.startSnap = null;
-    };
+      return () => {
+        stage.off("pointerdown.connector", onPointerDown);
+        stage.off("pointermove.connector", onPointerMove);
+        stage.off("pointerup.connector", onPointerUp);
+        window.removeEventListener("keydown", onKeyDown);
+        hideAllPorts(stage);
+        const g = ref.current.preview;
+        if (g) {
+          try { g.destroy(); } catch {}
+          ref.current.preview = null;
+          previewLayer.batchDraw();
+        }
+        ref.current.start = null;
+        ref.current.startSnap = null;
+      };
+    } catch (e) {
+      console.error('[ConnectorTool] Fatal error during activation', e);
+      return;
+    }
   }, [isActive, selectedTool, toolId, stageRef, upsertElement, selectOnly, begin, end, setTool, layers]);
 
   return null;

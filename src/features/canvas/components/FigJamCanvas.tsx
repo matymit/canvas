@@ -515,19 +515,25 @@ const FigJamCanvas: React.FC = () => {
         // Connector tools
         case "connector":
         case "connector-line":
-        case "connector-arrow":
+        case "connector-arrow": {
+          const allLayers = layersRef.current;
+          // Guard: render only when stage and required layers are ready
+          if (!stageRef.current || !allLayers?.main || !allLayers?.preview || !allLayers?.overlay) {
+            return null;
+          }
           return (
             <ConnectorTool
               key="connector-tool"
               {...toolProps}
               toolId={selectedTool as "connector-line" | "connector-arrow"}
               layers={{
-                main: layersRef.current?.main!,
-                preview: layersRef.current?.preview!,
-                overlay: layersRef.current?.overlay!,
+                main: allLayers.main,
+                preview: allLayers.preview,
+                overlay: allLayers.overlay,
               }}
             />
           );
+        }
 
         // Drawing tools
         case "pen":
