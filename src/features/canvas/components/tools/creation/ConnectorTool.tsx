@@ -5,6 +5,7 @@ import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { AnchorSide } from "../../../types/connector";
 import type { ConnectorElement } from "../../../types/connector";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
+import { getWorldPointer } from "../../../utils/pointer";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -139,7 +140,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         const ghost = ref.current.preview;
         if (!start || !ghost) return;
 
-        const pos = stage.getPointerPosition();
+        const pos = getWorldPointer(stage);
         if (!pos) return;
 
         // Try snapping the "to" endpoint
@@ -158,7 +159,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         previewLayer.batchDraw();
       } else {
         // Hover mode - show ports on hovered elements
-        const pos = stage.getPointerPosition();
+        const pos = getWorldPointer(stage);
         if (!pos) return;
 
         // Find element under cursor
@@ -189,7 +190,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     };
 
     const onPointerDown = () => {
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       if (!pos) return;
 
       // Hide ports when starting to draw
@@ -305,7 +306,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       const start = ref.current.start;
       const startSnap = ref.current.startSnap;
       const ghost = ref.current.preview;
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
 
       if (!pos || !start) {
         // cleanup and bail

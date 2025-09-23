@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
+import { getWorldPointer } from '../../../utils/pointer';
 
 export interface PenToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -112,7 +113,7 @@ export const PenTool: React.FC<PenToolProps> = ({
 
     const onPointerDown = () => {
       if (!isActive || drawingRef.current) return;
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       if (!pos) return;
       drawingRef.current = true;
       pointsRef.current = [pos.x, pos.y];
@@ -137,7 +138,7 @@ export const PenTool: React.FC<PenToolProps> = ({
 
     const onPointerMove = () => {
       if (!isActive || !drawingRef.current) return;
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       if (!pos) return;
 
       pointsRef.current.push(pos.x, pos.y);
