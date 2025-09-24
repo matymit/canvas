@@ -2,9 +2,11 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { StoreActions } from "../../stores/facade";
-import { computeShapeInnerBox, type BaseShape } from "../../utils/text/computeShapeInnerBox";
+import {
+  computeShapeInnerBox,
+  type BaseShape,
+} from "../../utils/text/computeShapeInnerBox";
 import { getTextConfig } from "../../constants/TextConstants";
-
 
 // Extended shape data interface
 interface ShapeDataWithExtras {
@@ -40,7 +42,7 @@ interface ShapeElement {
     opacity?: number;
     fontSize?: number;
     fontFamily?: string;
-    textAlign?: 'left' | 'center' | 'right';
+    textAlign?: "left" | "center" | "right";
   };
   data?: {
     text?: string;
@@ -172,38 +174,63 @@ export class ShapeRenderer implements RendererModule {
 
           // Add double-click handler for text editing
           node.on("dblclick", (e) => {
-            console.log('[ShapeRenderer] Double-click detected on shape:', shape.id, shape.type);
+            console.log(
+              "[ShapeRenderer] Double-click detected on shape:",
+              shape.id,
+              shape.type,
+            );
             e.cancelBubble = true; // Prevent event bubbling
 
             // Open text editor for this shape
             const stage = this.layer?.getStage();
-            console.log('[ShapeRenderer] Stage available:', !!stage);
+            console.log("[ShapeRenderer] Stage available:", !!stage);
 
             if (stage) {
-              console.log('[ShapeRenderer] Opening text editor for shape:', shape.id);
-              import('../../utils/editors/openShapeTextEditor').then(({ openShapeTextEditor }) => {
-                console.log('[ShapeRenderer] Module loaded, calling openShapeTextEditor');
-                openShapeTextEditor(stage, shape.id);
-              }).catch(error => {
-                console.error('[ShapeRenderer] Error loading openShapeTextEditor:', error);
-              });
+              console.log(
+                "[ShapeRenderer] Opening text editor for shape:",
+                shape.id,
+              );
+              import("../../utils/editors/openShapeTextEditor")
+                .then(({ openShapeTextEditor }) => {
+                  console.log(
+                    "[ShapeRenderer] Module loaded, calling openShapeTextEditor",
+                  );
+                  openShapeTextEditor(stage, shape.id);
+                })
+                .catch((error) => {
+                  console.error(
+                    "[ShapeRenderer] Error loading openShapeTextEditor:",
+                    error,
+                  );
+                });
             } else {
-              console.warn('[ShapeRenderer] No stage available for text editor');
+              console.warn(
+                "[ShapeRenderer] No stage available for text editor",
+              );
             }
           });
 
           // Also add dbltap for mobile support
           node.on("dbltap", (e) => {
-            console.log('[ShapeRenderer] Double-tap detected on shape:', shape.id, shape.type);
+            console.log(
+              "[ShapeRenderer] Double-tap detected on shape:",
+              shape.id,
+              shape.type,
+            );
             e.cancelBubble = true;
 
             const stage = this.layer?.getStage();
             if (stage) {
-              import('../../utils/editors/openShapeTextEditor').then(({ openShapeTextEditor }) => {
-                openShapeTextEditor(stage, shape.id);
-              }).catch(error => {
-                console.error('[ShapeRenderer] Error loading openShapeTextEditor:', error);
-              });
+              import("../../utils/editors/openShapeTextEditor")
+                .then(({ openShapeTextEditor }) => {
+                  openShapeTextEditor(stage, shape.id);
+                })
+                .catch((error) => {
+                  console.error(
+                    "[ShapeRenderer] Error loading openShapeTextEditor:",
+                    error,
+                  );
+                });
             }
           });
 
@@ -220,7 +247,10 @@ export class ShapeRenderer implements RendererModule {
             try {
               StoreActions.updateElement(shape.id, { x: nx, y: ny });
             } catch (error) {
-              console.warn('[ShapeRenderer] Failed to update element position during drag:', error);
+              console.warn(
+                "[ShapeRenderer] Failed to update element position during drag:",
+                error,
+              );
             }
           });
           this.shapeNodes.set(id, node);
@@ -260,17 +290,24 @@ export class ShapeRenderer implements RendererModule {
 
   private attachLiveDragUpdate(node: Konva.Shape, id: string) {
     let ticking = false;
-    node.off('dragmove.live-update');
-    node.on('dragmove.live-update', () => {
+    node.off("dragmove.live-update");
+    node.on("dragmove.live-update", () => {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
         try {
           const s = this.store?.getState?.();
-          s?.updateElement?.(id, { x: Math.round(node.x()), y: Math.round(node.y()) }, { pushHistory: false });
+          s?.updateElement?.(
+            id,
+            { x: Math.round(node.x()), y: Math.round(node.y()) },
+            { pushHistory: false },
+          );
         } catch (error) {
-          console.warn('[ShapeRenderer] Failed to update element position during transform end:', error);
+          console.warn(
+            "[ShapeRenderer] Failed to update element position during transform end:",
+            error,
+          );
         }
       });
     });
@@ -278,8 +315,18 @@ export class ShapeRenderer implements RendererModule {
 
   private createShapeNode(shape: ShapeElement): Konva.Shape | undefined {
     // Apply safety limits to dimensions
-    const safeWidth = Math.max(MIN_DIMENSION, Math.min(MAX_DIMENSION, shape.width || 100));
-    const safeHeight = Math.max(MIN_DIMENSION, Math.min(MAX_DIMENSION, shape.height || 100));
+    const safeWidth = Math.max(
+      MIN_DIMENSION,
+      Math.min(MAX_DIMENSION, shape.width || 100),
+    );
+    const safeHeight = Math.max(
+      MIN_DIMENSION,
+      Math.min(MAX_DIMENSION, shape.height || 100),
+    );
+
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.store?.getState();
+    const isPanToolActive = storeState?.selectedTool === "pan";
 
     const commonAttrs = {
       id: shape.id,
@@ -291,7 +338,7 @@ export class ShapeRenderer implements RendererModule {
       opacity: shape.style?.opacity || 1,
       rotation: shape.rotation || 0,
       listening: true,
-      draggable: true, // enable dragging
+      draggable: !isPanToolActive, // disable dragging when pan tool is active
     };
 
     switch (shape.type) {
@@ -315,10 +362,12 @@ export class ShapeRenderer implements RendererModule {
         });
 
         // CRITICAL FIX: Set elementType attribute for circle detection in AnchorSnapping
-        ellipseNode.setAttr('elementType', 'circle');
-        ellipseNode.setAttr('shapeType', 'circle');
+        ellipseNode.setAttr("elementType", "circle");
+        ellipseNode.setAttr("shapeType", "circle");
 
-        ellipseNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, ellipseNode));
+        ellipseNode.on("dragmove.text-follow", () =>
+          this.syncTextFollower(shape.id, ellipseNode),
+        );
 
         return ellipseNode;
       }
@@ -331,10 +380,12 @@ export class ShapeRenderer implements RendererModule {
         });
 
         // CRITICAL FIX: Set elementType attribute for ellipse detection in AnchorSnapping
-        ellipseNode.setAttr('elementType', 'ellipse');
-        ellipseNode.setAttr('shapeType', 'ellipse');
+        ellipseNode.setAttr("elementType", "ellipse");
+        ellipseNode.setAttr("shapeType", "ellipse");
 
-        ellipseNode.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, ellipseNode));
+        ellipseNode.on("dragmove.text-follow", () =>
+          this.syncTextFollower(shape.id, ellipseNode),
+        );
 
         return ellipseNode;
       }
@@ -346,24 +397,26 @@ export class ShapeRenderer implements RendererModule {
           ...commonAttrs,
           width: safeWidth,
           height: safeHeight,
-          sceneFunc: function(context, shape) {
+          sceneFunc: function (context, shape) {
             // Get current dimensions from the shape attributes
             const w = shape.width();
             const h = shape.height();
 
             // Draw isosceles triangle with proper geometry
             context.beginPath();
-            context.moveTo(w / 2, 0);        // top center
-            context.lineTo(0, h);            // bottom left
-            context.lineTo(w, h);            // bottom right
+            context.moveTo(w / 2, 0); // top center
+            context.lineTo(0, h); // bottom left
+            context.lineTo(w, h); // bottom right
             context.closePath();
 
             // Fill and stroke the shape
             context.fillStrokeShape(shape);
-          }
+          },
         });
 
-        triangleShape.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, triangleShape));
+        triangleShape.on("dragmove.text-follow", () =>
+          this.syncTextFollower(shape.id, triangleShape),
+        );
 
         return triangleShape;
       }
@@ -376,8 +429,18 @@ export class ShapeRenderer implements RendererModule {
 
   private updateShapeNode(node: Konva.Shape, shape: ShapeElement) {
     // Apply safety limits to dimensions
-    const safeWidth = Math.max(MIN_DIMENSION, Math.min(MAX_DIMENSION, shape.width || 100));
-    const safeHeight = Math.max(MIN_DIMENSION, Math.min(MAX_DIMENSION, shape.height || 100));
+    const safeWidth = Math.max(
+      MIN_DIMENSION,
+      Math.min(MAX_DIMENSION, shape.width || 100),
+    );
+    const safeHeight = Math.max(
+      MIN_DIMENSION,
+      Math.min(MAX_DIMENSION, shape.height || 100),
+    );
+
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.store?.getState();
+    const isPanToolActive = storeState?.selectedTool === "pan";
 
     const commonAttrs = {
       x: shape.x,
@@ -387,6 +450,7 @@ export class ShapeRenderer implements RendererModule {
       strokeWidth: shape.style?.strokeWidth || 2,
       opacity: shape.style?.opacity || 1,
       rotation: shape.rotation || 0,
+      draggable: !isPanToolActive, // update draggable when tool changes
     };
 
     if (shape.type === "rectangle" && node instanceof Konva.Rect) {
@@ -396,9 +460,14 @@ export class ShapeRenderer implements RendererModule {
         height: safeHeight,
       });
 
-      node.off('dragmove.text-follow');
-      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
-    } else if ((shape.type === "circle" || shape.type === "ellipse") && node instanceof Konva.Ellipse) {
+      node.off("dragmove.text-follow");
+      node.on("dragmove.text-follow", () =>
+        this.syncTextFollower(shape.id, node),
+      );
+    } else if (
+      (shape.type === "circle" || shape.type === "ellipse") &&
+      node instanceof Konva.Ellipse
+    ) {
       const radiusX = safeWidth / 2;
       const radiusY = safeHeight / 2;
 
@@ -410,8 +479,10 @@ export class ShapeRenderer implements RendererModule {
         radiusY,
       });
 
-      node.off('dragmove.text-follow');
-      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
+      node.off("dragmove.text-follow");
+      node.on("dragmove.text-follow", () =>
+        this.syncTextFollower(shape.id, node),
+      );
     } else if (shape.type === "triangle" && node instanceof Konva.Shape) {
       // Update triangle dimensions - sceneFunc will automatically recalculate geometry
       node.setAttrs({
@@ -420,8 +491,10 @@ export class ShapeRenderer implements RendererModule {
         height: safeHeight,
       });
 
-      node.off('dragmove.text-follow');
-      node.on('dragmove.text-follow', () => this.syncTextFollower(shape.id, node));
+      node.off("dragmove.text-follow");
+      node.on("dragmove.text-follow", () =>
+        this.syncTextFollower(shape.id, node),
+      );
 
       // The sceneFunc will automatically redraw with new dimensions
       // No need to manually recalculate points - this prevents deformation
@@ -433,7 +506,10 @@ export class ShapeRenderer implements RendererModule {
   private handleShapeText(shape: ShapeElement, id: Id) {
     const hasText = shape.data?.text && shape.data.text.trim().length > 0;
     // CRITICAL FIX: Always create text nodes for text-editable shapes, even with empty text
-    const isTextEditableShape = shape.type === 'rectangle' || shape.type === 'circle' || shape.type === 'triangle';
+    const isTextEditableShape =
+      shape.type === "rectangle" ||
+      shape.type === "circle" ||
+      shape.type === "triangle";
 
     if (isTextEditableShape) {
       // Text-editable shape - always create/update text attachment for openShapeTextEditor compatibility
@@ -462,20 +538,26 @@ export class ShapeRenderer implements RendererModule {
     }
   }
 
-  private createShapeTextAttachment(shape: ShapeElement, isEmpty?: boolean): ShapeTextAttachment | undefined {
+  private createShapeTextAttachment(
+    shape: ShapeElement,
+    isEmpty?: boolean,
+  ): ShapeTextAttachment | undefined {
     if (!this.layer) return undefined;
 
     try {
       // Apply consistent text styling based on shape type
-      const textConfig = getTextConfig(shape.type === 'circle' ? 'CIRCLE' : 'SHAPE');
+      const textConfig = getTextConfig(
+        shape.type === "circle" ? "CIRCLE" : "SHAPE",
+      );
       const fontSize = shape.style?.fontSize ?? textConfig.fontSize;
       const fontFamily = shape.style?.fontFamily || textConfig.fontFamily;
-      const textColor = shape.textColor || '#111827';
-      const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
-      const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
+      const textColor = shape.textColor || "#111827";
+      const padding = shape.data?.padding ?? (shape.type === "circle" ? 0 : 8);
+      const lineHeight =
+        (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
 
       const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
-      const textContent = shape.data?.text || ''; // Allow empty text
+      const textContent = shape.data?.text || ""; // Allow empty text
       const textNode = new Konva.Text({
         id: `${shape.id}-text`,
         name: `shape-text-${shape.id}`,
@@ -487,10 +569,10 @@ export class ShapeRenderer implements RendererModule {
         fontSize,
         fontFamily,
         fill: textColor,
-        align: 'center',
-        verticalAlign: 'middle',
+        align: "center",
+        verticalAlign: "middle",
         lineHeight,
-        wrap: 'word',
+        wrap: "word",
         listening: false,
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,
@@ -498,17 +580,17 @@ export class ShapeRenderer implements RendererModule {
         visible: !isEmpty,
       });
 
-      textNode.setAttr('elementId', shape.id);
-      textNode.setAttr('nodeType', 'shape-text');
+      textNode.setAttr("elementId", shape.id);
+      textNode.setAttr("nodeType", "shape-text");
 
       const primaryNode: Konva.Group | Konva.Text = textNode;
 
       const relativeDX = primaryNode.x() - shape.x;
       const relativeDY = primaryNode.y() - shape.y;
-      primaryNode.setAttr('relativeDX', relativeDX);
-      primaryNode.setAttr('relativeDY', relativeDY);
-      primaryNode.setAttr('elementId', shape.id);
-      primaryNode.setAttr('nodeType', 'shape-text-root');
+      primaryNode.setAttr("relativeDX", relativeDX);
+      primaryNode.setAttr("relativeDY", relativeDY);
+      primaryNode.setAttr("elementId", shape.id);
+      primaryNode.setAttr("nodeType", "shape-text-root");
 
       // Shape text node created
 
@@ -519,21 +601,28 @@ export class ShapeRenderer implements RendererModule {
     }
   }
 
-  private updateShapeTextAttachment(attachment: ShapeTextAttachment, shape: ShapeElement, isEmpty?: boolean) {
+  private updateShapeTextAttachment(
+    attachment: ShapeTextAttachment,
+    shape: ShapeElement,
+    isEmpty?: boolean,
+  ) {
     // Allow updating even when text is empty for text-editable shapes
 
     try {
       // Apply consistent text styling based on shape type
-      const textConfig = getTextConfig(shape.type === 'circle' ? 'CIRCLE' : 'SHAPE');
+      const textConfig = getTextConfig(
+        shape.type === "circle" ? "CIRCLE" : "SHAPE",
+      );
       const fontSize = shape.style?.fontSize ?? textConfig.fontSize;
       const fontFamily = shape.style?.fontFamily || textConfig.fontFamily;
-      const textColor = shape.textColor || '#111827';
-      const padding = shape.data?.padding ?? (shape.type === 'circle' ? 0 : 8);
-      const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
+      const textColor = shape.textColor || "#111827";
+      const padding = shape.data?.padding ?? (shape.type === "circle" ? 0 : 8);
+      const lineHeight =
+        (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
 
       const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
       const { text: textNode, primaryNode } = attachment;
-      const textContent = shape.data?.text || ''; // Allow empty text
+      const textContent = shape.data?.text || ""; // Allow empty text
 
       textNode.setAttrs({
         x: innerBox.x,
@@ -544,8 +633,8 @@ export class ShapeRenderer implements RendererModule {
         fontSize,
         fontFamily,
         fill: textColor,
-        align: 'center',
-        verticalAlign: 'middle',
+        align: "center",
+        verticalAlign: "middle",
         lineHeight,
         // CRITICAL FIX: Hide text node when text is empty to avoid visual artifacts
         visible: !isEmpty,
@@ -553,8 +642,8 @@ export class ShapeRenderer implements RendererModule {
 
       const relativeDX = primaryNode.x() - shape.x;
       const relativeDY = primaryNode.y() - shape.y;
-      primaryNode.setAttr('relativeDX', relativeDX);
-      primaryNode.setAttr('relativeDY', relativeDY);
+      primaryNode.setAttr("relativeDX", relativeDX);
+      primaryNode.setAttr("relativeDY", relativeDY);
 
       // Shape text node updated
     } catch (error) {
@@ -566,10 +655,10 @@ export class ShapeRenderer implements RendererModule {
     const attachment = this.textNodes.get(id);
     if (!attachment) return;
 
-    const dx = attachment.primaryNode.getAttr('relativeDX');
-    const dy = attachment.primaryNode.getAttr('relativeDY');
+    const dx = attachment.primaryNode.getAttr("relativeDX");
+    const dy = attachment.primaryNode.getAttr("relativeDY");
 
-    if (typeof dx !== 'number' || typeof dy !== 'number') return;
+    if (typeof dx !== "number" || typeof dy !== "number") return;
 
     attachment.primaryNode.position({ x: node.x() + dx, y: node.y() + dy });
     attachment.primaryNode.getLayer()?.batchDraw();
@@ -613,15 +702,19 @@ export class ShapeRenderer implements RendererModule {
         y: nodePos.y,
         width: visualWidth,
         height: visualHeight,
-        rotation: nodeRotation
+        rotation: nodeRotation,
       };
 
       // Apply consistent text styling and positioning
-      const padding = element.data?.padding ?? (element.type === 'circle' ? 0 : 8);
-      const innerBox = computeShapeInnerBox(visualElement as BaseShape, padding);
+      const padding =
+        element.data?.padding ?? (element.type === "circle" ? 0 : 8);
+      const innerBox = computeShapeInnerBox(
+        visualElement as BaseShape,
+        padding,
+      );
 
       // CRITICAL FIX: For circles/ellipses, ensure text stays perfectly centered
-      if (element.type === 'circle' || element.type === 'ellipse') {
+      if (element.type === "circle" || element.type === "ellipse") {
         // Calculate center-based positioning for circles to prevent text jumping
         const centerX = nodePos.x;
         const centerY = nodePos.y;
@@ -647,14 +740,16 @@ export class ShapeRenderer implements RendererModule {
       // Update relative positioning for consistent drag behavior
       const relativeDX = attachment.text.x() - visualElement.x;
       const relativeDY = attachment.text.y() - visualElement.y;
-      attachment.primaryNode.setAttr('relativeDX', relativeDX);
-      attachment.primaryNode.setAttr('relativeDY', relativeDY);
+      attachment.primaryNode.setAttr("relativeDX", relativeDX);
+      attachment.primaryNode.setAttr("relativeDY", relativeDY);
 
       // Immediately redraw the text layer for smooth visual feedback
       attachment.text.getLayer()?.batchDraw();
-
     } catch (error) {
-      console.warn('[ShapeRenderer] Failed to sync text during transform:', error);
+      console.warn(
+        "[ShapeRenderer] Failed to sync text during transform:",
+        error,
+      );
     }
   }
 

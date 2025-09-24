@@ -1,8 +1,8 @@
 // Text renderer module for rendering text elements
-import Konva from 'konva';
-import type { ModuleRendererCtx, RendererModule } from '../index';
-import { openKonvaTextEditor } from '../../utils/editors/openShapeTextEditor';
-import { getTextConfig } from '../../constants/TextConstants';
+import Konva from "konva";
+import type { ModuleRendererCtx, RendererModule } from "../index";
+import { openKonvaTextEditor } from "../../utils/editors/openShapeTextEditor";
+import { getTextConfig } from "../../constants/TextConstants";
 
 type Id = string;
 
@@ -38,7 +38,7 @@ export class TextRenderer implements RendererModule {
   private layer?: Konva.Layer;
   private stage?: Konva.Stage;
   private unsubscribe?: () => void;
-  private store?: ModuleRendererCtx['store'];
+  private store?: ModuleRendererCtx["store"];
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Mounting text renderer
@@ -71,16 +71,18 @@ export class TextRenderer implements RendererModule {
           if (a.size !== b.size) return false;
           for (const [id, element] of a) {
             const other = b.get(id);
-            if (!other ||
-                other.text !== element.text ||
-                other.x !== element.x ||
-                other.y !== element.y) {
+            if (
+              !other ||
+              other.text !== element.text ||
+              other.x !== element.x ||
+              other.y !== element.y
+            ) {
               return false;
             }
           }
           return true;
-        }
-      }
+        },
+      },
     );
 
     // Return cleanup function
@@ -117,9 +119,20 @@ export class TextRenderer implements RendererModule {
       seen.add(id);
       let node = this.textNodes.get(id);
 
-      if (!node || (node && 'isDestroyed' in node && typeof node.isDestroyed === 'function' && node.isDestroyed() === true)) {
+      if (
+        !node ||
+        (node &&
+          "isDestroyed" in node &&
+          typeof node.isDestroyed === "function" &&
+          node.isDestroyed() === true)
+      ) {
         // Remove destroyed node from tracking if it exists
-        if (node && 'isDestroyed' in node && typeof node.isDestroyed === 'function' && node.isDestroyed() === true) {
+        if (
+          node &&
+          "isDestroyed" in node &&
+          typeof node.isDestroyed === "function" &&
+          node.isDestroyed() === true
+        ) {
           // Removing destroyed node from tracking
           this.textNodes.delete(id);
         }
@@ -174,6 +187,10 @@ export class TextRenderer implements RendererModule {
   private createTextNode(text: TextElement): Konva.Text {
     // Creating text node
 
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.store?.getState();
+    const isPanToolActive = storeState?.selectedTool === "pan";
+
     const node = new Konva.Text({
       id: text.id,
       name: `text-${text.id}`,
@@ -183,29 +200,32 @@ export class TextRenderer implements RendererModule {
       text: text.text,
       // Apply consistent text styling with fallback support
       ...(() => {
-        const textConfig = getTextConfig('TEXT');
+        const textConfig = getTextConfig("TEXT");
         return {
           fontSize: text.style?.fontSize || textConfig.fontSize,
           fontFamily: text.style?.fontFamily || textConfig.fontFamily,
           fontStyle: text.style?.fontWeight || textConfig.fontWeight.toString(),
         };
       })(),
-      fill: text.style?.fill || '#111827', // Use element's fill color
-      align: text.style?.align || 'left',
+      fill: text.style?.fill || "#111827", // Use element's fill color
+      align: text.style?.align || "left",
       rotation: text.rotation || 0,
       opacity: text.opacity || 1,
-      wrap: 'none', // Single line text for now
+      wrap: "none", // Single line text for now
       listening: true,
-      draggable: true, // enable dragging
+      draggable: !isPanToolActive, // disable dragging when pan tool is active
       // Performance optimizations
       perfectDrawEnabled: false,
       shadowForStrokeEnabled: false,
     });
 
     // Set element ID for selection system - use both methods for compatibility
-    node.setAttr('elementId', text.id);
-    node.setAttr('nodeType', 'text'); // Additional attribute to help with identification
-    node.setAttr('resizable', text.resizable !== undefined ? text.resizable : false); // Phase 18A: Text elements not resizable by default
+    node.setAttr("elementId", text.id);
+    node.setAttr("nodeType", "text"); // Additional attribute to help with identification
+    node.setAttr(
+      "resizable",
+      text.resizable !== undefined ? text.resizable : false,
+    ); // Phase 18A: Text elements not resizable by default
 
     // Add event handlers
     this.addEventHandlers(node, text);
@@ -226,7 +246,13 @@ export class TextRenderer implements RendererModule {
 
   private updateTextNode(node: Konva.Text, text: TextElement) {
     // Safety check: ensure node exists and hasn't been destroyed
-    if (!node || (node && 'isDestroyed' in node && typeof node.isDestroyed === 'function' && node.isDestroyed() === true)) {
+    if (
+      !node ||
+      (node &&
+        "isDestroyed" in node &&
+        typeof node.isDestroyed === "function" &&
+        node.isDestroyed() === true)
+    ) {
       // Warning: [TextRenderer] Attempted to update destroyed or null text node: ${text.id}
       return;
     }
@@ -239,15 +265,15 @@ export class TextRenderer implements RendererModule {
         text: text.text,
         // Apply consistent text styling with fallback support
         ...(() => {
-          const textConfig = getTextConfig('TEXT');
+          const textConfig = getTextConfig("TEXT");
           return {
             fontSize: text.style?.fontSize || textConfig.fontSize,
             fontFamily: text.style?.fontFamily || textConfig.fontFamily,
           };
         })(),
-        fontStyle: text.style?.fontWeight || 'normal',
-        fill: text.style?.fill || '#111827', // Use element's fill color
-        align: text.style?.align || 'left',
+        fontStyle: text.style?.fontWeight || "normal",
+        fill: text.style?.fill || "#111827", // Use element's fill color
+        align: text.style?.align || "left",
         rotation: text.rotation || 0,
         opacity: text.opacity || 1,
         // Performance optimizations
@@ -256,8 +282,8 @@ export class TextRenderer implements RendererModule {
       });
 
       // Set element ID for selection system - use both methods for compatibility
-      node.setAttr('elementId', text.id);
-      node.setAttr('nodeType', 'text');
+      node.setAttr("elementId", text.id);
+      node.setAttr("nodeType", "text");
 
       // Fixed-height content-hugging: adjust height based on text content
       if (!text.height) {
@@ -281,7 +307,7 @@ export class TextRenderer implements RendererModule {
 
   private addEventHandlers(node: Konva.Text, text: TextElement) {
     // Handle single click for selection
-    node.on('click', (e) => {
+    node.on("click", (e) => {
       // Text clicked for selection
       e.cancelBubble = true; // Prevent event bubbling
 
@@ -303,7 +329,7 @@ export class TextRenderer implements RendererModule {
     });
 
     // Handle tap for mobile selection
-    node.on('tap', (e) => {
+    node.on("tap", (e) => {
       // Text tapped for selection
       e.cancelBubble = true;
 
@@ -314,14 +340,14 @@ export class TextRenderer implements RendererModule {
     });
 
     // Handle dragging to update position
-    node.on('dragstart', (e) => {
+    node.on("dragstart", (e) => {
       // Text drag started
       // Set dragStatus for compatibility with transformer
       const textNode = e.target as Konva.Text;
-      (textNode as Konva.Text & { dragStatus?: string }).dragStatus = 'started';
+      (textNode as Konva.Text & { dragStatus?: string }).dragStatus = "started";
     });
 
-    node.on('dragend', (e) => {
+    node.on("dragend", (e) => {
       const textNode = e.target as Konva.Text;
       const nx = textNode.x();
       const ny = textNode.y();
@@ -334,14 +360,14 @@ export class TextRenderer implements RendererModule {
     });
 
     // Handle double-click for text editing
-    node.on('dblclick', (e) => {
+    node.on("dblclick", (e) => {
       // Text double-clicked for editing
       e.cancelBubble = true; // Prevent event bubbling
       this.startTextEditing(node, text);
     });
 
     // Handle double-tap for mobile
-    node.on('dbltap', (e) => {
+    node.on("dbltap", (e) => {
       // Text double-tapped for editing
       e.cancelBubble = true;
       this.startTextEditing(node, text);
@@ -391,7 +417,7 @@ export class TextRenderer implements RendererModule {
       },
       onCancel: () => {
         // Text editing cancelled
-      }
+      },
     });
   }
 }

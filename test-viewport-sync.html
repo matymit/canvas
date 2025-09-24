@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Viewport Synchronization Test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+      }
+      .test-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      .test-result {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .primary {
+        background: #007bff;
+        color: white;
+      }
+      .secondary {
+        background: #6c757d;
+        color: white;
+      }
+      pre {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Viewport Synchronization Test</h1>
+
+    <div class="test-container">
+      <h2>Test: Store-Stage Synchronization</h2>
+      <p>
+        This test verifies that the viewport store and Konva stage are properly
+        synchronized after the React subscription fix.
+      </p>
+      <button class="primary" onclick="testViewportSync()">Run Test</button>
+      <button class="secondary" onclick="clearResults()">Clear Results</button>
+      <div id="test-results"></div>
+    </div>
+
+    <div class="test-container">
+      <h2>Manual Test Instructions</h2>
+      <ol>
+        <li>
+          Open the main app at
+          <a href="http://localhost:1421" target="_blank"
+            >http://localhost:1421</a
+          >
+        </li>
+        <li>Open browser DevTools and go to Console tab</li>
+        <li>Copy and paste the test code below into the console</li>
+        <li>Check the results to verify the fix is working</li>
+      </ol>
+
+      <h3>Console Test Code:</h3>
+      <pre id="console-test-code">
+// Test viewport synchronization
+async function testViewportSync() {
+    console.log('🧪 Testing viewport synchronization...');
+    
+    // Check if store and stage are available
+    const store = window.unifiedCanvasStore;
+    const stage = window.konvaStage;
+    
+    if (!store || !stage) {
+        console.error('❌ Store or stage not found');
+        return;
+    }
+    
+    console.log('✅ Store and stage found');
+    
+    // Get initial state
+    const viewport = store.getState().viewport;
+    console.log('📍 Initial viewport:', viewport);
+    
+    // Test setPan method
+    console.log('🔄 Testing setPan(50, 50)...');
+    viewport.setPan(50, 50);
+    
+    // Wait for state update
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Check updated state
+    const updatedViewport = store.getState().viewport;
+    console.log('📍 Updated viewport:', updatedViewport);
+    
+    // Check if stage layers were updated
+    const layers = stage.getChildren();
+    console.log('📍 Stage layers position:');
+    layers.forEach((layer, index) => {
+        const pos = layer.position();
+        console.log(`  Layer ${index}: (${pos.x}, ${pos.y})`);
+    });
+    
+    // Verify synchronization
+    const viewportUpdated = updatedViewport.x === 50 && updatedViewport.y === 50;
+    const layersUpdated = layers.every(layer => {
+        const pos = layer.position();
+        return pos.x === 50 && pos.y === 50;
+    });
+    
+    if (viewportUpdated && layersUpdated) {
+        console.log('🎉 SUCCESS: Viewport synchronization is working!');
+    } else {
+        console.log('❌ FAILED: Viewport synchronization is broken');
+        console.log('  Viewport updated:', viewportUpdated);
+        console.log('  Layers updated:', layersUpdated);
+    }
+}
+
+// Run the test
+testViewportSync();</pre
+      >
+
+      <button class="primary" onclick="copyConsoleTest()">
+        Copy Test Code
+      </button>
+    </div>
+
+    <script>
+      function logResult(message, type = "info") {
+        const container = document.getElementById("test-results");
+        const div = document.createElement("div");
+        div.className = `test-result ${type}`;
+        div.textContent = message;
+        container.appendChild(div);
+      }
+
+      function clearResults() {
+        document.getElementById("test-results").innerHTML = "";
+      }
+
+      function copyConsoleTest() {
+        const code = document.getElementById("console-test-code").textContent;
+        navigator.clipboard
+          .writeText(code)
+          .then(() => {
+            logResult("✅ Test code copied to clipboard", "success");
+          })
+          .catch(() => {
+            logResult("❌ Failed to copy test code", "error");
+          });
+      }
+
+      async function testViewportSync() {
+        clearResults();
+        logResult("🧪 Testing viewport synchronization...", "info");
+
+        try {
+          // Wait for the app to load in the other tab
+          logResult("⏳ Waiting for app to load...", "info");
+
+          // Check if we can access the store and stage from this window
+          // This won't work directly due to cross-origin restrictions,
+          // but we can provide instructions for manual testing
+          logResult("📋 Manual testing required:", "info");
+          logResult("1. Open http://localhost:1421 in a new tab", "info");
+          logResult("2. Open DevTools Console", "info");
+          logResult("3. Copy and run the console test code", "info");
+          logResult("4. Check the results in the console", "info");
+
+          logResult("🔍 Expected Results:", "info");
+          logResult("- Store viewport should update to (50, 50)", "info");
+          logResult("- All stage layers should move to (50, 50)", "info");
+          logResult('- Console should show "SUCCESS" message', "info");
+
+          logResult(
+            "⚠️  Note: This test cannot run automatically due to browser security restrictions",
+            "info",
+          );
+          logResult(
+            "Please follow the manual testing instructions above.",
+            "info",
+          );
+        } catch (error) {
+          logResult(`❌ Test failed with error: ${error.message}`, "error");
+          console.error("Test error:", error);
+        }
+      }
+
+      // Initialize
+      window.addEventListener("load", () => {
+        logResult("🚀 Viewport synchronization test page loaded", "info");
+        logResult(
+          'Click "Run Test" for instructions, or test manually using the console code',
+          "info",
+        );
+      });
+    </script>
+  </body>
+</html>

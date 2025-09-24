@@ -57,7 +57,7 @@ export class StickyNoteModule implements RendererModule {
 
     const extendedWindow = window as ExtendedWindow;
 
-    debug("Mounting module", { category: 'StickyNoteModule' });
+    debug("Mounting module", { category: "StickyNoteModule" });
 
     // FIXED: Make module globally accessible for tool integration
     extendedWindow.stickyNoteModule = this;
@@ -76,8 +76,12 @@ export class StickyNoteModule implements RendererModule {
               width: element.width || 240,
               height: element.height || 180,
               fill: element.fill || element.style?.fill || "#FFF59D", // Check fill first, then style.fill
-              text: (typeof element.text === 'string' ? element.text : '') ||
-                    (typeof element.data?.text === 'string' ? element.data.text : '') || "",
+              text:
+                (typeof element.text === "string" ? element.text : "") ||
+                (typeof element.data?.text === "string"
+                  ? element.data.text
+                  : "") ||
+                "",
             });
           }
         }
@@ -108,7 +112,7 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private unmount() {
-    debug("Unmounting module", { category: 'StickyNoteModule' });
+    debug("Unmounting module", { category: "StickyNoteModule" });
     this.closeActiveEditor();
     if (this.unsubscribe) {
       this.unsubscribe();
@@ -144,7 +148,10 @@ export class StickyNoteModule implements RendererModule {
 
       if (!group) {
         // Create new sticky note
-        debug("Creating new sticky note", { category: 'StickyNoteModule', data: { id, sticky } });
+        debug("Creating new sticky note", {
+          category: "StickyNoteModule",
+          data: { id, sticky },
+        });
         group = this.createStickyGroup(sticky);
         this.nodes.set(id, group);
         this.layers.add(group);
@@ -159,7 +166,10 @@ export class StickyNoteModule implements RendererModule {
     // Remove deleted sticky notes
     for (const [id, group] of this.nodes) {
       if (!seen.has(id)) {
-        debug("Removing sticky note", { category: 'StickyNoteModule', data: id });
+        debug("Removing sticky note", {
+          category: "StickyNoteModule",
+          data: id,
+        });
         group.destroy();
         this.nodes.delete(id);
       }
@@ -169,13 +179,17 @@ export class StickyNoteModule implements RendererModule {
   }
 
   private createStickyGroup(sticky: StickySnapshot): Konva.Group {
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.storeCtx?.store?.getState();
+    const isPanToolActive = storeState?.selectedTool === "pan";
+
     const group = new Konva.Group({
       id: sticky.id,
       x: sticky.x,
       y: sticky.y,
       width: sticky.width,
       height: sticky.height,
-      draggable: true,
+      draggable: !isPanToolActive,
     });
 
     // FIXED: Set elementId attribute for SelectionModule integration
@@ -205,7 +219,7 @@ export class StickyNoteModule implements RendererModule {
     });
 
     // Apply consistent text styling for sticky notes
-    const textConfig = getTextConfig('STICKY_NOTE');
+    const textConfig = getTextConfig("STICKY_NOTE");
     const text = new Konva.Text({
       name: "sticky-text",
       x: 12,
@@ -281,7 +295,10 @@ export class StickyNoteModule implements RendererModule {
         e.cancelBubble = true; // Prevent stage click
       }
 
-      debug("Click on sticky note", { category: 'StickyNoteModule', data: elementId });
+      debug("Click on sticky note", {
+        category: "StickyNoteModule",
+        data: elementId,
+      });
 
       const selectionModule = getSelectionModule();
       if (selectionModule) {
@@ -290,16 +307,24 @@ export class StickyNoteModule implements RendererModule {
         selectionModule.selectElement(elementId, { autoFocus: !isAdditive });
       } else {
         // Fallback to direct store integration
-        debug("No SelectionModule, using fallback", { category: 'StickyNoteModule' });
+        debug("No SelectionModule, using fallback", {
+          category: "StickyNoteModule",
+        });
         if (!this.storeCtx) return;
 
         const store = this.storeCtx.store.getState();
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
 
-        if ('setSelection' in store && typeof store.setSelection === 'function') {
+        if (
+          "setSelection" in store &&
+          typeof store.setSelection === "function"
+        ) {
           if (isAdditive) {
             // Get current selection and toggle
-            const current = ('selectedElementIds' in store ? store.selectedElementIds : new Set()) || new Set();
+            const current =
+              ("selectedElementIds" in store
+                ? store.selectedElementIds
+                : new Set()) || new Set();
             const newSelection = new Set(current as Iterable<string>);
             if (newSelection.has(elementId)) {
               newSelection.delete(elementId);
@@ -310,8 +335,11 @@ export class StickyNoteModule implements RendererModule {
           } else {
             store.setSelection([elementId]);
           }
-        } else if ('selection' in store && store.selection) {
-          const selection = store.selection as { toggle?: (id: string) => void; set?: (ids: string[]) => void };
+        } else if ("selection" in store && store.selection) {
+          const selection = store.selection as {
+            toggle?: (id: string) => void;
+            set?: (ids: string[]) => void;
+          };
           if (isAdditive) {
             selection.toggle?.(elementId);
           } else {
@@ -371,7 +399,8 @@ export class StickyNoteModule implements RendererModule {
         const withUndo =
           storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
           storeWithHistory.withUndo;
-        const updateElement = storeWithHistory.element?.update || storeWithHistory.updateElement;
+        const updateElement =
+          storeWithHistory.element?.update || storeWithHistory.updateElement;
 
         if (updateElement) {
           const updateFn = () => {
@@ -456,7 +485,8 @@ export class StickyNoteModule implements RendererModule {
         const withUndo =
           storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
           storeWithHistory.withUndo;
-        const updateElement = storeWithHistory.element?.update || storeWithHistory.updateElement;
+        const updateElement =
+          storeWithHistory.element?.update || storeWithHistory.updateElement;
 
         if (updateElement) {
           const updateFn = () => {
@@ -484,7 +514,10 @@ export class StickyNoteModule implements RendererModule {
     // Double-click to edit text
     group.on("dblclick dbltap", (e) => {
       e.cancelBubble = true;
-      debug("Double-click - starting text editing", { category: 'StickyNoteModule', data: elementId });
+      debug("Double-click - starting text editing", {
+        category: "StickyNoteModule",
+        data: elementId,
+      });
       this.startTextEditing(group, elementId);
     });
 
@@ -504,23 +537,32 @@ export class StickyNoteModule implements RendererModule {
 
   // Public method to trigger immediate text editing (called by StickyNoteTool)
   public startTextEditingForElement(elementId: string) {
-    debug("Public startTextEditingForElement", { category: 'StickyNoteModule', data: elementId });
+    debug("Public startTextEditingForElement", {
+      category: "StickyNoteModule",
+      data: elementId,
+    });
     const group = this.nodes.get(elementId);
     if (group) {
       this.startTextEditing(group, elementId);
     } else {
-      debug("Group not found", { category: 'StickyNoteModule', data: elementId });
+      debug("Group not found", {
+        category: "StickyNoteModule",
+        data: elementId,
+      });
     }
   }
 
   private startTextEditing(group: Konva.Group, elementId: string) {
-    debug("Starting text editing", { category: 'StickyNoteModule', data: elementId });
-    
+    debug("Starting text editing", {
+      category: "StickyNoteModule",
+      data: elementId,
+    });
+
     // Close any existing editor
     this.closeActiveEditor();
 
     if (!this.storeCtx) {
-      debug("No store context", { category: 'StickyNoteModule' });
+      debug("No store context", { category: "StickyNoteModule" });
       return;
     }
 
@@ -529,7 +571,10 @@ export class StickyNoteModule implements RendererModule {
     const textNode = group.findOne(".sticky-text") as Konva.Text;
     const bgNode = group.findOne(".sticky-bg") as Konva.Rect;
     if (!stage || !textNode || !bgNode) {
-      debug("Missing required nodes", { category: 'StickyNoteModule', data: { stage: !!stage, textNode: !!textNode, bgNode: !!bgNode } });
+      debug("Missing required nodes", {
+        category: "StickyNoteModule",
+        data: { stage: !!stage, textNode: !!textNode, bgNode: !!bgNode },
+      });
       return;
     }
 
@@ -537,11 +582,14 @@ export class StickyNoteModule implements RendererModule {
     const rect = container.getBoundingClientRect();
     const textAbsPos = textNode.absolutePosition();
 
-    debug("Editor positioning", { category: 'StickyNoteModule', data: {
-      containerRect: rect,
-      textAbsPos,
-      finalPos: { x: rect.left + textAbsPos.x, y: rect.top + textAbsPos.y }
-    }});
+    debug("Editor positioning", {
+      category: "StickyNoteModule",
+      data: {
+        containerRect: rect,
+        textAbsPos,
+        finalPos: { x: rect.left + textAbsPos.x, y: rect.top + textAbsPos.y },
+      },
+    });
 
     // Create seamlessly integrated text editor
     const fillValue = bgNode.fill();
@@ -577,12 +625,22 @@ export class StickyNoteModule implements RendererModule {
     const store = this.storeCtx?.store.getState();
     const element =
       store?.elements?.get?.(elementId) || store?.element?.getById?.(elementId);
-    const currentText = (typeof element?.text === 'string' ? element.text : '') ||
-                       (typeof element?.data?.text === 'string' ? element.data.text : '') || "";
+    const currentText =
+      (typeof element?.text === "string" ? element.text : "") ||
+      (typeof element?.data?.text === "string" ? element.data.text : "") ||
+      "";
 
     editor.value = currentText;
 
-    debug("Creating editor", { category: 'StickyNoteModule', data: { elementId, currentText, position: { pageX, pageY, width, height }, bgColor } });
+    debug("Creating editor", {
+      category: "StickyNoteModule",
+      data: {
+        elementId,
+        currentText,
+        position: { pageX, pageY, width, height },
+        bgColor,
+      },
+    });
 
     // FIXED: Seamless integration styling with background color matching
     editor.style.cssText = `
@@ -615,8 +673,8 @@ export class StickyNoteModule implements RendererModule {
     editor.style.outline = "none";
 
     // FIXED: Immediate focus with visible caret
-    debug("Focusing editor", { category: 'StickyNoteModule' });
-    
+    debug("Focusing editor", { category: "StickyNoteModule" });
+
     // Use multiple strategies to ensure focus
     const focusEditor = () => {
       try {
@@ -626,29 +684,35 @@ export class StickyNoteModule implements RendererModule {
         } else {
           editor.setSelectionRange(0, 0);
         }
-        debug("Editor focused and caret positioned", { category: 'StickyNoteModule' });
+        debug("Editor focused and caret positioned", {
+          category: "StickyNoteModule",
+        });
       } catch (error) {
-        debug("Focus error", { category: 'StickyNoteModule', data: error });
+        debug("Focus error", { category: "StickyNoteModule", data: error });
       }
     };
 
     // Immediate focus
     focusEditor();
-    
+
     // Delayed focus as backup
     setTimeout(focusEditor, 10);
-    
+
     // RAF focus as backup
     requestAnimationFrame(focusEditor);
 
     const commit = () => {
       const newText = editor.value;
-      debug("Committing text", { category: 'StickyNoteModule', data: { elementId, newText } });
+      debug("Committing text", {
+        category: "StickyNoteModule",
+        data: { elementId, newText },
+      });
 
       if (this.storeCtx) {
         const store = this.storeCtx.store.getState();
         const storeWithHistory = store as StoreWithHistory;
-        const updateElement = storeWithHistory.element?.update || storeWithHistory.updateElement;
+        const updateElement =
+          storeWithHistory.element?.update || storeWithHistory.updateElement;
         const withUndo =
           storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
           storeWithHistory.withUndo;
@@ -721,7 +785,10 @@ export class StickyNoteModule implements RendererModule {
   private closeActiveEditor() {
     if (!this.activeEditor || !this.editorElementId) return;
 
-    debug("Closing editor", { category: 'StickyNoteModule', data: this.editorElementId });
+    debug("Closing editor", {
+      category: "StickyNoteModule",
+      data: this.editorElementId,
+    });
 
     // Show the Konva text again
     const group = this.nodes.get(this.editorElementId);
@@ -737,7 +804,7 @@ export class StickyNoteModule implements RendererModule {
     try {
       this.activeEditor.remove();
     } catch (error) {
-      logError("Cleanup error", { category: 'StickyNoteModule', data: error });
+      logError("Cleanup error", { category: "StickyNoteModule", data: error });
     }
 
     this.activeEditor = null;
@@ -749,7 +816,10 @@ export class StickyNoteModule implements RendererModule {
 
   // FIXED: Public method for immediate text editing after creation with improved timing
   public triggerImmediateTextEdit(elementId: string) {
-    debug("triggerImmediateTextEdit called", { category: 'StickyNoteModule', data: elementId });
+    debug("triggerImmediateTextEdit called", {
+      category: "StickyNoteModule",
+      data: elementId,
+    });
     this.pendingImmediateEdits.add(elementId);
     this.maybeStartPendingEdit(elementId);
   }

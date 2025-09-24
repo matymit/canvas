@@ -83,6 +83,7 @@
     "lighthouse": "^12.8.2",
     "postcss": "^8.5.6",
     "prettier": "^3.0.0",
+    "puppeteer": "^24.22.2",
     "rimraf": "^5.0.1",
     "selenium-webdriver": "^4.24.0",
     "tailwindcss": "^4.1.13",

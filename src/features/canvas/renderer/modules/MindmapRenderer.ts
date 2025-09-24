@@ -12,7 +12,11 @@ interface StoreState {
   element?: {
     all?: Map<string, CanvasElement> | Record<string, CanvasElement>;
     getById?: (id: string) => CanvasElement | undefined;
-    update?: (id: string, changes: Partial<CanvasElement>, options?: { pushHistory?: boolean }) => void;
+    update?: (
+      id: string,
+      changes: Partial<CanvasElement>,
+      options?: { pushHistory?: boolean },
+    ) => void;
   };
   selection?: {
     selectOne?: (id: string, additive: boolean) => void;
@@ -21,7 +25,11 @@ interface StoreState {
   history?: {
     withUndo?: (description: string, fn: () => void) => void;
   };
-  updateElement?: (id: string, changes: Partial<CanvasElement>, options?: { pushHistory?: boolean }) => void;
+  updateElement?: (
+    id: string,
+    changes: Partial<CanvasElement>,
+    options?: { pushHistory?: boolean },
+  ) => void;
   getElement?: (id: string) => CanvasElement | undefined;
   replaceSelectionWithSingle?: (id: string) => void;
 }
@@ -44,7 +52,7 @@ interface MindmapEdgeData extends Record<string, unknown> {
 }
 
 interface MindmapCanvasElement extends CanvasElement {
-  type: 'mindmap-node' | 'mindmap-edge';
+  type: "mindmap-node" | "mindmap-edge";
   text?: string;
   parentId?: string | null;
   level?: number;
@@ -174,7 +182,8 @@ export class MindmapRenderer {
       elementsMap.forEach((element: CanvasElement, id: string) => {
         if (element.type === "mindmap-node") {
           const mindmapElement = element as MindmapCanvasElement;
-          const elementParentId = mindmapElement.parentId ?? mindmapElement.data?.parentId;
+          const elementParentId =
+            mindmapElement.parentId ?? mindmapElement.data?.parentId;
           if (elementParentId === parentId) {
             descendants.add(id);
             // Recursively find descendants of this child
@@ -201,23 +210,31 @@ export class MindmapRenderer {
     const level =
       mindmapElement.level ??
       nodeData?.level ??
-      ((mindmapElement.parentId ?? (nodeData as MindmapNodeData)?.parentId) ? 1 : 0);
+      ((mindmapElement.parentId ?? (nodeData as MindmapNodeData)?.parentId)
+        ? 1
+        : 0);
     const color =
       mindmapElement.color ??
       nodeData?.color ??
       MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
 
-    const style = this.mergeNodeStyle(mindmapElement.style as MindmapNodeStyle | undefined ?? nodeData?.style);
+    const style = this.mergeNodeStyle(
+      (mindmapElement.style as MindmapNodeStyle | undefined) ?? nodeData?.style,
+    );
     const hydratedStyle: MindmapNodeStyle = {
       ...style,
       fill: style.fill ?? color,
       textColor: style.textColor ?? DEFAULT_NODE_STYLE.textColor,
       fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
       // Apply consistent text styling for mindmap nodes
-      fontSize: style.fontSize ?? (() => {
-        const textConfig = getTextConfig(level === 0 ? 'MINDMAP_ROOT' : 'MINDMAP_CHILD');
-        return textConfig.fontSize;
-      })(),
+      fontSize:
+        style.fontSize ??
+        (() => {
+          const textConfig = getTextConfig(
+            level === 0 ? "MINDMAP_ROOT" : "MINDMAP_CHILD",
+          );
+          return textConfig.fontSize;
+        })(),
       cornerRadius: style.cornerRadius ?? DEFAULT_NODE_STYLE.cornerRadius,
       stroke:
         style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
@@ -237,19 +254,28 @@ export class MindmapRenderer {
       height: raw.height ?? MINDMAP_CONFIG.defaultNodeHeight,
       text: mindmapElement.text ?? (nodeData as MindmapNodeData)?.text ?? "",
       style: hydratedStyle,
-      parentId: mindmapElement.parentId ?? (nodeData as MindmapNodeData)?.parentId ?? null,
+      parentId:
+        mindmapElement.parentId ??
+        (nodeData as MindmapNodeData)?.parentId ??
+        null,
       level,
       color,
       // CRITICAL: Preserve textWidth and textHeight from the raw element
-      textWidth: mindmapElement.textWidth ?? (nodeData as MindmapNodeData)?.textWidth,
-      textHeight: mindmapElement.textHeight ?? (nodeData as MindmapNodeData)?.textHeight,
+      textWidth:
+        mindmapElement.textWidth ?? (nodeData as MindmapNodeData)?.textWidth,
+      textHeight:
+        mindmapElement.textHeight ?? (nodeData as MindmapNodeData)?.textHeight,
     };
   }
 
   private bindNodeEvents(group: Konva.Group, node: MindmapNodeElement) {
     if (group.getAttr(MindmapRenderer.HANDLER_FLAG)) return;
     group.setAttr(MindmapRenderer.HANDLER_FLAG, true);
-    group.draggable(true);
+
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.store.getState();
+    const isPanToolActive = storeState?.selectedTool === "pan";
+    group.draggable(!isPanToolActive);
 
     // Track click timing for double-click vs drag detection
     let lastClickTime = 0;
@@ -459,7 +485,10 @@ export class MindmapRenderer {
             y: 0,
             fromId: mindmapElement.fromId ?? edgeData?.fromId ?? "",
             toId: mindmapElement.toId ?? edgeData?.toId ?? "",
-            style: this.mergeBranchStyle((mindmapElement.style as BranchStyle | undefined) ?? edgeData?.style),
+            style: this.mergeBranchStyle(
+              (mindmapElement.style as BranchStyle | undefined) ??
+                edgeData?.style,
+            ),
           };
           edges.push(edge);
         }
@@ -542,6 +571,10 @@ export class MindmapRenderer {
         group.remove();
         this.nodeGroups.delete(element.id);
       }
+      // Check if pan tool is active - if so, disable dragging on elements
+      const storeState = this.store.getState();
+      const isPanToolActive = storeState?.selectedTool === "pan";
+
       group = new Konva.Group({
         id: element.id,
         name: "mindmap-node",
@@ -550,7 +583,7 @@ export class MindmapRenderer {
         width: totalWidth,
         height: totalHeight,
         listening: true,
-        draggable: true,
+        draggable: !isPanToolActive,
       });
 
       this.layers.main.add(group);
@@ -560,7 +593,11 @@ export class MindmapRenderer {
     // Update position and size
     group.position({ x: normalized.x, y: normalized.y });
     group.size({ width: totalWidth, height: totalHeight });
-    group.draggable(true);
+
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.store.getState();
+    const isPanToolActive = storeState?.selectedTool === "pan";
+    group.draggable(!isPanToolActive);
     group.listening(true);
     // Ensure the group can receive mouse events
     group.setAttr("cursor", "pointer");

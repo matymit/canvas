@@ -1,47 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+  <head>
     <title>Pan Tool Test Verification</title>
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-        }
-        .test-instructions {
-            background: #f0f0f0;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        .test-result {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 5px;
-        }
-        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+      }
+      .test-instructions {
+        background: #f0f0f0;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+      .test-result {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      .success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Pan Tool Test Verification</h1>
 
     <div class="test-instructions">
-        <h3>Manual Test Instructions:</h3>
-        <ol>
-            <li>Open <a href="http://localhost:1422" target="_blank">http://localhost:1422</a></li>
-            <li>Select the Pan tool from the toolbar (hand icon)</li>
-            <li>Click and drag on the canvas</li>
-            <li>Verify the canvas moves smoothly without lag</li>
-            <li>Open browser console and verify no infinite "Rendering tool" messages</li>
-            <li>Switch to other tools and back to pan - should work correctly</li>
-        </ol>
+      <h3>Manual Test Instructions:</h3>
+      <ol>
+        <li>
+          Open
+          <a href="http://localhost:1421" target="_blank"
+            >http://localhost:1421</a
+          >
+        </li>
+        <li>Select the Pan tool from the toolbar (hand icon)</li>
+        <li>Click and drag on the canvas</li>
+        <li>Verify the canvas moves smoothly without lag</li>
+        <li>
+          Open browser console and verify no infinite "Rendering tool" messages
+        </li>
+        <li>Switch to other tools and back to pan - should work correctly</li>
+      </ol>
     </div>
 
     <div class="test-instructions">
-        <h3>Automated Test Script:</h3>
-        <p>Copy and paste this script into the browser console when the app is loaded:</p>
-        <pre><code id="test-script">
+      <h3>Automated Test Script:</h3>
+      <p>
+        Copy and paste this script into the browser console when the app is
+        loaded:
+      </p>
+      <pre><code id="test-script">
 // Pan Tool Verification Script
 console.log('🔧 Running Pan Tool Verification...');
 
@@ -135,37 +153,37 @@ if (test1_CheckAvailability()) {
     </div>
 
     <div class="test-result success">
-        <h4>✅ Expected Results After Fix:</h4>
-        <ul>
-            <li>No infinite "Rendering tool" messages in console</li>
-            <li>Pan tool cursor changes to grab/grabbing correctly</li>
-            <li>Canvas moves smoothly when dragging with pan tool</li>
-            <li>Store and stage stay in sync during panning</li>
-            <li>No performance issues or lag during panning</li>
-        </ul>
+      <h4>✅ Expected Results After Fix:</h4>
+      <ul>
+        <li>No infinite "Rendering tool" messages in console</li>
+        <li>Pan tool cursor changes to grab/grabbing correctly</li>
+        <li>Canvas moves smoothly when dragging with pan tool</li>
+        <li>Store and stage stay in sync during panning</li>
+        <li>No performance issues or lag during panning</li>
+      </ul>
     </div>
 
     <script>
-        // Copy test script to clipboard function
-        function copyTestScript() {
-            const scriptElement = document.getElementById('test-script');
-            navigator.clipboard.writeText(scriptElement.textContent).then(() => {
-                alert('Test script copied to clipboard!');
-            });
-        }
+      // Copy test script to clipboard function
+      function copyTestScript() {
+        const scriptElement = document.getElementById("test-script");
+        navigator.clipboard.writeText(scriptElement.textContent).then(() => {
+          alert("Test script copied to clipboard!");
+        });
+      }
 
-        // Add copy button
-        const button = document.createElement('button');
-        button.textContent = 'Copy Test Script';
-        button.onclick = copyTestScript;
-        button.style.marginTop = '10px';
-        button.style.padding = '10px 20px';
-        button.style.backgroundColor = '#007bff';
-        button.style.color = 'white';
-        button.style.border = 'none';
-        button.style.borderRadius = '5px';
-        button.style.cursor = 'pointer';
-        document.querySelector('pre').parentNode.appendChild(button);
+      // Add copy button
+      const button = document.createElement("button");
+      button.textContent = "Copy Test Script";
+      button.onclick = copyTestScript;
+      button.style.marginTop = "10px";
+      button.style.padding = "10px 20px";
+      button.style.backgroundColor = "#007bff";
+      button.style.color = "white";
+      button.style.border = "none";
+      button.style.borderRadius = "5px";
+      button.style.cursor = "pointer";
+      document.querySelector("pre").parentNode.appendChild(button);
     </script>
-</body>
+  </body>
 </html>

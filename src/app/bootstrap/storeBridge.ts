@@ -1,9 +1,13 @@
-import { useUnifiedCanvasStore } from '../../features/canvas/stores/unifiedCanvasStore';
+import { useUnifiedCanvasStore } from "../../features/canvas/stores/unifiedCanvasStore";
 
 interface StoreBridge {
   element: {
     getElement: (id: string) => unknown;
-    updateElement: (id: string, patch: Record<string, unknown>, opts?: Record<string, unknown>) => void;
+    updateElement: (
+      id: string,
+      patch: Record<string, unknown>,
+      opts?: Record<string, unknown>,
+    ) => void;
   };
   history: {
     beginBatch: (label?: string) => void;
@@ -13,17 +17,26 @@ interface StoreBridge {
 
 interface WindowWithStoreBridge extends Window {
   __canvasStore?: StoreBridge;
+  useUnifiedCanvasStore?: typeof useUnifiedCanvasStore;
 }
 
 // Mount a minimal bridge for non-React modules (renderers, Konva handlers)
 export function installStoreBridge() {
+  // Expose full store for debugging
+  (window as WindowWithStoreBridge).useUnifiedCanvasStore =
+    useUnifiedCanvasStore;
+
   (window as WindowWithStoreBridge).__canvasStore = {
     element: {
       getElement: (id: string) => {
         const state = useUnifiedCanvasStore.getState();
         return state.elements?.get?.(id) || state.element?.getById?.(id);
       },
-      updateElement: (id: string, patch: Record<string, unknown>, opts?: Record<string, unknown>) => {
+      updateElement: (
+        id: string,
+        patch: Record<string, unknown>,
+        opts?: Record<string, unknown>,
+      ) => {
         const state = useUnifiedCanvasStore.getState();
         // Try multiple possible APIs for updateElement
         if (state.element?.update) {

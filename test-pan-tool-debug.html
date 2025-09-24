@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pan Tool Debug Test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: monospace;
+        background: #f5f5f5;
+      }
+      .test-container {
+        background: white;
+        border: 2px solid #333;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .test-section {
+        margin-bottom: 15px;
+        padding: 10px;
+        border-left: 4px solid #007acc;
+        background: #f8f9fa;
+      }
+      .status {
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin: 5px 0;
+        font-weight: bold;
+      }
+      .status.pass {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .status.fail {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .status.warning {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+      }
+      .debug-info {
+        background: #e9ecef;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 12px;
+        overflow-x: auto;
+      }
+      .test-button {
+        background: #007acc;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      .test-button:hover {
+        background: #0056b3;
+      }
+      .test-button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+      }
+      .log-output {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 4px;
+        height: 300px;
+        overflow-y: auto;
+        font-family: "Consolas", "Monaco", monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .canvas-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 10px 0;
+      }
+      .info-card {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+      }
+      .info-card h4 {
+        margin: 0 0 10px 0;
+        color: #495057;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔍 Pan Tool Debug Analysis</h1>
+
+    <div class="test-container">
+      <h2>Test Configuration</h2>
+      <div class="test-section">
+        <h3>Environment Check</h3>
+        <div id="environment-check"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>Store Integration Test</h3>
+        <div id="store-test"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>Konva Stage Test</h3>
+        <div id="konva-test"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>Pan Tool Component Test</h3>
+        <div id="pantool-test"></div>
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Interactive Tests</h2>
+      <button class="test-button" onclick="runAllTests()">Run All Tests</button>
+      <button class="test-button" onclick="testStoreAccess()">
+        Test Store Access
+      </button>
+      <button class="test-button" onclick="testKonvaStage()">
+        Test Konva Stage
+      </button>
+      <button class="test-button" onclick="testPanToolEvents()">
+        Test Pan Tool Events
+      </button>
+      <button class="test-button" onclick="testViewportSync()">
+        Test Viewport Sync
+      </button>
+      <button class="test-button" onclick="clearLog()">Clear Log</button>
+
+      <div class="canvas-info">
+        <div class="info-card">
+          <h4>Viewport State</h4>
+          <div id="viewport-state">Not loaded</div>
+        </div>
+        <div class="info-card">
+          <h4>Selected Tool</h4>
+          <div id="selected-tool">Not loaded</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Debug Log</h2>
+      <div id="debug-log" class="log-output"></div>
+    </div>
+
+    <script type="module">
+      // Import the actual store and components for testing
+      let store;
+      let stage;
+      let panTool;
+
+      // Debug logging function
+      function log(message, type = "info") {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+        const logElement = document.getElementById("debug-log");
+        logElement.textContent += logEntry;
+        logElement.scrollTop = logElement.scrollHeight;
+        console.log(`PanTool Debug: ${message}`);
+      }
+
+      // Clear log function
+      window.clearLog = function () {
+        document.getElementById("debug-log").textContent = "";
+        log("Log cleared");
+      };
+
+      // Environment check
+      function checkEnvironment() {
+        const envDiv = document.getElementById("environment-check");
+        const checks = [];
+
+        // Check if we're in the right environment
+        if (
+          window.location.hostname === "localhost" &&
+          window.location.port === "1420"
+        ) {
+          checks.push({ name: "Running on localhost:1420", status: "pass" });
+        } else {
+          checks.push({
+            name: "Running on localhost:1420",
+            status: "fail",
+            info: `Actual: ${window.location.hostname}:${window.location.port}`,
+          });
+        }
+
+        // Check for required globals
+        if (window.konvaStage) {
+          checks.push({
+            name: "Konva Stage available globally",
+            status: "pass",
+          });
+        } else {
+          checks.push({
+            name: "Konva Stage available globally",
+            status: "fail",
+          });
+        }
+
+        // Check for React
+        if (window.React) {
+          checks.push({ name: "React available", status: "pass" });
+        } else {
+          checks.push({ name: "React available", status: "fail" });
+        }
+
+        // Check for Konva
+        if (window.Konva) {
+          checks.push({ name: "Konva available", status: "pass" });
+        } else {
+          checks.push({ name: "Konva available", status: "fail" });
+        }
+
+        // Render results
+        envDiv.innerHTML = checks
+          .map(
+            (check) =>
+              `<div class="status ${check.status}">
+                    ${check.name}: ${check.status === "pass" ? "✅" : "❌"}
+                    ${check.info ? ` (${check.info})` : ""}
+                </div>`,
+          )
+          .join("");
+
+        log(
+          `Environment check completed: ${checks.filter((c) => c.status === "pass").length}/${checks.length} passed`,
+        );
+      }
+
+      // Store access test
+      window.testStoreAccess = function () {
+        log("Testing store access...");
+
+        try {
+          // Try to access the store
+          if (window.useUnifiedCanvasStore) {
+            const storeState = window.useUnifiedCanvasStore.getState();
+            log("✅ Store accessed successfully", "success");
+
+            // Check viewport
+            if (storeState.viewport) {
+              log(
+                `✅ Viewport found: x=${storeState.viewport.x}, y=${storeState.viewport.y}, scale=${storeState.viewport.scale}`,
+                "success",
+              );
+              document.getElementById("viewport-state").textContent =
+                `x: ${storeState.viewport.x}, y: ${storeState.viewport.y}, scale: ${storeState.viewport.scale}`;
+            } else {
+              log("❌ Viewport not found in store", "error");
+            }
+
+            // Check setPan method
+            if (
+              storeState.viewport &&
+              typeof storeState.viewport.setPan === "function"
+            ) {
+              log("✅ viewport.setPan method available", "success");
+
+              // Test setPan
+              const originalX = storeState.viewport.x;
+              const originalY = storeState.viewport.y;
+
+              storeState.viewport.setPan(originalX + 10, originalY + 10);
+
+              setTimeout(() => {
+                const newState = window.useUnifiedCanvasStore.getState();
+                if (
+                  newState.viewport.x === originalX + 10 &&
+                  newState.viewport.y === originalY + 10
+                ) {
+                  log("✅ viewport.setPan works correctly", "success");
+                } else {
+                  log(
+                    `❌ viewport.setPan failed: expected (${originalX + 10}, ${originalY + 10}), got (${newState.viewport.x}, ${newState.viewport.y})`,
+                    "error",
+                  );
+                }
+              }, 100);
+            } else {
+              log("❌ viewport.setPan method not available", "error");
+            }
+
+            // Check selected tool
+            if (storeState.selectedTool || storeState.ui?.selectedTool) {
+              const tool =
+                storeState.selectedTool || storeState.ui?.selectedTool;
+              log(`✅ Selected tool: ${tool}`, "success");
+              document.getElementById("selected-tool").textContent = tool;
+            } else {
+              log("❌ Selected tool not found", "error");
+            }
+          } else {
+            log("❌ useUnifiedCanvasStore not found globally", "error");
+          }
+        } catch (error) {
+          log(`❌ Store access error: ${error.message}`, "error");
+        }
+      };
+
+      // Konva stage test
+      window.testKonvaStage = function () {
+        log("Testing Konva stage...");
+
+        try {
+          if (window.konvaStage) {
+            const stage = window.konvaStage;
+            log("✅ Konva stage accessible", "success");
+
+            // Check stage properties
+            log(`Stage dimensions: ${stage.width()}x${stage.height()}`, "info");
+            log(`Stage position: (${stage.x()}, ${stage.y()})`, "info");
+            log(`Stage scale: ${stage.scaleX()}`, "info");
+
+            // Check layers
+            const layers = stage.getChildren();
+            log(`✅ Stage has ${layers.length} layers`, "success");
+
+            layers.forEach((layer, index) => {
+              log(
+                `Layer ${index}: ${layer.className()}, listening: ${layer.listening()}`,
+                "info",
+              );
+            });
+
+            // Test stage interaction
+            stage.on("click", () => {
+              log("✅ Stage click event working", "success");
+            });
+          } else {
+            log("❌ Konva stage not found globally", "error");
+          }
+        } catch (error) {
+          log(`❌ Konva stage error: ${error.message}`, "error");
+        }
+      };
+
+      // Pan tool events test
+      window.testPanToolEvents = function () {
+        log("Testing pan tool events...");
+
+        try {
+          if (!window.konvaStage) {
+            log("❌ Cannot test pan tool events - no Konva stage", "error");
+            return;
+          }
+
+          const stage = window.konvaStage;
+          let panStarted = false;
+          let panMoved = false;
+          let panEnded = false;
+
+          // Test pan events
+          const handlePointerDown = (e) => {
+            if (e.evt.button === 0) {
+              // Left mouse button
+              panStarted = true;
+              log("✅ Pan pointer down event detected", "success");
+            }
+          };
+
+          const handlePointerMove = (e) => {
+            if (panStarted) {
+              panMoved = true;
+              log("✅ Pan pointer move event detected", "success");
+            }
+          };
+
+          const handlePointerUp = () => {
+            if (panStarted) {
+              panEnded = true;
+              log("✅ Pan pointer up event detected", "success");
+
+              // Clean up
+              stage.off("pointerdown.pantest");
+              stage.off("pointermove.pantest");
+              stage.off("pointerup.pantest");
+
+              // Report results
+              setTimeout(() => {
+                if (panStarted && panMoved && panEnded) {
+                  log("✅ All pan events working correctly", "success");
+                } else {
+                  log(
+                    `❌ Pan events incomplete: started=${panStarted}, moved=${panMoved}, ended=${panEnded}`,
+                    "error",
+                  );
+                }
+              }, 100);
+            }
+          };
+
+          stage.on("pointerdown.pantest", handlePointerDown);
+          stage.on("pointermove.pantest", handlePointerMove);
+          stage.on("pointerup.pantest", handlePointerUp);
+
+          log(
+            "Pan event listeners attached. Try panning on the canvas...",
+            "info",
+          );
+        } catch (error) {
+          log(`❌ Pan tool events error: ${error.message}`, "error");
+        }
+      };
+
+      // Viewport sync test
+      window.testViewportSync = function () {
+        log("Testing viewport synchronization...");
+
+        try {
+          if (!window.useUnifiedCanvasStore || !window.konvaStage) {
+            log(
+              "❌ Cannot test viewport sync - store or stage missing",
+              "error",
+            );
+            return;
+          }
+
+          const store = window.useUnifiedCanvasStore;
+          const stage = window.konvaStage;
+
+          // Get initial state
+          const initialStoreState = store.getState();
+          const initialStagePos = { x: stage.x(), y: stage.y() };
+
+          log(
+            `Initial store viewport: (${initialStoreState.viewport.x}, ${initialStoreState.viewport.y})`,
+            "info",
+          );
+          log(
+            `Initial stage position: (${initialStagePos.x}, ${initialStagePos.y})`,
+            "info",
+          );
+
+          // Test store -> stage sync
+          const testX = initialStoreState.viewport.x + 50;
+          const testY = initialStoreState.viewport.y + 50;
+
+          log(
+            `Testing store -> stage sync: moving to (${testX}, ${testY})`,
+            "info",
+          );
+
+          initialStoreState.viewport.setPan(testX, testY);
+
+          // Check if stage updates after a short delay
+          setTimeout(() => {
+            const newStagePos = { x: stage.x(), y: stage.y() };
+            const newStoreState = store.getState();
+
+            log(
+              `After sync - store: (${newStoreState.viewport.x}, ${newStoreState.viewport.y})`,
+              "info",
+            );
+            log(
+              `After sync - stage: (${newStagePos.x}, ${newStagePos.y})`,
+              "info",
+            );
+
+            if (
+              Math.abs(newStagePos.x - testX) < 1 &&
+              Math.abs(newStagePos.y - testY) < 1
+            ) {
+              log("✅ Store -> stage sync working correctly", "success");
+            } else {
+              log(
+                `❌ Store -> stage sync failed: expected (${testX}, ${testY}), got (${newStagePos.x}, ${newStagePos.y})`,
+                "error",
+              );
+            }
+          }, 200);
+        } catch (error) {
+          log(`❌ Viewport sync error: ${error.message}`, "error");
+        }
+      };
+
+      // Run all tests
+      window.runAllTests = function () {
+        log("🚀 Running all pan tool debug tests...");
+        clearLog();
+
+        checkEnvironment();
+        setTimeout(() => testStoreAccess(), 500);
+        setTimeout(() => testKonvaStage(), 1000);
+        setTimeout(() => testPanToolEvents(), 1500);
+        setTimeout(() => testViewportSync(), 2000);
+
+        setTimeout(() => {
+          log("🏁 All tests completed. Check results above.", "info");
+        }, 3000);
+      };
+
+      // Initialize on load
+      document.addEventListener("DOMContentLoaded", () => {
+        log("Pan Tool Debug Test loaded");
+        checkEnvironment();
+
+        // Set up periodic monitoring
+        setInterval(() => {
+          if (window.useUnifiedCanvasStore) {
+            const state = window.useUnifiedCanvasStore.getState();
+            const viewportDiv = document.getElementById("viewport-state");
+            const toolDiv = document.getElementById("selected-tool");
+
+            if (state.viewport) {
+              viewportDiv.textContent = `x: ${state.viewport.x.toFixed(1)}, y: ${state.viewport.y.toFixed(1)}, scale: ${state.viewport.scale.toFixed(2)}`;
+            }
+
+            const tool = state.selectedTool || state.ui?.selectedTool;
+            if (tool) {
+              toolDiv.textContent = tool;
+            }
+          }
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>

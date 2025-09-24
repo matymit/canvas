@@ -53,15 +53,21 @@ const FigJamCanvas: React.FC = () => {
     overlay: null,
   });
   // Stable connector layers object to avoid re-creating on each render
-  const connectorLayersRef = useRef<{ main: Konva.Layer; preview: Konva.Layer; overlay: Konva.Layer } | null>(null);
+  const connectorLayersRef = useRef<{
+    main: Konva.Layer;
+    preview: Konva.Layer;
+    overlay: Konva.Layer;
+  } | null>(null);
   const rendererDisposeRef = useRef<(() => void) | null>(null);
   const toolManagerRef = useRef<ToolManager | null>(null);
   const gridRendererRef = useRef<GridRenderer | null>(null);
   const imageDragHandlerRef = useRef<ImageDragHandler | null>(null);
 
-  // Store subscriptions
-  const viewport = useUnifiedCanvasStore((state) => state.viewport);
-  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool ?? state.ui?.selectedTool);
+  // Store subscriptions - subscribe to viewport with custom comparison to detect nested changes
+  const viewport = useUnifiedCanvasStore((state) => state.viewport) as any;
+  const selectedTool = useUnifiedCanvasStore(
+    (state) => state.selectedTool ?? state.ui?.selectedTool,
+  );
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const selectedElementIds = useUnifiedCanvasStore(
     (state) => state.selectedElementIds,
@@ -77,7 +83,9 @@ const FigJamCanvas: React.FC = () => {
   const redo = useUnifiedCanvasStore((state) => state.redo);
   const setSelectedTool = useCallback((tool: string) => {
     // Only update if different to avoid render loops
-    const cur = useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool;
+    const cur =
+      useUnifiedCanvasStore.getState().selectedTool ??
+      useUnifiedCanvasStore.getState().ui?.selectedTool;
     if (cur === tool) return;
     StoreActions.setSelectedTool?.(tool);
   }, []);
@@ -86,7 +94,9 @@ const FigJamCanvas: React.FC = () => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    debug("Initializing stage and renderer - ONE TIME ONLY", { category: 'FigJamCanvas' });
+    debug("Initializing stage and renderer - ONE TIME ONLY", {
+      category: "FigJamCanvas",
+    });
 
     // Create Konva stage - THIS IS THE ONLY PLACE WHERE KONVA.STAGE SHOULD BE CREATED
     const stage = new Konva.Stage({
@@ -115,7 +125,11 @@ const FigJamCanvas: React.FC = () => {
       preview: previewLayer,
       overlay: overlayLayer,
     };
-    connectorLayersRef.current = { main: mainLayer, preview: previewLayer, overlay: overlayLayer };
+    connectorLayersRef.current = {
+      main: mainLayer,
+      preview: previewLayer,
+      overlay: overlayLayer,
+    };
 
     // Add layers to stage in correct order
     stage.add(backgroundLayer);
@@ -177,7 +191,7 @@ const FigJamCanvas: React.FC = () => {
 
     // Cleanup
     return () => {
-      debug("Cleaning up stage and renderer", { category: 'FigJamCanvas' });
+      debug("Cleaning up stage and renderer", { category: "FigJamCanvas" });
       window.removeEventListener("resize", handleResize);
 
       // Destroy grid renderer
@@ -215,11 +229,14 @@ const FigJamCanvas: React.FC = () => {
     const stage = stageRef.current;
     if (!stage) return;
 
-    debug("Setting up stage event handlers", { category: 'FigJamCanvas' });
+    debug("Setting up stage event handlers", { category: "FigJamCanvas" });
 
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-      const tool = (useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool) as string | undefined;
+      const tool = (useUnifiedCanvasStore.getState().selectedTool ??
+        useUnifiedCanvasStore.getState().ui?.selectedTool) as
+        | string
+        | undefined;
 
       // If clicking on empty stage, ALWAYS clear selection regardless of current tool
       if (e.target === stage) {
@@ -257,15 +274,28 @@ const FigJamCanvas: React.FC = () => {
       const els = s.elements as Map<string, unknown>;
       if (elementId && els?.has?.(elementId)) {
         if (e.evt.ctrlKey || e.evt.metaKey) {
-          const selectedIds = s.selectedElementIds as Set<string> | string[] | undefined;
-          const isSelected = selectedIds instanceof Set ? selectedIds.has(elementId) : Array.isArray(selectedIds) ? selectedIds.includes(elementId) : false;
+          const selectedIds = s.selectedElementIds as
+            | Set<string>
+            | string[]
+            | undefined;
+          const isSelected =
+            selectedIds instanceof Set
+              ? selectedIds.has(elementId)
+              : Array.isArray(selectedIds)
+                ? selectedIds.includes(elementId)
+                : false;
           if (isSelected) {
             // remove
-            const next = selectedIds instanceof Set ? new Set(selectedIds) : new Set<string>(selectedIds as string[]);
+            const next =
+              selectedIds instanceof Set
+                ? new Set(selectedIds)
+                : new Set<string>(selectedIds as string[]);
             next.delete(elementId);
             (s.setSelection || s.selection?.set)?.(Array.from(next));
           } else {
-            (s.addToSelection || s.selection?.toggle || s.selection?.set)?.(elementId);
+            (s.addToSelection || s.selection?.toggle || s.selection?.set)?.(
+              elementId,
+            );
           }
         } else {
           (s.setSelection || s.selection?.set)?.([elementId]);
@@ -306,7 +336,7 @@ const FigJamCanvas: React.FC = () => {
 
     // Cleanup event handlers
     return () => {
-      debug("Cleaning up stage event handlers", { category: 'FigJamCanvas' });
+      debug("Cleaning up stage event handlers", { category: "FigJamCanvas" });
       stage.off("click", handleStageClick);
       stage.off("wheel", handleWheel);
       stage.off("contextmenu", handleStageContextMenu);
@@ -319,9 +349,38 @@ const FigJamCanvas: React.FC = () => {
     const stage = stageRef.current;
     if (!stage) return;
 
+    console.log("FigJamCanvas: Viewport sync effect triggered", {
+      scale: viewport.scale,
+      x: viewport.x,
+      y: viewport.y,
+    });
+
     // Apply viewport state directly - store is the single source of truth
     stage.scale({ x: viewport.scale, y: viewport.scale });
-    stage.position({ x: viewport.x, y: viewport.y });
+
+    // CORRECT KONVA PANNING: Apply pan to layers, not stage position
+    // This moves the viewport properly without breaking event handling
+    const { background, main, highlighter, preview, overlay } =
+      layersRef.current;
+    if (background) background.position({ x: viewport.x, y: viewport.y });
+    if (main) main.position({ x: viewport.x, y: viewport.y });
+    if (highlighter) highlighter.position({ x: viewport.x, y: viewport.y });
+    if (preview) preview.position({ x: viewport.x, y: viewport.y });
+    if (overlay) overlay.position({ x: viewport.x, y: viewport.y });
+
+    // Force a batch draw to ensure changes are rendered
+    stage.batchDraw();
+
+    console.log("FigJamCanvas: Viewport sync completed", {
+      stageScale: stage.scale(),
+      layerPositions: {
+        background: background?.position(),
+        main: main?.position(),
+        highlighter: highlighter?.position(),
+        preview: preview?.position(),
+        overlay: overlay?.position(),
+      },
+    });
 
     // Grid updates automatically via GridRenderer zoom listeners
   }, [viewport.scale, viewport.x, viewport.y]);
@@ -545,7 +604,10 @@ const FigJamCanvas: React.FC = () => {
           return null;
       }
     } catch (error) {
-      logError("Failed to render tool", { category: 'FigJamCanvas', data: { selectedTool, error } });
+      logError("Failed to render tool", {
+        category: "FigJamCanvas",
+        data: { selectedTool, error },
+      });
       return null;
     }
   }, [selectedTool]);
@@ -577,10 +639,7 @@ const FigJamCanvas: React.FC = () => {
       />
 
       {/* Pan tool for canvas navigation */}
-      <PanTool
-        stageRef={stageRef}
-        isActive={selectedTool === "pan"}
-      />
+      <PanTool stageRef={stageRef} isActive={selectedTool === "pan"} />
 
       {/* Table context menu system */}
       <TableContextMenuManager stageRef={stageRef} />

@@ -77,7 +77,9 @@ export interface ElementModuleSlice {
 // SELECTION MODULE TYPES AND IMPLEMENTATION
 // ============================================================================
 
-function firstElementIdOrNull(state: ElementModuleSlice): ElementId | undefined {
+function firstElementIdOrNull(
+  state: ElementModuleSlice,
+): ElementId | undefined {
   const order: ElementId[] = Array.isArray(state.elementOrder)
     ? state.elementOrder
     : [];
@@ -206,7 +208,9 @@ function __deepClone<T>(v: T): T {
         const copy = {} as T;
         for (const key in v) {
           if (Object.prototype.hasOwnProperty.call(v, key)) {
-            (copy as Record<string, unknown>)[key] = (v as Record<string, unknown>)[key];
+            (copy as Record<string, unknown>)[key] = (
+              v as Record<string, unknown>
+            )[key];
           }
         }
         return copy;
@@ -414,7 +418,6 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
             : { ...prev, ...patch },
         );
 
-
         // map immutable write
         const map: Map<ElementId, CanvasElement> =
           state.elements ??
@@ -425,7 +428,6 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         if ("elements" in state) state.elements = newMap;
         else if ((state as any).element && "elements" in (state as any).element)
           (state as any).element.elements = newMap;
-
       });
 
       if (opts?.pushHistory && beforeOriginal) {

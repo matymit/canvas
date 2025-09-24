@@ -246,10 +246,14 @@ export class TableRenderer {
       g = undefined;
     }
     if (!g) {
+      // Check if pan tool is active - if so, disable dragging on elements
+      const storeState = this.storeCtx?.store?.getState();
+      const isPanToolActive = storeState?.selectedTool === "pan";
+
       g = new Konva.Group({
         id: el.id,
         name: "table-group", // Clear name for SelectionModule recognition
-        draggable: true, // MUST be true for SelectionModule transformer to work
+        draggable: !isPanToolActive, // disable dragging when pan tool is active
         listening: true, // element-level selection
         x: el.x,
         y: el.y,
@@ -653,7 +657,9 @@ export class TableRenderer {
               elementId: el.id,
               element: el,
               getElement: () =>
-                this.getStoreHook()?.getState().element.getById(el.id) as TableElement,
+                this.getStoreHook()
+                  ?.getState()
+                  .element.getById(el.id) as TableElement,
               row,
               col,
               onCommit: (value, tableId, commitRow, commitCol) =>
@@ -759,13 +765,10 @@ export class TableRenderer {
       if (storeHook) {
         const state = storeHook.getState();
         // Update store with exact final position
-        state.element.update(
-          elementId,
-          {
-            x: newPos.x,
-            y: newPos.y,
-          } as Partial<TableElement>
-        );
+        state.element.update(elementId, {
+          x: newPos.x,
+          y: newPos.y,
+        } as Partial<TableElement>);
       }
     });
   }
