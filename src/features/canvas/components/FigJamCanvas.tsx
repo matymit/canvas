@@ -324,6 +324,7 @@ const FigJamCanvas: React.FC = () => {
     const stage = stageRef.current;
     if (!stage) return;
 
+    // Apply viewport state directly - store is the single source of truth
     stage.scale({ x: viewport.scale, y: viewport.scale });
     stage.position({ x: viewport.x, y: viewport.y });
 
