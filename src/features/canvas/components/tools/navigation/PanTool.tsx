@@ -66,19 +66,16 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
       const deltaX = currentPos.x - lastPointerPosRef.current.x;
       const deltaY = currentPos.y - lastPointerPosRef.current.y;
 
-      // STORE-ONLY UPDATE with RAF batching for smooth performance
-      requestAnimationFrame(() => {
-        const { viewport } = useUnifiedCanvasStore.getState();
-        if (viewport?.setPan) {
-          const stage = stageRef.current;
-          // Get current position from stage or fallback to viewport state
-          const newX = (stage?.x() || viewport.x) + deltaX;
-          const newY = (stage?.y() || viewport.y) + deltaY;
+      // STORE-ONLY UPDATE - direct update without RAF wrapper
+      const { viewport } = useUnifiedCanvasStore.getState();
+      if (viewport?.setPan) {
+        // Use store as single source of truth - no stage fallback
+        const newX = viewport.x + deltaX;
+        const newY = viewport.y + deltaY;
 
-          // ONLY update store - FigJamCanvas useEffect will sync stage
-          viewport.setPan(newX, newY);
-        }
-      });
+        // ONLY update store - FigJamCanvas useEffect will sync stage
+        viewport.setPan(newX, newY);
+      }
 
       lastPointerPosRef.current = currentPos;
     };

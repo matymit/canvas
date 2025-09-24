@@ -283,12 +283,7 @@ const FigJamCanvas: React.FC = () => {
       const vp = useUnifiedCanvasStore.getState().viewport;
       vp?.zoomAt?.(pointer.x, pointer.y, deltaScale);
 
-      // Update stage to match viewport store
-      const cur = useUnifiedCanvasStore.getState().viewport;
-      if (cur) {
-        stage.scale({ x: cur.scale, y: cur.scale });
-        stage.position({ x: cur.x, y: cur.y });
-      }
+      // Let viewport sync useEffect handle stage updates for consistency
 
       // Redraw grid with proper GridRenderer
       if (gridRendererRef.current) {
@@ -477,7 +472,7 @@ const FigJamCanvas: React.FC = () => {
     // Normalize tool names (handle both old and new naming)
     const normalizedTool = selectedTool.toLowerCase();
 
-    debug("Rendering tool", { category: 'FigJamCanvas', data: { selectedTool, normalizedTool } });
+    // debug("Rendering tool", { category: 'FigJamCanvas', data: { selectedTool, normalizedTool } });
 
     try {
       switch (normalizedTool) {

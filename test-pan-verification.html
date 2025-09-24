@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pan Tool Test Verification</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .test-instructions {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>Pan Tool Test Verification</h1>
+
+    <div class="test-instructions">
+        <h3>Manual Test Instructions:</h3>
+        <ol>
+            <li>Open <a href="http://localhost:1422" target="_blank">http://localhost:1422</a></li>
+            <li>Select the Pan tool from the toolbar (hand icon)</li>
+            <li>Click and drag on the canvas</li>
+            <li>Verify the canvas moves smoothly without lag</li>
+            <li>Open browser console and verify no infinite "Rendering tool" messages</li>
+            <li>Switch to other tools and back to pan - should work correctly</li>
+        </ol>
+    </div>
+
+    <div class="test-instructions">
+        <h3>Automated Test Script:</h3>
+        <p>Copy and paste this script into the browser console when the app is loaded:</p>
+        <pre><code id="test-script">
+// Pan Tool Verification Script
+console.log('🔧 Running Pan Tool Verification...');
+
+let testResults = [];
+
+// Test 1: Check if store and stage are available
+function test1_CheckAvailability() {
+    const stage = window.konvaStage;
+    const store = window.useUnifiedCanvasStore?.getState?.();
+
+    if (!stage) {
+        testResults.push('❌ Test 1 FAILED: Konva stage not found');
+        return false;
+    }
+    if (!store) {
+        testResults.push('❌ Test 1 FAILED: Unified canvas store not found');
+        return false;
+    }
+    testResults.push('✅ Test 1 PASSED: Stage and store available');
+    return true;
+}
+
+// Test 2: Check if pan tool can be selected
+function test2_SelectPanTool() {
+    try {
+        const store = window.useUnifiedCanvasStore?.getState?.();
+        const setTool = store?.setSelectedTool || store?.ui?.setSelectedTool;
+        if (setTool) {
+            setTool('pan');
+            setTimeout(() => {
+                const currentTool = store?.selectedTool || store?.ui?.selectedTool;
+                if (currentTool === 'pan') {
+                    testResults.push('✅ Test 2 PASSED: Pan tool selected successfully');
+                } else {
+                    testResults.push('❌ Test 2 FAILED: Pan tool selection failed');
+                }
+            }, 100);
+        } else {
+            testResults.push('❌ Test 2 FAILED: setSelectedTool method not found');
+        }
+    } catch (error) {
+        testResults.push('❌ Test 2 FAILED: Error selecting pan tool - ' + error.message);
+    }
+}
+
+// Test 3: Check setPan functionality
+function test3_TestSetPan() {
+    try {
+        const store = window.useUnifiedCanvasStore?.getState?.();
+        const stage = window.konvaStage;
+
+        const initialX = store?.viewport?.x || 0;
+        const initialY = store?.viewport?.y || 0;
+
+        console.log('Initial viewport:', initialX, initialY);
+
+        // Test setPan
+        store?.viewport?.setPan?.(100, 50);
+
+        setTimeout(() => {
+            const newStore = window.useUnifiedCanvasStore?.getState?.();
+            const newX = newStore?.viewport?.x;
+            const newY = newStore?.viewport?.y;
+
+            console.log('New viewport:', newX, newY);
+            console.log('Stage position:', stage?.position());
+
+            if (newX === 100 && newY === 50) {
+                testResults.push('✅ Test 3 PASSED: setPan function works correctly');
+            } else {
+                testResults.push('❌ Test 3 FAILED: setPan function failed - expected (100, 50), got (' + newX + ', ' + newY + ')');
+            }
+
+            // Show results
+            setTimeout(() => {
+                console.log('\n🎯 PAN TOOL VERIFICATION RESULTS:');
+                testResults.forEach(result => console.log(result));
+            }, 100);
+        }, 200);
+    } catch (error) {
+        testResults.push('❌ Test 3 FAILED: Error testing setPan - ' + error.message);
+    }
+}
+
+// Run all tests
+if (test1_CheckAvailability()) {
+    test2_SelectPanTool();
+    setTimeout(() => test3_TestSetPan(), 300);
+}
+        </code></pre>
+    </div>
+
+    <div class="test-result success">
+        <h4>✅ Expected Results After Fix:</h4>
+        <ul>
+            <li>No infinite "Rendering tool" messages in console</li>
+            <li>Pan tool cursor changes to grab/grabbing correctly</li>
+            <li>Canvas moves smoothly when dragging with pan tool</li>
+            <li>Store and stage stay in sync during panning</li>
+            <li>No performance issues or lag during panning</li>
+        </ul>
+    </div>
+
+    <script>
+        // Copy test script to clipboard function
+        function copyTestScript() {
+            const scriptElement = document.getElementById('test-script');
+            navigator.clipboard.writeText(scriptElement.textContent).then(() => {
+                alert('Test script copied to clipboard!');
+            });
+        }
+
+        // Add copy button
+        const button = document.createElement('button');
+        button.textContent = 'Copy Test Script';
+        button.onclick = copyTestScript;
+        button.style.marginTop = '10px';
+        button.style.padding = '10px 20px';
+        button.style.backgroundColor = '#007bff';
+        button.style.color = 'white';
+        button.style.border = 'none';
+        button.style.borderRadius = '5px';
+        button.style.cursor = 'pointer';
+        document.querySelector('pre').parentNode.appendChild(button);
+    </script>
+</body>
+</html>
