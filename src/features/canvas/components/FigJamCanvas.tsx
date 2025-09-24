@@ -34,6 +34,7 @@ import HighlighterTool from "./tools/drawing/HighlighterTool";
 import EraserTool from "./tools/drawing/EraserTool";
 // Navigation tools
 import MarqueeSelectionTool from "./tools/navigation/MarqueeSelectionTool";
+import PanTool from "./tools/navigation/PanTool";
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,8 +69,6 @@ const FigJamCanvas: React.FC = () => {
 
   // Store methods - use useCallback to stabilize references
   const setSelection = useUnifiedCanvasStore((state) => state.setSelection);
-  const addToSelection = useUnifiedCanvasStore((state) => state.addToSelection);
-  const clearSelection = useUnifiedCanvasStore((state) => state.clearSelection);
   const deleteSelected = useUnifiedCanvasStore(
     (state) => state.selection?.deleteSelected,
   );
@@ -302,37 +301,13 @@ const FigJamCanvas: React.FC = () => {
       // Handle context menu events
     };
 
-    // Pan handling when pan tool is active
-    let isPanning = false;
-    const handleDragStart = () => {
-      const tool = (useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool) as string | undefined;
-      if (tool === "pan") {
-        isPanning = true;
-        stage.draggable(true);
-      }
-    };
-
-    const handleDragMove = () => {
-      if (isPanning) {
-        const pos = stage.position();
-        useUnifiedCanvasStore.getState().viewport?.setPan?.(pos.x, pos.y);
-        // Grid updates automatically via GridRenderer zoom listeners
-      }
-    };
-
-    const handleDragEnd = () => {
-      if (isPanning) {
-        isPanning = false;
-        stage.draggable(false);
-      }
-    };
+    // Pan handling is now managed by PanTool component
+    // Removed the buggy drag-based implementation
 
     stage.on("click", handleStageClick);
     stage.on("wheel", handleWheel);
     stage.on("contextmenu", handleStageContextMenu);
-    stage.on("dragstart", handleDragStart);
-    stage.on("dragmove", handleDragMove);
-    stage.on("dragend", handleDragEnd);
+    // Pan tool drag events are handled by PanTool component
 
     // Cleanup event handlers
     return () => {
@@ -340,11 +315,9 @@ const FigJamCanvas: React.FC = () => {
       stage.off("click", handleStageClick);
       stage.off("wheel", handleWheel);
       stage.off("contextmenu", handleStageContextMenu);
-      stage.off("dragstart", handleDragStart);
-      stage.off("dragmove", handleDragMove);
-      stage.off("dragend", handleDragEnd);
+      // Pan tool drag cleanup is handled by PanTool component
     };
-  }, [selectedTool, elements, selectedElementIds, addToSelection, clearSelection, setSelection, viewport]);
+  }, [selectedTool]); // FIXED: Only depend on selectedTool; read store values at call time to prevent infinite loops
 
   // Update viewport when store changes
   useEffect(() => {
@@ -570,9 +543,8 @@ const FigJamCanvas: React.FC = () => {
         case "eraser":
           return <EraserTool key="eraser-tool" {...toolProps} />;
 
-        // No tool component needed for select/pan
+        // No tool component needed for select
         case "select":
-        case "pan":
         default:
           return null;
       }
@@ -606,6 +578,12 @@ const FigJamCanvas: React.FC = () => {
       <MarqueeSelectionTool
         stageRef={stageRef}
         isActive={selectedTool === "select"}
+      />
+
+      {/* Pan tool for canvas navigation */}
+      <PanTool
+        stageRef={stageRef}
+        isActive={selectedTool === "pan"}
       />
 
       {/* Table context menu system */}

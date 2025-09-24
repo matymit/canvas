@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pan Tool Fix Verification Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-step {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .expected {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .critical {
+            color: #e74c3c;
+            font-weight: bold;
+            background: #fdf2f2;
+            padding: 10px;
+            border-left: 4px solid #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+            background: #f2fff2;
+            padding: 10px;
+            border-left: 4px solid #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔧 Pan Tool Fix Verification Test</h1>
+
+        <div class="critical">
+            <h3>🚨 CRITICAL BUG FIXED: Infinite Render Loop</h3>
+            <p><strong>Root Cause:</strong> FigJamCanvas useEffect dependency array included unstable viewport values</p>
+            <p><strong>Symptoms:</strong> Constant "Setting up stage event handlers" → "Cleaning up stage event handlers" loop</p>
+            <p><strong>Impact:</strong> Pan tool completely broken due to event handler teardown during pan operations</p>
+        </div>
+
+        <div class="success">
+            <h3>✅ FIX APPLIED</h3>
+            <p><strong>Solution:</strong> Reduced useEffect dependency array to only <code>[selectedTool]</code></p>
+            <p><strong>File:</strong> <code>src/features/canvas/components/FigJamCanvas.tsx:322</code></p>
+            <p><strong>Change:</strong> Removed unstable dependencies (viewport, elements, selectedElementIds)</p>
+        </div>
+
+        <h2>📋 Test Plan - Verify Pan Tool Works</h2>
+
+        <div class="test-step">
+            <h3>Step 1: Open Canvas Application</h3>
+            <p>Start the Tauri development server:</p>
+            <code>npm run tauri:dev</code>
+            <p class="expected">Expected: Application starts without console spam</p>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 2: Check Console for Infinite Loop</h3>
+            <p>Open browser DevTools and watch console messages</p>
+            <p class="expected">Expected: NO infinite "Setting up stage event handlers" messages</p>
+            <p><strong>Before Fix:</strong> Hundreds of repeated setup/cleanup messages</p>
+            <p><strong>After Fix:</strong> Clean console with minimal, appropriate messages</p>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 3: Select Pan Tool</h3>
+            <p>Click the Pan tool in the toolbar or press <kbd>H</kbd> key</p>
+            <p class="expected">Expected: Cursor changes to grab icon, no console spam</p>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 4: Perform Pan Operation</h3>
+            <p>Click and drag on the canvas to pan around</p>
+            <p class="expected">Expected: Smooth panning, cursor changes to grabbing during drag</p>
+            <p><strong>Critical Test:</strong> No event handler teardown during pan operation</p>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 5: Verify Viewport Store Integration</h3>
+            <p>Pan around, then switch to select tool and back to pan</p>
+            <p class="expected">Expected: Viewport position preserved, no render loops triggered</p>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 6: Performance Check</h3>
+            <p>Monitor console during continuous panning</p>
+            <p class="expected">Expected: No repeated event handler setup/cleanup messages</p>
+            <p class="expected">Expected: 60fps smooth panning performance</p>
+        </div>
+
+        <h2>🔍 Technical Details</h2>
+
+        <div class="test-step">
+            <h3>Root Cause Analysis</h3>
+            <p><strong>Problem:</strong> FigJamCanvas useEffect (line 216-322) had dependency array:</p>
+            <code>[selectedTool, elements, selectedElementIds, addToSelection, clearSelection, setSelection, viewport]</code>
+
+            <p><strong>Issue:</strong> When PanTool called <code>viewport.setPan()</code>, it triggered the useEffect to re-run, causing:</p>
+            <ul>
+                <li>Event handler teardown (cleanup function)</li>
+                <li>Event handler setup (effect function)</li>
+                <li>PanTool event listeners destroyed mid-operation</li>
+                <li>Infinite loop as viewport kept changing during pan</li>
+            </ul>
+        </div>
+
+        <div class="test-step">
+            <h3>Fix Implementation</h3>
+            <p><strong>Solution:</strong> Reduced dependency array to <code>[selectedTool]</code> only</p>
+            <p><strong>Rationale:</strong> Event handlers read store values at call time using <code>useUnifiedCanvasStore.getState()</code></p>
+            <p><strong>Benefits:</strong></p>
+            <ul>
+                <li>Eliminates infinite render loop</li>
+                <li>Preserves all functionality</li>
+                <li>Allows pan tool to work uninterrupted</li>
+                <li>Improves performance (no unnecessary event handler rebuilds)</li>
+            </ul>
+        </div>
+
+        <h2>🎯 Success Criteria</h2>
+        <ul>
+            <li>✅ No infinite console messages about event handlers</li>
+            <li>✅ Pan tool cursor changes properly (grab → grabbing → grab)</li>
+            <li>✅ Smooth panning functionality restored</li>
+            <li>✅ No performance degradation or event handler conflicts</li>
+            <li>✅ Viewport store integration working correctly</li>
+            <li>✅ Tool switching works without triggering render loops</li>
+        </ul>
+    </div>
+</body>
+</html>

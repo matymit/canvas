@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circle Text Fix Test</title>
+    <script src="https://unpkg.com/konva@9.3.0/konva.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            border: 1px solid #ccc;
+        }
+        .instructions {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h2>Circle Text Positioning Fix Test</h2>
+        <p>This test verifies that text stays centered in circles during resize operations.</p>
+        <p><strong>Test Instructions:</strong></p>
+        <ol>
+            <li>Click on the circle to select it (transformer handles should appear)</li>
+            <li>Drag the resize handles to resize the circle</li>
+            <li>Observe that the text stays centered within the circle during the resize</li>
+        </ol>
+    </div>
+
+    <div id="container"></div>
+
+    <script>
+        // Create Konva stage and layers
+        const stage = new Konva.Stage({
+            container: 'container',
+            width: 800,
+            height: 600,
+        });
+
+        const mainLayer = new Konva.Layer();
+        const overlayLayer = new Konva.Layer();
+        stage.add(mainLayer);
+        stage.add(overlayLayer);
+
+        // Create a circle with text (simulating the fixed implementation)
+        const circle = new Konva.Ellipse({
+            x: 200,
+            y: 150,
+            radiusX: 80,
+            radiusY: 80,
+            fill: '#E5E7EB',
+            stroke: '#6B7280',
+            strokeWidth: 2,
+            draggable: true,
+        });
+
+        const circleText = new Konva.Text({
+            x: 200 - 64, // centered within circle (80% of radius)
+            y: 150 - 16, // centered within circle
+            width: 128,
+            height: 32,
+            text: 'Test Circle Text',
+            fontSize: 14,
+            fontFamily: 'Arial',
+            fill: '#111827',
+            align: 'center',
+            verticalAlign: 'middle',
+            listening: false,
+        });
+
+        mainLayer.add(circle);
+        mainLayer.add(circleText);
+
+        // Create transformer
+        const transformer = new Konva.Transformer({
+            nodes: [circle],
+            enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+            rotateEnabled: false,
+            borderStroke: '#4F46E5',
+            borderStrokeWidth: 2,
+            anchorStroke: '#FFFFFF',
+            anchorFill: '#4F46E5',
+        });
+
+        overlayLayer.add(transformer);
+
+        // Selection handling
+        circle.on('click', () => {
+            transformer.nodes([circle]);
+            overlayLayer.batchDraw();
+        });
+
+        stage.on('click tap', (e) => {
+            if (e.target === stage) {
+                transformer.nodes([]);
+                overlayLayer.batchDraw();
+            }
+        });
+
+        // CRITICAL FIX: Implement the text synchronization during transform
+        transformer.on('transform', () => {
+            // Get current visual dimensions accounting for scale
+            const nodePos = circle.position();
+            const nodeScale = circle.scale();
+            const scaleX = Math.abs(nodeScale?.x ?? 1);
+            const scaleY = Math.abs(nodeScale?.y ?? 1);
+
+            // Calculate visual dimensions
+            const visualRadiusX = circle.radiusX() * scaleX;
+            const visualRadiusY = circle.radiusY() * scaleY;
+
+            // Calculate center-based positioning for text
+            const centerX = nodePos.x;
+            const centerY = nodePos.y;
+            const textWidth = Math.min(visualRadiusX * 2 * 0.8, 200); // 80% of diameter, max 200px
+            const textHeight = Math.min(visualRadiusY * 2 * 0.8, 100); // 80% of diameter, max 100px
+
+            // Update text position in real-time
+            circleText.setAttrs({
+                x: centerX - textWidth / 2,
+                y: centerY - textHeight / 2,
+                width: textWidth,
+                height: textHeight,
+            });
+
+            mainLayer.batchDraw();
+        });
+
+        // Reset scale after transform ends (normalize scale to dimensions)
+        transformer.on('transformend', () => {
+            const scale = circle.scale();
+            if (scale) {
+                const scaleX = Math.abs(scale.x);
+                const scaleY = Math.abs(scale.y);
+
+                // Apply scale to dimensions
+                const newRadiusX = circle.radiusX() * scaleX;
+                const newRadiusY = circle.radiusY() * scaleY;
+
+                // Reset scale and apply to dimensions
+                circle.scale({ x: 1, y: 1 });
+                circle.radiusX(newRadiusX);
+                circle.radiusY(newRadiusY);
+
+                // Update text final position
+                const centerX = circle.x();
+                const centerY = circle.y();
+                const textWidth = Math.min(newRadiusX * 2 * 0.8, 200);
+                const textHeight = Math.min(newRadiusY * 2 * 0.8, 100);
+
+                circleText.setAttrs({
+                    x: centerX - textWidth / 2,
+                    y: centerY - textHeight / 2,
+                    width: textWidth,
+                    height: textHeight,
+                });
+            }
+
+            mainLayer.batchDraw();
+            overlayLayer.batchDraw();
+        });
+
+        // Initial render
+        mainLayer.batchDraw();
+        overlayLayer.batchDraw();
+    </script>
+</body>
+</html>

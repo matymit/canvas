@@ -5,6 +5,7 @@ import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { AnchorSide } from "../../../types/connector";
 import type { ConnectorElement } from "../../../types/connector";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
+import { getWorldPointer } from "../../../utils/pointer";
 
 export interface ConnectorToolLayers {
   main: Konva.Layer;
@@ -186,7 +187,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         const ghost = ref.current.preview;
         if (!start || !ghost) return;
 
-        const pos = stage.getPointerPosition();
+        const pos = getWorldPointer(stage);
         if (!pos) return;
 
         const end = { x: pos.x, y: pos.y };
@@ -207,7 +208,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         return;
       }
 
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       if (!pos) return;
       // REMOVED: hideAllPorts(stage) - managed by PortHoverModule
 
@@ -336,7 +337,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       const start = ref.current.start;
       const startSnap = ref.current.startSnap;
       const ghost = ref.current.preview;
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
 
       if (!pos || !start) {
         if (ghost) {
