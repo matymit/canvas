@@ -28,7 +28,10 @@
       "Bash(find:*)",
       "mcp__mcphub__memory-create_relations",
       "mcp__mcphub__puppeteer-puppeteer_click",
-      "mcp__mcphub__perplexity-perplexity_ask"
+      "mcp__mcphub__perplexity-perplexity_ask",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash(source:*)",
+      "mcp__mcphub__context7-mcp-resolve-library-id"
     ],
     "deny": [],
     "ask": []

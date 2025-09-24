@@ -220,16 +220,29 @@ const FigJamCanvas: React.FC = () => {
 
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-      // Skip if not in select mode
       const tool = (useUnifiedCanvasStore.getState().selectedTool ?? useUnifiedCanvasStore.getState().ui?.selectedTool) as string | undefined;
-      if (tool !== "select") return;
 
-      // If clicking on empty stage, clear selection
+      // If clicking on empty stage, ALWAYS clear selection regardless of current tool
       if (e.target === stage) {
         const s = useUnifiedCanvasStore.getState();
-        (s.selection?.clear || s.clearSelection)?.();
+
+        // Try multiple ways to clear selection to ensure it works
+        if (s.selection?.clear) {
+          s.selection.clear();
+        } else if (s.clearSelection) {
+          s.clearSelection();
+        } else {
+          // Fallback: Use global SelectionModule if store methods aren't available
+          const selectionModule = (window as any).selectionModule;
+          if (selectionModule?.clearSelection) {
+            selectionModule.clearSelection();
+          }
+        }
         return;
       }
+
+      // Skip element selection if not in select mode
+      if (tool !== "select") return;
 
       // If clicking on an element, select it (renderer modules should set element IDs on nodes)
       const clickedNode = e.target;

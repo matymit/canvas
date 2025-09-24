@@ -423,36 +423,38 @@ export class ShapeRenderer implements RendererModule {
 
   private handleShapeText(shape: ShapeElement, id: Id) {
     const hasText = shape.data?.text && shape.data.text.trim().length > 0;
+    // CRITICAL FIX: Always create text nodes for text-editable shapes, even with empty text
+    const isTextEditableShape = shape.type === 'rectangle' || shape.type === 'circle' || shape.type === 'triangle';
 
-    if (hasText) {
-      // Shape has text - create or update text attachment
+    if (isTextEditableShape) {
+      // Text-editable shape - always create/update text attachment for openShapeTextEditor compatibility
       let attachment = this.textNodes.get(id);
 
       if (!attachment) {
-        // Create new text node for this shape
-        attachment = this.createShapeTextAttachment(shape);
+        // Create new text node for this shape (even if text is empty)
+        attachment = this.createShapeTextAttachment(shape, !hasText); // Pass isEmpty flag
         if (attachment) {
           this.textNodes.set(id, attachment);
           this.layer?.add(attachment.primaryNode);
-          // Created text node for shape
+          // Created text node for text-editable shape
         }
       } else {
         // Update existing text node
-        this.updateShapeTextAttachment(attachment, shape);
+        this.updateShapeTextAttachment(attachment, shape, !hasText); // Pass isEmpty flag
       }
     } else {
-      // Shape has no text - remove text node if it exists
+      // Non-text-editable shape - remove text node if it exists
       const existingTextNode = this.textNodes.get(id);
       if (existingTextNode) {
-        // Removing text node for shape (no text)
+        // Removing text node for non-text-editable shape
         existingTextNode.primaryNode.destroy();
         this.textNodes.delete(id);
       }
     }
   }
 
-  private createShapeTextAttachment(shape: ShapeElement): ShapeTextAttachment | undefined {
-    if (!shape.data?.text || !this.layer) return undefined;
+  private createShapeTextAttachment(shape: ShapeElement, isEmpty?: boolean): ShapeTextAttachment | undefined {
+    if (!this.layer) return undefined;
 
     try {
       // Apply consistent text styling based on shape type
@@ -464,6 +466,7 @@ export class ShapeRenderer implements RendererModule {
       const lineHeight = (shape.data as ShapeDataWithExtras)?.textLineHeight ?? 1.25;
 
       const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
+      const textContent = shape.data?.text || ''; // Allow empty text
       const textNode = new Konva.Text({
         id: `${shape.id}-text`,
         name: `shape-text-${shape.id}`,
@@ -471,7 +474,7 @@ export class ShapeRenderer implements RendererModule {
         y: innerBox.y,
         width: innerBox.width,
         height: innerBox.height,
-        text: shape.data.text,
+        text: textContent,
         fontSize,
         fontFamily,
         fill: textColor,
@@ -482,6 +485,8 @@ export class ShapeRenderer implements RendererModule {
         listening: false,
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,
+        // CRITICAL FIX: Hide text node when text is empty to avoid visual artifacts
+        visible: !isEmpty,
       });
 
       textNode.setAttr('elementId', shape.id);
@@ -505,8 +510,8 @@ export class ShapeRenderer implements RendererModule {
     }
   }
 
-  private updateShapeTextAttachment(attachment: ShapeTextAttachment, shape: ShapeElement) {
-    if (!shape.data?.text) return;
+  private updateShapeTextAttachment(attachment: ShapeTextAttachment, shape: ShapeElement, isEmpty?: boolean) {
+    // Allow updating even when text is empty for text-editable shapes
 
     try {
       // Apply consistent text styling based on shape type
@@ -519,19 +524,22 @@ export class ShapeRenderer implements RendererModule {
 
       const innerBox = computeShapeInnerBox(shape as BaseShape, padding);
       const { text: textNode, primaryNode } = attachment;
+      const textContent = shape.data?.text || ''; // Allow empty text
 
       textNode.setAttrs({
         x: innerBox.x,
         y: innerBox.y,
         width: innerBox.width,
         height: innerBox.height,
-        text: shape.data.text,
+        text: textContent,
         fontSize,
         fontFamily,
         fill: textColor,
         align: 'center',
         verticalAlign: 'middle',
         lineHeight,
+        // CRITICAL FIX: Hide text node when text is empty to avoid visual artifacts
+        visible: !isEmpty,
       });
 
       const relativeDX = primaryNode.x() - shape.x;

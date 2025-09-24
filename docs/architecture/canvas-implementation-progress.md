@@ -9,7 +9,7 @@ This document tracks the implementation progress of the FigJam-style modular can
 ### ⚠️ CURRENT STATE: CONNECTOR SYSTEM REWRITE + STABILIZATION
 
 **Repository:** `eslint-phase17-store-typing`
-**Last Commit:** `a2f26a7` - Connector UX/stability, ports suppression, live drag streaming
+**Last Commit:** Latest - Circle text editor overlay fix - always create text nodes for compatibility
 
 ### Connector, Ports, and Tooling Improvements (What changed & why)
 
@@ -26,6 +26,13 @@ This document tracks the implementation progress of the FigJam-style modular can
   - **Technical Solution**: Modified commit() function to use aggressive element attachment (50px threshold) instead of absolute coordinates
   - **Impact**: Eliminates permanent coordinate corruption, connectors now survive any number of zoom operations
   - **Files Modified**: `ConnectorTool.tsx` (aggressive element attachment logic), `SelectionModule.ts` (TypeScript fix)
+
+- **🚨 CRITICAL FIX (September 24, 2025): Circle Text Editor Overlay RESOLVED**
+  - **Issue**: Circle text editor failed to activate on double-click or auto-select after creation
+  - **Root Cause**: ShapeRenderer.handleShapeText() only created text nodes when text existed, but openShapeTextEditor() expected to find text nodes
+  - **Technical Solution**: Modified handleShapeText() to always create text nodes for text-editable shapes (rectangle, circle, triangle) even with empty text, setting visibility to false when empty
+  - **Impact**: Circles now behave exactly like sticky notes - auto-select on creation with immediate text editor activation
+  - **Files Modified**: `ShapeRenderer.ts` (text node creation logic, visibility handling)
 
 - Implemented a parallel selection path for connectors that never uses Konva.Transformer. Endpoint-only UI is now enforced in all code paths, including refresh and version-bump cases. This prevents the blue resize frame from ever attaching to connectors (root cause of user confusion).
 - Harmonized geometry for ports, snapping, and endpoint placement by adopting a single rect policy: getClientRect with `skipStroke:true, skipShadow:true`. This eliminates the 1–2 px visual gap users saw between connectors and element edges under various stroke widths and zoom levels.
@@ -52,7 +59,7 @@ Notes for future devs:
 #### ❌ STILL BROKEN / PARTIAL:
 
 4. **Sticky note selection system** - CRITICAL REGRESSION (no resize frame)
-5. **Circle text editing** - BROKEN - Double-click doesn't open text editor
+5. **Circle text editing** - ✅ FIXED - Text editor now works with always-created text nodes
 6. **Font size consistency** - Not actually 16px across all elements
 7. **Connector selection frames** - Addressed: endpoint‑only selection enforced. If you see a frame, a regression reintroduced transformer attachment for connectors.
 8. **Port hover display** - Addressed: ports show on elements only when connector tools are active; suppressed on connectors themselves.
