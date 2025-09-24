@@ -6,7 +6,8 @@ type Id = string;
 
 interface DrawingElement {
   id: Id;
-  type: "pen" | "marker" | "highlighter" | "eraser";
+  type: "drawing";
+  subtype: "pen" | "marker" | "highlighter" | "eraser";
   points: number[]; // Flattened array of [x1, y1, x2, y2, ...]
   style?: {
     stroke?: string;
@@ -32,10 +33,9 @@ export class DrawingRenderer implements RendererModule {
         const drawings = new Map<Id, DrawingElement>();
         for (const [id, element] of state.elements.entries()) {
           if (
-            element.type === "pen" ||
-            element.type === "marker" ||
-            element.type === "highlighter" ||
-            element.type === "eraser"
+            element.type === "drawing" &&
+            element.subtype &&
+            ["pen", "marker", "highlighter", "eraser"].includes(element.subtype)
           ) {
             drawings.set(id, element as DrawingElement);
           }
@@ -51,10 +51,9 @@ export class DrawingRenderer implements RendererModule {
     const initialDrawings = new Map<Id, DrawingElement>();
     for (const [id, element] of initialState.elements.entries()) {
       if (
-        element.type === "pen" ||
-        element.type === "marker" ||
-        element.type === "highlighter" ||
-        element.type === "eraser"
+        element.type === "drawing" &&
+        element.subtype &&
+        ["pen", "marker", "highlighter", "eraser"].includes(element.subtype)
       ) {
         initialDrawings.set(id, element as DrawingElement);
       }
@@ -96,9 +95,9 @@ export class DrawingRenderer implements RendererModule {
         // Create new drawing node
         node = this.createDrawingNode(drawing);
         this.drawingNodes.set(id, node);
-        // Add to appropriate layer based on type
+        // Add to appropriate layer based on subtype
         const targetLayer =
-          drawing.type === "highlighter"
+          drawing.subtype === "highlighter"
             ? this.highlighterLayer
             : this.mainLayer;
         targetLayer.add(node);
@@ -121,8 +120,8 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private createDrawingNode(drawing: DrawingElement): Konva.Line {
-    const isHighlighter = drawing.type === "highlighter";
-    const isEraser = drawing.type === "eraser";
+    const isHighlighter = drawing.subtype === "highlighter";
+    const isEraser = drawing.subtype === "eraser";
 
     return new Konva.Line({
       id: drawing.id,
@@ -145,8 +144,8 @@ export class DrawingRenderer implements RendererModule {
   }
 
   private updateDrawingNode(node: Konva.Line, drawing: DrawingElement) {
-    const isHighlighter = drawing.type === "highlighter";
-    const isEraser = drawing.type === "eraser";
+    const isHighlighter = drawing.subtype === "highlighter";
+    const isEraser = drawing.subtype === "eraser";
 
     node.setAttrs({
       points: drawing.points,
@@ -164,7 +163,7 @@ export class DrawingRenderer implements RendererModule {
   private getStrokeColor(drawing: DrawingElement): string {
     if (drawing.style?.stroke) return drawing.style.stroke;
 
-    switch (drawing.type) {
+    switch (drawing.subtype) {
       case "pen":
         return "#000000";
       case "marker":
@@ -181,7 +180,7 @@ export class DrawingRenderer implements RendererModule {
   private getStrokeWidth(drawing: DrawingElement): number {
     if (drawing.style?.strokeWidth) return drawing.style.strokeWidth;
 
-    switch (drawing.type) {
+    switch (drawing.subtype) {
       case "pen":
         return 2;
       case "marker":
@@ -198,7 +197,7 @@ export class DrawingRenderer implements RendererModule {
   private getOpacity(drawing: DrawingElement): number {
     if (drawing.style?.opacity !== undefined) return drawing.style.opacity;
 
-    switch (drawing.type) {
+    switch (drawing.subtype) {
       case "pen":
         return 1;
       case "marker":

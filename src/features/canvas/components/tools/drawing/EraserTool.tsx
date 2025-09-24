@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
+import { getWorldPointer } from '../../../utils/pointer';
 
 export interface EraserToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -11,159 +12,185 @@ export interface EraserToolProps {
 
 const DEFAULT_SIZE = 20;
 
+function getMainLayer(stage: Konva.Stage | null): Konva.Layer | null {
+  if (!stage) return null;
+  // Assumes four-layer architecture: [background, main, preview, overlay]
+  const layers = stage.getLayers();
+  return layers[1] as Konva.Layer | null;
+}
+
+function ensureOverlayOnTop(stage: Konva.Stage | null) {
+  if (!stage) return;
+  const layers = stage.getLayers();
+  const overlay = layers[3] as Konva.Layer | undefined;
+  if (overlay) overlay.moveToTop();
+}
+
 const EraserTool: React.FC<EraserToolProps> = ({
   stageRef,
   isActive,
   size = DEFAULT_SIZE,
   opacity = 1,
 }) => {
-  const withUndo = useUnifiedCanvasStore((s) => s.history?.withUndo);
-  const deleteElement = useUnifiedCanvasStore((s) => s.element?.delete);
-  const elements = useUnifiedCanvasStore((s) => s.elements);
-  const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool ?? s.ui?.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool ?? s.ui?.setSelectedTool);
-
-  const ref = useRef<{ erasing: boolean; erasedElements: Set<string> }>({ erasing: false, erasedElements: new Set() });
+  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
+  const withUndo = useUnifiedCanvasStore((s) => s.withUndo);
+  const previewLayerRef = useRef<Konva.Layer | null>(null);
+  const lineRef = useRef<Konva.Line | null>(null);
+  const drawingRef = useRef(false);
+  const pointsRef = useRef<number[]>([]);
+  const rafPendingRef = useRef(false);
 
   useEffect(() => {
     const stage = stageRef.current;
-    const active = isActive && (selectedTool === 'eraser');
-    if (!stage || !active) return;
+    if (!stage) return;
 
+    // Use existing preview layer (four-layer pipeline: [background, main, preview, overlay])
     const layers = stage.getLayers();
+    const previewLayer = (layers[2] as Konva.Layer) ?? new Konva.Layer({ listening: false });
+    // Only add if missing (should not happen in our pipeline)
+    if (!previewLayer.getStage()) stage.add(previewLayer);
+    previewLayerRef.current = previewLayer;
+    ensureOverlayOnTop(stage);
 
-    const showCursor = (pos: { x: number; y: number }) => {
-      const overlay = layers[layers.length - 1] as Konva.Layer | undefined;
-      if (!overlay) return;
-      let cursor = overlay.findOne<Konva.Circle>('.eraser-cursor');
-      if (!cursor) {
-        cursor = new Konva.Circle({
-          x: pos.x,
-          y: pos.y,
-          radius: size / 2,
-          stroke: '#ef4444',
-          strokeWidth: 1,
-          fill: 'rgba(239,68,68,0.08)',
-          listening: false,
-          name: 'eraser-cursor',
-        });
-        overlay.add(cursor);
+    const commitStroke = () => {
+      const stageNow = stageRef.current;
+      const line = lineRef.current;
+      if (!stageNow || !line) return;
+
+      // Move the finished eraser stroke into the main layer for persistence
+      const main = getMainLayer(stageNow);
+      if (main) {
+        line.listening(false); // Eraser strokes don't need hit detection
+        line.moveTo(main);
+        main.batchDraw();
       } else {
-        cursor.position(pos);
+        // Fallback: keep it on stage if main layer is not available.
+        line.moveToTop();
+        stageNow.draw();
       }
-      overlay.batchDraw();
-    };
 
-    const checkForElementsToErase = (x: number, y: number) => {
-      if (!deleteElement || !elements) return;
-
-      const mainLayer = stage.getLayers().find(layer => layer.name() === 'main' || layer === layers[1]);
-      if (!mainLayer) return;
-
-      // Find all nodes that intersect with the eraser circle
-      const eraserRadius = size / 2;
-      const allNodes = mainLayer.find('*');
-
-      for (const node of allNodes) {
-        try {
-          const elementId = node.getAttr('elementId') || node.id();
-          if (!elementId || ref.current?.erasedElements.has(elementId)) continue;
-
-          // Get node bounds
-          const bounds = node.getClientRect();
-          if (!bounds || bounds.width === 0 || bounds.height === 0) continue;
-
-          // Check if eraser position intersects with element bounds
-          const nodeLeft = bounds.x;
-          const nodeRight = bounds.x + bounds.width;
-          const nodeTop = bounds.y;
-          const nodeBottom = bounds.y + bounds.height;
-
-          // Simple circle-rectangle intersection
-          const closestX = Math.max(nodeLeft, Math.min(x, nodeRight));
-          const closestY = Math.max(nodeTop, Math.min(y, nodeBottom));
-          const distanceSquared = (x - closestX) ** 2 + (y - closestY) ** 2;
-
-          if (distanceSquared <= eraserRadius ** 2) {
-            // Element intersects with eraser - mark for deletion
-            if (elements.has(elementId)) {
-              ref.current?.erasedElements.add(elementId);
-              console.debug('[EraserTool] Marked element for deletion:', elementId);
-            }
-          }
-        } catch (error) {
-          console.warn('[EraserTool] Error checking node for erasure:', error);
-        }
-      }
-    };
-
-    const onDown = () => {
-      const p = stage.getPointerPosition();
-      if (!p) return;
-      if (!ref.current) ref.current = { erasing: false, erasedElements: new Set() };
-      ref.current.erasing = true;
-      ref.current.erasedElements.clear();
-
-      // Start checking for elements to erase
-      checkForElementsToErase(p.x, p.y);
-    };
-
-    const onMove = () => {
-      const p = stage.getPointerPosition();
-      if (!p) return;
-      showCursor(p);
-
-      // Continue checking for elements to erase during drag
-      if (ref.current?.erasing) {
-        checkForElementsToErase(p.x, p.y);
-      }
-    };
-
-    const onUp = () => {
-      if (!ref.current?.erasing) return;
-      ref.current.erasing = false;
-
-      // Delete all marked elements
-      const elementsToDelete = Array.from(ref.current.erasedElements);
-      ref.current.erasedElements.clear();
-
-      if (elementsToDelete.length > 0 && deleteElement) {
-        const commitFn = () => {
-          console.debug('[EraserTool] Deleting elements:', elementsToDelete);
-          for (const elementId of elementsToDelete) {
-            deleteElement(elementId);
-          }
+      // Also save to unified store for persistence with undo support
+      if (upsertElement && withUndo && pointsRef.current.length >= 4) {
+        const bounds = {
+          x: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
+          y: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1)),
+          width: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 0)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
+          height: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 1)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1))
         };
 
-        if (withUndo) {
-          withUndo(`Erase ${elementsToDelete.length} element${elementsToDelete.length > 1 ? 's' : ''}`, commitFn);
-        } else {
-          commitFn();
-        }
+        withUndo('Erase with eraser', () => {
+          upsertElement({
+            id: `eraser-stroke-${Date.now()}`,
+            type: 'drawing',
+            subtype: 'eraser',
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            bounds,
+            points: [...pointsRef.current],
+            style: {
+              stroke: '#FFFFFF', // White color for destination-out composite
+              strokeWidth: size,
+              opacity,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }
+          });
+        });
       }
 
-      // Switch back to select tool to match FigJam flows
-      setSelectedTool?.('select');
+      // Reset temp state for next stroke.
+      lineRef.current = null;
+      pointsRef.current = [];
+      drawingRef.current = false;
+      rafPendingRef.current = false;
+      try { previewLayerRef.current?.batchDraw(); } catch (error) {
+        // Ignore cleanup errors
+      }
     };
 
-    stage.on('pointerdown.eraser', onDown);
-    stage.on('pointermove.eraser', onMove);
-    stage.on('pointerup.eraser', onUp);
-    stage.on('mouseleave.eraser', onUp);
+    const onPointerDown = () => {
+      if (!isActive || drawingRef.current) return;
+      const pos = getWorldPointer(stage);
+      if (!pos) return;
+      drawingRef.current = true;
+      pointsRef.current = [pos.x, pos.y];
+
+      const line = new Konva.Line({
+        points: pointsRef.current,
+        stroke: '#FFFFFF', // White for destination-out composite
+        strokeWidth: size,
+        opacity,
+        lineCap: 'round',
+        lineJoin: 'round',
+        listening: false,
+        perfectDrawEnabled: false,
+        shadowForStrokeEnabled: false,
+        globalCompositeOperation: 'destination-out', // This creates the erasing effect
+      });
+
+      lineRef.current = line;
+      previewLayerRef.current?.add(line);
+      previewLayerRef.current?.batchDraw();
+    };
+
+    const onPointerMove = () => {
+      if (!isActive || !drawingRef.current) return;
+      const pos = getWorldPointer(stage);
+      if (!pos) return;
+
+      pointsRef.current.push(pos.x, pos.y);
+
+      if (!rafPendingRef.current) {
+        rafPendingRef.current = true;
+        requestAnimationFrame(() => {
+          rafPendingRef.current = false;
+          const line = lineRef.current;
+          if (!line) return;
+          line.points(pointsRef.current);
+          previewLayerRef.current?.batchDraw();
+        });
+      }
+    };
+
+    const endStroke = () => {
+      if (!drawingRef.current) return;
+      commitStroke();
+    };
+
+    const onPointerUp = () => endStroke();
+    const onPointerLeave = () => endStroke();
+
+    if (isActive) {
+      stage.on('pointerdown', onPointerDown);
+      stage.on('pointermove', onPointerMove);
+      stage.on('pointerup', onPointerUp);
+      stage.on('pointerleave', onPointerLeave);
+    }
 
     return () => {
-      stage.off('pointerdown.eraser', onDown);
-      stage.off('pointermove.eraser', onMove);
-      stage.off('pointerup.eraser', onUp);
-      stage.off('mouseleave.eraser', onUp);
-      const overlay = layers[layers.length - 1] as Konva.Layer | undefined;
-      try { overlay?.find('.eraser-cursor').forEach(n => n.destroy()); overlay?.batchDraw(); } catch (error) {
+      stage.off('pointerdown', onPointerDown);
+      stage.off('pointermove', onPointerMove);
+      stage.off('pointerup', onPointerUp);
+      stage.off('pointerleave', onPointerLeave);
+
+      // Cleanup transient resources
+      try {
+        lineRef.current?.destroy();
+      } catch (error) {
         // Ignore cleanup errors
-        // Cleanup error
       }
-      ref.current = { erasing: false, erasedElements: new Set() };
+      lineRef.current = null;
+
+      // Do not destroy shared preview layer
+      previewLayerRef.current = null;
+
+      drawingRef.current = false;
+      pointsRef.current = [];
+      rafPendingRef.current = false;
     };
-  }, [stageRef, isActive, size, opacity, selectedTool, setSelectedTool, withUndo, deleteElement, elements]);
+  }, [stageRef, isActive, size, opacity, upsertElement, withUndo]);
 
   return null;
 };

@@ -5,6 +5,30 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3] - 2025-09-24
+
+### 🚨 CRITICAL FIX: Eraser Tool Implementation Complete
+- **Fixed**: Eraser tool now provides real-time visual feedback during drag operations
+- **Issue**: Eraser tool was deleting entire canvas elements instead of creating erasing strokes, resulting in no visual feedback during dragging
+- **Root Cause**: EraserTool used collision detection and element deletion rather than following the drawing tool architectural pattern
+- **Technical Solution**:
+  - Completely rewrote EraserTool to follow the same architecture as PenTool, MarkerTool, and HighlighterTool
+  - Changed to create drawing elements with type: 'drawing', subtype: 'eraser'
+  - Uses globalCompositeOperation: 'destination-out' for real-time erasing effect
+  - Follows preview → commit → store pattern with RAF batching for 60fps performance
+  - Updated DrawingRenderer to handle unified drawing element structure with subtypes
+- **User Impact**: Users now see immediate erasing effects as they drag the eraser over pen/marker/highlighter strokes
+- **Performance**: Maintains 60fps performance with proper RAF batching during erase operations
+- **Files Modified**:
+  - `/src/features/canvas/components/tools/drawing/EraserTool.tsx` - Complete architectural rewrite
+  - `/src/features/canvas/renderer/modules/DrawingRenderer.ts` - Updated to handle type/subtype structure
+
+### 🔧 Technical Improvements
+- Enhanced DrawingRenderer to support unified drawing element structure
+- Improved consistency across all drawing tools (pen, marker, highlighter, eraser)
+- Maintained strict four-layer Konva architecture compliance
+- Ensured proper store-driven rendering patterns throughout eraser implementation
+
 ## [3.1.2] - 2025-09-24
 
 ### 🚨 CRITICAL FIX: Circle Text Editor Multi-line Caret Malformation
