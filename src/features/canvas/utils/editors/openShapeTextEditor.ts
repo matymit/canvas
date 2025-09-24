@@ -214,18 +214,18 @@ export function openShapeTextEditor(
     willChange: 'transform'
   };
 
-  // Apply styles based on shape type - FIXED: Use display: block for better contentEditable compatibility
+  // Apply styles based on shape type - CRITICAL FIX: Use flexbox for proper circle text centering
   if (isCircle) {
     Object.assign(editorStyles, {
-      display: 'block',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       textAlign: 'center',
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
       overflowWrap: 'break-word',
       padding: `${getCirclePadding()}px`,
       minHeight: '1px',
-      // Center text vertically using flexbox-like behavior with table-cell
-      verticalAlign: 'middle',
       lineHeight: `${lineHeight}`
     });
   } else if (isTriangle) {
