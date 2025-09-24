@@ -5,6 +5,61 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2025-09-24
+
+### 🚨 CRITICAL FIX: Circle Text Editor Multi-line Caret Malformation
+- **Fixed**: Circle text editor caret no longer becomes massively oversized when line breaks are introduced
+- **Issue**: After typing text and forcing line breaks, the caret grew to huge proportions and text became malformed/shrunken
+- **Root Cause**: Flexbox centering approach (`display: flex; align-items: center; justify-content: center`) interfered with natural text flow and contentEditable behavior during multi-line input
+- **Technical Solution**:
+  - Replaced flexbox centering with padding-based centering that preserves natural text flow
+  - Implemented single-line vs multi-line detection for adaptive centering behavior
+  - Used consistent line-height calculations that work for both single and multi-line text
+  - Added uniform padding for multi-line scenarios to allow natural text flow
+  - Enhanced `onInput` handler to trigger position updates when transitioning between single/multi-line
+- **Impact**: Eliminates critical UX issue where text became unreadable and caret oversized during typing
+- **Files Modified**: `src/features/canvas/utils/editors/openShapeTextEditor.ts` (lines 217-234, 361-390, 549-552)
+- **Validation**: Both single-line and multi-line text now work properly with normal-sized caret and readable text
+
+## [3.1.1] - 2025-09-24
+
+### 🚨 CRITICAL FIX: Circle Text Editor Caret Visibility Regression
+- **Fixed**: Blinking caret is now visible again when initially adding circles to the canvas
+- **Issue**: Previous flexbox centering fix caused caret to disappear completely, breaking text editing UX
+- **Root Cause**: `display: 'flex'` on contentEditable elements interferes with browser caret rendering mechanisms
+- **Technical Solution**:
+  - Replaced flexbox centering with line-height based vertical centering approach
+  - Changed from `display: 'flex'` + `alignItems/justifyContent: 'center'` to `display: 'block'` + dynamic line-height calculation
+  - Implemented calculated line-height that matches container height for perfect single-line centering
+  - Added padding-based centering for cases where content is shorter than container height
+  - Maintained `textAlign: 'center'` for reliable horizontal centering
+- **Impact**: Restores essential blinking caret functionality while maintaining consistent text positioning
+- **Files Modified**: `openShapeTextEditor.ts` (lines 217-231, 358-377)
+
+### 🚨 CRITICAL FIX: Circle Text Editor Caret Positioning Inconsistency
+- **Fixed**: Circle text editor now shows consistent text positioning between editing and viewing modes
+- **Issue**: Text appeared at top during editing but centered when viewing, creating jarring "jumping" effect
+- **Root Cause**: ContentEditable editor used `display: 'block'` with ineffective `verticalAlign: 'middle'` which doesn't work on div elements
+- **Technical Solution**:
+  - Replaced `display: 'block'` + `verticalAlign: 'middle'` with flexbox centering approach
+  - Added `alignItems: 'center'` and `justifyContent: 'center'` for proper vertical/horizontal centering
+  - Removed ineffective `verticalAlign: 'middle'` property
+- **Impact**: Eliminates jarring "jumping" behavior, ensuring consistent centered text across all editing scenarios (initial creation, typing, double-click re-editing)
+- **Files Modified**: `openShapeTextEditor.ts` (lines 217-230)
+- **Note**: This fix was subsequently updated in v3.1.1 to resolve caret visibility regression
+
+### 🚨 CRITICAL FIX: Circle Text Positioning During Resize
+- **Fixed**: Circle text now stays properly synchronized with circle geometry throughout entire resize operation
+- **Issue**: Text was jumping outside circle boundaries and flipping around during live resize operations
+- **Root Cause**: `getClientRect()` method in `syncTextDuringTransform()` was returning inaccurate bounds during active transforms
+- **Technical Solution**:
+  - Replaced `getClientRect()` with direct node property calculations (`position()`, `size()`, `scale()`) for accurate real-time dimensions
+  - Added circle-specific center-based text positioning to prevent text jumping outside boundaries
+  - Enhanced visual dimension calculation using `Math.abs(scale)` to handle negative scaling correctly
+  - Implemented 80% padding constraint for circle text to maintain visual spacing during resize
+- **Impact**: Text now stays perfectly centered within circles during resize with no visual jumping or boundary violations
+- **Files Modified**: `ShapeRenderer.ts` (lines 582-659)
+
 ## [3.0.0] - 2025-09-23
 
 ### 🚨 CRITICAL FIX: Circle Port Connection Coordinate Issues

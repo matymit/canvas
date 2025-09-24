@@ -214,19 +214,23 @@ export function openShapeTextEditor(
     willChange: 'transform'
   };
 
-  // Apply styles based on shape type - CRITICAL FIX: Use flexbox for proper circle text centering
+  // Apply styles based on shape type - CRITICAL FIX: Use padding-based centering instead of flexbox/line-height
   if (isCircle) {
     Object.assign(editorStyles, {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      display: 'block', // Keep block display for proper caret rendering
       textAlign: 'center',
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
       overflowWrap: 'break-word',
       padding: `${getCirclePadding()}px`,
       minHeight: '1px',
-      lineHeight: `${lineHeight}`
+      // CRITICAL FIX: Use consistent line-height, let padding handle vertical centering
+      lineHeight: `${lineHeight}`,
+      verticalAlign: 'top', // Ensure consistent baseline
+      boxSizing: 'border-box', // Ensure padding doesn't affect centering calculations
+      // CRITICAL FIX: Prevent line-height conflicts that cause caret malformation
+      maxHeight: '100%',
+      overflowY: 'hidden' // Prevent scrolling that could interfere with centering
     });
   } else if (isTriangle) {
     Object.assign(editorStyles, {
@@ -355,9 +359,34 @@ export function openShapeTextEditor(
       editor.style.fontSize = `${effectiveFontSize}px`;
 
       if (isCircle) {
-        editor.style.lineHeight = `${lineHeight}`;
+        // CRITICAL FIX: Use consistent line-height and padding-based centering
+        const containerHeight = finalHeight;
         const scaledPadding = Math.max(0, getCirclePadding() * stageScale);
-        editor.style.padding = `${Math.round(scaledPadding)}px`;
+
+        // CRITICAL FIX: Use consistent line-height that works for both single and multi-line text
+        const consistentLineHeight = effectiveFontSize * lineHeight;
+        editor.style.lineHeight = `${consistentLineHeight}px`;
+
+        // CRITICAL FIX: Calculate vertical centering using top padding only
+        const contentAreaHeight = containerHeight - (scaledPadding * 2);
+        const estimatedTextHeight = consistentLineHeight; // Start with single-line height
+
+        // Only adjust vertical centering for single-line scenarios
+        // For multi-line, let natural text flow handle the layout
+        const currentTextLength = latestEditorText.length;
+        const isLikelyMultiLine = currentTextLength > 20 || latestEditorText.includes('\n');
+
+        if (!isLikelyMultiLine && contentAreaHeight > estimatedTextHeight) {
+          // Single-line centering: add extra top padding
+          const verticalOffset = Math.round((contentAreaHeight - estimatedTextHeight) / 2);
+          editor.style.paddingTop = `${Math.round(scaledPadding + verticalOffset)}px`;
+          editor.style.paddingBottom = `${Math.round(scaledPadding)}px`;
+          editor.style.paddingLeft = `${Math.round(scaledPadding)}px`;
+          editor.style.paddingRight = `${Math.round(scaledPadding)}px`;
+        } else {
+          // Multi-line or tight fit: use uniform padding
+          editor.style.padding = `${Math.round(scaledPadding)}px`;
+        }
       }
     } catch (error) {
       console.warn('[openShapeTextEditor] Error updating position:', error);
@@ -516,6 +545,11 @@ export function openShapeTextEditor(
     }
 
     latestEditorText = (editor.textContent || '').replace(ZERO_WIDTH_REGEX, '');
+
+    // CRITICAL FIX: Update position/padding when text content changes to handle single/multi-line transitions
+    if (isCircle) {
+      updateEditorPosition();
+    }
 
     // FIXED: Force visual refresh after text input to ensure text appears immediately
     requestAnimationFrame(() => {

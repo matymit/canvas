@@ -63,6 +63,9 @@ export class ShapeRenderer implements RendererModule {
     this.layer = ctx.layers.main;
     this.store = ctx.store;
 
+    // CRITICAL FIX: Make ShapeRenderer globally accessible for transform synchronization
+    (window as any).shapeRenderer = this;
+
     // Subscribe to store changes - watch shape elements
     this.unsubscribe = ctx.store.subscribe(
       // Selector: extract shape elements
@@ -107,6 +110,12 @@ export class ShapeRenderer implements RendererModule {
     // Unmounting ShapeRenderer
     if (this.unsubscribe) {
       this.unsubscribe();
+    }
+
+    // Clean up global reference
+    const globalWindow = window as any;
+    if (globalWindow.shapeRenderer === this) {
+      globalWindow.shapeRenderer = undefined;
     }
     for (const node of this.shapeNodes.values()) {
       node.destroy();
@@ -564,5 +573,98 @@ export class ShapeRenderer implements RendererModule {
 
     attachment.primaryNode.position({ x: node.x() + dx, y: node.y() + dy });
     attachment.primaryNode.getLayer()?.batchDraw();
+  }
+
+  /**
+   * CRITICAL FIX: Synchronize text positioning during transform operations
+   * This method is called during real-time transforms to keep text properly positioned
+   */
+  public syncTextDuringTransform(elementId: Id) {
+    const attachment = this.textNodes.get(elementId);
+    if (!attachment || !this.store) return;
+
+    // Get the current element data from store
+    const store = this.store.getState();
+    const element = store.elements.get(elementId) as ShapeElement | undefined;
+    if (!element) return;
+
+    // Find the corresponding Konva shape node
+    const shapeNode = this.shapeNodes.get(elementId);
+    if (!shapeNode) return;
+
+    try {
+      // CRITICAL FIX: Calculate visual dimensions directly from node properties during transform
+      // Don't use getClientRect during transform as it can be inaccurate
+      const nodePos = shapeNode.position();
+      const nodeSize = shapeNode.size();
+      const nodeScale = shapeNode.scale();
+      const nodeRotation = shapeNode.rotation();
+
+      // Calculate actual visual dimensions accounting for scale
+      const scaleX = Math.abs(nodeScale?.x ?? 1);
+      const scaleY = Math.abs(nodeScale?.y ?? 1);
+      const visualWidth = nodeSize.width * scaleX;
+      const visualHeight = nodeSize.height * scaleY;
+
+      // Create a temporary shape element with current visual dimensions
+      const visualElement: ShapeElement = {
+        ...element,
+        x: nodePos.x,
+        y: nodePos.y,
+        width: visualWidth,
+        height: visualHeight,
+        rotation: nodeRotation
+      };
+
+      // Apply consistent text styling and positioning
+      const padding = element.data?.padding ?? (element.type === 'circle' ? 0 : 8);
+      const innerBox = computeShapeInnerBox(visualElement as BaseShape, padding);
+
+      // CRITICAL FIX: For circles/ellipses, ensure text stays perfectly centered
+      if (element.type === 'circle' || element.type === 'ellipse') {
+        // Calculate center-based positioning for circles to prevent text jumping
+        const centerX = nodePos.x;
+        const centerY = nodePos.y;
+        const textWidth = Math.min(visualWidth * 0.8, innerBox.width); // Leave 20% padding
+        const textHeight = Math.min(visualHeight * 0.8, innerBox.height); // Leave 20% padding
+
+        attachment.text.setAttrs({
+          x: centerX - textWidth / 2,
+          y: centerY - textHeight / 2,
+          width: textWidth,
+          height: textHeight,
+        });
+      } else {
+        // For rectangles and triangles, use the computed inner box
+        attachment.text.setAttrs({
+          x: innerBox.x,
+          y: innerBox.y,
+          width: innerBox.width,
+          height: innerBox.height,
+        });
+      }
+
+      // Update relative positioning for consistent drag behavior
+      const relativeDX = attachment.text.x() - visualElement.x;
+      const relativeDY = attachment.text.y() - visualElement.y;
+      attachment.primaryNode.setAttr('relativeDX', relativeDX);
+      attachment.primaryNode.setAttr('relativeDY', relativeDY);
+
+      // Immediately redraw the text layer for smooth visual feedback
+      attachment.text.getLayer()?.batchDraw();
+
+    } catch (error) {
+      console.warn('[ShapeRenderer] Failed to sync text during transform:', error);
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Synchronize all text nodes during global transform operations
+   * This method can be called to update all shape text positions simultaneously
+   */
+  public syncAllTextDuringTransform() {
+    for (const elementId of this.textNodes.keys()) {
+      this.syncTextDuringTransform(elementId);
+    }
   }
 }

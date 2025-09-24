@@ -55,6 +55,19 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Validation**: Connectors remain visible and properly positioned during all zoom operations
    - **Impact**: Eliminates connector disappearing bug during zoom/pan operations
 
+3. **🚨 CRITICAL: Circle Text Editor Caret Positioning Inconsistency (FIXED - September 24, 2025)**
+   - **Issue**: Circle text editor showed inconsistent text positioning between editing and viewing modes - text appeared at top during editing but centered when viewing, creating jarring "jumping" effect
+   - **Root Cause**: ContentEditable editor used `display: 'block'` with ineffective `verticalAlign: 'middle'` which doesn't work on div elements
+   - **Fix**: Replaced with flexbox centering approach for proper vertical alignment
+   - **Technical Solution**:
+     - Replaced `display: 'block'` + `verticalAlign: 'middle'` with flexbox centering
+     - Added `alignItems: 'center'` and `justifyContent: 'center'` for proper vertical/horizontal centering
+     - Removed ineffective `verticalAlign: 'middle'` property
+   - **Files Modified**:
+     - `src/features/canvas/utils/editors/openShapeTextEditor.ts` - Lines 217-230, flexbox centering for circles
+   - **Validation**: Text now appears consistently centered in all editing scenarios (initial creation, typing, double-click re-editing)
+   - **Impact**: Eliminates jarring "jumping" behavior between edit and view modes, ensuring smooth UX consistency
+
 2. **Connector selection UI**
    - **Fix**: Connectors no longer use Konva.Transformer; endpoint‑only UI enforced.
    - **Why it mattered**: Users saw a rectangular resize frame on lines/arrow connectors which suggested the wrong affordance.
@@ -92,10 +105,39 @@ This document provides an honest assessment of current Canvas limitations, known
 4. **Port Hover Display**
    - **Status**: WORKING - Ports show reliably on elements when connector tools are active; properly hidden on connectors
 
-5. **Circle Text Caret Issues**
-   - **Issue**: Blinking caret not visible when editing circle text
-   - **Impact**: No visual feedback during text input
-   - **Status**: Partially improved but may still have issues
+5. **🚨 CRITICAL: Circle Text Positioning During Resize (FIXED - September 24, 2025)**
+   - **Issue**: Circle text was jumping outside circle boundaries and flipping around during live resize operations
+   - **Root Cause**: `getClientRect()` method in `syncTextDuringTransform()` was returning inaccurate bounds during active transforms
+   - **Fix**: Enhanced real-time text positioning calculation using direct node properties
+   - **Technical Solution**:
+     - Replaced `getClientRect()` with direct node property calculations (`position()`, `size()`, `scale()`) for accurate real-time dimensions
+     - Added circle-specific center-based text positioning to prevent text jumping outside boundaries
+     - Enhanced visual dimension calculation using `Math.abs(scale)` to handle negative scaling correctly
+     - Implemented 80% padding constraint for circle text to maintain visual spacing during resize
+   - **Files Modified**: `src/features/canvas/renderer/modules/ShapeRenderer.ts` (lines 582-659)
+   - **Validation**: Text now stays perfectly centered within circles during resize with no visual jumping or boundary violations
+   - **Impact**: Eliminates jarring UX issue where text would appear completely disconnected from circle during resize
+     - Modified SelectionModule `onTransform` callback to trigger text synchronization during resize operations
+     - Added global ShapeRenderer reference for cross-module communication during transforms
+     - Implemented visual dimension calculation using `getClientRect()` to capture scale transformations
+   - **Files Modified**:
+     - `src/features/canvas/renderer/modules/ShapeRenderer.ts` - Added real-time text sync methods and global exposure
+     - `src/features/canvas/renderer/modules/SelectionModule.ts` - Added transform callback for text synchronization
+   - **Validation**: Circle text now stays properly centered and synchronized throughout entire resize operation
+   - **Impact**: Eliminates jarring visual disconnect between text and circle during interactive resizing
+
+6. **Circle Text Editor Multi-line Caret Malformation (FIXED - September 24, 2025)**
+   - **Issue**: Circle text editor caret became massively oversized and text malformed when line breaks were introduced
+   - **Root Cause**: Flexbox centering approach (`display: flex; align-items: center; justify-content: center`) interfered with natural text flow and contentEditable behavior during multi-line input
+   - **Fix**: Replaced flexbox centering with padding-based centering that preserves natural text flow
+   - **Technical Solution**:
+     - Replaced flexbox centering with `display: block` and consistent line-height
+     - Implemented single-line vs multi-line detection for adaptive centering
+     - Added uniform padding for multi-line text to allow natural text flow
+     - Enhanced `onInput` handler to trigger position updates during text transitions
+   - **Files Modified**: `src/features/canvas/utils/editors/openShapeTextEditor.ts` (lines 217-234, 361-390, 549-552)
+   - **Validation**: Text now flows naturally with normal-sized caret for both single-line and multi-line scenarios
+   - **Impact**: Eliminates critical UX issue where text became unreadable and caret became oversized during typing
 
 6. **Eraser Tool Incomplete**
    - **Issue**: Eraser doesn't properly remove elements on drag

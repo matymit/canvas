@@ -34,6 +34,41 @@ This document tracks the implementation progress of the FigJam-style modular can
   - **Impact**: Circles now behave exactly like sticky notes - auto-select on creation with immediate text editor activation
   - **Files Modified**: `ShapeRenderer.ts` (text node creation logic, visibility handling)
 
+- **🚨 CRITICAL FIX (September 24, 2025): Circle Text Positioning During Resize RESOLVED**
+  - **Issue**: Circle text was jumping outside circle boundaries and flipping around during live resize operations
+  - **Root Cause**: `getClientRect()` method in `syncTextDuringTransform()` was returning inaccurate bounds during active transforms
+  - **Technical Solution**:
+    - Replaced `getClientRect()` with direct node property calculations (`position()`, `size()`, `scale()`) for accurate real-time dimensions
+    - Added circle-specific center-based text positioning to prevent text jumping outside boundaries
+    - Enhanced visual dimension calculation using `Math.abs(scale)` to handle negative scaling correctly
+    - Implemented 80% padding constraint for circle text to maintain visual spacing during resize
+  - **Impact**: Text now stays perfectly centered within circles during resize with no visual jumping or boundary violations
+  - **Files Modified**: `ShapeRenderer.ts` (lines 582-659 - enhanced syncTextDuringTransform method)
+
+- **🚨 CRITICAL FIX (September 24, 2025): Circle Text Editor Multi-line Caret Malformation RESOLVED**
+  - **Issue**: Circle text editor caret became massively oversized and text malformed when line breaks were introduced after typing
+  - **Root Cause**: Flexbox centering approach (`display: flex; align-items: center; justify-content: center`) interfered with natural text flow and contentEditable behavior during multi-line input
+  - **Technical Solution**:
+    - Replaced flexbox centering with padding-based centering that preserves natural text flow
+    - Implemented single-line vs multi-line detection for adaptive centering behavior
+    - Used consistent line-height calculations that work for both single and multi-line text
+    - Added uniform padding for multi-line scenarios to allow natural text flow
+    - Enhanced `onInput` handler to trigger position updates when transitioning between single/multi-line
+  - **Impact**: Eliminates critical UX issue where text became unreadable and caret oversized during typing with line breaks
+  - **Files Modified**: `openShapeTextEditor.ts` (lines 217-234, 361-390, 549-552 - padding-based centering implementation)
+  - **Validation**: Both single-line and multi-line text now work properly with normal-sized caret and readable text
+
+- **🚨 CRITICAL FIX (September 24, 2025): Circle Text Editor Caret Positioning Inconsistency RESOLVED**
+  - **Issue**: Text appeared at top during editing but centered when viewing, creating jarring "jumping" effect between edit/view modes
+  - **Root Cause**: ContentEditable editor used `display: 'block'` with ineffective `verticalAlign: 'middle'` which doesn't work on div elements
+  - **Technical Solution**:
+    - Replaced `display: 'block'` + `verticalAlign: 'middle'` with flexbox centering approach
+    - Added `alignItems: 'center'` and `justifyContent: 'center'` for proper vertical/horizontal centering
+    - Removed ineffective `verticalAlign: 'middle'` property
+  - **Impact**: Eliminates jarring "jumping" behavior, ensuring consistent centered text across all editing scenarios (initial creation, typing, double-click re-editing)
+  - **Files Modified**: `openShapeTextEditor.ts` (lines 217-230 - flexbox centering for circles)
+  - **Note**: This fix was subsequently updated in a later version to resolve multi-line caret malformation issues
+
 - Implemented a parallel selection path for connectors that never uses Konva.Transformer. Endpoint-only UI is now enforced in all code paths, including refresh and version-bump cases. This prevents the blue resize frame from ever attaching to connectors (root cause of user confusion).
 - Harmonized geometry for ports, snapping, and endpoint placement by adopting a single rect policy: getClientRect with `skipStroke:true, skipShadow:true`. This eliminates the 1–2 px visual gap users saw between connectors and element edges under various stroke widths and zoom levels.
 - Added aggressive suppression of hover ports while the pointer is over connectors. Previously, the hover module only looked at the tool; now it considers the hit target (and its parent) on every mouse move to ensure ports do not appear on drawn connectors.
@@ -60,7 +95,8 @@ Notes for future devs:
 
 4. **Sticky note selection system** - CRITICAL REGRESSION (no resize frame)
 5. **Circle text editing** - ✅ FIXED - Text editor now works with always-created text nodes
-6. **Font size consistency** - Not actually 16px across all elements
+6. **Circle text positioning during resize** - ✅ FIXED - Real-time text synchronization implemented
+7. **Font size consistency** - Not actually 16px across all elements
 7. **Connector selection frames** - Addressed: endpoint‑only selection enforced. If you see a frame, a regression reintroduced transformer attachment for connectors.
 8. **Port hover display** - Addressed: ports show on elements only when connector tools are active; suppressed on connectors themselves.
 9. **Drawing tool cursor positioning** - Improved: all drawing tools now use stage/world coordinates uniformly; continue to validate across browsers.

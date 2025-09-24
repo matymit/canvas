@@ -96,6 +96,9 @@ export class SelectionModule implements RendererModule {
       onTransform: (nodes) => {
         // Real-time updates during transform for smoother UX (all elements including tables)
         this.updateElementsFromNodes(nodes, false);
+
+        // CRITICAL FIX: Synchronize shape text positioning during transform
+        this.syncShapeTextDuringTransform(nodes);
       },
       onTransformEnd: (nodes) => {
         this.updateElementsFromNodes(nodes, true); // Commit with history
@@ -880,6 +883,40 @@ export class SelectionModule implements RendererModule {
         // the ConnectorSelectionManager handles the visual feedback with endpoint dots
         console.debug('[SelectionModule] Connector found for real-time update');
       }
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Synchronize shape text positioning during transform operations
+   * This method calls the ShapeRenderer to update text positions in real-time during resize
+   */
+  private syncShapeTextDuringTransform(nodes: Konva.Node[]) {
+    try {
+      // Get the global ShapeRenderer instance from the window
+      const shapeRenderer = (window as any).shapeRenderer;
+      if (!shapeRenderer || typeof shapeRenderer.syncTextDuringTransform !== 'function') {
+        return; // ShapeRenderer not available or method not implemented
+      }
+
+      // For each node being transformed, sync its text if it's a shape
+      for (const node of nodes) {
+        const elementId = node.getAttr("elementId") || node.id();
+        if (!elementId) continue;
+
+        // Get the element type to check if it's a shape with text
+        const store = this.storeCtx?.store.getState();
+        if (!store) continue;
+
+        const element = store.elements?.get?.(elementId) ?? store.element?.getById?.(elementId);
+        if (!element) continue;
+
+        // Only sync text for shapes that can have text
+        if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle' || element.type === 'ellipse') {
+          shapeRenderer.syncTextDuringTransform(elementId);
+        }
+      }
+    } catch (error) {
+      console.warn('[SelectionModule] Failed to sync shape text during transform:', error);
     }
   }
 }
