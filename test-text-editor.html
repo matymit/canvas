@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Text Editor Border Test</title>
+    <style>
+        body {
+            font-family: Inter, system-ui, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .test-container {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text Editor Red Border Test</h1>
+
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <p>1. Start the development server: <code>npm run dev</code></p>
+        <p>2. Navigate to the canvas</p>
+        <p>3. Select the Text tool (T key)</p>
+        <p>4. Click anywhere on the canvas to start typing</p>
+        <p>5. Check that NO RED BORDER appears around the text input</p>
+        <p>6. Check browser console for any error messages</p>
+    </div>
+
+    <div class="test-container">
+        <h3>Test ContentEditable Element (Simulation)</h3>
+        <p>This simulates the text editor to test CSS fixes:</p>
+
+        <div
+            contenteditable
+            data-testid="text-portal-input"
+            style="
+                position: relative;
+                display: inline-block;
+                min-width: 4px;
+                padding: 0;
+                outline: none !important;
+                border: none !important;
+                border-style: none !important;
+                border-width: 0 !important;
+                border-color: transparent !important;
+                outline-style: none !important;
+                outline-width: 0 !important;
+                outline-color: transparent !important;
+                background: transparent;
+                color: #111827;
+                font-family: Inter, system-ui, sans-serif;
+                font-weight: 400;
+                font-size: 16px;
+                line-height: 1.2;
+                white-space: nowrap;
+                caret-color: #111827;
+                -webkit-text-fill-color: #111827;
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+            "
+        >Click to type here</div>
+    </div>
+
+    <script>
+        // Inject the same aggressive CSS that the React component uses
+        const aggressiveStylesheet = document.createElement('style');
+        aggressiveStylesheet.setAttribute('data-text-editor-fix', 'true');
+        aggressiveStylesheet.textContent = `
+            [data-testid="text-portal-input"],
+            [data-testid="text-portal-input"]:focus,
+            [data-testid="text-portal-input"]:active,
+            [data-testid="text-portal-input"]:hover,
+            [data-testid="text-portal-input"]:focus-visible,
+            [data-testid="text-portal-input"]:focus-within {
+              border: none !important;
+              outline: none !important;
+              box-shadow: none !important;
+              border-style: none !important;
+              border-width: 0 !important;
+              border-color: transparent !important;
+              outline-style: none !important;
+              outline-width: 0 !important;
+              outline-color: transparent !important;
+              outline-offset: 0 !important;
+              -webkit-appearance: none !important;
+              -moz-appearance: none !important;
+              appearance: none !important;
+            }
+
+            [data-testid="text-portal-input"][contenteditable]:focus {
+              border: none !important;
+              outline: none !important;
+              box-shadow: none !important;
+            }
+        `;
+        document.head.appendChild(aggressiveStylesheet);
+
+        // Apply inline style overrides as backup (same as React component)
+        const editor = document.querySelector('[data-testid="text-portal-input"]');
+        if (editor) {
+            editor.style.setProperty('border', 'none', 'important');
+            editor.style.setProperty('outline', 'none', 'important');
+            editor.style.setProperty('box-shadow', 'none', 'important');
+            editor.style.setProperty('border-style', 'none', 'important');
+            editor.style.setProperty('outline-style', 'none', 'important');
+        }
+    </script>
+</body>
+</html>

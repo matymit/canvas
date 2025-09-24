@@ -210,8 +210,12 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
           // Open editor immediately after element creation
           // The editor itself will handle waiting for rendering
+          console.log('[CircleTool] About to schedule openShapeTextEditor for:', id);
           requestAnimationFrame(() => {
+            console.log('[CircleTool] RAF callback executing - calling openShapeTextEditor for:', id);
+            console.log('[CircleTool] Stage available:', !!stage);
             openShapeTextEditor(stage, id);
+            console.log('[CircleTool] openShapeTextEditor call completed');
           });
         } catch (error) {
           // Error creating element

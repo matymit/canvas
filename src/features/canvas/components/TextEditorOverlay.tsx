@@ -35,6 +35,68 @@ export default function TextEditorOverlay() {
     return () => window.removeEventListener("canvas:text-begin", onBegin);
   }, []);
 
+  // AGGRESSIVE CSS FIX: Create dynamic stylesheet to override ALL pseudo-class states
+  useEffect(() => {
+    let styleElement: HTMLStyleElement | null = null;
+
+    if (visible && editorRef.current) {
+      // Create unique selector using testid
+      const selector = '[data-testid="text-portal-input"]';
+
+      // Comprehensive pseudo-class overrides
+      const aggressiveCss = `
+        ${selector},
+        ${selector}:focus,
+        ${selector}:active,
+        ${selector}:hover,
+        ${selector}:focus-visible,
+        ${selector}:focus-within {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          border-style: none !important;
+          border-width: 0 !important;
+          border-color: transparent !important;
+          outline-style: none !important;
+          outline-width: 0 !important;
+          outline-color: transparent !important;
+          outline-offset: 0 !important;
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
+        }
+
+        /* Additional browser-specific overrides */
+        ${selector}[contenteditable]:focus {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+        }
+      `;
+
+      // Create and inject stylesheet
+      styleElement = document.createElement('style');
+      styleElement.setAttribute('data-text-editor-fix', 'true');
+      styleElement.textContent = aggressiveCss;
+      document.head.appendChild(styleElement);
+
+      // Apply additional inline style overrides as backup
+      const editor = editorRef.current;
+      editor.style.setProperty('border', 'none', 'important');
+      editor.style.setProperty('outline', 'none', 'important');
+      editor.style.setProperty('box-shadow', 'none', 'important');
+      editor.style.setProperty('border-style', 'none', 'important');
+      editor.style.setProperty('outline-style', 'none', 'important');
+    }
+
+    return () => {
+      // Cleanup: remove dynamic stylesheet when component unmounts or becomes invisible
+      if (styleElement && styleElement.parentNode) {
+        styleElement.parentNode.removeChild(styleElement);
+      }
+    };
+  }, [visible]);
+
   const commit = () => {
     const text = editorRef.current?.textContent ?? "";
     const font = `400 ${fontSize}px Inter, system-ui, sans-serif`;

@@ -284,6 +284,42 @@ export function openShapeTextEditor(
     throw error;
   }
 
+  console.log('[openShapeTextEditor] Step 7.1: Adding advanced border removal...');
+  try {
+    // Advanced CSS property override using setProperty with important flag
+    editor.style.setProperty('border', 'none', 'important');
+    editor.style.setProperty('outline', 'none', 'important');
+    editor.style.setProperty('box-shadow', 'none', 'important');
+    editor.style.setProperty('border-color', 'transparent', 'important');
+    editor.style.setProperty('outline-color', 'transparent', 'important');
+
+    // Create dynamic stylesheet for pseudo-class overrides
+    const dynamicStyleId = `shape-editor-style-${elementId}`;
+    const existingStyle = document.getElementById(dynamicStyleId);
+    if (!existingStyle) {
+      const styleElement = document.createElement('style');
+      styleElement.id = dynamicStyleId;
+      styleElement.textContent = `
+        [data-shape-text-editor="${elementId}"]:focus,
+        [data-shape-text-editor="${elementId}"]:active,
+        [data-shape-text-editor="${elementId}"]:hover,
+        [data-shape-text-editor="${elementId}"]:focus-visible {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          border-color: transparent !important;
+          outline-color: transparent !important;
+        }
+      `;
+      document.head.appendChild(styleElement);
+      console.log('[openShapeTextEditor] Dynamic stylesheet created for element:', elementId);
+    }
+
+    console.log('[openShapeTextEditor] Advanced border removal applied successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR applying advanced border removal:', error);
+  }
+
   function updateEditorPosition() {
     try {
       refreshShapeSnapshot();
@@ -374,6 +410,18 @@ export function openShapeTextEditor(
       editor.remove();
     } catch (error) {
       console.warn('[openShapeTextEditor] Error removing editor:', error);
+    }
+
+    // Remove dynamic stylesheet
+    try {
+      const dynamicStyleId = `shape-editor-style-${elementId}`;
+      const styleElement = document.getElementById(dynamicStyleId);
+      if (styleElement) {
+        styleElement.remove();
+        console.log('[openShapeTextEditor] Dynamic stylesheet removed');
+      }
+    } catch (error) {
+      console.warn('[openShapeTextEditor] Error removing stylesheet:', error);
     }
 
     if (textNode) {
