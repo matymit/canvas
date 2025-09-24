@@ -15,6 +15,7 @@ export interface ShapeTextEditorOptions {
   lineHeight?: number;
   fontFamily?: string;
   textColor?: string;
+  _retryCount?: number; // Internal parameter for race condition handling
 }
 
 /**
@@ -26,25 +27,38 @@ export function openShapeTextEditor(
   elementId: ElementId,
   options: ShapeTextEditorOptions = {}
 ): () => void {
+  console.log('[openShapeTextEditor] ENTRY - elementId:', elementId, 'options:', options);
+
   const store = useUnifiedCanvasStore.getState();
+  console.log('[openShapeTextEditor] Store retrieved, checking for element...');
+
   const element = store.elements.get(elementId);
+  console.log('[openShapeTextEditor] Element from store:', element ? 'Found' : 'NOT FOUND', element?.type);
 
   if (!element || !['rectangle', 'circle', 'triangle'].includes(element.type)) {
+    console.log('[openShapeTextEditor] EARLY RETURN - Invalid element or type:', element?.type);
     return () => {};
   }
 
+  console.log('[openShapeTextEditor] Element validation passed, type:', element.type);
+
   const shapeElement = element;
+  console.log('[openShapeTextEditor] Getting stage container...');
   const container = stage.container();
   if (!container) {
+    console.log('[openShapeTextEditor] EARLY RETURN - No stage container found');
     return () => {};
   }
+
+  console.log('[openShapeTextEditor] Container found, proceeding with text node lookup...');
 
   const {
     padding = 10,
     fontSize: providedFontSize,
     lineHeight: providedLineHeight,
     fontFamily = 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial',
-    textColor = '#111827'
+    textColor = '#111827',
+    _retryCount = 0
   } = options;
 
   const fontSize = providedFontSize ?? (typeof shapeElement.style?.fontSize === 'number' ? shapeElement.style.fontSize : (shapeElement.type === 'circle' ? 20 : 10));
@@ -74,25 +88,85 @@ export function openShapeTextEditor(
     return shapeSnapshot;
   };
 
+  // CRITICAL FIX: Race condition fix - retry if text node doesn't exist yet
+  console.log('[openShapeTextEditor] Looking for text node with ID:', `#${elementId}-text`);
+  console.log('[openShapeTextEditor] Stage.findOne function available:', typeof stage.findOne === 'function');
+
   const textNode = typeof stage.findOne === 'function'
     ? stage.findOne<Konva.Text>(`#${elementId}-text`)
     : null;
+
+  console.log('[openShapeTextEditor] Text node lookup result:', textNode ? 'FOUND' : 'NOT FOUND');
+  console.log('[openShapeTextEditor] Retry count:', _retryCount);
+
+  // If text node doesn't exist, retry after allowing time for ShapeRenderer subscription to process
+  if (!textNode) {
+    console.log('[openShapeTextEditor] Text node not found, checking retry logic...');
+    // Race condition fix: retry up to 3 times with 50ms delay to allow ShapeRenderer subscription to process
+    if (_retryCount < 3) {
+      console.log('[openShapeTextEditor] Scheduling retry', _retryCount + 1, 'in 50ms...');
+      setTimeout(() => openShapeTextEditor(stage, elementId, {
+        ...options,
+        _retryCount: _retryCount + 1
+      }), 50);
+      return () => {};
+    }
+    // If retries exceeded, return empty cleanup function
+    console.log('[openShapeTextEditor] GIVING UP - Max retries exceeded, text node still not found');
+    return () => {};
+  }
+
+  console.log('[openShapeTextEditor] Text node found! Proceeding with editor setup...');
+
+  console.log('[openShapeTextEditor] Step 1: Hiding original text node...');
   const originalTextNodeOpacity = textNode?.opacity();
   const originalTextNodeVisible = textNode?.visible();
   const originalTextNodeListening = textNode?.listening();
-  if (textNode) {
-    textNode.opacity(0);
-    textNode.visible(false);
-    textNode.listening(false);
-    textNode.getLayer()?.batchDraw();
+  try {
+    if (textNode) {
+      console.log('[openShapeTextEditor] Modifying text node properties...');
+      textNode.opacity(0);
+      textNode.visible(false);
+      textNode.listening(false);
+      console.log('[openShapeTextEditor] Getting text node layer for batchDraw...');
+      const layer = textNode.getLayer();
+      console.log('[openShapeTextEditor] Layer found:', layer ? 'YES' : 'NO');
+      if (layer) {
+        console.log('[openShapeTextEditor] Calling layer.batchDraw()...');
+        layer.batchDraw();
+        console.log('[openShapeTextEditor] layer.batchDraw() completed successfully');
+      }
+    }
+    console.log('[openShapeTextEditor] Text node hiding completed successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR hiding text node:', error);
   }
 
-  const editor = document.createElement('div');
-  editor.contentEditable = 'true';
-  editor.setAttribute('data-shape-text-editor', elementId);
-  editor.setAttribute('role', 'textbox');
-  editor.setAttribute('aria-label', 'Shape text editor');
+  console.log('[openShapeTextEditor] Step 2: Creating DOM editor element...');
+  let editor: HTMLDivElement;
+  try {
+    editor = document.createElement('div');
+    console.log('[openShapeTextEditor] DOM editor element created successfully:', editor);
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR creating DOM editor element:', error);
+    throw error;
+  }
+  console.log('[openShapeTextEditor] Step 3: Setting editor attributes...');
+  try {
+    editor.contentEditable = 'true';
+    console.log('[openShapeTextEditor] contentEditable set to true');
+    editor.setAttribute('data-shape-text-editor', elementId);
+    console.log('[openShapeTextEditor] data-shape-text-editor attribute set');
+    editor.setAttribute('role', 'textbox');
+    console.log('[openShapeTextEditor] role attribute set');
+    editor.setAttribute('aria-label', 'Shape text editor');
+    console.log('[openShapeTextEditor] aria-label attribute set');
+    console.log('[openShapeTextEditor] All editor attributes set successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR setting editor attributes:', error);
+  }
 
+  console.log('[openShapeTextEditor] Step 4: Creating editor styles object...');
   // CRITICAL FIX: Enhanced caret visibility and clean styling for all shapes
   const editorStyles = {
     position: 'absolute',
@@ -122,6 +196,12 @@ export function openShapeTextEditor(
     outlineStyle: 'none !important',
     outlineWidth: '0 !important',
     outlineColor: 'transparent !important',
+    outlineOffset: '0 !important',
+    // CRITICAL FIX: Force transparent borders in all states
+    borderTopColor: 'transparent !important',
+    borderRightColor: 'transparent !important',
+    borderBottomColor: 'transparent !important',
+    borderLeftColor: 'transparent !important',
     // Additional browser-specific resets
     webkitAppearance: 'none',
     mozAppearance: 'none',
@@ -134,18 +214,19 @@ export function openShapeTextEditor(
     willChange: 'transform'
   };
 
-  // Apply styles based on shape type
+  // Apply styles based on shape type - FIXED: Use display: block for better contentEditable compatibility
   if (isCircle) {
     Object.assign(editorStyles, {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      display: 'block',
       textAlign: 'center',
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
       overflowWrap: 'break-word',
       padding: `${getCirclePadding()}px`,
-      minHeight: '1px'
+      minHeight: '1px',
+      // Center text vertically using flexbox-like behavior with table-cell
+      verticalAlign: 'middle',
+      lineHeight: `${lineHeight}`
     });
   } else if (isTriangle) {
     Object.assign(editorStyles, {
@@ -167,19 +248,41 @@ export function openShapeTextEditor(
     });
   }
 
-  // Apply styles to editor
-  Object.assign(editor.style, editorStyles);
-
-  const currentText = (typeof shapeSnapshot.data?.text === 'string' ? shapeSnapshot.data.text : '') || '';
-  let latestEditorText = currentText;
-
-  if (currentText) {
-    editor.textContent = currentText;
-  } else {
-    editor.textContent = ZERO_WIDTH_SPACE;
+  console.log('[openShapeTextEditor] Step 5: Applying styles to editor...');
+  try {
+    // Apply styles to editor
+    Object.assign(editor.style, editorStyles);
+    console.log('[openShapeTextEditor] Styles applied successfully to editor');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR applying styles:', error);
   }
 
-  document.body.appendChild(editor);
+  console.log('[openShapeTextEditor] Step 6: Setting editor text content...');
+  const currentText = (typeof shapeSnapshot.data?.text === 'string' ? shapeSnapshot.data.text : '') || '';
+  let latestEditorText = currentText;
+  console.log('[openShapeTextEditor] Current text value:', currentText);
+
+  try {
+    if (currentText) {
+      editor.textContent = currentText;
+      console.log('[openShapeTextEditor] Text content set to existing text');
+    } else {
+      editor.textContent = ZERO_WIDTH_SPACE;
+      console.log('[openShapeTextEditor] Text content set to ZERO_WIDTH_SPACE');
+    }
+    console.log('[openShapeTextEditor] Editor text content set successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR setting text content:', error);
+  }
+
+  console.log('[openShapeTextEditor] Step 7: Appending editor to document body...');
+  try {
+    document.body.appendChild(editor);
+    console.log('[openShapeTextEditor] Editor appended to document body successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR appending editor to body:', error);
+    throw error;
+  }
 
   function updateEditorPosition() {
     try {
@@ -225,23 +328,44 @@ export function openShapeTextEditor(
     }
   }
 
-  updateEditorPosition();
+  console.log('[openShapeTextEditor] Step 8: Calculating initial editor position...');
+  try {
+    updateEditorPosition();
+    console.log('[openShapeTextEditor] Initial position calculation successful');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR during initial position calculation:', error);
+  }
 
   let isCleaning = false;
 
+  console.log('[openShapeTextEditor] Step 9: Setting up stage event listeners...');
   const onStageTransform = () => updateEditorPosition();
-  if (typeof stage.on === 'function') {
-    stage.on('dragmove.shape-text-editor', onStageTransform);
-    stage.on('scaleXChange.shape-text-editor scaleYChange.shape-text-editor', onStageTransform);
-    stage.on('xChange.shape-text-editor yChange.shape-text-editor', onStageTransform);
+  try {
+    if (typeof stage.on === 'function') {
+      console.log('[openShapeTextEditor] Attaching stage event listeners...');
+      stage.on('dragmove.shape-text-editor', onStageTransform);
+      stage.on('scaleXChange.shape-text-editor scaleYChange.shape-text-editor', onStageTransform);
+      stage.on('xChange.shape-text-editor yChange.shape-text-editor', onStageTransform);
+      console.log('[openShapeTextEditor] Stage event listeners attached successfully');
+    } else {
+      console.log('[openShapeTextEditor] WARNING: stage.on is not a function');
+    }
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR attaching stage event listeners:', error);
   }
 
+  console.log('[openShapeTextEditor] Step 10: Setting up global pointer listener...');
   const handleGlobalPointerDown = (event: PointerEvent) => {
     if (!editor.contains(event.target as Node)) {
       commit(true);
     }
   };
-  window.addEventListener('pointerdown', handleGlobalPointerDown, true);
+  try {
+    window.addEventListener('pointerdown', handleGlobalPointerDown, true);
+    console.log('[openShapeTextEditor] Global pointer listener attached successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR attaching global pointer listener:', error);
+  }
 
   function cleanup() {
     if (isCleaning) return;
@@ -344,23 +468,42 @@ export function openShapeTextEditor(
     }
 
     latestEditorText = (editor.textContent || '').replace(ZERO_WIDTH_REGEX, '');
+
+    // FIXED: Force visual refresh after text input to ensure text appears immediately
+    requestAnimationFrame(() => {
+      editor.offsetHeight; // Force reflow to ensure text is rendered
+    });
   };
 
   const onBlur = () => {
     setTimeout(() => commit(true), 100);
   };
 
-  editor.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keydown', onKeyDown, true);
-  editor.addEventListener('input', onInput);
-  editor.addEventListener('blur', onBlur);
+  console.log('[openShapeTextEditor] Step 11: Attaching editor event listeners...');
+  try {
+    editor.addEventListener('keydown', onKeyDown);
+    console.log('[openShapeTextEditor] Editor keydown listener attached');
+    window.addEventListener('keydown', onKeyDown, true);
+    console.log('[openShapeTextEditor] Window keydown listener attached');
+    editor.addEventListener('input', onInput);
+    console.log('[openShapeTextEditor] Editor input listener attached');
+    editor.addEventListener('blur', onBlur);
+    console.log('[openShapeTextEditor] Editor blur listener attached');
+    console.log('[openShapeTextEditor] All editor event listeners attached successfully');
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR attaching editor event listeners:', error);
+  }
 
   // CRITICAL FIX: Enhanced focus strategy with guaranteed caret visibility
+  console.log('[openShapeTextEditor] Step 12: Preparing focus functions...');
   const focusEditor = () => {
     try {
+      console.log('[openShapeTextEditor] Attempting to focus editor...');
       editor.focus();
+      console.log('[openShapeTextEditor] Editor.focus() called successfully');
 
       if (currentText) {
+        console.log('[openShapeTextEditor] Setting selection for existing text...');
         const selection = window.getSelection();
         if (selection && editor.firstChild) {
           const range = document.createRange();
@@ -370,8 +513,10 @@ export function openShapeTextEditor(
           range.collapse(true);
           selection.removeAllRanges();
           selection.addRange(range);
+          console.log('[openShapeTextEditor] Selection set for existing text');
         }
       } else {
+        console.log('[openShapeTextEditor] Setting selection for empty text...');
         const selection = window.getSelection();
         if (selection && editor.firstChild) {
           const range = document.createRange();
@@ -381,19 +526,21 @@ export function openShapeTextEditor(
           range.collapse(true);
           selection.removeAllRanges();
           selection.addRange(range);
+          console.log('[openShapeTextEditor] Selection set for empty text');
         }
       }
+      console.log('[openShapeTextEditor] focusEditor completed successfully');
     } catch (error) {
-      console.warn('[openShapeTextEditor] Error focusing editor:', error);
+      console.log('[openShapeTextEditor] ERROR in focusEditor:', error);
     }
   };
 
-  // CRITICAL FIX: Multi-strategy focus with enhanced caret visibility for all shapes
+  // FIXED: Simplified caret visibility without display toggling
   const ensureCaretVisibility = () => {
     // Force caret color and text rendering
     editor.style.caretColor = textColor;
     editor.style.webkitTextFillColor = textColor;
-    
+
     // Additional browser-specific caret fixes
     if (navigator.userAgent.includes('Chrome')) {
       // Chrome-specific caret visibility
@@ -406,59 +553,39 @@ export function openShapeTextEditor(
       editor.style.webkitTextFillColor = textColor;
       (editor.style as any).textFillColor = textColor;
     }
-    
-    // Force redraw
-    editor.style.display = 'none';
+
+    // FIXED: Force visual refresh without display toggling
     editor.offsetHeight; // Force reflow
-    
-    if (isCircle) {
-      editor.style.display = 'flex';
-    } else {
-      editor.style.display = 'block';
-    }
   };
 
-  if (isCircle) {
-    // Enhanced focus sequence for circles with caret visibility fixes
+  console.log('[openShapeTextEditor] Step 13: Executing SIMPLIFIED focus strategy for shape type:', shapeSnapshot.type);
+  try {
+    // FIXED: Simplified focus strategy without complex blur/refocus cycles
     editor.offsetHeight; // Force layout
+    console.log('[openShapeTextEditor] Forced initial layout');
 
+    // Simple, reliable focus sequence
     requestAnimationFrame(() => {
+      console.log('[openShapeTextEditor] RAF - ensuring caret visibility and focusing...');
       ensureCaretVisibility();
       focusEditor();
-      
-      // Multiple focus attempts for circles
-      requestAnimationFrame(() => {
-        ensureCaretVisibility();
-        
-        // Blur and refocus strategy
-        editor.blur();
-        setTimeout(() => {
+
+      // Single backup focus attempt
+      setTimeout(() => {
+        if (document.activeElement !== editor) {
+          console.log('[openShapeTextEditor] Backup focus attempt...');
           ensureCaretVisibility();
           focusEditor();
-          
-          // Final caret visibility check
-          setTimeout(() => {
-            if (document.activeElement !== editor) {
-              ensureCaretVisibility();
-              focusEditor();
-            }
-          }, 50);
-        }, 10);
-      });
+        } else {
+          console.log('[openShapeTextEditor] Editor successfully focused!');
+        }
+      }, 50);
     });
-  } else {
-    // Enhanced focus strategy for rectangles and triangles
-    ensureCaretVisibility();
-    focusEditor();
-    setTimeout(() => {
-      ensureCaretVisibility();
-      focusEditor();
-    }, 10);
-    requestAnimationFrame(() => {
-      ensureCaretVisibility();
-      focusEditor();
-    });
+  } catch (error) {
+    console.log('[openShapeTextEditor] ERROR in simplified focus sequence:', error);
   }
+
+  console.log('[openShapeTextEditor] EDITOR SETUP COMPLETE - returning cleanup function');
 
   return cleanup;
 }
