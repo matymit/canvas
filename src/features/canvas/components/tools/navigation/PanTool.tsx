@@ -23,21 +23,41 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || !isActive) return;
+    const container = stage?.container();
+    const hasContainer = !!container;
 
-    // Pan tool activated
+    console.log("PanTool useEffect:", {
+      stage: !!stage,
+      isActive,
+      stageId: stage?.id(),
+      hasContainer,
+      containerType: container?.tagName
+    });
 
-    // Set initial cursor
-    const container = stage.container();
-    if (container) {
-      container.style.cursor = "grab";
+    if (!stage || !isActive) {
+      console.log("PanTool not activating:", { stage: !!stage, isActive, hasContainer });
+      return;
     }
 
+    if (!container) {
+      console.error("PanTool: Stage has no container - cannot set up event handlers");
+      return;
+    }
+
+    console.log("PanTool activated - setting up event handlers");
+
+    // Set initial cursor
+    container.style.cursor = "grab";
+    console.log("PanTool cursor set to grab");
+
     const handlePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      // Pan tool pointer down
+      console.log("PanTool handlePointerDown:", { button: e.evt.button, type: e.evt.type });
 
       // Only handle left mouse button/primary touch
-      if (e.evt.button !== undefined && e.evt.button !== 0) return;
+      if (e.evt.button !== undefined && e.evt.button !== 0) {
+        console.log("PanTool ignoring non-left button:", e.evt.button);
+        return;
+      }
 
       e.evt.preventDefault();
       e.evt.stopPropagation();
@@ -49,19 +69,17 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
         y: e.evt.clientY,
       };
 
-      // Pan tool starting pan operation
+      console.log("PanTool starting pan operation:", lastPointerPosRef.current);
 
       // Change cursor to grabbing during drag
-      const container = stage.container();
-      if (container) {
-        container.style.cursor = "grabbing";
-      }
+      container.style.cursor = "grabbing";
+      console.log("PanTool cursor set to grabbing");
     };
 
     const handlePointerMove = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      // Pan tool pointer move
-
-      if (!isPanningRef.current || !lastPointerPosRef.current) return;
+      if (!isPanningRef.current || !lastPointerPosRef.current) {
+        return;
+      }
 
       e.evt.preventDefault();
       // Removed stopPropagation to allow other handlers to work
@@ -71,11 +89,11 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
         y: e.evt.clientY,
       };
 
-      // Pan tool processing pointer move
-
       // Calculate delta movement
       const deltaX = currentPos.x - lastPointerPosRef.current.x;
       const deltaY = currentPos.y - lastPointerPosRef.current.y;
+
+      console.log("PanTool handlePointerMove:", { deltaX, deltaY, currentPos, lastPos: lastPointerPosRef.current });
 
       // Cancel existing RAF to prevent batching
       if (rafRef.current) {
@@ -84,29 +102,69 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
 
       // RAF BATCHING - wrap store updates in requestAnimationFrame
       rafRef.current = requestAnimationFrame(() => {
+        console.log("PanTool RAF executing with deltas:", { deltaX, deltaY });
+
+        // Get fresh store state inside RAF callback
         const storeState = useUnifiedCanvasStore.getState();
         const { viewport } = storeState;
+
+        console.log("PanTool store state:", {
+          hasViewport: !!viewport,
+          hasSetPan: !!viewport?.setPan,
+          currentX: viewport?.x,
+          currentY: viewport?.y
+        });
+
         if (!viewport?.setPan) {
+          console.error("PanTool: viewport.setPan not available");
           return;
         }
 
         try {
-          // Use store as single source of truth
-          const newX = viewport.x + deltaX;
-          const newY = viewport.y + deltaY;
+          // Use store as single source of truth - calculate from current viewport position
+          const currentX = viewport.x || 0;
+          const currentY = viewport.y || 0;
+          const newX = currentX + deltaX;
+          const newY = currentY + deltaY;
+
+          console.log("PanTool updating viewport:", {
+            currentX,
+            currentY,
+            deltaX,
+            deltaY,
+            newX,
+            newY
+          });
 
           // ONLY update store - FigJamCanvas useEffect will sync stage
           viewport.setPan(newX, newY);
+
+          console.log("PanTool viewport.setPan completed successfully");
         } catch (error) {
           console.error("PanTool: Failed to update viewport:", error);
           // Fallback: direct stage manipulation if store fails
           const stage = stageRef.current;
           if (stage) {
-            const newX = stage.x() + deltaX;
-            const newY = stage.y() + deltaY;
-            stage.x(newX);
-            stage.y(newY);
+            console.log("PanTool attempting fallback - current stage position:", {
+              x: stage.x(),
+              y: stage.y()
+            });
+
+            // For fallback, we need to pan the layers, not the stage
+            const layers = stage.find('Layer') as Konva.Layer[];
+
+            layers.forEach(layer => {
+              if (layer) {
+                const currentPos = layer.position();
+                layer.position({
+                  x: currentPos.x + deltaX,
+                  y: currentPos.y + deltaY
+                });
+              }
+            });
+
             stage.batchDraw();
+            console.log("PanTool fallback layer manipulation completed");
           }
         }
       });
@@ -115,24 +173,28 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
     };
 
     const handlePointerUp = () => {
+      console.log("PanTool handlePointerUp:", { isPanning: isPanningRef.current });
+
       if (!isPanningRef.current) return;
 
       isPanningRef.current = false;
       lastPointerPosRef.current = null;
 
+      console.log("PanTool ending pan operation");
+
       // Reset cursor to grab
-      const container = stage.container();
-      if (container) {
-        container.style.cursor = "grab";
-      }
+      container.style.cursor = "grab";
+      console.log("PanTool cursor reset to grab");
     };
 
     // Use proper Konva event system with namespaced handlers
+    console.log("PanTool registering event handlers on stage");
     stage.on("pointerdown.pantool", handlePointerDown);
     stage.on("pointermove.pantool", handlePointerMove);
     stage.on("pointerup.pantool", handlePointerUp);
     stage.on("pointercancel.pantool", handlePointerUp);
     stage.on("pointerleave.pantool", handlePointerUp);
+    console.log("PanTool event handlers registered successfully");
 
     // Also handle window-level pointer up to catch events outside canvas
     const handleWindowPointerUp = () => {
@@ -143,6 +205,8 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
     window.addEventListener("pointerup", handleWindowPointerUp);
 
     return () => {
+      console.log("PanTool cleanup - removing event handlers");
+
       // Clean up Konva event listeners
       stage.off(".pantool");
 
@@ -156,10 +220,12 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
       }
 
       // Reset cursor
-      const container = stage.container();
-      if (container) {
-        container.style.cursor = "default";
+      const currentContainer = stage.container();
+      if (currentContainer) {
+        currentContainer.style.cursor = "default";
       }
+
+      console.log("PanTool cleanup completed");
     };
   }, [isActive, stageRef]);
 
