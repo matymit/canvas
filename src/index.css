@@ -28,3 +28,48 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Text editor blue border override - force blue border on all text editors with maximum specificity */
+:root {
+  --text-editor-border-color: #4F46E5;
+}
+
+/* Text editor override - only for NEW text creation (has its own border) */
+*[data-testid="text-portal-input"],
+div[contenteditable="true"][data-testid="text-portal-input"] {
+  border: 2px solid var(--text-editor-border-color) !important;
+  border-color: var(--text-editor-border-color) !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 4px !important; /* Consistent 4px padding */
+}
+
+/* Existing text editors - no border (uses selection frame) */
+*[data-text-editor="true"],
+textarea[data-text-editor="true"],
+*[data-shape-text-editor],
+div[contenteditable="true"][data-shape-text-editor] {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 4px !important; /* Consistent 4px padding */
+}
+
+/* Focus states - only for NEW text creation */
+*[data-testid="text-portal-input"]:focus,
+div[contenteditable="true"][data-testid="text-portal-input"]:focus,
+*[data-testid="text-portal-input"]:focus-visible {
+  border: 2px solid var(--text-editor-border-color) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Focus states - existing text editors (no border) */
+*[data-text-editor="true"]:focus,
+textarea[data-text-editor="true"]:focus,
+*[data-shape-text-editor]:focus,
+div[contenteditable="true"][data-shape-text-editor]:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

@@ -5,6 +5,33 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.8] - 2025-09-25
+
+### 🎨 UI IMPROVEMENT: Text Editor Border and Padding Consistency
+
+- **Fixed**: Inconsistent padding and double borders between text creation, committed text, and text editing states
+- **Root Causes**:
+  - Konva.Text nodes were not configured with the `padding` property
+  - HTML text editors had varying padding values (0px, 2px 4px, 4px 6px)
+  - Selection frame and text editor borders appeared simultaneously creating double borders
+  - Initial text creation box position misaligned with committed text
+- **Technical Solution**:
+  - Added `padding: 4` property to all Konva.Text nodes for consistent built-in padding
+  - Standardized all HTML text editors to use 4px padding
+  - Removed borders from existing text editors - now relies on selection frame as the border
+  - Selection frame remains visible during text editing to provide visual boundary
+  - Split global CSS rules to differentiate new text creation (has border) vs existing text editing (no border)
+- **Visual Impact**:
+  - Consistent spacing between text and borders across all editing phases
+  - Eliminated double border issue when editing existing text
+  - Better visual alignment between initial typing and committed text
+- **Files Modified**:
+  - `src/features/canvas/renderer/modules/TextRenderer.ts` - Added Konva.Text padding property
+  - `src/features/canvas/components/TextEditorOverlay.tsx` - Standardized 4px padding
+  - `src/features/canvas/utils/editors/openShapeTextEditor.ts` - Removed border styling
+  - `src/index.css` - Differentiated CSS rules for new vs existing text editing
+- **Known Issues**: Minor alignment differences may still exist and require further refinement
+
 ## [3.1.7] - 2025-09-24
 
 ### 🚨 CRITICAL FIX: Pan Tool Viewport Synchronization Verification Complete

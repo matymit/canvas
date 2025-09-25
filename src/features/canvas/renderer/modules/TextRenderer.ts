@@ -198,6 +198,7 @@ export class TextRenderer implements RendererModule {
       y: text.y,
       width: text.width,
       text: text.text,
+      padding: 4, // Add padding to match HTML editor
       // Apply consistent text styling with fallback support
       ...(() => {
         const textConfig = getTextConfig("TEXT");
@@ -263,6 +264,7 @@ export class TextRenderer implements RendererModule {
         y: text.y,
         width: text.width,
         text: text.text,
+        padding: 4, // Consistent padding
         // Apply consistent text styling with fallback support
         ...(() => {
           const textConfig = getTextConfig("TEXT");
@@ -403,21 +405,24 @@ export class TextRenderer implements RendererModule {
       return;
     }
 
-    // Opening text editor
+    // Don't clear selection - keep the selection frame visible as the border
+    // The text editor won't have its own border
 
+    // Opening text editor immediately
     openKonvaTextEditor({
-      stage: this.stage,
-      layer: this.layer,
-      shape: node,
-      onCommit: (newText: string) => {
-        // Text editor committed
-        if (newText !== text.text) {
-          this.updateTextInStore(text.id, { text: newText });
-        }
-      },
-      onCancel: () => {
-        // Text editing cancelled
-      },
-    });
+        stage: this.stage!,
+        layer: this.layer!,
+        shape: node,
+        onCommit: (newText: string) => {
+          // Text editor committed
+          if (newText !== text.text) {
+            this.updateTextInStore(text.id, { text: newText });
+          }
+          // Don't auto-select after editing - let user click to select
+        },
+        onCancel: () => {
+          // Text editing cancelled
+        },
+      });
   }
 }

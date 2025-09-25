@@ -34,7 +34,8 @@
       "mcp__mcphub__context7-mcp-resolve-library-id",
       "Bash(curl:*)",
       "Bash(tree:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Read(//home/mason/Pictures/Screenshots/**)"
     ],
     "deny": [],
     "ask": []

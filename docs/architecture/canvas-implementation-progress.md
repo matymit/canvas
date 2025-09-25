@@ -6,6 +6,33 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 ## 🚨 STATUS UPDATE (September 25, 2025)
 
+### ✅ TEXT EDITOR BORDER AND PADDING CONSISTENCY (September 25, 2025)
+
+**Repository:** `eslint-phase17-store-typing`
+**Status:** Text editor visual consistency improvements completed
+
+- **🎨 UI IMPROVEMENT (September 25, 2025): Text Editor Border and Padding Alignment**
+  - **Issue**: Inconsistent padding and double borders between text creation, committed text, and text editing states
+  - **Root Causes**:
+    - Konva.Text nodes lacked padding property configuration
+    - HTML text editors had inconsistent padding values (0px, 2px 4px, 4px 6px)
+    - Selection frame and text editor borders both showing simultaneously (double border)
+    - Misalignment between initial text creation box and committed text position
+  - **Technical Solution**:
+    - Added `padding: 4` property to Konva.Text nodes for built-in padding
+    - Standardized all HTML editors to 4px padding
+    - Removed border from existing text editors - relies on selection frame instead
+    - Selection frame now remains visible during text editing as the visual border
+    - Updated global CSS to differentiate new text creation (has border) vs existing text editing (no border)
+  - **Files Modified**:
+    - `src/features/canvas/renderer/modules/TextRenderer.ts` - Added Konva.Text padding, removed selection clearing
+    - `src/features/canvas/components/TextEditorOverlay.tsx` - Standardized padding to 4px
+    - `src/features/canvas/utils/editors/openShapeTextEditor.ts` - Removed border, uses selection frame
+    - `src/index.css` - Split CSS rules for new vs existing text editing
+  - **Architecture Pattern**: Uses Konva's built-in padding property as discovered through research
+  - **Visual Impact**: Consistent spacing between text and borders across all editing phases
+  - **Known Issues**: While significantly improved, minor alignment differences may still exist
+
 ### 📊 PHASE 8: COMPREHENSIVE TECHNICAL AUDIT COMPLETED (September 25, 2025)
 
 **Repository:** `eslint-phase17-store-typing`

@@ -34,14 +34,15 @@ export function openStandaloneTextEditor({
   editor.style.outline = 'none';
   editor.style.whiteSpace = 'pre-wrap';
   editor.style.wordBreak = 'break-word';
-  editor.style.padding = '2px 4px';
+  editor.style.padding = '4px';
   editor.style.background = 'transparent';
   editor.style.color = color;
   editor.style.fontFamily = fontFamily;
   editor.style.fontSize = `${fontSize}px`;
   editor.style.lineHeight = '1.2';
   editor.style.transformOrigin = '0 0';
-  editor.style.border = '1px dashed rgba(0,0,0,0.3)';
+  // Border will be handled by global CSS to match selection frame
+  editor.setAttribute('data-standalone-text-editor', 'true');
   editor.style.borderRadius = '2px';
 
   // Initialize with empty text

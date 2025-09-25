@@ -35,7 +35,7 @@ export default function TextEditorOverlay() {
     return () => window.removeEventListener("canvas:text-begin", onBegin);
   }, []);
 
-  // AGGRESSIVE CSS FIX: Create dynamic stylesheet to override ALL pseudo-class states
+  // Blue border styling to match selection frame
   useEffect(() => {
     let styleElement: HTMLStyleElement | null = null;
 
@@ -43,20 +43,20 @@ export default function TextEditorOverlay() {
       // Create unique selector using testid
       const selector = '[data-testid="text-portal-input"]';
 
-      // Comprehensive pseudo-class overrides
-      const aggressiveCss = `
+      // Blue border styling to match selection frame (#4F46E5)
+      const blueFrameCss = `
         ${selector},
         ${selector}:focus,
         ${selector}:active,
         ${selector}:hover,
         ${selector}:focus-visible,
         ${selector}:focus-within {
-          border: none !important;
+          border: 2px solid #4F46E5 !important;
           outline: none !important;
           box-shadow: none !important;
-          border-style: none !important;
-          border-width: 0 !important;
-          border-color: transparent !important;
+          border-style: solid !important;
+          border-width: 2px !important;
+          border-color: #4F46E5 !important;
           outline-style: none !important;
           outline-width: 0 !important;
           outline-color: transparent !important;
@@ -68,7 +68,7 @@ export default function TextEditorOverlay() {
 
         /* Additional browser-specific overrides */
         ${selector}[contenteditable]:focus {
-          border: none !important;
+          border: 2px solid #4F46E5 !important;
           outline: none !important;
           box-shadow: none !important;
         }
@@ -77,16 +77,16 @@ export default function TextEditorOverlay() {
       // Create and inject stylesheet
       styleElement = document.createElement('style');
       styleElement.setAttribute('data-text-editor-fix', 'true');
-      styleElement.textContent = aggressiveCss;
+      styleElement.textContent = blueFrameCss;
       document.head.appendChild(styleElement);
 
       // Apply additional inline style overrides as backup
       const editor = editorRef.current;
-      editor.style.setProperty('border', 'none', 'important');
+      editor.style.setProperty('border', '2px solid #4F46E5', 'important');
       editor.style.setProperty('outline', 'none', 'important');
       editor.style.setProperty('box-shadow', 'none', 'important');
-      editor.style.setProperty('border-style', 'none', 'important');
-      editor.style.setProperty('outline-style', 'none', 'important');
+      editor.style.setProperty('border-style', 'solid', 'important');
+      editor.style.setProperty('border-color', '#4F46E5', 'important');
     }
 
     return () => {
@@ -108,8 +108,8 @@ export default function TextEditorOverlay() {
     elementApi.upsert({
       id: crypto.randomUUID(),
       type: "text",
-      x: pos.x,
-      y: pos.y,
+      x: pos.x + 2, // Account for 2px border only (padding is in Konva.Text)
+      y: pos.y + 2, // Account for 2px border only
       width,
       height: lineHeight,
       text,
@@ -171,13 +171,13 @@ export default function TextEditorOverlay() {
           left: pos.x,
           top: pos.y,
           minWidth: 4,
-          padding: 0,
-          // CRITICAL FIX: Use clean styling pattern from openShapeTextEditor.ts
+          padding: 4,
+          // Blue border to match selection frame
           outline: "none !important",
-          border: "none !important",
-          borderStyle: "none !important",
-          borderWidth: "0 !important",
-          borderColor: "transparent !important",
+          border: "2px solid #4F46E5 !important",
+          borderStyle: "solid !important",
+          borderWidth: "2px !important",
+          borderColor: "#4F46E5 !important",
           outlineStyle: "none !important",
           outlineWidth: "0 !important",
           outlineColor: "transparent !important",

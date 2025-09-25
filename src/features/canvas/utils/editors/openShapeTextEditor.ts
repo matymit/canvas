@@ -174,13 +174,13 @@ export function openShapeTextEditor(
   }
 
   console.log('[openShapeTextEditor] Step 4: Creating editor styles object...');
-  // CRITICAL FIX: Enhanced caret visibility and clean styling for all shapes
+  // Enhanced caret visibility and blue border styling to match selection frame
   const editorStyles = {
     position: 'absolute',
     zIndex: '1000',
     minWidth: '1px',
     outline: 'none !important',
-    border: 'none !important',
+    border: '2px solid #4F46E5 !important',
     borderRadius: '0',
     background: 'transparent',
     color: textColor,
@@ -196,19 +196,19 @@ export function openShapeTextEditor(
     caretColor: `${textColor} !important`,
     webkitTextFillColor: `${textColor} !important`,
     textFillColor: textColor,
-    // CRITICAL FIX: Remove any unwanted borders or dashed frames completely
-    borderStyle: 'none !important',
-    borderWidth: '0 !important',
-    borderColor: 'transparent !important',
+    // Blue border to match selection frame
+    borderStyle: 'solid !important',
+    borderWidth: '2px !important',
+    borderColor: '#4F46E5 !important',
     outlineStyle: 'none !important',
     outlineWidth: '0 !important',
     outlineColor: 'transparent !important',
     outlineOffset: '0 !important',
-    // CRITICAL FIX: Force transparent borders in all states
-    borderTopColor: 'transparent !important',
-    borderRightColor: 'transparent !important',
-    borderBottomColor: 'transparent !important',
-    borderLeftColor: 'transparent !important',
+    // Blue border in all states
+    borderTopColor: '#4F46E5 !important',
+    borderRightColor: '#4F46E5 !important',
+    borderBottomColor: '#4F46E5 !important',
+    borderLeftColor: '#4F46E5 !important',
     // Additional browser-specific resets
     webkitAppearance: 'none',
     mozAppearance: 'none',
@@ -295,16 +295,16 @@ export function openShapeTextEditor(
     throw error;
   }
 
-  console.log('[openShapeTextEditor] Step 7.1: Adding advanced border removal...');
+  console.log('[openShapeTextEditor] Step 7.1: Adding blue border styling...');
   try {
     // Advanced CSS property override using setProperty with important flag
-    editor.style.setProperty('border', 'none', 'important');
+    editor.style.setProperty('border', '2px solid #4F46E5', 'important');
     editor.style.setProperty('outline', 'none', 'important');
     editor.style.setProperty('box-shadow', 'none', 'important');
-    editor.style.setProperty('border-color', 'transparent', 'important');
+    editor.style.setProperty('border-color', '#4F46E5', 'important');
     editor.style.setProperty('outline-color', 'transparent', 'important');
 
-    // Create dynamic stylesheet for pseudo-class overrides
+    // Create dynamic stylesheet for pseudo-class overrides with blue border
     const dynamicStyleId = `shape-editor-style-${elementId}`;
     const existingStyle = document.getElementById(dynamicStyleId);
     if (!existingStyle) {
@@ -315,10 +315,10 @@ export function openShapeTextEditor(
         [data-shape-text-editor="${elementId}"]:active,
         [data-shape-text-editor="${elementId}"]:hover,
         [data-shape-text-editor="${elementId}"]:focus-visible {
-          border: none !important;
+          border: 2px solid #4F46E5 !important;
           outline: none !important;
           box-shadow: none !important;
-          border-color: transparent !important;
+          border-color: #4F46E5 !important;
           outline-color: transparent !important;
         }
       `;
@@ -326,9 +326,9 @@ export function openShapeTextEditor(
       console.log('[openShapeTextEditor] Dynamic stylesheet created for element:', elementId);
     }
 
-    console.log('[openShapeTextEditor] Advanced border removal applied successfully');
+    console.log('[openShapeTextEditor] Blue border styling applied successfully');
   } catch (error) {
-    console.log('[openShapeTextEditor] ERROR applying advanced border removal:', error);
+    console.log('[openShapeTextEditor] ERROR applying blue border styling:', error);
   }
 
   function updateEditorPosition() {
@@ -706,18 +706,15 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
   const fontFamily = shape.fontFamily();
   const fill = typeof shape.fill() === 'string' ? shape.fill() : '#111827';
 
-  // CRITICAL FIX: Completely clean styling without any unwanted borders
+  // Blue border styling to match selection frame
   const editorStyles = {
     position: 'absolute',
     zIndex: '1000',
     minWidth: '20px',
     minHeight: '20px',
-    // CRITICAL FIX: Complete border and outline removal
+    // No border - selection frame should be visible
     outline: 'none !important',
     border: 'none !important',
-    borderStyle: 'none !important',
-    borderWidth: '0 !important',
-    borderColor: 'transparent !important',
     outlineStyle: 'none !important',
     outlineWidth: '0 !important',
     outlineColor: 'transparent !important',
@@ -727,7 +724,7 @@ export function openKonvaTextEditor({ stage, layer, shape, onCommit, onCancel }:
     fontFamily: fontFamily,
     fontSize: `${fontSize}px`,
     lineHeight: '1.2',
-    padding: '2px 4px',
+    padding: '4px',
     resize: 'none',
     whiteSpace: 'nowrap',
     overflow: 'hidden',

@@ -11,7 +11,31 @@ This document provides an honest assessment of current Canvas limitations, known
 
 #### Recently Addressed
 
-0. **🚨 CRITICAL: Infinite Render Loop Breaking Pan Tool (FIXED - September 24, 2025)**
+0. **🎨 UI: Text Editor Border and Padding Inconsistencies (IMPROVED - September 25, 2025)**
+   - **Issue**: Inconsistent padding and double borders between text creation, committed text, and text editing states
+   - **Visual Problems**:
+     - Double blue borders appearing when editing existing text (selection frame + editor border)
+     - Inconsistent spacing between text and border across different editing phases
+     - Misalignment of initial text creation box with final committed text position
+   - **Root Causes**:
+     - Konva.Text nodes were not using the built-in `padding` property
+     - HTML text editors had varying padding values (0px, 2px 4px, 4px 6px)
+     - Both selection frame and text editor borders showing simultaneously
+   - **Partial Fix**: Implemented Konva.Text padding property and standardized HTML editor padding
+   - **Technical Solution**:
+     - Added `padding: 4` to all Konva.Text nodes for consistent spacing
+     - Standardized all HTML editors to 4px padding
+     - Removed borders from existing text editors - uses selection frame as visual boundary
+     - Selection frame remains visible during editing (not cleared)
+   - **Files Modified**:
+     - `src/features/canvas/renderer/modules/TextRenderer.ts` - Konva.Text padding
+     - `src/features/canvas/components/TextEditorOverlay.tsx` - Standardized padding
+     - `src/features/canvas/utils/editors/openShapeTextEditor.ts` - Removed border
+     - `src/index.css` - Split CSS rules for new vs existing editing
+   - **Status**: IMPROVED but not fully resolved - minor alignment differences may persist
+   - **Known Limitations**: Complete visual parity across all editing states remains challenging
+
+1. **🚨 CRITICAL: Infinite Render Loop Breaking Pan Tool (FIXED - September 24, 2025)**
    - **Issue**: FigJamCanvas stuck in infinite render loop, completely breaking pan tool functionality with constant event handler teardown/setup cycle
    - **Console Evidence**: Hundreds of repeated "Setting up stage event handlers" → "Cleaning up stage event handlers" messages
    - **Root Cause**: FigJamCanvas useEffect (line 216-322) dependency array included unstable store values that changed during pan operations: `[selectedTool, elements, selectedElementIds, addToSelection, clearSelection, setSelection, viewport]`
