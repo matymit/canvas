@@ -7,6 +7,8 @@ export interface KeyboardShortcutHandlers {
   onRedo?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
   onSelectAll?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
@@ -53,6 +55,20 @@ export default function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers,
         if (document.activeElement && (document.activeElement as HTMLElement).isContentEditable) return;
         e.preventDefault();
         handlers.onDelete?.();
+        return;
+      }
+
+      // Copy
+      if ((meta || ctrl) && key.toLowerCase() === 'c') {
+        e.preventDefault();
+        handlers.onCopy?.();
+        return;
+      }
+
+      // Paste
+      if ((meta || ctrl) && key.toLowerCase() === 'v') {
+        e.preventDefault();
+        handlers.onPaste?.();
         return;
       }
 

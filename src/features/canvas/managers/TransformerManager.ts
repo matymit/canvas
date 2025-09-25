@@ -333,6 +333,30 @@ export class TransformerManager {
       this.transformer.keepRatio(true);
 
       console.debug('[TransformerManager] Sticky note constraints applied successfully');
+    } else if (elementType === 'image') {
+      // Enable corner-only anchors for images to maintain aspect ratio
+      this.transformer.enabledAnchors([
+        "top-left",
+        "top-right",
+        "bottom-left",
+        "bottom-right"
+      ]);
+
+      // Get aspect configuration for images
+      const aspectConfig = getElementAspectConfig('image', true);
+
+      // Get original dimensions for constraint reference
+      const originalDimensions = {
+        width: primaryNode.width() * (primaryNode.scaleX() || 1),
+        height: primaryNode.height() * (primaryNode.scaleY() || 1)
+      };
+
+      // Create and apply constraint function
+      const constraintFunc = createAspectRatioConstraint(aspectConfig, originalDimensions);
+      this.transformer.boundBoxFunc(constraintFunc);
+
+      // Force aspect ratio to be locked for images
+      this.transformer.keepRatio(true);
     } else {
       // CRITICAL FIX: Enable all anchors for non-sticky elements
       this.transformer.enabledAnchors(this.opts.enabledAnchors || [

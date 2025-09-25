@@ -143,11 +143,8 @@ export class PortHoverModule implements RendererModule {
   }
 
   private handleElementHover(elementId: string) {
-    console.debug('[PortHoverModule] Element hovered:', elementId);
-
     // CRITICAL FIX: Only show ports when connector tools are active
     if (!this.shouldShowPorts()) {
-      console.debug('[PortHoverModule] Not showing ports - connector tool not active');
       return;
     }
 
@@ -172,8 +169,6 @@ export class PortHoverModule implements RendererModule {
   }
 
   private handleElementMouseOut(elementId: string) {
-    console.debug('[PortHoverModule] Element mouse out:', elementId);
-
     // Only handle mouse out for currently hovered element
     if (this.currentHoveredElement !== elementId) {
       return;
@@ -228,7 +223,6 @@ export class PortHoverModule implements RendererModule {
     const element = this.getElement(elementId);
     if (!element) return;
 
-    console.debug('[PortHoverModule] Showing ports for element:', elementId);
 
     // Calculate port positions
     const ports = this.calculatePortPositions(element);
@@ -304,7 +298,6 @@ export class PortHoverModule implements RendererModule {
     const ports = this.ports.get(elementId);
     if (!ports) return;
 
-    console.debug('[PortHoverModule] Hiding ports for element:', elementId);
 
     // Animate ports disappearance
     const animations = ports.map(port => {
@@ -594,7 +587,6 @@ export class PortHoverModule implements RendererModule {
    * Handle port click events - integrate with ConnectorTool
    */
   private handlePortClick(port: Port, e: Konva.KonvaEventObject<PointerEvent>) {
-    console.debug('[PortHoverModule] Port clicked:', port);
 
     // Get ConnectorTool instance from global registry or window
     const connectorTool = this.getActiveConnectorTool();
@@ -687,7 +679,7 @@ export class PortHoverModule implements RendererModule {
 
   /**
    * CRITICAL FIX: Check if ports should be shown based on current tool
-   * Ports should ONLY show when connector tools are active
+   * Ports should ONLY show when connector tools are active AND no text editing is happening
    */
   private shouldShowPorts(): boolean {
     if (!this.storeCtx) return false;
@@ -714,9 +706,44 @@ export class PortHoverModule implements RendererModule {
       if (isConnector) return false;
     }
 
-    const shouldShow = connectorTools.includes(currentTool);
-    console.debug('[PortHoverModule] Tool check:', { currentTool, shouldShow });
+    // CRITICAL FIX: Never show ports when any text editor is active
+    // This prevents inappropriate ports during mindmap/shape text editing
+    if (this.isTextEditorActive()) {
+      return false;
+    }
 
-    return shouldShow;
+    return connectorTools.includes(currentTool);
+  }
+
+  /**
+   * Check if any text editor (mindmap, shape, table) is currently active in the DOM
+   */
+  private isTextEditorActive(): boolean {
+    // Check for mindmap text editors
+    if (document.querySelector('[contenteditable="true"]')) {
+      return true;
+    }
+
+    // Check for shape text editors
+    if (document.querySelector('[data-shape-text-editor]')) {
+      return true;
+    }
+
+    // Check for table text editors
+    if (document.querySelector('[data-table-text-editor]')) {
+      return true;
+    }
+
+    // Check for any focused input/textarea elements that might be editors
+    const activeElement = document.activeElement;
+    if (activeElement && (
+      activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.getAttribute('contenteditable') === 'true'
+    )) {
+      return true;
+    }
+
+    return false;
   }
 }

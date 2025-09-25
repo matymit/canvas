@@ -82,7 +82,7 @@ export class TableRenderer {
             fontFamily: "",
             fontSize: 16,
             fill: "",
-            align: "left",
+            align: "center",
             verticalAlign: "top",
             lineHeight: 1.4,
           });
@@ -328,7 +328,7 @@ export class TableRenderer {
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
       fill: style.textColor,
-      align: "left" as const,
+      align: "center" as const,
       verticalAlign: "top" as const,
       lineHeight: 1.4,
       listening: false,

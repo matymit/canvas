@@ -7,12 +7,17 @@ import CanvasToolbar from "../toolbar/CanvasToolbar";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import GridRenderer from "./GridRenderer";
 import { debug, error as logError } from "../../../utils/debug";
+import { clipboard } from "../utils/clipboard";
+import { useMindmapOperations } from "../utils/mindmap/mindmapOperations";
 
 // Import cell editor for table functionality
 import "../utils/editors/openCellEditorWithTracking";
 
 // Import table context menu manager
 import { TableContextMenuManager } from "./table/TableContextMenuManager";
+
+// Import general canvas context menu manager
+import { CanvasContextMenuManager } from "./CanvasContextMenuManager";
 
 // Import ImageDragHandler for image drag functionality
 import ImageDragHandler from "./tools/selection/ImageDragHandler";
@@ -89,6 +94,9 @@ const FigJamCanvas: React.FC = () => {
     if (cur === tool) return;
     StoreActions.setSelectedTool?.(tool);
   }, []);
+
+  // Mindmap operations for keyboard shortcuts
+  const mindmapOps = useMindmapOperations();
 
   // FIXED: Initialize stage and renderer system ONLY ONCE
   useEffect(() => {
@@ -456,6 +464,52 @@ const FigJamCanvas: React.FC = () => {
     // This effect ensures React stays in sync with store changes
   }, [elements]);
 
+  // Custom keyboard handler for mindmap-specific shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle Enter key for mindmap child creation
+      if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+        // Check if exactly one mindmap node is selected
+        if (selectedElementIds.size === 1) {
+          const nodeId = Array.from(selectedElementIds)[0];
+          const store = useUnifiedCanvasStore.getState();
+          const getElement = store.getElement || store.element?.getById;
+          const element = getElement?.(nodeId);
+
+          if (element && element.type === "mindmap-node") {
+            // Prevent default behavior and create child node
+            event.preventDefault();
+            mindmapOps.createChildNode(nodeId);
+            return;
+          }
+        }
+      }
+
+      // Handle Cmd/Ctrl + Shift + D for subtree duplication
+      if (event.key === "d" || event.key === "D") {
+        if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+          if (selectedElementIds.size === 1) {
+            const nodeId = Array.from(selectedElementIds)[0];
+            const store = useUnifiedCanvasStore.getState();
+            const getElement = store.getElement || store.element?.getById;
+            const element = getElement?.(nodeId);
+
+            if (element && element.type === "mindmap-node") {
+              event.preventDefault();
+              mindmapOps.duplicateNode(nodeId, { includeDescendants: true });
+              return;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedElementIds, mindmapOps]);
+
   // Keyboard shortcuts implementation
   useKeyboardShortcuts(
     {
@@ -489,6 +543,62 @@ const FigJamCanvas: React.FC = () => {
           }
         }
       },
+      onCopy: () => {
+        // Copy selected elements to clipboard
+        if (selectedElementIds.size > 0) {
+          const elements = Array.from(selectedElementIds)
+            .map(id => {
+              const store = useUnifiedCanvasStore.getState();
+              return store.element?.getById ? store.element.getById(id) : store.elements?.get(id);
+            })
+            .filter(el => el !== undefined);
+          if (elements.length > 0) {
+            clipboard.copy(elements);
+          }
+        }
+      },
+      onPaste: () => {
+        // Paste elements from clipboard
+        if (clipboard.hasContent()) {
+          const store = useUnifiedCanvasStore.getState();
+          const addElement = store.addElement;
+          const setSelection = store.selection?.set || store.setSelection;
+
+          if (withUndo && addElement) {
+            withUndo("Paste elements", () => {
+              const newIds: string[] = [];
+              const elementsToCreate = clipboard.paste();
+              elementsToCreate.forEach((element, index) => {
+                const clone = { ...element };
+                const newId = crypto?.randomUUID?.() ?? `${element.id}-paste-${Date.now()}-${index}`;
+                clone.id = newId;
+
+                // Apply offset so pasted elements don't overlap originals
+                const offset = 20 + (index * 5);
+                if (typeof clone.x === 'number') clone.x += offset;
+                if (typeof clone.y === 'number') clone.y += offset;
+
+                // Handle points array for paths/lines
+                if (Array.isArray(clone.points) && clone.points.length >= 2) {
+                  const shifted: number[] = [];
+                  for (let i = 0; i < clone.points.length; i += 2) {
+                    shifted.push(clone.points[i] + offset, clone.points[i + 1] + offset);
+                  }
+                  clone.points = shifted;
+                }
+
+                addElement(clone, { select: true });
+                newIds.push(newId);
+              });
+
+              // Select the newly pasted elements
+              if (setSelection && newIds.length > 0) {
+                setSelection(newIds);
+              }
+            });
+          }
+        }
+      },
       onUndo: () => {
         undo?.();
       },
@@ -517,6 +627,34 @@ const FigJamCanvas: React.FC = () => {
         const setSelectedTool =
           useUnifiedCanvasStore.getState().setSelectedTool;
         setSelectedTool(toolId);
+      },
+      onDuplicate: () => {
+        // Handle duplication - check if selected elements are mindmap nodes
+        if (selectedElementIds.size === 1) {
+          const nodeId = Array.from(selectedElementIds)[0];
+          const store = useUnifiedCanvasStore.getState();
+          const getElement = store.getElement || store.element?.getById;
+          const element = getElement?.(nodeId);
+
+          if (element && element.type === "mindmap-node") {
+            mindmapOps.duplicateNode(nodeId, { includeDescendants: false });
+            return;
+          }
+        }
+
+        // Fallback to regular duplication for non-mindmap elements
+        if (selectedElementIds.size > 0) {
+          const store = useUnifiedCanvasStore.getState();
+          const duplicateElement = store.duplicateElement || store.element?.duplicate;
+
+          if (withUndo && duplicateElement) {
+            withUndo("Duplicate elements", () => {
+              selectedElementIds.forEach(id => {
+                duplicateElement(id);
+              });
+            });
+          }
+        }
       },
     },
     window, // Use window for global keyboard shortcuts instead of container
@@ -643,6 +781,9 @@ const FigJamCanvas: React.FC = () => {
 
       {/* Table context menu system */}
       <TableContextMenuManager stageRef={stageRef} />
+
+      {/* General canvas context menu system */}
+      <CanvasContextMenuManager stageRef={stageRef} />
     </div>
   );
 };

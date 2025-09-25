@@ -174,13 +174,13 @@ export function openShapeTextEditor(
   }
 
   console.log('[openShapeTextEditor] Step 4: Creating editor styles object...');
-  // Enhanced caret visibility and blue border styling to match selection frame
+  // Enhanced caret visibility - no border, relies on selection frame
   const editorStyles = {
     position: 'absolute',
     zIndex: '1000',
     minWidth: '1px',
     outline: 'none !important',
-    border: '2px solid #4F46E5 !important',
+    border: 'none !important',
     borderRadius: '0',
     background: 'transparent',
     color: textColor,
@@ -196,19 +196,14 @@ export function openShapeTextEditor(
     caretColor: `${textColor} !important`,
     webkitTextFillColor: `${textColor} !important`,
     textFillColor: textColor,
-    // Blue border to match selection frame
-    borderStyle: 'solid !important',
-    borderWidth: '2px !important',
-    borderColor: '#4F46E5 !important',
+    // Remove all border styling - use selection frame instead
+    borderStyle: 'none !important',
+    borderWidth: '0 !important',
+    borderColor: 'transparent !important',
     outlineStyle: 'none !important',
     outlineWidth: '0 !important',
     outlineColor: 'transparent !important',
     outlineOffset: '0 !important',
-    // Blue border in all states
-    borderTopColor: '#4F46E5 !important',
-    borderRightColor: '#4F46E5 !important',
-    borderBottomColor: '#4F46E5 !important',
-    borderLeftColor: '#4F46E5 !important',
     // Additional browser-specific resets
     webkitAppearance: 'none',
     mozAppearance: 'none',
