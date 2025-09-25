@@ -63,3 +63,11 @@ Desktop.ini
 src/features/canvas/__tests__/e2e/sticky-note-resize.test.ts-snapshots/
 src/features/canvas/__tests__/e2e/undo-redo-atomicity.test.ts-snapshots/
 src/features/canvas/__tests__/e2e/visual-regression.test.ts-snapshots/
+
+# Multi-agent system files (ignore for now)
+.github/pull_request_template.md
+.github/workflows/auto-label-by-branch.yml
+.github/workflows/auto-label-agent.yml
+AI_HANDOFF.md
+**/AI_HANDOFF*
+**/*agent-handoff*
