@@ -33,7 +33,8 @@
       "Bash(source:*)",
       "mcp__mcphub__context7-mcp-resolve-library-id",
       "Bash(curl:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

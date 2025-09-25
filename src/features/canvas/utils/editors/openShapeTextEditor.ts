@@ -35,7 +35,7 @@ export function openShapeTextEditor(
   const element = store.elements.get(elementId);
   console.log('[openShapeTextEditor] Element from store:', element ? 'Found' : 'NOT FOUND', element?.type);
 
-  if (!element || !['rectangle', 'circle', 'triangle'].includes(element.type)) {
+  if (!element || !['rectangle', 'circle', 'triangle', 'ellipse'].includes(element.type)) {
     console.log('[openShapeTextEditor] EARLY RETURN - Invalid element or type:', element?.type);
     return () => {};
   }
@@ -92,9 +92,16 @@ export function openShapeTextEditor(
   console.log('[openShapeTextEditor] Looking for text node with ID:', `#${elementId}-text`);
   console.log('[openShapeTextEditor] Stage.findOne function available:', typeof stage.findOne === 'function');
 
-  const textNode = typeof stage.findOne === 'function'
-    ? stage.findOne<Konva.Text>(`#${elementId}-text`)
-    : null;
+  let textNode: Konva.Node | null = null;
+  if (typeof stage.findOne === 'function') {
+    // First try the ID-based lookup
+    textNode = stage.findOne(`#${elementId}-text`) as any;
+    if (!textNode && typeof stage.find === 'function') {
+      // Fallback: find node with matching elementId and shape-text nodeType
+      const candidates = stage.find((n: any) => n.getAttr && n.getAttr('elementId') === elementId && n.getAttr('nodeType') === 'shape-text-root');
+      textNode = candidates && candidates.length > 0 ? (candidates[0] as any) : null;
+    }
+  }
 
   console.log('[openShapeTextEditor] Text node lookup result:', textNode ? 'FOUND' : 'NOT FOUND');
   console.log('[openShapeTextEditor] Retry count:', _retryCount);

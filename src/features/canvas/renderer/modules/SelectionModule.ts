@@ -319,6 +319,8 @@ export class SelectionModule implements RendererModule {
     const allLayers = [
       { name: "main", layer: this.storeCtx.layers.main },
       { name: "highlighter", layer: this.storeCtx.layers.highlighter },
+      { name: "overlay", layer: this.storeCtx.layers.overlay },
+      { name: "preview", layer: this.storeCtx.layers.preview }
     ];
 
     const validLayers = allLayers

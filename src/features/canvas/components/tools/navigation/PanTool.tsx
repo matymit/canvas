@@ -142,30 +142,7 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
           console.log("PanTool viewport.setPan completed successfully");
         } catch (error) {
           console.error("PanTool: Failed to update viewport:", error);
-          // Fallback: direct stage manipulation if store fails
-          const stage = stageRef.current;
-          if (stage) {
-            console.log("PanTool attempting fallback - current stage position:", {
-              x: stage.x(),
-              y: stage.y()
-            });
-
-            // For fallback, we need to pan the layers, not the stage
-            const layers = stage.find('Layer') as Konva.Layer[];
-
-            layers.forEach(layer => {
-              if (layer) {
-                const currentPos = layer.position();
-                layer.position({
-                  x: currentPos.x + deltaX,
-                  y: currentPos.y + deltaY
-                });
-              }
-            });
-
-            stage.batchDraw();
-            console.log("PanTool fallback layer manipulation completed");
-          }
+          // Removed fallback: do not manipulate stage or layers directly
         }
       });
 

@@ -342,12 +342,17 @@ export class ShapeRenderer implements RendererModule {
     };
 
     switch (shape.type) {
-      case "rectangle":
-        return new Konva.Rect({
+      case "rectangle": {
+        const rectNode = new Konva.Rect({
           ...commonAttrs,
           width: safeWidth,
           height: safeHeight,
         });
+        rectNode.setAttr("elementType", "rectangle");
+        rectNode.setAttr("shapeType", "rectangle");
+        rectNode.setAttr("nodeType", "shape");
+        return rectNode;
+      }
 
       case "circle": {
         const radiusX = safeWidth / 2;
@@ -364,6 +369,7 @@ export class ShapeRenderer implements RendererModule {
         // CRITICAL FIX: Set elementType attribute for circle detection in AnchorSnapping
         ellipseNode.setAttr("elementType", "circle");
         ellipseNode.setAttr("shapeType", "circle");
+        ellipseNode.setAttr("nodeType", "shape");
 
         ellipseNode.on("dragmove.text-follow", () =>
           this.syncTextFollower(shape.id, ellipseNode),
@@ -382,6 +388,7 @@ export class ShapeRenderer implements RendererModule {
         // CRITICAL FIX: Set elementType attribute for ellipse detection in AnchorSnapping
         ellipseNode.setAttr("elementType", "ellipse");
         ellipseNode.setAttr("shapeType", "ellipse");
+        ellipseNode.setAttr("nodeType", "shape");
 
         ellipseNode.on("dragmove.text-follow", () =>
           this.syncTextFollower(shape.id, ellipseNode),
@@ -417,6 +424,11 @@ export class ShapeRenderer implements RendererModule {
         triangleShape.on("dragmove.text-follow", () =>
           this.syncTextFollower(shape.id, triangleShape),
         );
+
+        // Set attributes for selection categorization
+        triangleShape.setAttr("elementType", "triangle");
+        triangleShape.setAttr("shapeType", "triangle");
+        triangleShape.setAttr("nodeType", "shape");
 
         return triangleShape;
       }
