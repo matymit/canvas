@@ -1,6 +1,8 @@
 // features/canvas/stores/modules/historyModule.ts
-import type { StoreSlice } from './types';
+import type { WritableDraft } from 'immer';
 import type { ElementId, CanvasElement } from '../../../../../types/index';
+import type { StoreSlice } from './types';
+import type { ElementModuleSlice } from './coreModule';
 
 
 // Type for element data properties that may contain large data
@@ -193,12 +195,27 @@ function estimateElementSize(element: CanvasElement): number {
   return size;
 }
 
-function pickHistoryState(state: any) {
-  // If a fully-featured nested history object exists (with entries & batching), prefer it.
-  const h = state.history;
-  if (h && Array.isArray(h.entries) && h.batching) return h;
-  // Otherwise, the history state lives at the root (our default slice layout)
-  return state;
+type ElementStateSlice = Pick<ElementModuleSlice, 'elements' | 'elementOrder' | 'element'>;
+type HistoryRootDraft = WritableDraft<
+  HistoryModuleSlice &
+    ElementStateSlice & {
+      history?: unknown;
+    }
+>;
+type HistoryDraft = WritableDraft<HistoryModuleSlice>;
+type ElementDraft = WritableDraft<ElementStateSlice>;
+
+function pickHistoryState(state: HistoryRootDraft): HistoryDraft {
+  const maybeHistory = (state as WritableDraft<{ history?: unknown }>).history;
+  if (
+    maybeHistory &&
+    typeof maybeHistory === 'object' &&
+    Array.isArray((maybeHistory as HistoryModuleSlice).entries) &&
+    (maybeHistory as HistoryModuleSlice).batching
+  ) {
+    return maybeHistory as HistoryDraft;
+  }
+  return state as HistoryDraft;
 }
 
 function coalesceInto(prev: HistoryEntry, nextOps: StoreHistoryOp[]) {
@@ -221,34 +238,167 @@ function ensureArray<T>(v: T | T[] | undefined | null): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
-function normalizeLooseRecord(input: any): StoreHistoryOp[] {
-  // Accept shapes like { op: 'add', elements }, { type: 'update', before, after }, or { payload: { ... } }
-  const type = input?.type ?? input?.op;
-  if (type === 'add') {
-    const els = ensureArray<CanvasElement>(input?.elements ?? input?.payload?.element ?? input?.payload?.elements);
-    return els.length ? [{ type: 'add', elements: els }] : [];
+interface LooseRecordObject {
+  type?: StoreHistoryOp['type'];
+  op?: StoreHistoryOp['type'];
+  label?: string;
+  mergeKey?: string;
+  element?: CanvasElement;
+  elements?: CanvasElement | CanvasElement[];
+  payload?: {
+    element?: CanvasElement;
+    elements?: CanvasElement[];
+    before?: CanvasElement[];
+    after?: CanvasElement[];
+  };
+  before?: CanvasElement[];
+  after?: CanvasElement[];
+  orderBefore?: ElementId[];
+  orderAfter?: ElementId[];
+}
+
+type RecordInput =
+  | StoreHistoryOp
+  | StoreHistoryOp[]
+  | CanvasElement
+  | CanvasElement[]
+  | LooseRecordObject;
+
+function isCanvasElement(value: unknown): value is CanvasElement {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'type' in value
+  );
+}
+
+function isStoreHistoryOp(value: unknown): value is StoreHistoryOp {
+  if (!value || typeof value !== 'object') return false;
+  const opType = (value as { type?: string }).type;
+  switch (opType) {
+    case 'add':
+    case 'remove':
+      return Array.isArray((value as { elements?: unknown }).elements);
+    case 'update':
+      return (
+        Array.isArray((value as { before?: unknown }).before) &&
+        Array.isArray((value as { after?: unknown }).after)
+      );
+    case 'reorder':
+      return (
+        Array.isArray((value as { before?: unknown }).before) &&
+        Array.isArray((value as { after?: unknown }).after)
+      );
+    default:
+      return false;
   }
-  if (type === 'remove') {
-    const els = ensureArray<CanvasElement>(input?.elements ?? input?.payload?.element ?? input?.payload?.elements);
-    return els.length ? [{ type: 'remove', elements: els }] : [];
+}
+
+function toElementArray(value: unknown): CanvasElement[] {
+  if (Array.isArray(value)) {
+    return value.filter(isCanvasElement);
   }
-  if (type === 'update') {
-    const before = ensureArray<CanvasElement>(input?.before ?? input?.payload?.before);
-    const after = ensureArray<CanvasElement>(input?.after ?? input?.payload?.after);
-    if (before.length && after.length) return [{ type: 'update', before, after }];
-    return [];
+  if (isCanvasElement(value)) {
+    return [value];
   }
-  if (type === 'reorder') {
-    const before = ensureArray<ElementId>(input?.orderBefore ?? input?.before);
-    const after = ensureArray<ElementId>(input?.orderAfter ?? input?.after);
-    if (before.length && after.length) return [{ type: 'reorder', before, after }];
-    return [];
-  }
-  // Unknown shape: ignore
   return [];
 }
 
-function applyOpToStore(state: any, op: StoreHistoryOp, dir: 'undo' | 'redo') {
+function normalizeLooseRecord(input: RecordInput): StoreHistoryOp[] {
+  if (Array.isArray(input)) {
+    return input.flatMap(normalizeLooseRecord);
+  }
+
+  if (isStoreHistoryOp(input)) {
+    return [input];
+  }
+
+  if (isCanvasElement(input)) {
+    return [{ type: 'add', elements: [input] }];
+  }
+
+  if (!input || typeof input !== 'object') {
+    return [];
+  }
+
+  const record = input as LooseRecordObject;
+  const opType = record.type ?? record.op;
+
+  if (opType === 'add' || opType === 'remove') {
+    const elements = toElementArray(
+      record.elements ?? record.payload?.elements ?? record.payload?.element ?? record.element
+    );
+    if (!elements.length) return [];
+    return [{ type: opType, elements }];
+  }
+
+  if (opType === 'update') {
+    const before = ensureArray(record.before ?? record.payload?.before).filter(isCanvasElement);
+    const after = ensureArray(record.after ?? record.payload?.after).filter(isCanvasElement);
+    if (before.length && after.length) {
+      return [{ type: 'update', before, after }];
+    }
+    return [];
+  }
+
+  if (opType === 'reorder') {
+    const beforeOrder = ensureArray<ElementId>(record.orderBefore ?? record.before);
+    const afterOrder = ensureArray<ElementId>(record.orderAfter ?? record.after);
+    if (beforeOrder.length && afterOrder.length) {
+      return [{ type: 'reorder', before: beforeOrder, after: afterOrder }];
+    }
+    return [];
+  }
+
+  // Fallback: treat unknown shapes with elements as add/remove
+  const elements = toElementArray(record.elements ?? record.payload?.elements);
+  if (elements.length) {
+    return [{ type: 'add', elements }];
+  }
+
+  return [];
+}
+
+function extractLabel(input: RecordInput): string | undefined {
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      const label = extractLabel(item);
+      if (label) return label;
+    }
+    return undefined;
+  }
+
+  if (input && typeof input === 'object' && 'label' in input) {
+    const { label } = input as { label?: unknown };
+    if (typeof label === 'string') {
+      return label;
+    }
+  }
+
+  return undefined;
+}
+
+function extractMergeKey(input: RecordInput): string | undefined {
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      const mergeKey = extractMergeKey(item);
+      if (mergeKey) return mergeKey;
+    }
+    return undefined;
+  }
+
+  if (input && typeof input === 'object' && 'mergeKey' in input) {
+    const { mergeKey } = input as { mergeKey?: unknown };
+    if (typeof mergeKey === 'string') {
+      return mergeKey;
+    }
+  }
+
+  return undefined;
+}
+
+function applyOpToStore(state: ElementDraft, op: StoreHistoryOp, dir: 'undo' | 'redo') {
   const baseMap: Map<ElementId, CanvasElement> =
     state.elements ?? state.element?.elements ?? new Map<ElementId, CanvasElement>();
   const map = new Map<ElementId, CanvasElement>(baseMap);
@@ -425,8 +575,9 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
   },
 
   beginBatch: (label, mergeKey) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       if (h.batching.active) return;
       h.batching.active = true;
       h.batching.label = label;
@@ -436,8 +587,9 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
     }),
 
   endBatch: (commit = true) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       if (!h.batching.active) return;
       const ops = h.batching.ops.slice();
       const label = h.batching.label;
@@ -490,9 +642,10 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
       }
     }),
 
-  push: (opsIn, label, mergeKey) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+  push: (opsIn: StoreHistoryOp | StoreHistoryOp[], label?: string, mergeKey?: string) =>
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       const ops = Array.isArray(opsIn) ? opsIn : [opsIn];
       if (ops.length === 0) return;
 
@@ -543,8 +696,9 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
   // Memory management methods
   pruneHistory: () => {
     let prunedCount = 0;
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       const memoryLimitBytes = h.maxMemoryMB * 1024 * 1024;
       const pruneResult = pruneHistoryEntries(h.entries, h.index, h.maxEntries, memoryLimitBytes);
       h.entries = pruneResult.entries;
@@ -564,16 +718,18 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
   },
 
   setMemoryLimits: (maxEntries: number, maxMemoryMB: number) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       h.maxEntries = Math.max(10, maxEntries); // Minimum 10 entries
       h.maxMemoryMB = Math.max(5, maxMemoryMB); // Minimum 5MB
     }),
 
   // compatibility helpers
-  record: (input: any) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+  record: (input: RecordInput) =>
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       const ops = normalizeLooseRecord(input);
       if (ops.length === 0) return;
       if (h.batching.active) {
@@ -583,8 +739,8 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
       const end = h.index + 1;
       const base = end < h.entries.length ? h.entries.slice(0, end) : h.entries;
       const prev = base[base.length - 1];
-      const label = input?.label;
-      const mergeKey = input?.mergeKey;
+      const label = extractLabel(input);
+      const mergeKey = extractMergeKey(input);
       if (shouldMerge(prev, label, mergeKey, h.mergeWindowMs)) {
         coalesceInto(prev, ops);
         h.entries = base;
@@ -605,9 +761,10 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
       }
     }),
 
-  add: (input: any) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+  add: (input: RecordInput) =>
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       const ops = normalizeLooseRecord(input);
       if (ops.length === 0) return;
       if (h.batching.active) {
@@ -629,32 +786,35 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
     }),
 
   undo: () =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       if (h.index < 0) return;
       const entry: HistoryEntry = h.entries[h.index];
       // apply in reverse for correctness
       for (let i = entry.ops.length - 1; i >= 0; i--) {
-        applyOpToStore(state, entry.ops[i], 'undo');
+        applyOpToStore(root as ElementDraft, entry.ops[i], 'undo');
       }
       h.index -= 1;
     }),
 
   redo: () =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       if (h.index >= h.entries.length - 1) return;
       const entry: HistoryEntry = h.entries[h.index + 1];
       // apply forward in recorded order
       for (let i = 0; i < entry.ops.length; i++) {
-        applyOpToStore(state, entry.ops[i], 'redo');
+        applyOpToStore(root as ElementDraft, entry.ops[i], 'redo');
       }
       h.index += 1;
     }),
 
   clear: () =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       h.entries = [];
       h.index = -1;
       h.batching.active = false;
@@ -675,8 +835,9 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
   },
 
   setMergeWindow: (ms) =>
-    set((state: any) => {
-      const h = pickHistoryState(state);
+    set((state) => {
+      const root = state as HistoryRootDraft;
+      const h = pickHistoryState(root);
       h.mergeWindowMs = Math.max(0, Math.round(ms || 0));
     }),
 });

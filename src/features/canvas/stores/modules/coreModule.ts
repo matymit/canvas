@@ -266,14 +266,12 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
   }
 
   function toWorld(x: number, y: number) {
-    const state = get();
-    const vp = (state as CoreModuleSlice).viewport;
+    const { viewport: vp } = get();
     return { x: (x - vp.x) / vp.scale, y: (y - vp.y) / vp.scale };
   }
 
   function toStage(x: number, y: number) {
-    const state = get();
-    const vp = (state as CoreModuleSlice).viewport;
+    const { viewport: vp } = get();
     return { x: x * vp.scale + vp.x, y: y * vp.scale + vp.y };
   }
 
@@ -342,7 +340,6 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         draft.elements = new Map<ElementId, CanvasElement>(draft.elements);
         draft.elementOrder = draft.elementOrder.slice();
 
-        const selectIds = new Set<ElementId>(opts?.selectIds ?? []);
         for (let i = 0; i < elements.length; i++) {
           const el = elements[i];
           const at =
@@ -358,28 +355,18 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         root.record?.({ type: "add", elements });
       }
       if (opts?.selectIds && opts.selectIds.length > 0) {
-        const selectionApi = get().selection;
         const combined = new Set(get().selectedElementIds);
         opts.selectIds.forEach((id) => combined.add(id));
-        selectionApi.set(Array.from(combined));
+        get().setSelection(Array.from(combined));
       }
     },
 
     updateElement: (id, patch, opts) => {
-      // Capture plain "before" outside of immer draft
-      const beforeOriginal = __deepClone(
-        get().getElement?.(id) ?? get().element?.getById?.(id),
-      );
+      const beforeOriginal = __deepClone(get().getElement(id));
 
       set((state) => {
-        const draft = state as unknown as WritableDraft<
-          ElementModuleSlice & SelectionModuleSlice & HistoryModuleSlice
-        >;
-        const elementNamespace = draft.element as Partial<{
-          elements: Map<ElementId, CanvasElement>;
-        }>;
-        const prev =
-          draft.elements?.get(id) ?? elementNamespace.elements?.get(id);
+        const draft = state as CoreDraft;
+        const prev = draft.elements.get(id);
         if (!prev) return;
 
         const next = __sanitize(
@@ -388,27 +375,20 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
             : { ...prev, ...patch },
         );
 
-        const sourceMap =
-          draft.elements ?? elementNamespace.elements ?? new Map<ElementId, CanvasElement>();
-        const newMap = new Map<ElementId, CanvasElement>(sourceMap);
+        const newMap = new Map<ElementId, CanvasElement>(draft.elements);
         newMap.set(id, next);
         draft.elements = newMap;
-        if (elementNamespace.elements) {
-          elementNamespace.elements = newMap;
-        }
       });
 
       if (opts?.pushHistory && beforeOriginal) {
-        const afterOriginal = __deepClone(
-          get().getElement?.(id) ?? get().element?.getById?.(id),
-        );
+        const afterOriginal = __deepClone(get().getElement(id));
         if (afterOriginal) {
-        const root = get() as unknown as HistoryModuleSlice;
-        root.record?.({
-          type: 'update',
-          before: [beforeOriginal],
-          after: [afterOriginal],
-        });
+          const root = get() as HistoryModuleSlice;
+          root.record?.({
+            type: "update",
+            before: [beforeOriginal],
+            after: [afterOriginal],
+          });
         }
       }
     },
@@ -419,44 +399,31 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
     ) => {
       const ids = patches.map((p) => p.id);
       const beforeOriginals: CanvasElement[] = ids
-        .map(
-          (id) =>
-            (get() as any).getElement?.(id) ??
-            (get() as any).element?.getById?.(id),
-        )
+        .map((id) => get().getElement(id))
         .filter(Boolean)
         .map(__deepClone);
 
       set((state) => {
-        const map: Map<ElementId, CanvasElement> =
-          state.elements ??
-          (state as any).element?.elements ??
-          new Map<ElementId, CanvasElement>();
-        const newMap = new Map<ElementId, CanvasElement>(map);
+        const draft = state as CoreDraft;
+        const newMap = new Map<ElementId, CanvasElement>(draft.elements);
 
         for (const { id, patch } of patches) {
           const prev = newMap.get(id);
           if (!prev) continue;
-          const next = { ...prev, ...patch };
+          const next = __sanitize({ ...prev, ...patch });
           newMap.set(id, next);
         }
 
-        if ("elements" in state) state.elements = newMap;
-        else if ((state as any).element && "elements" in (state as any).element)
-          (state as any).element.elements = newMap;
+        draft.elements = newMap;
       });
       if (opts?.pushHistory && beforeOriginals.length > 0) {
         const afterOriginals: CanvasElement[] = ids
-          .map(
-            (id) =>
-              (get() as any).getElement?.(id) ??
-              (get() as any).element?.getById?.(id),
-          )
+          .map((id) => get().getElement(id))
           .filter(Boolean)
           .map(__deepClone);
-        const root = get() as any;
+        const root = get() as HistoryModuleSlice;
         root.record?.({
-          op: "update",
+          type: "update",
           before: beforeOriginals,
           after: afterOriginals,
         });
@@ -495,28 +462,16 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       }),
 
     removeElement: (id, opts) => {
-      // Get the element to remove BEFORE the state mutation
       const elementToRemove = get().elements.get(id);
       if (!elementToRemove) return;
 
-      // Clone the element outside of the state mutation
       const removed = __deepClone(elementToRemove);
 
       set((state) => {
-        const draft = state as unknown as WritableDraft<
-          ElementModuleSlice & SelectionModuleSlice & HistoryModuleSlice
-        >;
-        const elementNamespace = draft.element as Partial<{
-          elements: Map<ElementId, CanvasElement>;
-        }>;
-        const sourceMap =
-          draft.elements ?? elementNamespace.elements ?? new Map<ElementId, CanvasElement>();
-        const newMap = new Map<ElementId, CanvasElement>(sourceMap);
+        const draft = state as CoreDraft;
+        const newMap = new Map<ElementId, CanvasElement>(draft.elements);
         newMap.delete(id);
         draft.elements = newMap;
-        if (elementNamespace.elements) {
-          elementNamespace.elements = newMap;
-        }
 
         draft.elementOrder = draft.elementOrder.filter((eid) => eid !== id);
 
@@ -525,14 +480,13 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         }
       });
 
-      if (opts?.pushHistory && removed) {
-        const root = get() as unknown as HistoryModuleSlice;
-        root.record?.({ type: 'remove', elements: [removed] });
+      if (opts?.pushHistory) {
+        const root = get() as HistoryModuleSlice;
+        root.record?.({ type: "remove", elements: [removed] });
       }
     },
 
     removeElements: (ids, opts) => {
-      // Get elements to remove BEFORE the state mutation
       const elementsToRemove: CanvasElement[] = [];
       const currentElements = get().elements;
       for (const id of ids) {
@@ -543,25 +497,14 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       }
 
       set((state) => {
-        const draft = state as unknown as WritableDraft<
-          ElementModuleSlice & SelectionModuleSlice & HistoryModuleSlice
-        >;
-        const elementNamespace = draft.element as Partial<{
-          elements: Map<ElementId, CanvasElement>;
-        }>;
-        const sourceMap =
-          draft.elements ?? elementNamespace.elements ?? new Map<ElementId, CanvasElement>();
-        const newMap = new Map<ElementId, CanvasElement>(sourceMap);
+        const draft = state as CoreDraft;
+        const newMap = new Map<ElementId, CanvasElement>(draft.elements);
 
-        // Remove elements from the map
         for (const id of ids) {
           newMap.delete(id);
         }
 
         draft.elements = newMap;
-        if (elementNamespace.elements) {
-          elementNamespace.elements = newMap;
-        }
 
         if (elementsToRemove.length > 0) {
           const toRemove = new Set(ids);
@@ -577,15 +520,13 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
               changed = true;
             }
           }
-          if (changed) {
-            draft.selectionVersion += 1;
-          }
+          if (changed) draft.selectionVersion += 1;
         }
       });
 
       if (opts?.pushHistory && elementsToRemove.length > 0) {
-        const root = get() as unknown as HistoryModuleSlice;
-        root.record?.({ type: 'remove', elements: elementsToRemove });
+        const root = get() as HistoryModuleSlice;
+        root.record?.({ type: "remove", elements: elementsToRemove });
       }
     },
 
@@ -620,47 +561,31 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       }
 
       // add to store and select
-      const add =
-        (get() as any).addElement ?? (get() as any).element?.addElement;
-      add?.(clonedElement, { select: true, pushHistory: true });
+      get().addElement(clonedElement, { select: true, pushHistory: true });
 
       return newId;
     },
 
     replaceAll: (elements, order) =>
       set((state) => {
+        const draft = state as CoreDraft;
         const map = new Map<ElementId, CanvasElement>();
         for (const el of elements) map.set(el.id as ElementId, el);
-        state.elements = map;
-        state.elementOrder = order ?? elements.map((e) => e.id as ElementId);
+        draft.elements = map;
+        draft.elementOrder = order ?? elements.map((e) => e.id as ElementId);
 
-        // prune selection of missing ids
-        const sel =
-          (state as any).selectedElementIds ??
-          (state as any).selection?.selectedElementIds;
-        if (sel) {
-          const next = new Set<ElementId>();
-          sel.forEach((id: ElementId) => {
-            if (map.has(id)) next.add(id);
-          });
-          if ("selectedElementIds" in state)
-            (state as any).selectedElementIds = next;
-          if (
-            (state as any).selection &&
-            "selectedElementIds" in (state as any).selection
-          ) {
-            (state as any).selection.selectedElementIds = next;
-          }
-          if ("selectionVersion" in state)
-            (state as any).selectionVersion =
-              ((state as any).selectionVersion ?? 0) + 1;
-          if (
-            (state as any).selection &&
-            "selectionVersion" in (state as any).selection
-          ) {
-            (state as any).selection.selectionVersion =
-              ((state as any).selection.selectionVersion ?? 0) + 1;
-          }
+        const nextSelection = new Set<ElementId>();
+        draft.selectedElementIds.forEach((id) => {
+          if (map.has(id)) nextSelection.add(id);
+        });
+
+        if (
+          nextSelection.size !== draft.selectedElementIds.size ||
+          (draft.lastSelectedId && !map.has(draft.lastSelectedId))
+        ) {
+          draft.selectedElementIds = nextSelection;
+          draft.lastSelectedId = Array.from(nextSelection).pop();
+          draft.selectionVersion += 1;
         }
       }),
 
@@ -692,9 +617,9 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
         // Only record if order actually changed
         if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
-          const root = get() as any;
-          root.record?.({
-            op: "reorder",
+          const history = get() as HistoryModuleSlice;
+          history.record?.({
+            type: "reorder",
             before: beforeOrder,
             after: afterOrder,
           });
@@ -708,9 +633,9 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
         // Only record if order actually changed
         if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
-          const root = get() as any;
-          root.record?.({
-            op: "reorder",
+          const history = get() as HistoryModuleSlice;
+          history.record?.({
+            type: "reorder",
             before: beforeOrder,
             after: afterOrder,
           });
@@ -743,84 +668,91 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
     setSelection: (ids) =>
       set((state) => {
-        state.selectedElementIds = new Set(ids);
-        const arr = Array.from(state.selectedElementIds);
-        (state as any).lastSelectedId = arr[arr.length - 1];
-        (state as any).selectionVersion++;
+        const draft = state as CoreDraft;
+        draft.selectedElementIds = new Set(ids);
+        const arr = Array.from(draft.selectedElementIds);
+        draft.lastSelectedId = arr[arr.length - 1];
+        draft.selectionVersion += 1;
       }),
 
     clearSelection: () =>
       set((state) => {
-        state.selectedElementIds = new Set<ElementId>();
+        const draft = state as CoreDraft;
+        draft.selectedElementIds = new Set<ElementId>();
         // Keep lastSelectedId to allow overlay reattach after reload if elements exist
-        const fallback = firstElementIdOrNull(state);
-        (state as any).lastSelectedId =
-          fallback ?? (state as any).lastSelectedId;
-        (state as any).selectionVersion++;
+        const fallback = firstElementIdOrNull(draft);
+        draft.lastSelectedId = fallback ?? draft.lastSelectedId;
+        draft.selectionVersion += 1;
       }),
 
     addToSelection: (id) =>
       set((state) => {
-        const next = new Set<ElementId>(state.selectedElementIds);
+        const draft = state as CoreDraft;
+        const next = new Set<ElementId>(draft.selectedElementIds);
         next.add(id);
-        state.selectedElementIds = next;
-        (state as any).lastSelectedId = id;
-        (state as any).selectionVersion++;
+        draft.selectedElementIds = next;
+        draft.lastSelectedId = id;
+        draft.selectionVersion += 1;
       }),
 
     removeFromSelection: (id) =>
       set((state) => {
-        if (!state.selectedElementIds.has(id)) return;
-        const next = new Set<ElementId>(state.selectedElementIds);
+        const draft = state as CoreDraft;
+        if (!draft.selectedElementIds.has(id)) return;
+        const next = new Set<ElementId>(draft.selectedElementIds);
         next.delete(id);
-        state.selectedElementIds = next;
-        if ((state as any).lastSelectedId === id) {
+        draft.selectedElementIds = next;
+        if (draft.lastSelectedId === id) {
           const arr = Array.from(next);
-          (state as any).lastSelectedId = arr[arr.length - 1];
+          draft.lastSelectedId = arr[arr.length - 1];
         }
-        (state as any).selectionVersion++;
+        draft.selectionVersion += 1;
       }),
 
     toggleSelection: (id) =>
       set((state) => {
-        const next = new Set<ElementId>(state.selectedElementIds);
+        const draft = state as CoreDraft;
+        const next = new Set<ElementId>(draft.selectedElementIds);
         if (next.has(id)) {
           next.delete(id);
-          if ((state as any).lastSelectedId === id) {
+          if (draft.lastSelectedId === id) {
             const arr = Array.from(next);
-            (state as any).lastSelectedId = arr[arr.length - 1];
+            draft.lastSelectedId = arr[arr.length - 1];
           }
         } else {
           next.add(id);
-          (state as any).lastSelectedId = id;
+          draft.lastSelectedId = id;
         }
-        state.selectedElementIds = next;
-        (state as any).selectionVersion++;
+        draft.selectedElementIds = next;
+        draft.selectionVersion += 1;
       }),
 
     replaceSelectionWithSingle: (id) =>
       set((state) => {
-        state.selectedElementIds = new Set<ElementId>([id]);
-        (state as any).lastSelectedId = id;
-        (state as any).selectionVersion++;
+        const draft = state as CoreDraft;
+        draft.selectedElementIds = new Set<ElementId>([id]);
+        draft.lastSelectedId = id;
+        draft.selectionVersion += 1;
       }),
 
     beginTransform: () =>
       set((state) => {
-        (state as any).isTransforming = true;
+        const draft = state as CoreDraft;
+        draft.isTransforming = true;
       }),
 
     endTransform: () =>
       set((state) => {
-        (state as any).isTransforming = false;
-        (state as any).selectionVersion++; // ensure transformer handles refresh
+        const draft = state as CoreDraft;
+        draft.isTransforming = false;
+        draft.selectionVersion += 1; // ensure transformer handles refresh
       }),
 
     pruneSelection: () =>
       set((state) => {
-        const ids: Set<ElementId> = state.selectedElementIds;
-        const elements: Map<ElementId, unknown> | undefined =
-          (state as any).elements ?? (state as any).element?.elements;
+        const draft = state as CoreDraft;
+        const ids: Set<ElementId> = draft.selectedElementIds;
+        const elements = draft.elements;
         if (!elements) return;
         let changed = false;
         const next = new Set<ElementId>();
@@ -829,14 +761,15 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
           else changed = true;
         });
         if (changed) {
-          state.selectedElementIds = next;
-          (state as any).selectionVersion++;
+          draft.selectedElementIds = next;
+          draft.selectionVersion += 1;
         }
       }),
 
     bumpSelectionVersion: () =>
       set((state) => {
-        (state as any).selectionVersion++;
+        const draft = state as CoreDraft;
+        draft.selectionVersion += 1;
       }),
 
     // Required unified interface object
@@ -867,37 +800,32 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       selectAll: () => {
         // Get all element IDs from the store
         const state = get();
-        const allIds = (state as any).elementOrder ?? [];
-        state.setSelection(allIds);
+        state.setSelection(state.elementOrder.slice());
       },
       deleteSelected: () => {
-        const state = get() as any;
-        const selectedIds: ElementId[] = state.selectedElementIds
-          ? Array.from(state.selectedElementIds as Set<ElementId>)
-          : [];
+        const state = get();
+        const selectedIds = Array.from(state.selectedElementIds);
         if (selectedIds.length === 0) return;
 
         const performDelete = () => {
-          const removeMultiple =
-            state.removeElements ?? state.element?.removeElements;
-          if (removeMultiple) {
-            removeMultiple(selectedIds, {
+          if (typeof state.removeElements === "function") {
+            state.removeElements(selectedIds, {
               pushHistory: true,
               deselect: true,
             });
             return;
           }
 
-          selectedIds.forEach((id: ElementId) => {
-            state.removeElement?.(id, {
+          selectedIds.forEach((id) => {
+            state.removeElement(id, {
               pushHistory: true,
               deselect: true,
             });
           });
         };
 
-        if (typeof state.withUndo === 'function') {
-          state.withUndo('Delete elements', performDelete);
+        if (typeof state.withUndo === "function") {
+          state.withUndo("Delete elements", performDelete);
         } else {
           performDelete();
         }
@@ -905,32 +833,18 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       moveSelectedBy: (dx: number, dy: number) => {
         const state = get();
         const selectedIds = Array.from(state.selectedElementIds);
-        // Update each selected element position
         selectedIds.forEach((id) => {
-          const updateElement =
-            (state as any).updateElement ?? (state as any).element?.update;
-          updateElement?.(id, (el: CanvasElement) => ({
+          state.updateElement(id, (el) => ({
             ...el,
-            x: el.x + dx,
-            y: el.y + dy,
+            x: (el.x ?? 0) + dx,
+            y: (el.y ?? 0) + dy,
           }));
         });
       },
       getSelected: () => {
         const state = get();
         const selectedIds = Array.from(state.selectedElementIds);
-        const getElements =
-          (state as any).getElements ?? (state as any).element?.getAll;
-        if (getElements && (state as any).getElements) {
-          return (state as any).getElements(selectedIds);
-        }
-        // Fallback: get from elements map
-        const elements =
-          (state as any).elements ?? (state as any).element?.elements;
-        if (elements) {
-          return selectedIds.map((id) => elements.get(id)).filter(Boolean);
-        }
-        return [];
+        return state.getElements(selectedIds);
       },
       beginTransform: () => {
         get().beginTransform();
@@ -947,52 +861,57 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       ...VIEWPORT_DEFAULTS,
 
       setPan: (x, y) => {
-        set((draft) => {
-          (draft as any).viewport.x = x;
-          (draft as any).viewport.y = y;
+        set((state) => {
+          const draft = state as CoreDraft;
+          draft.viewport.x = x;
+          draft.viewport.y = y;
         });
       },
 
       setScale: (scale) => {
-        set((draft) => {
-          const vp = (draft as any).viewport;
+        set((state) => {
+          const draft = state as CoreDraft;
+          const vp = draft.viewport;
           vp.scale = clamp(scale, vp.minScale, vp.maxScale);
         });
       },
 
       zoomAt: (clientX, clientY, deltaScale) => {
-        const { viewport } = get() as any;
+        const { viewport } = get();
         const targetScale = clamp(
           viewport.scale * deltaScale,
           viewport.minScale,
           viewport.maxScale,
         );
         const before = toWorld(clientX, clientY);
-        set((draft) => {
-          (draft as any).viewport.scale = targetScale;
+        set((state) => {
+          const draft = state as CoreDraft;
+          draft.viewport.scale = targetScale;
         });
         const after = toStage(before.x, before.y);
-        set((draft) => {
-          (draft as any).viewport.x += clientX - after.x;
-          (draft as any).viewport.y += clientY - after.y;
+        set((state) => {
+          const draft = state as CoreDraft;
+          draft.viewport.x += clientX - after.x;
+          draft.viewport.y += clientY - after.y;
         });
       },
 
       zoomIn: (cx, cy, step = 1.2) => {
         const centerX = cx ?? 0;
         const centerY = cy ?? 0;
-        (get() as any).viewport.zoomAt(centerX, centerY, step);
+        get().viewport.zoomAt(centerX, centerY, step);
       },
 
       zoomOut: (cx, cy, step = 1 / 1.2) => {
         const centerX = cx ?? 0;
         const centerY = cy ?? 0;
-        (get() as any).viewport.zoomAt(centerX, centerY, step);
+        get().viewport.zoomAt(centerX, centerY, step);
       },
 
       reset: () => {
-        set((draft) => {
-          const vp = (draft as any).viewport;
+        set((state) => {
+          const draft = state as CoreDraft;
+          const vp = draft.viewport;
           vp.x = VIEWPORT_DEFAULTS.x;
           vp.y = VIEWPORT_DEFAULTS.y;
           vp.scale = VIEWPORT_DEFAULTS.scale;
@@ -1002,24 +921,24 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       },
 
       fitToContent: (padding = 64) => {
-        const entries = Array.from((get() as any).elements.entries());
+        const entries = Array.from(get().elements.entries());
         if (entries.length === 0) {
-          (get() as any).viewport.reset();
+          get().viewport.reset();
           return;
         }
-        let minX = Infinity,
-          minY = Infinity,
-          maxX = -Infinity,
-          maxY = -Infinity;
 
-        entries.forEach((entry) => {
-          const [, el] = entry as [ElementId, CanvasElement];
-          const b = getElementBounds(el);
-          if (!b) return;
-          minX = Math.min(minX, b.x);
-          minY = Math.min(minY, b.y);
-          maxX = Math.max(maxX, b.x + b.width);
-          maxY = Math.max(maxY, b.y + b.height);
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        entries.forEach(([, el]) => {
+          const bounds = getElementBounds(el);
+          if (!bounds) return;
+          minX = Math.min(minX, bounds.x);
+          minY = Math.min(minY, bounds.y);
+          maxX = Math.max(maxX, bounds.x + bounds.width);
+          maxY = Math.max(maxY, bounds.y + bounds.height);
         });
 
         if (
@@ -1033,24 +952,25 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
         const contentW = maxX - minX + padding * 2;
         const contentH = maxY - minY + padding * 2;
-        // Assume stage size is managed by component; we fit relative to a nominal view box.
-        // Consumers may call reset + fitToContent with actual container size.
-        const targetW = 1200; // Fallback if container size is unknown here
+        const targetW = 1200;
         const targetH = 800;
         const scaleX = targetW / Math.max(contentW, 1);
         const scaleY = targetH / Math.max(contentH, 1);
+        const { viewport } = get();
         const nextScale = clamp(
           Math.min(scaleX, scaleY),
-          (get() as any).viewport.minScale,
-          (get() as any).viewport.maxScale,
+          viewport.minScale,
+          viewport.maxScale,
         );
+
         const stageCenterX = targetW / 2;
         const stageCenterY = targetH / 2;
         const worldCenterX = (minX + maxX) / 2;
         const worldCenterY = (minY + maxY) / 2;
 
-        set((draft) => {
-          const vp = (draft as any).viewport;
+        set((state) => {
+          const draft = state as CoreDraft;
+          const vp = draft.viewport;
           vp.scale = nextScale;
           const stagePt = {
             x: worldCenterX * vp.scale,

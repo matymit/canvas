@@ -5,6 +5,23 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.9] - 2025-09-26
+
+### ⚙️ REFACTOR: Store Typing & Undo/Redo Safety Pass
+
+- **Improved**: Core, history, and interaction store slices now operate on fully typed Immer drafts
+- **Why it matters**: Eliminates dozens of `any` fallbacks in the state pipeline, reducing the chance of silent undo/redo or selection regressions
+- **Highlights**:
+  - Core module mutations (`addElement`, `removeElements`, viewport helpers, selection APIs) now share a `CoreDraft` type
+  - History module refactored with typed batching helpers, label/merge-key extraction, and typed undo/redo application
+  - Interaction module (grid, guides, animation, contextual UI) switched to a single `InteractionDraft`, removing nested `state as any` accessors
+- **Architecture impact**: Sets the foundation for completing P2-09 "Store typing remediation" and unlocks future lint rule enforcement (`ban-ts-comment`, `prefer-readonly`, `consistent-type-imports`)
+- **Files Touched**:
+  - `src/features/canvas/stores/modules/coreModule.ts`
+  - `src/features/canvas/stores/modules/historyModule.ts`
+  - `src/features/canvas/stores/modules/interactionModule.ts`
+- **Follow-up**: Renderer/service modules still contain `any` usage and will be tackled in the next sweep before enabling repo-wide lint autofixes
+
 ## [3.1.8] - 2025-09-25
 
 ### 🎨 UI IMPROVEMENT: Text Editor Border and Padding Consistency

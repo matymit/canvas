@@ -1,4 +1,5 @@
 // features/canvas/stores/modules/interactionModule.ts
+import type { WritableDraft } from 'immer';
 import type { StoreSlice } from './types';
 
 // ============================================================================
@@ -143,6 +144,8 @@ export interface InteractionModuleSlice extends UIModuleSlice, GuidesModuleSlice
 // INTERACTION MODULE CREATOR
 // ============================================================================
 
+type InteractionDraft = WritableDraft<InteractionModuleSlice>;
+
 export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set, _get) => ({
   // ========================================================================
   // UI MODULE IMPLEMENTATION
@@ -173,89 +176,89 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
 
   // Grid
   setGridVisible: (visible) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.grid.visible = !!visible;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.grid.visible = !!visible;
     }),
 
   toggleGrid: () =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.grid.visible = !ui.grid.visible;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.grid.visible = !draft.grid.visible;
     }),
 
   setGridDensity: (density) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
+    set((state) => {
+      const draft = state as InteractionDraft;
       const d = Math.max(2, Math.round(density || 0));
-      ui.grid.density = d;
+      draft.grid.density = d;
     }),
 
   setGridColor: (color) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.grid.color = color;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.grid.color = color;
     }),
 
   // Colors
   setStrokeColor: (color) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.colors.stroke = color;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.colors.stroke = color;
     }),
 
   setFillColor: (color) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.colors.fill = color;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.colors.fill = color;
     }),
 
   setStickyNoteColor: (color) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.colors.stickyNote = color;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.colors.stickyNote = color;
     }),
 
   // Color picker
   openColorPicker: (target, anchor = null) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.colorPicker.open = true;
-      ui.colorPicker.target = target;
-      ui.colorPicker.anchor = anchor ?? null;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.colorPicker.open = true;
+      draft.colorPicker.target = target;
+      draft.colorPicker.anchor = anchor ?? null;
     }),
 
   closeColorPicker: () =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.colorPicker.open = false;
-      ui.colorPicker.target = null;
-      ui.colorPicker.anchor = null;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.colorPicker.open = false;
+      draft.colorPicker.target = null;
+      draft.colorPicker.anchor = null;
     }),
 
   // Context toolbar
   setContextToolbarVisible: (visible) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.contextualToolbar.visible = !!visible;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.contextualToolbar.visible = !!visible;
     }),
 
   setContextToolbarMode: (mode) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.contextualToolbar.mode = mode;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.contextualToolbar.mode = mode;
     }),
 
   setContextToolbarAnchor: (anchor) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.contextualToolbar.anchor = anchor ?? null;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.contextualToolbar.anchor = anchor ?? null;
     }),
 
   patchContextToolbar: (patch) =>
-    set((state: any) => {
-      const ui = state.ui ?? state;
-      ui.contextualToolbar = { ...ui.contextualToolbar, ...patch };
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.contextualToolbar = { ...draft.contextualToolbar, ...patch };
     }),
 
   // ========================================================================
@@ -267,40 +270,40 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
   activeGuides: [],
 
   setGuidesEnabled: (on) =>
-    set((state: any) => {
-      const s = state.guides ?? state;
-      s.guidesEnabled = !!on;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.guidesEnabled = !!on;
     }),
 
   setSnappingEnabled: (on) =>
-    set((state: any) => {
-      const s = state.guides ?? state;
-      s.snappingEnabled = !!on;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.snappingEnabled = !!on;
     }),
 
   setSnapThreshold: (px) =>
-    set((state: any) => {
-      const s = state.guides ?? state;
+    set((state) => {
+      const draft = state as InteractionDraft;
       const v = Math.max(0, Math.round(px || 0));
-      s.snapThreshold = v;
+      draft.snapThreshold = v;
     }),
 
   setActiveGuides: (guides) =>
-    set((state: any) => {
-      const s = state.guides ?? state;
-      s.activeGuides = Array.isArray(guides) ? guides.slice() : [];
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.activeGuides = Array.isArray(guides) ? guides.slice() : [];
     }),
 
   addActiveGuide: (guide) =>
-    set((state: any) => {
-      const s = state.guides ?? state;
-      s.activeGuides.push(guide);
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.activeGuides.push(guide);
     }),
 
   clearActiveGuides: () =>
-    set((state: any) => {
-      const s = state.guides ?? state;
-      s.activeGuides = [];
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.activeGuides = [];
     }),
 
   // ========================================================================
@@ -326,40 +329,40 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
   },
 
   setAnimationEnabled: (on) =>
-    set((state: any) => {
-      const s = state.animation ?? state;
-      s.animationEnabled = !!on;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.animationEnabled = !!on;
     }),
 
   setPreferReducedMotion: (on) =>
-    set((state: any) => {
-      const s = state.animation ?? state;
-      s.preferReducedMotion = !!on;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.preferReducedMotion = !!on;
     }),
 
   setDefaultDuration: (ms) =>
-    set((state: any) => {
-      const s = state.animation ?? state;
+    set((state) => {
+      const draft = state as InteractionDraft;
       const v = Math.max(0, Math.round(ms || 0));
-      s.defaults.durationMs = v;
+      draft.defaults.durationMs = v;
     }),
 
   setDefaultEasing: (name) =>
-    set((state: any) => {
-      const s = state.animation ?? state;
-      s.defaults.easing = name;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.defaults.easing = name;
     }),
 
   registerEasing: (name, konvaEasingKey) =>
-    set((state: any) => {
-      const s = state.animation ?? state;
-      s.easingPresets[name] = konvaEasingKey;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.easingPresets[name] = konvaEasingKey;
     }),
 
   unregisterEasing: (name) =>
-    set((state: any) => {
-      const s = state.animation ?? state;
-      delete s.easingPresets[name];
+    set((state) => {
+      const draft = state as InteractionDraft;
+      delete draft.easingPresets[name];
     }),
 
   // ========================================================================
@@ -368,8 +371,9 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
   selectionVersion: 0,
 
   bumpSelectionVersion: () =>
-    set((state: any) => {
-      state.selectionVersion = (state.selectionVersion || 0) + 1;
+    set((state) => {
+      const draft = state as InteractionDraft;
+      draft.selectionVersion += 1;
     }),
 });
 

@@ -4,6 +4,21 @@
 
 This document tracks the implementation progress of the FigJam-style modular canvas application, ensuring all tools and systems follow the four-layer pipeline architecture with store-driven rendering.
 
+## 🚨 STATUS UPDATE (September 26, 2025)
+
+### ⚙️ TYPE SAFETY: Store Typing Remediation (September 26, 2025)
+
+**Repository:** `main`
+**Status:** P2-09 store typing refactor underway with first three slices migrated
+
+- **Scope**: Core, history, and interaction store modules migrated off `state as any` patterns using typed Immer drafts
+- **Key Changes**:
+  - Introduced `CoreDraft`, `HistoryRootDraft`, and `InteractionDraft` helpers to type Immer mutations end-to-end
+  - Selection, viewport, undo/redo, grid, guides, and animation mutators now operate on strongly typed drafts
+  - History batching (`record`, `push`, `withUndo`, undo/redo) now normalizes inputs via typed helpers, preserving transaction safety
+- **Lint Impact**: Removes the largest cluster of `@typescript-eslint/no-explicit-any` warnings in store modules; remaining warnings now concentrated in renderer/services
+- **Next Steps**: Apply consistent type imports and readonly rules once renderer/service modules receive the same treatment
+
 ## 🚨 STATUS UPDATE (September 25, 2025)
 
 ### ✅ TEXT EDITOR BORDER AND PADDING CONSISTENCY (September 25, 2025)

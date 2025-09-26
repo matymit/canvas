@@ -11,6 +11,11 @@ This document provides an honest assessment of current Canvas limitations, known
 
 #### Recently Addressed
 
+0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
+   - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)
+   - **Impact**: Selection, undo/redo, grid/guides, animation, and viewport flows are type-checked end-to-end, reducing hidden regressions
+   - **Remaining Work**: Renderer/service modules still carry `any` usage—expect lint reports until those files are migrated in the next phase
+
 0. **🎨 UI: Text Editor Border and Padding Inconsistencies (IMPROVED - September 25, 2025)**
    - **Issue**: Inconsistent padding and double borders between text creation, committed text, and text editing states
    - **Visual Problems**:
