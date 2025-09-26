@@ -1,10 +1,11 @@
 // CORRECTED TableTransformerController that properly handles Konva's scale system
 // Implements the correct scale→reset→resize pattern for complex table elements
 
-import Konva from "konva";
+import type Konva from "konva";
+import type {
+  TransformerControllerOptions} from "../TransformerController";
 import {
-  TransformerController,
-  TransformerControllerOptions,
+  TransformerController
 } from "../TransformerController";
 import type { TableElement } from "../../types/table";
 import {
@@ -43,7 +44,7 @@ export interface TableTransformerControllerOptions
  */
 export class TableTransformerController extends TransformerController {
   private element: TableElement;
-  private onTableUpdate?: (
+  private readonly onTableUpdate?: (
     element: TableElement,
     resetAttrs?: {
       scaleX: number;

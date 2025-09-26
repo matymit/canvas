@@ -7,7 +7,7 @@ import { animateAppear, animateTransform, animatePulse } from '../managers/anima
  * Utility to integrate the animation module with existing ElementAnimations
  */
 export class AnimationIntegration {
-  constructor(private getAnimationState: () => InteractionModuleSlice) {}
+  constructor(private readonly getAnimationState: () => InteractionModuleSlice) {}
 
   /**
    * Get the appropriate easing function from Konva.Easings based on store preset

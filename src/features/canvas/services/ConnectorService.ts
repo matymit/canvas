@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import type Konva from 'konva';
 import type { UnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 import { ConnectorRenderer, type RendererLayers } from '../renderer/modules/ConnectorRenderer';
 import { LiveRoutingManager } from '../utils/connectors/LiveRouting';
@@ -11,9 +11,9 @@ export interface ConnectorServiceDeps {
 }
 
 export class ConnectorService {
-  private store: UnifiedCanvasStore;
-  private renderer: ConnectorRenderer;
-  private liveRouting: LiveRoutingManager;
+  private readonly store: UnifiedCanvasStore;
+  private readonly renderer: ConnectorRenderer;
+  private readonly liveRouting: LiveRoutingManager;
   private isInitialized = false;
 
   constructor({ store, stage, layers }: ConnectorServiceDeps) {

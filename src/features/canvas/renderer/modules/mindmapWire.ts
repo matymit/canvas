@@ -38,7 +38,7 @@ import {
   getNodeConnectionPoint,
   measureMindmapLabel,
 } from "../../types/mindmap";
-import { MindmapRenderer } from "./MindmapRenderer";
+import type { MindmapRenderer } from "./MindmapRenderer";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 
 export interface MindmapWireOptions {

@@ -24,9 +24,9 @@ export interface ShapeOptions {
 }
 
 export default class ShapeModule {
-  private layers: RendererLayers;
-  private store: StoreAdapter;
-  private opts: ShapeOptions;
+  private readonly layers: RendererLayers;
+  private readonly store: StoreAdapter;
+  private readonly opts: ShapeOptions;
 
   private origin: { x: number; y: number } | null = null;
   private previewRect?: Konva.Rect;

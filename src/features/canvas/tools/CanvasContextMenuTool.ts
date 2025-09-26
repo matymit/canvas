@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import type Konva from 'konva';
 import type { ToolEventHandler } from '../hooks/useCanvasEventManager';
 import type { CanvasElement } from '../../../../types';
 
@@ -9,8 +9,8 @@ import type { CanvasElement } from '../../../../types';
 export class CanvasContextMenuTool implements ToolEventHandler {
   priority = 5; // Medium priority for general context menu handling (lower than table-specific)
 
-  private showContextMenu?: (x: number, y: number, clickedElementId?: string) => void;
-  private getElement?: (id: string) => CanvasElement | undefined;
+  private readonly showContextMenu?: (x: number, y: number, clickedElementId?: string) => void;
+  private readonly getElement?: (id: string) => CanvasElement | undefined;
 
   constructor(
     showContextMenuCallback?: (x: number, y: number, clickedElementId?: string) => void,

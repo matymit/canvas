@@ -1,5 +1,7 @@
 // features/canvas/stores/modules/coreModule.ts
+import type { WritableDraft } from "immer";
 import type { StoreSlice } from "./types";
+import type { HistoryModuleSlice } from "./historyModule";
 import type { ElementId, CanvasElement } from "../../../../../types/index";
 
 // ============================================================================
@@ -243,6 +245,12 @@ function __sanitize<T>(v: T): T {
 // CORE MODULE CREATOR
 // ============================================================================
 
+type CoreDraft = WritableDraft<
+  CoreModuleSlice &
+  SelectionModuleSlice &
+  HistoryModuleSlice
+>;
+
 export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
   // Viewport constants and utilities
   const VIEWPORT_DEFAULTS = {
@@ -300,148 +308,107 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
     addElement: (element, opts) => {
       set((state) => {
+        const draft = state as CoreDraft;
         const index = Math.max(
           0,
           Math.min(
             typeof opts?.index === "number"
               ? opts.index
-              : state.elementOrder.length,
-            state.elementOrder.length,
+              : draft.elementOrder.length,
+            draft.elementOrder.length,
           ),
         );
 
         // write map immutably
-        state.elements = new Map<ElementId, CanvasElement>(state.elements);
-        state.elements.set(element.id as ElementId, __sanitize(element));
+        draft.elements = new Map<ElementId, CanvasElement>(draft.elements);
+        draft.elements.set(element.id as ElementId, __sanitize(element));
 
         // maintain order
-        state.elementOrder = state.elementOrder.slice();
-        state.elementOrder.splice(index, 0, element.id as ElementId);
-
-        // optional selection
-        const sel =
-          (state as any).selectedElementIds ??
-          (state as any).selection?.selectedElementIds;
-        if (opts?.select && sel) {
-          const next = new Set<ElementId>(sel);
-          next.add(element.id as ElementId);
-          if ("selectedElementIds" in state)
-            (state as any).selectedElementIds = next;
-          if (
-            (state as any).selection &&
-            "selectedElementIds" in (state as any).selection
-          ) {
-            (state as any).selection.selectedElementIds = next;
-          }
-          if ("selectionVersion" in state)
-            (state as any).selectionVersion =
-              ((state as any).selectionVersion ?? 0) + 1;
-          if (
-            (state as any).selection &&
-            "selectionVersion" in (state as any).selection
-          ) {
-            (state as any).selection.selectionVersion =
-              ((state as any).selection.selectionVersion ?? 0) + 1;
-          }
-        }
+        draft.elementOrder = draft.elementOrder.slice();
+        draft.elementOrder.splice(index, 0, element.id as ElementId);
       });
       if (opts?.pushHistory) {
-        const root = get() as any;
-        root.record?.({ op: "add", elements: [element] });
+        const root = get() as HistoryModuleSlice;
+        root.record?.({ type: "add", elements: [element] });
+      }
+      if (opts?.select) {
+        get().selection.selectOne(element.id as ElementId, true);
       }
     },
 
     addElements: (elements, opts) => {
       set((state) => {
-        state.elements = new Map<ElementId, CanvasElement>(state.elements);
-        state.elementOrder = state.elementOrder.slice();
+        const draft = state as CoreDraft;
+        draft.elements = new Map<ElementId, CanvasElement>(draft.elements);
+        draft.elementOrder = draft.elementOrder.slice();
 
         const selectIds = new Set<ElementId>(opts?.selectIds ?? []);
         for (let i = 0; i < elements.length; i++) {
           const el = elements[i];
           const at =
             typeof opts?.index === "number"
-              ? Math.min(state.elementOrder.length, opts.index + i)
-              : state.elementOrder.length;
-          state.elements.set(el.id as ElementId, __sanitize(el));
-          state.elementOrder.splice(at, 0, el.id as ElementId);
-        }
-
-        // optional selection
-        const sel =
-          (state as any).selectedElementIds ??
-          (state as any).selection?.selectedElementIds;
-        if (sel && selectIds.size > 0) {
-          const next = new Set<ElementId>(sel);
-          selectIds.forEach((id) => next.add(id));
-          if ("selectedElementIds" in state)
-            (state as any).selectedElementIds = next;
-          if (
-            (state as any).selection &&
-            "selectedElementIds" in (state as any).selection
-          ) {
-            (state as any).selection.selectedElementIds = next;
-          }
-          if ("selectionVersion" in state)
-            (state as any).selectionVersion =
-              ((state as any).selectionVersion ?? 0) + 1;
-          if (
-            (state as any).selection &&
-            "selectionVersion" in (state as any).selection
-          ) {
-            (state as any).selection.selectionVersion =
-              ((state as any).selection.selectionVersion ?? 0) + 1;
-          }
+              ? Math.min(draft.elementOrder.length, opts.index + i)
+              : draft.elementOrder.length;
+          draft.elements.set(el.id as ElementId, __sanitize(el));
+          draft.elementOrder.splice(at, 0, el.id as ElementId);
         }
       });
       if (opts?.pushHistory) {
-        const root = get() as any;
-        root.record?.({ op: "add", elements });
+        const root = get() as HistoryModuleSlice;
+        root.record?.({ type: "add", elements });
+      }
+      if (opts?.selectIds && opts.selectIds.length > 0) {
+        const selectionApi = get().selection;
+        const combined = new Set(get().selectedElementIds);
+        opts.selectIds.forEach((id) => combined.add(id));
+        selectionApi.set(Array.from(combined));
       }
     },
 
     updateElement: (id, patch, opts) => {
       // Capture plain "before" outside of immer draft
       const beforeOriginal = __deepClone(
-        (get() as any).getElement?.(id) ??
-          (get() as any).element?.getById?.(id),
+        get().getElement?.(id) ?? get().element?.getById?.(id),
       );
 
       set((state) => {
+        const draft = state as unknown as WritableDraft<
+          ElementModuleSlice & SelectionModuleSlice & HistoryModuleSlice
+        >;
+        const elementNamespace = draft.element as Partial<{
+          elements: Map<ElementId, CanvasElement>;
+        }>;
         const prev =
-          state.elements?.get(id) ??
-          (state as any).element?.elements?.get?.(id);
+          draft.elements?.get(id) ?? elementNamespace.elements?.get(id);
         if (!prev) return;
+
         const next = __sanitize(
           typeof patch === "function"
             ? (patch as (el: CanvasElement) => CanvasElement)(prev)
             : { ...prev, ...patch },
         );
 
-        // map immutable write
-        const map: Map<ElementId, CanvasElement> =
-          state.elements ??
-          (state as any).element?.elements ??
-          new Map<ElementId, CanvasElement>();
-        const newMap = new Map<ElementId, CanvasElement>(map);
+        const sourceMap =
+          draft.elements ?? elementNamespace.elements ?? new Map<ElementId, CanvasElement>();
+        const newMap = new Map<ElementId, CanvasElement>(sourceMap);
         newMap.set(id, next);
-        if ("elements" in state) state.elements = newMap;
-        else if ((state as any).element && "elements" in (state as any).element)
-          (state as any).element.elements = newMap;
+        draft.elements = newMap;
+        if (elementNamespace.elements) {
+          elementNamespace.elements = newMap;
+        }
       });
 
       if (opts?.pushHistory && beforeOriginal) {
         const afterOriginal = __deepClone(
-          (get() as any).getElement?.(id) ??
-            (get() as any).element?.getById?.(id),
+          get().getElement?.(id) ?? get().element?.getById?.(id),
         );
         if (afterOriginal) {
-          const root = get() as any;
-          root.record?.({
-            op: "update",
-            before: [beforeOriginal],
-            after: [afterOriginal],
-          });
+        const root = get() as unknown as HistoryModuleSlice;
+        root.record?.({
+          type: 'update',
+          before: [beforeOriginal],
+          after: [afterOriginal],
+        });
         }
       }
     },
@@ -536,57 +503,31 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       const removed = __deepClone(elementToRemove);
 
       set((state) => {
-        const map: Map<ElementId, CanvasElement> =
-          state.elements ??
-          (state as any).element?.elements ??
-          new Map<ElementId, CanvasElement>();
-
-        const newMap = new Map<ElementId, CanvasElement>(map);
+        const draft = state as unknown as WritableDraft<
+          ElementModuleSlice & SelectionModuleSlice & HistoryModuleSlice
+        >;
+        const elementNamespace = draft.element as Partial<{
+          elements: Map<ElementId, CanvasElement>;
+        }>;
+        const sourceMap =
+          draft.elements ?? elementNamespace.elements ?? new Map<ElementId, CanvasElement>();
+        const newMap = new Map<ElementId, CanvasElement>(sourceMap);
         newMap.delete(id);
-
-        if ("elements" in state) state.elements = newMap;
-        else if ((state as any).element && "elements" in (state as any).element)
-          (state as any).element.elements = newMap;
-
-        const order: ElementId[] = state.elementOrder.slice();
-        const idx = order.indexOf(id);
-        if (idx >= 0) {
-          order.splice(idx, 1);
-          state.elementOrder = order;
+        draft.elements = newMap;
+        if (elementNamespace.elements) {
+          elementNamespace.elements = newMap;
         }
 
-        if (opts?.deselect) {
-          const sel =
-            (state as any).selectedElementIds ??
-            (state as any).selection?.selectedElementIds;
-          if (sel) {
-            const next = new Set<ElementId>(sel);
-            next.delete(id);
-            if ("selectedElementIds" in state)
-              (state as any).selectedElementIds = next;
-            if (
-              (state as any).selection &&
-              "selectedElementIds" in (state as any).selection
-            ) {
-              (state as any).selection.selectedElementIds = next;
-            }
-            if ("selectionVersion" in state)
-              (state as any).selectionVersion =
-                ((state as any).selectionVersion ?? 0) + 1;
-            if (
-              (state as any).selection &&
-              "selectionVersion" in (state as any).selection
-            ) {
-              (state as any).selection.selectionVersion =
-                ((state as any).selection.selectionVersion ?? 0) + 1;
-            }
-          }
+        draft.elementOrder = draft.elementOrder.filter((eid) => eid !== id);
+
+        if (opts?.deselect && draft.selectedElementIds.delete(id)) {
+          draft.selectionVersion += 1;
         }
       });
 
       if (opts?.pushHistory && removed) {
-        const root = get() as any;
-        root.record?.({ op: "remove", elements: [removed] });
+        const root = get() as unknown as HistoryModuleSlice;
+        root.record?.({ type: 'remove', elements: [removed] });
       }
     },
 
@@ -602,93 +543,86 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       }
 
       set((state) => {
-        const map: Map<ElementId, CanvasElement> =
-          state.elements ??
-          (state as any).element?.elements ??
-          new Map<ElementId, CanvasElement>();
-        const newMap = new Map<ElementId, CanvasElement>(map);
+        const draft = state as unknown as WritableDraft<
+          ElementModuleSlice & SelectionModuleSlice & HistoryModuleSlice
+        >;
+        const elementNamespace = draft.element as Partial<{
+          elements: Map<ElementId, CanvasElement>;
+        }>;
+        const sourceMap =
+          draft.elements ?? elementNamespace.elements ?? new Map<ElementId, CanvasElement>();
+        const newMap = new Map<ElementId, CanvasElement>(sourceMap);
 
         // Remove elements from the map
         for (const id of ids) {
           newMap.delete(id);
         }
 
-        if ("elements" in state) state.elements = newMap;
-        else if ((state as any).element && "elements" in (state as any).element)
-          (state as any).element.elements = newMap;
+        draft.elements = newMap;
+        if (elementNamespace.elements) {
+          elementNamespace.elements = newMap;
+        }
 
         if (elementsToRemove.length > 0) {
           const toRemove = new Set(ids);
-          state.elementOrder = state.elementOrder.filter(
+          draft.elementOrder = draft.elementOrder.filter(
             (eid: ElementId) => !toRemove.has(eid),
           );
         }
 
         if (opts?.deselect) {
-          const sel =
-            (state as any).selectedElementIds ??
-            (state as any).selection?.selectedElementIds;
-          if (sel) {
-            const next = new Set<ElementId>(sel);
-            ids.forEach((id) => next.delete(id));
-            if ("selectedElementIds" in state)
-              (state as any).selectedElementIds = next;
-            if (
-              (state as any).selection &&
-              "selectedElementIds" in (state as any).selection
-            ) {
-              (state as any).selection.selectedElementIds = next;
+          let changed = false;
+          for (const id of ids) {
+            if (draft.selectedElementIds.delete(id)) {
+              changed = true;
             }
-            if ("selectionVersion" in state)
-              (state as any).selectionVersion =
-                ((state as any).selectionVersion ?? 0) + 1;
-            if (
-              (state as any).selection &&
-              "selectionVersion" in (state as any).selection
-            ) {
-              (state as any).selection.selectionVersion =
-                ((state as any).selection.selectionVersion ?? 0) + 1;
-            }
+          }
+          if (changed) {
+            draft.selectionVersion += 1;
           }
         }
       });
 
       if (opts?.pushHistory && elementsToRemove.length > 0) {
-        const root = get() as any;
-        root.record?.({ op: "remove", elements: elementsToRemove });
+        const root = get() as unknown as HistoryModuleSlice;
+        root.record?.({ type: 'remove', elements: elementsToRemove });
       }
     },
 
     duplicateElement: (id, opts) => {
       const el = get().elements.get(id);
       if (!el) return undefined;
-      const clone = { ...el } as CanvasElement;
+      const baseClone = { ...el } as CanvasElement;
       const newId = (crypto?.randomUUID?.() ??
         `${id}-copy`) as unknown as ElementId;
-      clone.id = newId;
+      const clonedElement = { ...baseClone, id: newId } as CanvasElement;
 
       // apply simple position offset if present
       const dx = opts?.offset?.x ?? 12;
       const dy = opts?.offset?.y ?? 12;
-      if ("x" in clone && typeof clone.x === "number") clone.x += dx;
-      if ("y" in clone && typeof clone.y === "number") clone.y += dy;
+      if ("x" in clonedElement && typeof clonedElement.x === "number") {
+        clonedElement.x += dx;
+      }
+      if ("y" in clonedElement && typeof clonedElement.y === "number") {
+        clonedElement.y += dy;
+      }
       if (
-        "points" in clone &&
-        Array.isArray(clone.points) &&
-        clone.points.length >= 2
+        "points" in clonedElement &&
+        Array.isArray(clonedElement.points) &&
+        clonedElement.points.length >= 2
       ) {
-        const pts = clone.points as number[];
+        const pts = clonedElement.points as number[];
         const shifted: number[] = [];
         for (let i = 0; i < pts.length; i += 2) {
           shifted.push(pts[i] + dx, pts[i + 1] + dy);
         }
-        clone.points = shifted;
+        clonedElement.points = shifted;
       }
 
       // add to store and select
       const add =
         (get() as any).addElement ?? (get() as any).element?.addElement;
-      add?.(clone as CanvasElement, { select: true, pushHistory: true });
+      add?.(clonedElement, { select: true, pushHistory: true });
 
       return newId;
     },
@@ -938,12 +872,35 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       },
       deleteSelected: () => {
         const state = get() as any;
-        const ids = Array.from(state.selectedElementIds);
-        if (ids.length === 0) return;
+        const selectedIds: ElementId[] = state.selectedElementIds
+          ? Array.from(state.selectedElementIds as Set<ElementId>)
+          : [];
+        if (selectedIds.length === 0) return;
 
-        state.withUndo('Delete elements', () => {
-          state.removeElements(ids, { deselect: true, pushHistory: false });
-        });
+        const performDelete = () => {
+          const removeMultiple =
+            state.removeElements ?? state.element?.removeElements;
+          if (removeMultiple) {
+            removeMultiple(selectedIds, {
+              pushHistory: true,
+              deselect: true,
+            });
+            return;
+          }
+
+          selectedIds.forEach((id: ElementId) => {
+            state.removeElement?.(id, {
+              pushHistory: true,
+              deselect: true,
+            });
+          });
+        };
+
+        if (typeof state.withUndo === 'function') {
+          state.withUndo('Delete elements', performDelete);
+        } else {
+          performDelete();
+        }
       },
       moveSelectedBy: (dx: number, dy: number) => {
         const state = get();

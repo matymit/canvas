@@ -1,5 +1,5 @@
 // Adapter for MindmapRenderer to implement RendererModule interface
-import Konva from "konva";
+import type Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { MindmapRenderer } from "./MindmapRenderer";
 import type {
@@ -189,7 +189,7 @@ function toMindmapEdge(element: CanvasElement): MindmapEdgeElement | null {
 export class MindmapRendererAdapter implements RendererModule {
   private renderer?: MindmapRenderer;
   private unsubscribe?: () => void;
-  private previousNodeHeights = new Map<string, number>();
+  private readonly previousNodeHeights = new Map<string, number>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Create MindmapRenderer instance

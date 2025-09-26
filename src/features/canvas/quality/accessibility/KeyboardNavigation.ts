@@ -1,7 +1,7 @@
 // features/canvas/quality/accessibility/KeyboardNavigation.ts
 
 import type Konva from 'konva';
-import { AccessibilityManager } from './AccessibilityManager';
+import type { AccessibilityManager } from './AccessibilityManager';
 
 export interface KeyboardNavigationOptions {
   accessibility?: AccessibilityManager | null;
@@ -21,9 +21,9 @@ export interface KeyboardNavigationOptions {
 }
 
 export class KeyboardNavigation {
-  private stage: Konva.Stage;
-  private container: HTMLElement;
-  private opts: Required<Omit<KeyboardNavigationOptions, 'accessibility' | 'onUndo' | 'onRedo' | 'onZoomIn' | 'onZoomOut' | 'onZoomReset' | 'getActiveId' | 'setActiveId'>> & {
+  private readonly stage: Konva.Stage;
+  private readonly container: HTMLElement;
+  private readonly opts: Required<Omit<KeyboardNavigationOptions, 'accessibility' | 'onUndo' | 'onRedo' | 'onZoomIn' | 'onZoomOut' | 'onZoomReset' | 'getActiveId' | 'setActiveId'>> & {
     accessibility?: AccessibilityManager | null;
     onUndo?: () => void;
     onRedo?: () => void;
@@ -34,8 +34,8 @@ export class KeyboardNavigation {
     setActiveId?: (id: string | null) => void;
   };
 
-  private keydownHandler: (e: KeyboardEvent) => void;
-  private mousedownFocusHandler: () => void;
+  private readonly keydownHandler: (e: KeyboardEvent) => void;
+  private readonly mousedownFocusHandler: () => void;
 
   constructor(stage: Konva.Stage, options: KeyboardNavigationOptions) {
     this.stage = stage;

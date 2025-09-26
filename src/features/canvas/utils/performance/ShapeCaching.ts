@@ -27,7 +27,7 @@ interface OptimizableNode extends Konva.Node {
 export class ShapeCaching {
   private static readonly DEFAULT_PIXEL_RATIO = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
   private static readonly CACHE_SIZE_THRESHOLD = 2000; // Max dimension for cached shapes
-  private static cachedNodes = new WeakSet<Konva.Node>();
+  private static readonly cachedNodes = new WeakSet<Konva.Node>();
 
   /**
    * Apply optimized caching to a node with HiDPI support
@@ -227,7 +227,7 @@ export class ShapeCaching {
  * Auto-cache manager for automatic caching decisions
  */
 export class AutoCacheManager {
-  private updateCounts = new WeakMap<Konva.Node, number>();
+  private readonly updateCounts = new WeakMap<Konva.Node, number>();
   private readonly updateThreshold = 10; // Updates before disabling cache
 
   /**

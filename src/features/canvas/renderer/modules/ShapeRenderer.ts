@@ -54,8 +54,8 @@ interface ShapeElement {
 }
 
 export class ShapeRenderer implements RendererModule {
-  private shapeNodes = new Map<Id, Konva.Shape>();
-  private textNodes = new Map<Id, ShapeTextAttachment>(); // Track text nodes for shapes
+  private readonly shapeNodes = new Map<Id, Konva.Shape>();
+  private readonly textNodes = new Map<Id, ShapeTextAttachment>(); // Track text nodes for shapes
   private layer?: Konva.Layer;
   private unsubscribe?: () => void;
   private store?: typeof import("../../stores/unifiedCanvasStore").useUnifiedCanvasStore;
@@ -128,11 +128,48 @@ export class ShapeRenderer implements RendererModule {
     if (!this.layer) return;
 
     const seen = new Set<Id>();
+    const viewport = this.store?.getState().viewport;
+    const viewBounds =
+      viewport && typeof window !== "undefined"
+        ? {
+            minX: viewport.x ?? 0,
+            minY: viewport.y ?? 0,
+            maxX:
+              (viewport.x ?? 0) +
+              window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
+            maxY:
+              (viewport.y ?? 0) +
+              window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
+          }
+        : null;
 
     // Add/update shape elements
     for (const [id, shape] of shapes) {
       seen.add(id);
-      let node = this.shapeNodes.get(id);
+      const existingNode = this.shapeNodes.get(id);
+      const existingText = this.textNodes.get(id);
+
+      if (viewBounds) {
+        const width = shape.width ?? (shape.data?.radius ?? 0) * 2;
+        const height = shape.height ?? (shape.data?.radius ?? 0) * 2;
+        const shapeRight = (shape.x ?? 0) + width;
+        const shapeBottom = (shape.y ?? 0) + height;
+        const isOffscreen =
+          shapeRight < viewBounds.minX ||
+          shapeBottom < viewBounds.minY ||
+          (shape.x ?? 0) > viewBounds.maxX ||
+          (shape.y ?? 0) > viewBounds.maxY;
+
+        if (isOffscreen) {
+          if (existingNode) existingNode.visible(false);
+          if (existingText) {
+            existingText.primaryNode.visible(false);
+          }
+          continue;
+        }
+      }
+
+      let node = existingNode;
 
       if (!node) {
         // Create new shape node
@@ -213,6 +250,12 @@ export class ShapeRenderer implements RendererModule {
         this.updateShapeNode(node, shape);
         // Ensure live updates are attached for existing nodes as well
         this.attachLiveDragUpdate(node, shape.id);
+        if (!node.visible()) {
+          node.visible(true);
+        }
+        if (existingText) {
+          existingText.primaryNode.visible(true);
+        }
       }
 
       // Handle text rendering for shapes with text
@@ -273,7 +316,7 @@ export class ShapeRenderer implements RendererModule {
 
     // Check if pan tool is active - if so, disable dragging on elements
     const storeState = this.store?.getState();
-    const isPanToolActive = storeState?.selectedTool === "pan";
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
 
     const commonAttrs = {
       id: shape.id,
@@ -396,7 +439,7 @@ export class ShapeRenderer implements RendererModule {
 
     // Check if pan tool is active - if so, disable dragging on elements
     const storeState = this.store?.getState();
-    const isPanToolActive = storeState?.selectedTool === "pan";
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
 
     const commonAttrs = {
       x: shape.x,

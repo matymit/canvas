@@ -2,7 +2,7 @@
 // Implements an eraser tool that removes elements when dragged over them
 
 import Konva from 'konva';
-import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+import type { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
 import type { ElementId } from '../../../../types';
 
 export interface EraserToolOptions {
@@ -19,17 +19,17 @@ interface Point {
 }
 
 export class EraserTool {
-  private stage: Konva.Stage;
-  private previewLayer: Konva.Layer;
-  private store: typeof useUnifiedCanvasStore;
-  private options: Required<EraserToolOptions>;
+  private readonly stage: Konva.Stage;
+  private readonly previewLayer: Konva.Layer;
+  private readonly store: typeof useUnifiedCanvasStore;
+  private readonly options: Required<EraserToolOptions>;
   
   // Tool state
   private isActive = false;
   private isErasing = false;
   private eraserPath: Point[] = [];
   private previewCircle?: Konva.Circle;
-  private elementsToErase = new Set<ElementId>();
+  private readonly elementsToErase = new Set<ElementId>();
   
   // Event cleanup functions
   private cleanupFunctions: (() => void)[] = [];

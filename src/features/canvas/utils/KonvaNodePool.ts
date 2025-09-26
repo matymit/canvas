@@ -55,7 +55,7 @@ export class KonvaNodePool {
     disposed: number;
   }>();
   
-  private config: PoolConfig;
+  private readonly config: PoolConfig;
   private gcTimer: number | null = null;
   private isDisposed = false;
 

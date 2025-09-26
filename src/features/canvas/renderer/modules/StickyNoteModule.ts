@@ -92,13 +92,13 @@ function getSelectionModule(): SelectionModule | undefined {
 }
 
 export class StickyNoteModule implements RendererModule {
-  private nodes = new Map<Id, Konva.Group>();
+  private readonly nodes = new Map<Id, Konva.Group>();
   private layers?: Konva.Layer;
   private storeCtx?: ModuleRendererCtx;
   private unsubscribe?: () => void;
   private activeEditor: HTMLTextAreaElement | null = null;
   private editorElementId: string | null = null;
-  private pendingImmediateEdits = new Set<string>();
+  private readonly pendingImmediateEdits = new Set<string>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.layers = ctx.layers.main;
@@ -189,11 +189,40 @@ export class StickyNoteModule implements RendererModule {
     }
 
     const seen = new Set<Id>();
+    const viewport = this.storeCtx?.store?.getState().viewport;
+    const viewRect =
+      viewport && typeof window !== "undefined"
+        ? {
+            x: viewport.x ?? 0,
+            y: viewport.y ?? 0,
+            width: window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
+            height: window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
+          }
+        : null;
 
     // Add/update existing sticky notes
     for (const [id, sticky] of stickyNotes) {
       seen.add(id);
-      let group = this.nodes.get(id);
+      const existing = this.nodes.get(id);
+
+      if (viewRect) {
+        const stickyRight = sticky.x + sticky.width;
+        const stickyBottom = sticky.y + sticky.height;
+        const isOffscreen =
+          stickyRight < viewRect.x ||
+          stickyBottom < viewRect.y ||
+          sticky.x > viewRect.x + viewRect.width ||
+          sticky.y > viewRect.y + viewRect.height;
+
+        if (isOffscreen) {
+          if (existing) {
+            existing.visible(false);
+          }
+          continue;
+        }
+      }
+
+      let group = existing;
 
       if (!group) {
         // Create new sticky note
@@ -209,6 +238,9 @@ export class StickyNoteModule implements RendererModule {
         // Update existing sticky note
         this.updateStickyGroup(group, sticky);
         this.maybeStartPendingEdit(id, group);
+        if (!group.visible()) {
+          group.visible(true);
+        }
       }
     }
 
@@ -230,7 +262,7 @@ export class StickyNoteModule implements RendererModule {
   private createStickyGroup(sticky: StickySnapshot): Konva.Group {
     // Check if pan tool is active - if so, disable dragging on elements
     const storeState = this.storeCtx?.store?.getState();
-    const isPanToolActive = storeState?.selectedTool === "pan";
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
 
     const group = new Konva.Group({
       id: sticky.id,

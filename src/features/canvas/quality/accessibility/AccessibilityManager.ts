@@ -33,14 +33,14 @@ export class AccessibilityManager {
 
   // Virtual accessibility DOM
   private virtualRoot: HTMLElement | null = null;
-  private nodeMap = new Map<string, AccessibleNodeMetadata>();
+  private readonly nodeMap = new Map<string, AccessibleNodeMetadata>();
 
   // Live regions
   private livePolite: { root: HTMLElement; announce: (msg: string) => void } | null = null;
   private liveAssertive: { root: HTMLElement; announce: (msg: string) => void } | null = null;
 
   private currentActiveId: string | null = null;
-  private opts: Required<Omit<AccessibilityManagerOptions, 'stage'>>;
+  private readonly opts: Required<Omit<AccessibilityManagerOptions, 'stage'>>;
 
   constructor(opts?: AccessibilityManagerOptions) {
     this.opts = {

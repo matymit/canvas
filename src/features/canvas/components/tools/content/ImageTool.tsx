@@ -1,6 +1,7 @@
 // Image tool component with streamlined auto-placement workflow
-import React, { useEffect, useRef, useCallback } from "react";
-import Konva from "konva";
+import type React from "react";
+import { useEffect, useRef, useCallback } from "react";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { loadImageFromFile } from "../../../utils/image/ImageLoader";
 
@@ -18,11 +19,10 @@ export const ImageTool: React.FC<ImageToolProps> = ({
   toolId = "image",
 }) => {
   const selectedTool = useUnifiedCanvasStore(
-    (s): string | null | undefined => s.selectedTool ?? s.ui?.selectedTool,
+    (s): string | null | undefined => s.ui?.selectedTool,
   );
   const setSelectedTool = useUnifiedCanvasStore(
-    (s): ((tool: string) => void) | undefined =>
-      s.setSelectedTool ?? s.ui?.setSelectedTool,
+    (s): ((tool: string) => void) | undefined => s.ui?.setSelectedTool,
   );
   const viewport = useUnifiedCanvasStore((s) => s.viewport);
 

@@ -1,7 +1,7 @@
 // Table context menu helper to prevent position jumping and handle right-click events properly
 // Integrates with existing context menu system while preserving table position
 
-import Konva from "konva";
+import type Konva from "konva";
 import type { TableElement } from "../../types/table";
 
 export interface TableContextMenuOptions {
@@ -18,8 +18,8 @@ export interface TableContextMenuOptions {
  */
 export class TableContextMenuHelper {
   private element: TableElement;
-  private tableGroup: Konva.Group;
-  private options: TableContextMenuOptions;
+  private readonly tableGroup: Konva.Group;
+  private readonly options: TableContextMenuOptions;
   private preservedPosition?: { x: number; y: number };
 
   constructor(

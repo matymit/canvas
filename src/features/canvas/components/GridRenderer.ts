@@ -24,8 +24,8 @@ const DEFAULTS: Required<Omit<GridOptions, 'dpr'>> = {
 };
 
 export class GridRenderer {
-  private stage: Konva.Stage;
-  private layer: Konva.Layer;
+  private readonly stage: Konva.Stage;
+  private readonly layer: Konva.Layer;
   private rect: Konva.Rect | null = null;
   private tile: HTMLCanvasElement | null = null;
   private options: GridOptions;

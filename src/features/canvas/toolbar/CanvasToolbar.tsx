@@ -341,7 +341,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
               height: "8px",
               borderRadius: "50%",
               backgroundColor:
-                store.stickyNoteColor || store.colors?.stickyNote || "#FDE68A",
+                store.ui?.stickyNoteColor || store.colors?.stickyNote || "#FDE68A",
               border: "1px solid rgba(255,255,255,0.5)",
             }}
           />
@@ -505,7 +505,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         anchorRect={stickyNoteAnchorRect}
         onClose={() => setStickyNoteColorsOpen(false)}
         onChange={handleSelectStickyColor}
-        color={store.stickyNoteColor || store.colors?.stickyNote || "#FDE68A"}
+        color={store.ui?.stickyNoteColor || store.colors?.stickyNote || "#FDE68A"}
       />
     </>
   );

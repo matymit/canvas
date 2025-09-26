@@ -17,10 +17,12 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type {
+  UnifiedColorPickerProps
+} from './colorPicker/constants';
 import {
   DEFAULT_PALETTE,
-  FIGMA_HORIZONTAL_PALETTE,
-  UnifiedColorPickerProps
+  FIGMA_HORIZONTAL_PALETTE
 } from './colorPicker/constants';
 
 

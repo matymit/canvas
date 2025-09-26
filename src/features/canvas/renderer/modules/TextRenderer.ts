@@ -1,7 +1,7 @@
 // Text renderer module for rendering text elements
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import { openShapeTextEditor } from "../../utils/editors/openShapeTextEditor";
+import { openKonvaTextEditor } from "../../utils/editors/openShapeTextEditor";
 import { getTextConfig } from "../../constants/TextConstants";
 
 type Id = string;
@@ -34,7 +34,7 @@ interface TextElement {
 }
 
 export class TextRenderer implements RendererModule {
-  private textNodes = new Map<Id, Konva.Text>();
+  private readonly textNodes = new Map<Id, Konva.Text>();
   private layer?: Konva.Layer;
   private stage?: Konva.Stage;
   private unsubscribe?: () => void;
@@ -189,7 +189,7 @@ export class TextRenderer implements RendererModule {
 
     // Check if pan tool is active - if so, disable dragging on elements
     const storeState = this.store?.getState();
-    const isPanToolActive = storeState?.selectedTool === "pan";
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
 
     const node = new Konva.Text({
       id: text.id,

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
@@ -51,9 +52,9 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
   stageRef,
   toolId = "mindmap",
 }) => {
-  const selectedTool = useUnifiedCanvasStore((s): string => s.selectedTool);
+  const selectedTool = useUnifiedCanvasStore((s): string | undefined => s.ui?.selectedTool) ?? "select";
   const setSelectedTool = useUnifiedCanvasStore(
-    (s): ((tool: string) => void) => s.setSelectedTool,
+    (s): ((tool: string) => void) | undefined => s.ui?.setSelectedTool,
   );
   const addElement = useUnifiedCanvasStore(
     (

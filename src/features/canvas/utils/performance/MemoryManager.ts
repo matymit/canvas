@@ -42,11 +42,11 @@ interface MemoryManagerConfig {
 }
 
 export class MemoryManager {
-  private resources = new Map<string, ManagedResource>();
+  private readonly resources = new Map<string, ManagedResource>();
   private nextId = 0;
   private gcTimer: number | null = null;
-  private config: MemoryManagerConfig;
-  private metrics: MemoryMetrics = {
+  private readonly config: MemoryManagerConfig;
+  private readonly metrics: MemoryMetrics = {
     managedResources: 0,
     konvaNodes: 0,
     eventListeners: 0,

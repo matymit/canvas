@@ -2,8 +2,8 @@
 export type ElementId = string;
 
 export interface CanvasElement {
-  id: ElementId;
-  type:
+  readonly id: ElementId;
+  readonly type:
     | "rectangle"
     | "ellipse"
     | "line"

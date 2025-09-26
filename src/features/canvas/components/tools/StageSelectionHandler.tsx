@@ -1,6 +1,7 @@
 // features/canvas/components/tools/selection/StageSelectionHandler.tsx
-import React, { useEffect } from 'react';
-import Konva from 'konva';
+import type React from 'react';
+import { useEffect } from 'react';
+import type Konva from 'konva';
 import { useUnifiedCanvasStore } from '@features/canvas/stores/unifiedCanvasStore';
 
 export interface StageSelectionHandlerProps {
@@ -22,7 +23,7 @@ function getSelectionModule(): SelectionModule | undefined {
 }
 
 const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef }) => {
-  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool);
+  const selectedTool = useUnifiedCanvasStore((state) => state.ui?.selectedTool);
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const selectedElementIds = useUnifiedCanvasStore((state) => state.selectedElementIds);
   const setSelection = useUnifiedCanvasStore((state) => state.setSelection);

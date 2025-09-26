@@ -1,4 +1,4 @@
-import Konva from "konva";
+import type Konva from "konva";
 
 // Minimal element type discriminator from your element union
 type ElementId = string;

@@ -17,14 +17,16 @@ interface DrawingElement {
 }
 
 export class DrawingRenderer implements RendererModule {
-  private drawingNodes = new Map<Id, Konva.Line>();
+  private readonly drawingNodes = new Map<Id, Konva.Line>();
   private mainLayer?: Konva.Layer;
-  private highlighterLayer?: Konva.Layer;
+  private highlighterGroup?: Konva.Group;
   private unsubscribe?: () => void;
+  private store?: ModuleRendererCtx["store"];
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.mainLayer = ctx.layers.main;
-    this.highlighterLayer = ctx.layers.highlighter;
+    this.highlighterGroup = ctx.layers.highlighter;
+    this.store = ctx.store;
 
     // Subscribe to store changes - watch drawing elements
     this.unsubscribe = ctx.store.subscribe(
@@ -75,35 +77,77 @@ export class DrawingRenderer implements RendererModule {
     if (this.mainLayer) {
       this.mainLayer.batchDraw();
     }
-    if (this.highlighterLayer) {
-      this.highlighterLayer.batchDraw();
-    }
+    this.highlighterGroup?.getLayer()?.batchDraw();
+    this.store = undefined;
   }
 
   private reconcile(drawings: Map<Id, DrawingElement>) {
-
-    if (!this.mainLayer || !this.highlighterLayer) return;
+    if (!this.mainLayer || !this.highlighterGroup) return;
 
     const seen = new Set<Id>();
+    const highlighterLayer = this.highlighterGroup.getLayer();
+    const viewport = this.store?.getState().viewport;
+    const viewBounds =
+      viewport && typeof window !== "undefined"
+        ? {
+            minX: viewport.x ?? 0,
+            minY: viewport.y ?? 0,
+            maxX:
+              (viewport.x ?? 0) +
+              window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
+            maxY:
+              (viewport.y ?? 0) +
+              window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
+          }
+        : null;
 
     // Add/update drawing elements
     for (const [id, drawing] of drawings) {
       seen.add(id);
-      let node = this.drawingNodes.get(id);
+      const existingNode = this.drawingNodes.get(id);
+
+      if (viewBounds && drawing.points.length >= 2) {
+        let minX = Number.POSITIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        for (let i = 0; i < drawing.points.length; i += 2) {
+          const px = drawing.points[i];
+          const py = drawing.points[i + 1];
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+        }
+        const isOffscreen =
+          maxX < viewBounds.minX ||
+          maxY < viewBounds.minY ||
+          minX > viewBounds.maxX ||
+          minY > viewBounds.maxY;
+
+        if (isOffscreen) {
+          existingNode?.visible(false);
+          continue;
+        }
+      }
+
+      let node = existingNode;
 
       if (!node) {
         // Create new drawing node
         node = this.createDrawingNode(drawing);
         this.drawingNodes.set(id, node);
-        // Add to appropriate layer based on subtype
-        const targetLayer =
-          drawing.subtype === "highlighter"
-            ? this.highlighterLayer
-            : this.mainLayer;
-        targetLayer.add(node);
+        if (drawing.subtype === "highlighter") {
+          this.highlighterGroup.add(node);
+        } else {
+          this.mainLayer.add(node);
+        }
       } else {
         // Update existing drawing node
         this.updateDrawingNode(node, drawing);
+        if (!node.visible()) {
+          node.visible(true);
+        }
       }
     }
 
@@ -116,7 +160,7 @@ export class DrawingRenderer implements RendererModule {
     }
 
     this.mainLayer.batchDraw();
-    this.highlighterLayer.batchDraw();
+    highlighterLayer?.batchDraw();
   }
 
   private createDrawingNode(drawing: DrawingElement): Konva.Line {

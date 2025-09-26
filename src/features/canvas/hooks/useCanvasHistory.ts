@@ -1,8 +1,9 @@
 // features/canvas/hooks/useCanvasHistory.ts
 import { useCallback, useMemo, useRef, useState } from 'react';
-import Konva from 'konva';
+import type Konva from 'konva';
+import type {
+  HistoryOp} from './useCanvasHistoryHelpers';
 import {
-  HistoryOp,
   applyOps,
 } from './useCanvasHistoryHelpers';
 

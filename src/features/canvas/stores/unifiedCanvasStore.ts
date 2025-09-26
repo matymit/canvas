@@ -125,23 +125,6 @@ export interface UISlice {
 
 // Add convenience properties for UI and history at root level
 export interface ConvenienceSlice {
-  // UI properties at root for FigJamCanvas compatibility
-  selectedTool: string;
-  strokeColor: string;
-  fillColor: string;
-  strokeWidth: number;
-  stickyNoteColor: string;
-  setSelectedTool: (tool: string) => void;
-  setStrokeColor: (color: string) => void;
-  setFillColor: (color: string) => void;
-  setStrokeWidth: (width: number) => void;
-  setStickyNoteColor: (color: string) => void;
-
-  // History methods at root for toolbar compatibility
-  undo: () => void;
-  redo: () => void;
-
-  // UI nested object for shape tools compatibility
   ui: {
     selectedTool: string;
     strokeColor: string;
@@ -269,44 +252,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             clear: historyModule.clear,
           },
 
-          // Add convenience properties at root level
-          selectedTool: DEFAULT_UI.selectedTool,
-          strokeColor: DEFAULT_UI.strokeColor,
-          fillColor: DEFAULT_UI.fillColor,
-          strokeWidth: DEFAULT_UI.strokeWidth,
-          stickyNoteColor: "#FFF59D",
-          setSelectedTool: (tool: string) =>
-            set((state) => {
-              state.selectedTool = tool;
-              if (state.ui) state.ui.selectedTool = tool;
-            }),
-          setStrokeColor: (color: string) =>
-            set((state) => {
-              state.strokeColor = color;
-              if (state.ui) state.ui.strokeColor = color;
-            }),
-          setFillColor: (color: string) =>
-            set((state) => {
-              state.fillColor = color;
-              if (state.ui) state.ui.fillColor = color;
-            }),
-          setStrokeWidth: (width: number) =>
-            set((state) => {
-              state.strokeWidth = width;
-              if (state.ui) state.ui.strokeWidth = width;
-            }),
-          setStickyNoteColor: (color: string) =>
-            set((state) => {
-              state.stickyNoteColor = color;
-              if (state.ui) state.ui.stickyNoteColor = color;
-              if (state.colors) state.colors.stickyNote = color;
-            }),
-
-          // Add history methods at root for toolbar
-          undo: () => historyModule.undo(),
-          redo: () => historyModule.redo(),
-
-          // Add UI object for shape tools compatibility
+          // Unified UI state (single source of truth)
           ui: {
             selectedTool: DEFAULT_UI.selectedTool,
             strokeColor: DEFAULT_UI.strokeColor,
@@ -315,34 +261,39 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
             stickyNoteColor: "#FFF59D",
             setSelectedTool: (tool: string) =>
               set((state) => {
-                state.selectedTool = tool;
-                if (state.ui) state.ui.selectedTool = tool;
+                if (state.ui) {
+                  state.ui.selectedTool = tool;
+                }
               }),
             setStrokeColor: (color: string) => {
               set((state) => {
-                state.strokeColor = color;
-                if (state.ui) state.ui.strokeColor = color;
+                if (state.ui) {
+                  state.ui.strokeColor = color;
+                }
                 if (state.colors) state.colors.stroke = color;
               });
               interactionModule.setStrokeColor(color);
             },
             setFillColor: (color: string) => {
               set((state) => {
-                state.fillColor = color;
-                if (state.ui) state.ui.fillColor = color;
+                if (state.ui) {
+                  state.ui.fillColor = color;
+                }
                 if (state.colors) state.colors.fill = color;
               });
               interactionModule.setFillColor(color);
             },
             setStrokeWidth: (width: number) =>
               set((state) => {
-                state.strokeWidth = width;
-                if (state.ui) state.ui.strokeWidth = width;
+                if (state.ui) {
+                  state.ui.strokeWidth = width;
+                }
               }),
             setStickyNoteColor: (color: string) =>
               set((state) => {
-                state.stickyNoteColor = color;
-                if (state.ui) state.ui.stickyNoteColor = color;
+                if (state.ui) {
+                  state.ui.stickyNoteColor = color;
+                }
                 if (state.colors) state.colors.stickyNote = color;
               }),
           },

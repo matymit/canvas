@@ -1,5 +1,5 @@
 // features/canvas/quality/monitoring/canvasMonitor.ts
-import Konva from 'konva';
+import type Konva from 'konva';
 
 export interface LayerDrawMetric {
   id: string;
@@ -42,18 +42,18 @@ export interface CanvasMonitorOptions {
 export class CanvasMonitor {
   private stage: Konva.Stage | null = null;
   private layers: Konva.Layer[] = [];
-  private subs = new Set<Subscriber>();
+  private readonly subs = new Set<Subscriber>();
 
   private rafId: number | null = null;
   private lastTs = 0;
   private fps = 60;
   private frameMs = 16.7;
 
-  private layerDur = new Map<string, number>(); // layerId -> last draw ms
-  private originalDraw = new Map<string, () => void>(); // layerId -> original draw
+  private readonly layerDur = new Map<string, number>(); // layerId -> last draw ms
+  private readonly originalDraw = new Map<string, () => void>(); // layerId -> original draw
 
   private intervalId: number | null = null;
-  private opts: Required<CanvasMonitorOptions>;
+  private readonly opts: Required<CanvasMonitorOptions>;
 
   constructor(options?: CanvasMonitorOptions) {
     this.opts = {

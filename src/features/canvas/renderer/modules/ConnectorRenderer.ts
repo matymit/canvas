@@ -13,10 +13,10 @@ export interface ConnectorRendererDeps {
 }
 
 export class ConnectorRenderer {
-  private layers: RendererLayers;
-  private deps: ConnectorRendererDeps;
-  private groupById = new Map<string, Konva.Group>();
-  private shapeById = new Map<string, Konva.Shape>();
+  private readonly layers: RendererLayers;
+  private readonly deps: ConnectorRendererDeps;
+  private readonly groupById = new Map<string, Konva.Group>();
+  private readonly shapeById = new Map<string, Konva.Shape>();
 
   constructor(layers: RendererLayers, deps: ConnectorRendererDeps) {
     this.layers = layers;

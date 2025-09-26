@@ -52,14 +52,27 @@ describe('Keyboard Deletion Functionality', () => {
     mockClearSelection = vi.fn();
 
     // Reset the store state
-    useUnifiedCanvasStore.setState({
+    useUnifiedCanvasStore.setState((state) => ({
       elements: new Map<ElementId, CanvasElement>([
         ['element-1', { id: 'element-1', type: 'rectangle', x: 10, y: 10, bounds: { width: 100, height: 50 } } as CanvasElement],
         ['element-2', { id: 'element-2', type: 'circle', x: 150, y: 10, bounds: { width: 80, height: 80 } } as CanvasElement],
       ]),
       selectedElementIds: new Set(['element-1']),
       elementOrder: ['element-1', 'element-2'],
-      selectedTool: 'select',
+      ui: state.ui
+        ? { ...state.ui, selectedTool: 'select' }
+        : {
+            selectedTool: 'select',
+            strokeColor: '#000000',
+            fillColor: '#ffffff',
+            strokeWidth: 2,
+            stickyNoteColor: '#FFF59D',
+            setSelectedTool: vi.fn(),
+            setStrokeColor: vi.fn(),
+            setFillColor: vi.fn(),
+            setStrokeWidth: vi.fn(),
+            setStickyNoteColor: vi.fn(),
+          },
       selection: {
         deleteSelected: mockDeleteSelected,
         selectOne: vi.fn(),
@@ -92,7 +105,7 @@ describe('Keyboard Deletion Functionality', () => {
         worldToStage: vi.fn(),
         stageToWorld: vi.fn(),
       },
-    });
+    }));
   });
 
   it('should call deleteSelected when keyboard deletion is triggered with selected elements', () => {

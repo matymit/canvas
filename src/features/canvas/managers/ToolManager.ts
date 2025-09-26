@@ -1,8 +1,8 @@
 // ToolManager for coordinating all canvas tools
 // Integrates with the unified store and four-layer architecture
 
-import React from "react";
-import Konva from "konva";
+import type React from "react";
+import type Konva from "konva";
 import type { UnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 
 // New CanvasTool interface for tools that need direct Konva event binding
@@ -24,10 +24,10 @@ import { TableTool, type TableToolProps } from "../components/tools/content/Tabl
 import { TextTool, type TextToolProps } from "../components/tools/content/TextTool";
 import { ImageTool, type ImageToolProps } from "../components/tools/content/ImageTool";
 import { MindmapTool, type MindmapToolProps } from "../components/tools/content/MindmapTool";
-import { PenTool } from "../components/tools/drawing/PenTool";
-import MarkerTool from "../components/tools/drawing/MarkerTool";
-import HighlighterTool from "../components/tools/drawing/HighlighterTool";
-import EraserTool from "../components/tools/drawing/EraserTool";
+import { PenTool, type PenToolProps } from "../components/tools/drawing/PenTool";
+import MarkerTool, { type MarkerToolProps } from "../components/tools/drawing/MarkerTool";
+import HighlighterTool, { type HighlighterToolProps } from "../components/tools/drawing/HighlighterTool";
+import EraserTool, { type EraserToolProps } from "../components/tools/drawing/EraserTool";
 import { CircleTool, type CircleToolProps } from "../components/tools/shapes/CircleTool";
 // RectangleTool and TriangleTool have been archived as they are no longer used
 import StickyNoteTool, { type StickyNoteToolProps } from "../components/tools/creation/StickyNoteTool";
@@ -37,6 +37,10 @@ import { ConnectorTool, type ConnectorToolProps } from "../components/tools/crea
 type ToolProps =
   | TableToolProps
   | TextToolProps
+  | PenToolProps
+  | MarkerToolProps
+  | HighlighterToolProps
+  | EraserToolProps
   | ImageToolProps
   | MindmapToolProps
   | CircleToolProps
@@ -60,10 +64,10 @@ export interface ToolManagerOptions {
 }
 
 export class ToolManager {
-  private stage: Konva.Stage;
-  private mainLayer: Konva.Layer;
-  private store: UnifiedCanvasStore;
-  private toolInstances = new Map<string, ToolInstance>();
+  private readonly stage: Konva.Stage;
+  private readonly mainLayer: Konva.Layer;
+  private readonly store: UnifiedCanvasStore;
+  private readonly toolInstances = new Map<string, ToolInstance>();
   private activeCanvasTool: CanvasTool | null = null;
   private _keyboardCleanup?: () => void;
 
@@ -297,7 +301,7 @@ export class ToolManager {
     }
 
     // Update store
-    this.store.setSelectedTool(toolId);
+    this.store.ui?.setSelectedTool?.(toolId);
 
     // Update cursor
     const container = this.stage.container();

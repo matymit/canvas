@@ -3,7 +3,7 @@ import type { ElementId, CanvasElement } from '../../../../types';
 
 export const StoreSelectors = {
   useViewport: () => useUnifiedCanvasStore((s) => s.viewport),
-  useSelectedTool: () => useUnifiedCanvasStore((s) => s.selectedTool ?? s.ui?.selectedTool),
+  useSelectedTool: () => useUnifiedCanvasStore((s) => s.ui?.selectedTool),
   useElements: () => useUnifiedCanvasStore((s) => s.elements),
   useSelectedIds: () => useUnifiedCanvasStore((s) => s.selectedElementIds),
   getElementById: (id: ElementId) => useUnifiedCanvasStore.getState().element.getById(id),
@@ -13,7 +13,8 @@ export const StoreActions = {
   withUndo: (label: string, fn: () => void) => useUnifiedCanvasStore.getState().withUndo?.(label, fn),
   updateElement: (id: ElementId, patch: Partial<CanvasElement>) => useUnifiedCanvasStore.getState().element.update(id, patch),
   bumpSelectionVersion: () => useUnifiedCanvasStore.getState().bumpSelectionVersion?.(),
-  setSelectedTool: (tool: string) => useUnifiedCanvasStore.getState().setSelectedTool?.(tool),
+  setSelectedTool: (tool: string) =>
+    useUnifiedCanvasStore.getState().ui?.setSelectedTool?.(tool),
   selectSingle: (id: ElementId) => {
     const s: any = useUnifiedCanvasStore.getState();
     if (typeof s.replaceSelectionWithSingle === 'function') return s.replaceSelectionWithSingle(id);

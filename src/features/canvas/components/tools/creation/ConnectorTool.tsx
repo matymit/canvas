@@ -1,5 +1,6 @@
 // Connector tool with endpoint snapping, preview, and line/arrow variants
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { AnchorSide } from "../../../types/connector";
@@ -36,12 +37,8 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
   toolId = "connector-line",
   layers,
 }) => {
-  const selectedTool = useUnifiedCanvasStore(
-    (s) => s.selectedTool ?? s.ui?.selectedTool,
-  );
-  const setTool = useUnifiedCanvasStore(
-    (s) => s.setSelectedTool ?? s.ui?.setSelectedTool,
-  );
+  const selectedTool = useUnifiedCanvasStore((s) => s.ui?.selectedTool);
+  const setTool = useUnifiedCanvasStore((s) => s.ui?.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
   const selectOnly = useUnifiedCanvasStore((s) => s.selection?.selectOne);
   const begin = useUnifiedCanvasStore((s) => s.history?.beginBatch);

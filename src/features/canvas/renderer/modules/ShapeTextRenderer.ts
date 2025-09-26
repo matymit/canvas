@@ -33,7 +33,7 @@ export interface ShapeTextRendererDeps {
 
 export class ShapeTextRenderer implements RendererModule {
   private layers?: RendererLayers;
-  private textById = new Map<string, Konva.Text>();
+  private readonly textById = new Map<string, Konva.Text>();
   private getNodeById?: (id: string) => Konva.Node | null;
   private unsubscribe?: () => void;
 

@@ -4,7 +4,7 @@
 // ensuring progress when rAF is paused or delayed by visibility throttling.
 // Uses setTimeout race to flush if no RAF arrived within a max latency budget.
 
-import Konva from 'konva';
+import type Konva from 'konva';
 import { RafBatcher } from './RafBatcher';
 
 export interface EmergencyRafBatcherOptions {
@@ -13,7 +13,7 @@ export interface EmergencyRafBatcherOptions {
 }
 
 export class EmergencyRafBatcher extends RafBatcher {
-  private maxLatency: number;
+  private readonly maxLatency: number;
   private timerId: number | null = null;
   private pending = false;
 

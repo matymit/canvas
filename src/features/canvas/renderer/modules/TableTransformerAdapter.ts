@@ -1,7 +1,7 @@
 // Table-specific transformer adapter that integrates with TransformerController
 // Handles proper bounds calculation, aspect ratio locking, and prevents position jumping
 
-import Konva from "konva";
+import type Konva from "konva";
 import type { TableElement } from "../../types/table";
 import { handleTableTransform, validateTableIntegrity } from "./tableTransform";
 

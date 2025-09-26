@@ -4,7 +4,7 @@ import { CanvasContextMenu } from "./CanvasContextMenu";
 import { CanvasContextMenuTool } from "../tools/CanvasContextMenuTool";
 import { StoreSelectors, StoreActions } from "../stores/facade";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
-import Konva from "konva";
+import type Konva from "konva";
 import type { CanvasElement } from "../../../../types";
 import { clipboard } from "../utils/clipboard";
 

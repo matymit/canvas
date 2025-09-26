@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
@@ -28,8 +29,8 @@ const MIN_SCALE = 0.01; // Prevent division by extremely small scale values
 
 
 export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, toolId = 'draw-circle' }) => {
-  const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
+  const selectedTool = useUnifiedCanvasStore((s) => s.ui?.selectedTool);
+  const setSelectedTool = useUnifiedCanvasStore((s) => s.ui?.setSelectedTool);
   const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
   const replaceSelectionWithSingle = useUnifiedCanvasStore((s) => s.replaceSelectionWithSingle);
   const bumpSelectionVersion = useUnifiedCanvasStore((s) => s.bumpSelectionVersion);

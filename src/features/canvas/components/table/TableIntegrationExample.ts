@@ -2,10 +2,11 @@
 // This demonstrates the proper setup for tables with position jump prevention,
 // aspect ratio resizing, and proper context menu handling
 
-import Konva from "konva";
+import type Konva from "konva";
+import type {
+  RendererLayers} from "../../renderer/modules/TableModule";
 import {
-  TableRenderer,
-  RendererLayers,
+  TableRenderer
 } from "../../renderer/modules/TableModule";
 import { TableTransformerController } from "../../renderer/modules/TableTransformerController";
 import { TableContextMenuHelper } from "./TableContextMenuHelper";
@@ -24,12 +25,12 @@ import {
  * with all the fixes for position jumping, resizing, and context menus
  */
 export class TableIntegrationExample {
-  private stage: Konva.Stage;
-  private layers: RendererLayers;
-  private tableRenderer: TableRenderer;
+  private readonly stage: Konva.Stage;
+  private readonly layers: RendererLayers;
+  private readonly tableRenderer: TableRenderer;
   private transformerController?: TableTransformerController;
   private contextMenuHelper?: TableContextMenuHelper;
-  private storeContext: {
+  private readonly storeContext: {
     store: {
       getState: () => {
         element: {

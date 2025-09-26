@@ -1,7 +1,7 @@
 // Opens a DOM overlay editor for creating standalone text elements
 // Handles world-to-screen coordinate conversion and live updates during pan/zoom operations
 
-import Konva from 'konva';
+import type Konva from 'konva';
 
 type EditorOpts = {
   stage: Konva.Stage;

@@ -1,5 +1,5 @@
 // Adapter for TableModule to implement RendererModule interface
-import Konva from "konva";
+import type Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { TableRenderer, type RendererLayers } from "./TableModule";
 import type { TableElement } from "../../types/table";

@@ -1,6 +1,6 @@
 // features/canvas/plugins/PluginArchitecture.ts
 
-import Konva from 'konva';
+import type Konva from 'konva';
 
 // Tool event interface, aligned with the modular system design
 // See "Tool Event Interface" in the technical report.
@@ -91,7 +91,7 @@ type AnyPlugin = CanvasPlugin | ToolPlugin;
 export type PluginEventPayload = Record<string, unknown>;
 
 export class PluginBus {
-  private listeners = new Map<string, Set<(payload: PluginEventPayload) => void>>();
+  private readonly listeners = new Map<string, Set<(payload: PluginEventPayload) => void>>();
 
   emit(event: string, payload: PluginEventPayload = {}): void {
     const set = this.listeners.get(event);

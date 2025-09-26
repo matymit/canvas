@@ -1,7 +1,8 @@
 // MarqueeSelectionTool.tsx
 // Marquee selection for drag-to-select multiple elements
 
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 
@@ -16,7 +17,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 }) => {
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const setSelection = useUnifiedCanvasStore((state) => state.setSelection);
-  const selectedTool = useUnifiedCanvasStore((state) => state.selectedTool);
+  const selectedTool = useUnifiedCanvasStore((state) => state.ui?.selectedTool);
 
   // Track marquee state
   const marqueeRef = useRef<{

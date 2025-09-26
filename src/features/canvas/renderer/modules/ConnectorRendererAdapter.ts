@@ -10,7 +10,7 @@ type Id = string;
 export class ConnectorRendererAdapter implements RendererModule {
   private renderer?: ConnectorRenderer;
   private unsubscribe?: () => void;
-  private elementNodes = new Map<Id, Konva.Group>();
+  private readonly elementNodes = new Map<Id, Konva.Group>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Create renderer with node resolver

@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import type Konva from 'konva';
 import type { UnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
 import type { ConnectorRenderer } from '../../renderer/modules/ConnectorRenderer';
 import type { ConnectorElement } from '../../types/connector';
@@ -10,8 +10,8 @@ export interface LiveRoutingDeps {
 }
 
 export class LiveRoutingManager {
-  private deps: LiveRoutingDeps;
-  private connectorCache = new Map<string, ConnectorElement>();
+  private readonly deps: LiveRoutingDeps;
+  private readonly connectorCache = new Map<string, ConnectorElement>();
   private isEnabled = true;
   private debounceTimer: number | null = null;
 
@@ -56,7 +56,7 @@ export class LiveRoutingManager {
     return connectors;
   }
 
-  private rerouteConnectors = (elementId: string): void => {
+  private readonly rerouteConnectors = (elementId: string): void => {
     if (!this.isEnabled) return;
 
     const connectors = this.getConnectedConnectors(elementId);
@@ -67,7 +67,7 @@ export class LiveRoutingManager {
     }
   };
 
-  private debouncedReroute = (elementId: string): void => {
+  private readonly debouncedReroute = (elementId: string): void => {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -78,7 +78,7 @@ export class LiveRoutingManager {
     }, 16); // ~60fps
   };
 
-  private onNodeMove = (e: Konva.KonvaEventObject<DragEvent>): void => {
+  private readonly onNodeMove = (e: Konva.KonvaEventObject<DragEvent>): void => {
     const node = e.target;
     if (!node || !node.id()) return;
     
@@ -88,7 +88,7 @@ export class LiveRoutingManager {
     this.debouncedReroute(node.id());
   };
 
-  private onNodeTransform = (e: Konva.KonvaEventObject<Event>): void => {
+  private readonly onNodeTransform = (e: Konva.KonvaEventObject<Event>): void => {
     const target = e.target;
     if (target && 'nodes' in target && typeof (target as { nodes?: unknown }).nodes === 'function') {
       const transformer = target as unknown as Konva.Transformer;
@@ -101,7 +101,7 @@ export class LiveRoutingManager {
     }
   };
 
-  private onTransformEnd = (e: Konva.KonvaEventObject<Event>): void => {
+  private readonly onTransformEnd = (e: Konva.KonvaEventObject<Event>): void => {
     const target = e.target;
     if (target && 'nodes' in target && typeof (target as { nodes?: unknown }).nodes === 'function') {
       const transformer = target as unknown as Konva.Transformer;

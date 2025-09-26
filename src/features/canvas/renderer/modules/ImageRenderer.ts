@@ -11,9 +11,9 @@ export interface RendererLayers {
 }
 
 export class ImageRenderer {
-  private layers: RendererLayers;
-  private groupById = new Map<string, Konva.Group>();
-  private imageNodeById = new Map<string, Konva.Image>();
+  private readonly layers: RendererLayers;
+  private readonly groupById = new Map<string, Konva.Group>();
+  private readonly imageNodeById = new Map<string, Konva.Image>();
 
   constructor(layers: RendererLayers) {
     this.layers = layers;
@@ -137,6 +137,17 @@ export class ImageRenderer {
     bitmap.size({ width: safeWidth, height: safeHeight });
 
     this.layers.main.batchDraw();
+  }
+
+  setVisibility(id: string, visible: boolean): void {
+    const group = this.groupById.get(id);
+    if (!group) return;
+    if (group.visible() !== visible) {
+      group.visible(visible);
+      const bitmap = this.imageNodeById.get(id);
+      bitmap?.visible(visible);
+      group.getLayer()?.batchDraw();
+    }
   }
 
   /**

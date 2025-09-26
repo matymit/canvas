@@ -1,126 +1,54 @@
-import React, { useEffect, useRef } from 'react';
-import Konva from 'konva';
-import { getWorldPointer } from '../../../utils/pointer';
-import { ToolPreviewLayer } from '../../../renderer/modules/ToolPreviewLayer';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
+import type Konva from 'konva';
+import DrawingModule from '../../../renderer/modules/DrawingModule';
 import { RafBatcher } from '../../../utils/performance/RafBatcher';
 
-export const PenTool: React.FC<{
+export interface PenToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
   isActive: boolean;
   color?: string;
   size?: number;
   opacity?: number;
-}> = ({
+  rafBatcher?: RafBatcher;
+}
+
+export const PenTool: React.FC<PenToolProps> = ({
   stageRef,
   isActive,
   color = '#111827',
   size = 2,
   opacity = 1.0,
+  rafBatcher,
 }) => {
-  const previewLayerRef = useRef<Konva.Layer | null>(null);
-  const lineRef = useRef<Konva.Line | null>(null);
-  const drawingRef = useRef(false);
-  const pointsRef = useRef<number[]>([]);
-  const rafBatcher = useRef(new RafBatcher()).current;
+  const fallbackBatcherRef = useRef<RafBatcher | null>(null);
+  const batcher = rafBatcher ?? (fallbackBatcherRef.current ?? (fallbackBatcherRef.current = new RafBatcher()));
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage) return;
+    if (!stage || !isActive) return;
 
-    const previewLayer = ToolPreviewLayer.getPreviewLayer(stage);
-    previewLayerRef.current = previewLayer || null;
+    const drawModule = new DrawingModule(
+      {
+        subtype: 'pen',
+        color: () => color,
+        width: () => size,
+        opacity: () => opacity,
+        rafBatcher: batcher,
+      },
+      stage,
+    );
 
-    const commitStroke = () => {
-      const stageNow = stageRef.current;
-      const line = lineRef.current;
-      if (!stageNow || !line) return;
-
-      const bounds = {
-          x: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
-          y: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1)),
-          width: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 0)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
-          height: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 1)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1))
-      };
-      ToolPreviewLayer.commitStroke(stageNow, line, { id: `pen-stroke-${Date.now()}`, type: 'drawing', subtype: 'pen', points: [...pointsRef.current], bounds, style: { stroke: color, strokeWidth: size, opacity, lineCap: 'round', lineJoin: 'round' } }, 'Draw with pen');
-
-      // Reset temp state for next stroke.
-      lineRef.current = null;
-      pointsRef.current = [];
-      drawingRef.current = false;
-      try { previewLayerRef.current?.batchDraw(); } catch (error) {
-        // Ignore cleanup errors
-      }
-    };
-
-    const onPointerDown = () => {
-      if (!isActive || drawingRef.current) return;
-      const pos = getWorldPointer(stage);
-      if (!pos) return;
-      drawingRef.current = true;
-      pointsRef.current = [pos.x, pos.y];
-
-      const line = new Konva.Line({
-        points: pointsRef.current,
-        stroke: color,
-        strokeWidth: size,
-        opacity,
-        lineCap: 'round',
-        lineJoin: 'round',
-        listening: false,
-        perfectDrawEnabled: false,
-        shadowForStrokeEnabled: false,
-        globalCompositeOperation: 'source-over',
-      });
-
-      lineRef.current = line;
-      previewLayerRef.current?.add(line);
-      previewLayerRef.current?.batchDraw();
-    };
-
-    const onPointerMove = () => {
-      if (!isActive || !drawingRef.current) return;
-      const pos = getWorldPointer(stage);
-      if (!pos) return;
-
-      pointsRef.current.push(pos.x, pos.y);
-
-      rafBatcher.schedule(() => {
-          const line = lineRef.current;
-          if (!line) return;
-          line.points(pointsRef.current);
-          previewLayerRef.current?.batchDraw();
-      });
-    };
-
-    const endStroke = () => {
-      if (!drawingRef.current) return;
-      commitStroke();
-    };
-
-    const onPointerUp = () => endStroke();
-    const onPointerLeave = () => endStroke();
-
-    if (isActive) {
-      stage.on('pointerdown.pentool', onPointerDown);
-      stage.on('pointermove.pentool', onPointerMove);
-      stage.on('pointerup.pentool', onPointerUp);
-      stage.on('pointerleave.pentool', onPointerLeave);
-    }
+    stage.on('pointerdown.pentool', drawModule.onPointerDown);
+    stage.on('pointermove.pentool', drawModule.onPointerMove);
+    stage.on('pointerup.pentool', drawModule.onPointerUp);
+    stage.on('pointerleave.pentool', drawModule.onPointerLeave);
 
     return () => {
       stage.off('.pentool');
-
-      try {
-        lineRef.current?.destroy();
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-      lineRef.current = null;
-      previewLayerRef.current = null;
-      drawingRef.current = false;
-      pointsRef.current = [];
+      drawModule.dispose();
     };
-  }, [stageRef, isActive, color, size, opacity, rafBatcher]);
+  }, [stageRef, isActive, color, size, opacity, batcher]);
 
   return null;
 };

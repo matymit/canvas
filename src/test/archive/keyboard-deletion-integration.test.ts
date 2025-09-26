@@ -7,12 +7,25 @@ import type { CanvasElement, ElementId } from '../../../../types/index';
 describe('Keyboard Deletion Integration (E2E)', () => {
   beforeEach(() => {
     // Reset store to a clean state
-    useUnifiedCanvasStore.setState({
+    useUnifiedCanvasStore.setState((state) => ({
       elements: new Map<ElementId, CanvasElement>(),
       selectedElementIds: new Set<ElementId>(),
       elementOrder: [],
-      selectedTool: 'select',
-    });
+      ui: state.ui
+        ? { ...state.ui, selectedTool: 'select' }
+        : {
+            selectedTool: 'select',
+            strokeColor: '#000000',
+            fillColor: '#ffffff',
+            strokeWidth: 2,
+            stickyNoteColor: '#FFF59D',
+            setSelectedTool: () => {},
+            setStrokeColor: () => {},
+            setFillColor: () => {},
+            setStrokeWidth: () => {},
+            setStickyNoteColor: () => {},
+          },
+    }));
   });
 
   it('should complete full deletion workflow: create → select → delete → verify', async () => {

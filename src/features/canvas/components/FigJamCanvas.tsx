@@ -7,6 +7,7 @@ import CanvasToolbar from "../toolbar/CanvasToolbar";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import GridRenderer from "./GridRenderer";
 import { debug, error as logError } from "../../../utils/debug";
+import { RafBatcher } from "../utils/performance/RafBatcher";
 import { clipboard } from "../utils/clipboard";
 import { useMindmapOperations } from "../utils/mindmap/mindmapOperations";
 
@@ -43,11 +44,12 @@ import PanTool from "./tools/navigation/PanTool";
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const rafBatcherRef = useRef(new RafBatcher());
   const stageRef = useRef<Konva.Stage | null>(null);
   const layersRef = useRef<{
     background: Konva.Layer | null;
     main: Konva.Layer | null;
-    highlighter: Konva.Layer | null;
+    highlighter: Konva.Group | null;
     preview: Konva.Layer | null;
     overlay: Konva.Layer | null;
   }>({
@@ -70,9 +72,7 @@ const FigJamCanvas: React.FC = () => {
 
   // Store subscriptions - subscribe to viewport with custom comparison to detect nested changes
   const viewport = useUnifiedCanvasStore((state) => state.viewport) as any;
-  const selectedTool = useUnifiedCanvasStore(
-    (state) => state.selectedTool ?? state.ui?.selectedTool,
-  );
+  const selectedTool = useUnifiedCanvasStore((state) => state.ui?.selectedTool);
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const selectedElementIds = useUnifiedCanvasStore(
     (state) => state.selectedElementIds,
@@ -88,9 +88,7 @@ const FigJamCanvas: React.FC = () => {
   const redo = useUnifiedCanvasStore((state) => state.redo);
   const setSelectedTool = useCallback((tool: string) => {
     // Only update if different to avoid render loops
-    const cur =
-      useUnifiedCanvasStore.getState().selectedTool ??
-      useUnifiedCanvasStore.getState().ui?.selectedTool;
+    const cur = useUnifiedCanvasStore.getState().ui?.selectedTool;
     if (cur === tool) return;
     StoreActions.setSelectedTool?.(tool);
   }, []);
@@ -122,14 +120,15 @@ const FigJamCanvas: React.FC = () => {
     // Create the five-layer system
     const backgroundLayer = new Konva.Layer({ listening: false }); // Grid, non-interactive
     const mainLayer = new Konva.Layer({ listening: true }); // All committed elements
-    const highlighterLayer = new Konva.Layer({ listening: false }); // Highlighter strokes (behind main)
+    const highlighterGroup = new Konva.Group({ listening: false }); // Highlighter strokes (behind committed elements)
+    mainLayer.add(highlighterGroup);
     const previewLayer = new Konva.Layer({ listening: false }); // Tool previews, ephemeral
     const overlayLayer = new Konva.Layer({ listening: true }); // Selection handles, guides
 
     layersRef.current = {
       background: backgroundLayer,
       main: mainLayer,
-      highlighter: highlighterLayer,
+      highlighter: highlighterGroup,
       preview: previewLayer,
       overlay: overlayLayer,
     };
@@ -141,7 +140,6 @@ const FigJamCanvas: React.FC = () => {
 
     // Add layers to stage in correct order
     stage.add(backgroundLayer);
-    stage.add(highlighterLayer); // Behind main for highlighter z-policy
     stage.add(mainLayer);
     stage.add(previewLayer);
     stage.add(overlayLayer); // Always on top
@@ -164,7 +162,7 @@ const FigJamCanvas: React.FC = () => {
     const rendererDispose = setupRenderer(stage, {
       background: backgroundLayer,
       main: mainLayer,
-      highlighter: highlighterLayer,
+      highlighter: highlighterGroup,
       preview: previewLayer,
       overlay: overlayLayer,
     });
@@ -241,8 +239,7 @@ const FigJamCanvas: React.FC = () => {
 
     // Selection handling - click empty space clears, click elements selects
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-      const tool = (useUnifiedCanvasStore.getState().selectedTool ??
-        useUnifiedCanvasStore.getState().ui?.selectedTool) as
+      const tool = useUnifiedCanvasStore.getState().ui?.selectedTool as
         | string
         | undefined;
 
@@ -571,8 +568,8 @@ const FigJamCanvas: React.FC = () => {
       onTool: (toolId: string) => {
         // Switch to the specified tool
         const setSelectedTool =
-          useUnifiedCanvasStore.getState().setSelectedTool;
-        setSelectedTool(toolId);
+          useUnifiedCanvasStore.getState().ui?.setSelectedTool;
+        setSelectedTool?.(toolId);
       },
       onDuplicate: () => {
         // Handle duplication - check if selected elements are mindmap nodes
@@ -674,13 +671,37 @@ const FigJamCanvas: React.FC = () => {
 
         // Drawing tools
         case "pen":
-          return <PenTool key="pen-tool" {...toolProps} />;
+          return (
+            <PenTool
+              key="pen-tool"
+              {...toolProps}
+              rafBatcher={rafBatcherRef.current}
+            />
+          );
         case "marker":
-          return <MarkerTool key="marker-tool" {...toolProps} />;
+          return (
+            <MarkerTool
+              key="marker-tool"
+              {...toolProps}
+              rafBatcher={rafBatcherRef.current}
+            />
+          );
         case "highlighter":
-          return <HighlighterTool key="highlighter-tool" {...toolProps} />;
+          return (
+            <HighlighterTool
+              key="highlighter-tool"
+              {...toolProps}
+              rafBatcher={rafBatcherRef.current}
+            />
+          );
         case "eraser":
-          return <EraserTool key="eraser-tool" {...toolProps} />;
+          return (
+            <EraserTool
+              key="eraser-tool"
+              {...toolProps}
+              rafBatcher={rafBatcherRef.current}
+            />
+          );
 
         // No tool component needed for select
         case "select":
@@ -723,7 +744,11 @@ const FigJamCanvas: React.FC = () => {
       />
 
       {/* Pan tool for canvas navigation */}
-      <PanTool stageRef={stageRef} isActive={selectedTool === "pan"} />
+      <PanTool
+        stageRef={stageRef}
+        isActive={selectedTool === "pan"}
+        rafBatcher={rafBatcherRef.current}
+      />
 
       {/* Table context menu system */}
       <TableContextMenuManager stageRef={stageRef} />

@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import type Konva from 'konva';
 
 export interface BoundingBox {
   x: number;

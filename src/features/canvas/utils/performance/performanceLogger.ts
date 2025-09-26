@@ -18,8 +18,8 @@ export interface PerformanceLoggerOptions {
 
 export class PerformanceLogger {
   private buffer: PerfEvent[] = [];
-  private size: number;
-  private enableConsole: boolean;
+  private readonly size: number;
+  private readonly enableConsole: boolean;
 
   constructor(opts: PerformanceLoggerOptions = {}) {
     this.size = Math.max(32, opts.bufferSize ?? 512);

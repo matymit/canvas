@@ -26,9 +26,9 @@ const DEFAULTS: Required<SmartGuidesOptions> = {
 };
 
 export class SmartGuides {
-  private layer: Konva.Layer;
-  private group: Konva.Group;
-  private options: Required<SmartGuidesOptions>;
+  private readonly layer: Konva.Layer;
+  private readonly group: Konva.Group;
+  private readonly options: Required<SmartGuidesOptions>;
   private lines: Konva.Line[] = [];
   private texts: Konva.Text[] = [];
 

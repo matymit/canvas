@@ -1,7 +1,7 @@
 // features/canvas/hooks/useTauriCanvas.ts
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Konva from 'konva';
+import type Konva from 'konva';
 import {
   applyHiDPI,
   applyStagePerfDefaults,

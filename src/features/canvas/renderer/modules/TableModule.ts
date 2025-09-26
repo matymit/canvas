@@ -32,11 +32,11 @@ export interface TableRendererOptions {
 }
 
 export class TableRenderer {
-  private layers: RendererLayers;
-  private groupById = new Map<string, Konva.Group>();
-  private pool?: KonvaNodePool;
-  private opts: TableRendererOptions;
-  private storeCtx?: ModuleRendererCtx; // Store context for proper store access
+  private readonly layers: RendererLayers;
+  private readonly groupById = new Map<string, Konva.Group>();
+  private readonly pool?: KonvaNodePool;
+  private readonly opts: TableRendererOptions;
+  private readonly storeCtx?: ModuleRendererCtx; // Store context for proper store access
   private isUpdatingTransformer = false; // Flag to prevent transformer loops
 
   constructor(
@@ -248,7 +248,7 @@ export class TableRenderer {
     if (!g) {
       // Check if pan tool is active - if so, disable dragging on elements
       const storeState = this.storeCtx?.store?.getState();
-      const isPanToolActive = storeState?.selectedTool === "pan";
+      const isPanToolActive = storeState?.ui?.selectedTool === "pan";
 
       g = new Konva.Group({
         id: el.id,

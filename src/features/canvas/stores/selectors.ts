@@ -4,7 +4,7 @@ import type { CanvasElement, ElementId } from "../../../../types";
 // Read-only selectors to reduce coupling on the full store
 
 export const selectViewport = (s: UnifiedCanvasStore) => s.viewport;
-export const selectSelectedTool = (s: UnifiedCanvasStore) => s.selectedTool ?? s.ui?.selectedTool;
+export const selectSelectedTool = (s: UnifiedCanvasStore) => s.ui?.selectedTool;
 export const selectElementsMap = (s: UnifiedCanvasStore) => s.elements;
 export const selectSelectedIds = (s: UnifiedCanvasStore) => s.selectedElementIds;
 
@@ -24,5 +24,4 @@ export function getSelectedElements(state: UnifiedCanvasStore): CanvasElement[] 
 export function getAllElements(state: UnifiedCanvasStore): CanvasElement[] {
   return Array.from(state.elements.values());
 }
-
 

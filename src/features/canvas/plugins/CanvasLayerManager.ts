@@ -32,17 +32,17 @@ type NodeOriginalParent = {
 };
 
 export class CanvasLayerManager {
-  private stage: Konva.Stage;
-  private layers = new Map<CanvasLayerId, Konva.Layer>();
+  private readonly stage: Konva.Stage;
+  private readonly layers = new Map<CanvasLayerId, Konva.Layer>();
   private order: CanvasLayerId[] = [];
-  private options: RequiredOpts;
+  private readonly options: RequiredOpts;
 
   // Grid hook
   private gridEnabled = false;
   private gridRenderer?: GridRenderer;
 
   // Tracking temporary moves
-  private tempParent = new WeakMap<Konva.Node, NodeOriginalParent>();
+  private readonly tempParent = new WeakMap<Konva.Node, NodeOriginalParent>();
 
   constructor(stage: Konva.Stage, opts?: CanvasLayerManagerOptions) {
     this.stage = stage;

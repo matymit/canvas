@@ -25,7 +25,7 @@ export class PortHoverModule implements RendererModule {
   private portGroup?: Konva.Group;
   private currentHoveredElement?: string;
   private hoverTimeout?: number;
-  private ports: Map<string, Konva.Circle[]> = new Map();
+  private readonly ports: Map<string, Konva.Circle[]> = new Map();
   private storeUnsubscribe?: () => void;
 
   // Port configuration
@@ -698,7 +698,7 @@ export class PortHoverModule implements RendererModule {
 
     const store = this.storeCtx.store.getState();
     const currentTool =
-      store.selectedTool || store.ui?.selectedTool || "select";
+      store.ui?.selectedTool || "select";
 
     // Define connector tools that should show ports
     const connectorTools = [

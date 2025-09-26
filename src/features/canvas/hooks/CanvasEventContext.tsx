@@ -1,7 +1,7 @@
 // features/canvas/contexts/CanvasEventContext.tsx
 import React, { createContext, useCallback, useMemo, useRef } from 'react';
-import Konva from 'konva';
-import {
+import type Konva from 'konva';
+import type {
   CanvasEventType,
   CanvasEventHandler,
   CanvasLayers,

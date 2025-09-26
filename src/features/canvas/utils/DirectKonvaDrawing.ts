@@ -8,7 +8,7 @@ export interface RafScheduler {
 
 class LocalRafScheduler implements RafScheduler {
   private rafId: number | null = null;
-  private ops = new Set<() => void>();
+  private readonly ops = new Set<() => void>();
   schedule(op: () => void) {
     this.ops.add(op);
     if (this.rafId == null) {
@@ -109,8 +109,8 @@ export interface CommitOptions {
 }
 
 export class DirectKonvaDrawer {
-  private layer: Konva.Layer; // preview-side layer recommended
-  private scheduler: RafScheduler;
+  private readonly layer: Konva.Layer; // preview-side layer recommended
+  private readonly scheduler: RafScheduler;
 
   private currentLine: Konva.Line | null = null;
   private points: number[] = [];

@@ -2,7 +2,7 @@
 // FIXED: Uses proper Konva coordinate transformation with stage.getAbsoluteTransform().point()
 // Handles world-to-screen coordinate conversion and live updates during pan/zoom operations
 
-import Konva from 'konva';
+import type Konva from 'konva';
 import type { TableElement } from '../../types/table';
 
 type CellEditorOpts = {

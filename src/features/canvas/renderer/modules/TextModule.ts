@@ -22,9 +22,9 @@ export interface TextOptions {
 }
 
 export default class TextModule {
-  private layers: RendererLayers;
-  private store: StoreAdapter;
-  private opts: TextOptions;
+  private readonly layers: RendererLayers;
+  private readonly store: StoreAdapter;
+  private readonly opts: TextOptions;
 
   constructor(layers: RendererLayers, store: StoreAdapter, opts: TextOptions) {
     this.layers = layers;

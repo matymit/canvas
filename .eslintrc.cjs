@@ -6,7 +6,19 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs', 'src-tauri', 'src/archive/**/*', 'archive/**/*', 'src/test/archive/**/*'],
+  ignorePatterns: [
+    'dist',
+    '.eslintrc.cjs',
+    'src-tauri',
+    'src/archive/**/*',
+    'archive/**/*',
+    'src/test/archive/**/*',
+    'src/test/**/*',
+    'src/**/__tests__/**/*',
+    'playwright.config.ts',
+    'vitest.config.ts',
+    'e2e/**/*',
+  ],
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 'latest',
@@ -14,6 +26,8 @@ module.exports = {
     ecmaFeatures: {
       jsx: true,
     },
+    project: ['./tsconfig.json'],
+    tsconfigRootDir: __dirname,
   },
   plugins: ['react-refresh', '@typescript-eslint'],
   rules: {
@@ -43,6 +57,9 @@ module.exports = {
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/no-non-null-assertion': 'warn',
+    '@typescript-eslint/ban-ts-comment': 'error',
+    '@typescript-eslint/consistent-type-imports': 'error',
+    '@typescript-eslint/prefer-readonly': 'warn',
     
     // Import rules
     'import/no-default-export': 'off',

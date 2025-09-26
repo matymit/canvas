@@ -1,8 +1,9 @@
 // Visual feedback for table operations showing which row/column will be affected
-import React, { useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
-import { TableElement } from '../../types/table';
+import type { TableElement } from '../../types/table';
 
 export interface TableSpatialFeedbackState {
   visible: boolean;

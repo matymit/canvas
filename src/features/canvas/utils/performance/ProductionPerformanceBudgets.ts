@@ -82,10 +82,10 @@ export interface PerformanceReport {
  * Production performance budget validator
  */
 export class ProductionPerformanceBudgets {
-  private budgets: PerformanceBudgets;
+  private readonly budgets: PerformanceBudgets;
   private metricsHistory: PerformanceMetrics[] = [];
   private observer?: PerformanceObserver;
-  private fpsCounter: FPSCounter;
+  private readonly fpsCounter: FPSCounter;
 
   constructor(customBudgets: Partial<PerformanceBudgets> = {}) {
     this.budgets = { ...PRODUCTION_BUDGETS, ...customBudgets };

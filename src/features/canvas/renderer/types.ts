@@ -1,6 +1,6 @@
-import Konva from "konva";
-import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
-import { TransformerControllerOptions } from "./TransformerController";
+import type Konva from "konva";
+import type { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import type { TransformerControllerOptions } from "./TransformerController";
 
 export interface CanvasElementLike {
   id: string;
@@ -39,7 +39,7 @@ export interface ModuleRendererCtx {
   layers: {
     background: Konva.Layer;
     main: Konva.Layer;
-    highlighter: Konva.Layer;
+    highlighter: Konva.Group;
     preview: Konva.Layer;
     overlay: Konva.Layer;
   };

@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import type Konva from 'konva';
 import type { AnchorSide } from '../../types/connector';
 
 export interface AnchorPoint {

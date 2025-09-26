@@ -1,6 +1,7 @@
-import Konva from "konva";
+import type Konva from "konva";
+import type {
+  RendererLayers} from "./layers";
 import {
-  RendererLayers,
   createRendererLayers,
   destroyLayers,
   ensureOverlayOnTop,
@@ -22,7 +23,7 @@ import { SelectionModule } from "./modules/SelectionModule";
 import { PortHoverModule } from "./modules/PortHoverModule";
 import { ViewportRenderer } from "./modules/ViewportRenderer";
 
-import {
+import type {
   CanvasElementLike,
   CanvasRendererOptions,
   ModuleRendererCtx,
@@ -84,15 +85,15 @@ export function setupRenderer(
  */
 export class CanvasRenderer {
   private readonly stage: Konva.Stage;
-  private layers: RendererLayers;
-  private transformer: TransformerController;
+  private readonly layers: RendererLayers;
+  private readonly transformer: TransformerController;
   private dpr: number;
 
-  private getVisibleElements?: () => CanvasElementLike[];
-  private reconcileNode?: (e: CanvasElementLike) => Konva.Node;
+  private readonly getVisibleElements?: () => CanvasElementLike[];
+  private readonly reconcileNode?: (e: CanvasElementLike) => Konva.Node;
   // private _disposeNode?: (n: Konva.Node) => void; // Removed unused
-  private resolveSelectionNodes?: (ids: string[]) => Konva.Node[];
-  private onBackgroundDraw?: (
+  private readonly resolveSelectionNodes?: (ids: string[]) => Konva.Node[];
+  private readonly onBackgroundDraw?: (
     background: Konva.Layer,
     stage: Konva.Stage,
   ) => void;
@@ -150,7 +151,6 @@ export class CanvasRenderer {
     }
     // Only draw layers that changed; callers can manage finer-grained invalidation
     this.layers.main.batchDraw();
-    this.layers.highlighter.batchDraw();
     this.layers.preview.batchDraw();
     this.layers.overlay.batchDraw();
   }

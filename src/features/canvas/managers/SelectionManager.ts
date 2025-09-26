@@ -7,7 +7,7 @@
  * CRITICAL FIX for Phase 18: Connector elements get custom selection with endpoint dots
  */
 
-import Konva from "konva";
+import type Konva from "konva";
 import { TransformerManager, type TransformerManagerOptions } from "./TransformerManager";
 import { ConnectorSelectionManager, type ConnectorSelectionOptions } from "./ConnectorSelectionManager";
 import { StoreSelectors, StoreActions } from "../stores/facade";
@@ -28,11 +28,11 @@ export interface SelectionManagerOptions {
  * based on selected element types
  */
 export class SelectionManager {
-  private stage: Konva.Stage;
-  private overlayLayer: Konva.Layer;
-  private transformerManager: TransformerManager;
-  private connectorSelectionManager: ConnectorSelectionManager;
-  private getElementById = StoreSelectors.getElementById;
+  private readonly stage: Konva.Stage;
+  private readonly overlayLayer: Konva.Layer;
+  private readonly transformerManager: TransformerManager;
+  private readonly connectorSelectionManager: ConnectorSelectionManager;
+  private readonly getElementById = StoreSelectors.getElementById;
   
   // Track current selection state
   private selectedElementIds: Set<string> = new Set();

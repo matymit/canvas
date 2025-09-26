@@ -65,7 +65,7 @@ function makeInflatedBBox(x1: number, y1: number, x2: number, y2: number, halfWi
 }
 
 class SpatialHash {
-  private map = new Map<string, Set<string>>();
+  private readonly map = new Map<string, Set<string>>();
   constructor(private readonly cellSize: number) {}
 
   private key(ix: number, iy: number): string {

@@ -278,7 +278,10 @@ export class SelectionModule implements RendererModule {
     const nodes: import("konva/lib/Node").Node[] = [];
 
     // Collect all available layers and filter out undefined/null ones
-    const allLayers = [
+    const allLayers: Array<{
+      name: string;
+      layer: Konva.Container | null;
+    }> = [
       { name: "main", layer: this.storeCtx.layers.main },
       { name: "highlighter", layer: this.storeCtx.layers.highlighter },
       { name: "overlay", layer: this.storeCtx.layers.overlay },

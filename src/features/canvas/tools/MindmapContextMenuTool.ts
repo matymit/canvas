@@ -10,9 +10,9 @@ export interface MindmapContextMenuHandler {
 }
 
 export class MindmapContextMenuTool {
-  private stage: Konva.Stage;
-  private handler: MindmapContextMenuHandler;
-  private mindmapOps = useMindmapOperations();
+  private readonly stage: Konva.Stage;
+  private readonly handler: MindmapContextMenuHandler;
+  private readonly mindmapOps = useMindmapOperations();
 
   constructor(stage: Konva.Stage, handler: MindmapContextMenuHandler) {
     this.stage = stage;

@@ -1,4 +1,4 @@
-import Konva from "konva";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import type { MindmapNodeElement } from "@/features/canvas/types/mindmap";
 import {

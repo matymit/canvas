@@ -1,5 +1,5 @@
 import React from "react";
-import Konva from "konva";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { measureText } from "../../../utils/text/TextMeasurement";
 import type { CanvasTool } from "../../../managers/ToolManager";
@@ -198,7 +198,7 @@ export class TextCanvasTool implements CanvasTool {
         }
 
         // Switch back to select tool
-        currentStore.setSelectedTool?.("select");
+        currentStore.ui?.setSelectedTool?.("select");
       };
 
       // Event handlers

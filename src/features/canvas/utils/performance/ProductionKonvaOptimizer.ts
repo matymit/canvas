@@ -36,7 +36,7 @@ export interface LayerOptimizationResult {
  * Production Konva optimizer that enforces performance budgets
  */
 export class ProductionKonvaOptimizer {
-  private budgets: KonvaPerformanceBudgets;
+  private readonly budgets: KonvaPerformanceBudgets;
   private performanceWarnings: string[] = [];
 
   constructor(budgets: Partial<KonvaPerformanceBudgets> = {}) {

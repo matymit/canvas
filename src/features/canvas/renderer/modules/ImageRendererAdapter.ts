@@ -1,5 +1,5 @@
 // Adapter for ImageRenderer to implement RendererModule interface
-import Konva from "konva";
+import type Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { ImageRenderer, type RendererLayers } from "./ImageRenderer";
 import type ImageElement from "../../types/image";
@@ -9,10 +9,12 @@ type Id = string;
 export class ImageRendererAdapter implements RendererModule {
   private renderer?: ImageRenderer;
   private unsubscribe?: () => void;
+  private store?: ModuleRendererCtx["store"];
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Create ImageRenderer instance
     this.renderer = new ImageRenderer(ctx.layers);
+    this.store = ctx.store;
 
     // Subscribe to store changes - watch image elements
     this.unsubscribe = ctx.store.subscribe(
@@ -50,6 +52,7 @@ export class ImageRendererAdapter implements RendererModule {
     if (this.unsubscribe) {
       this.unsubscribe();
     }
+    this.store = undefined;
     // Cleanup images manually
     const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
@@ -62,10 +65,40 @@ export class ImageRendererAdapter implements RendererModule {
     if (!this.renderer) return;
 
     const seen = new Set<Id>();
+    const viewport = this.store?.getState().viewport;
+    const bounds =
+      viewport && typeof window !== "undefined"
+        ? {
+            minX: viewport.x ?? 0,
+            minY: viewport.y ?? 0,
+            maxX:
+              (viewport.x ?? 0) +
+              window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
+            maxY:
+              (viewport.y ?? 0) +
+              window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
+          }
+        : null;
 
     // Render/update images (async due to image loading)
     for (const [id, image] of images) {
       seen.add(id);
+      if (bounds) {
+        const right = (image.x ?? 0) + image.width;
+        const bottom = (image.y ?? 0) + image.height;
+        const isOffscreen =
+          right < bounds.minX ||
+          bottom < bounds.minY ||
+          (image.x ?? 0) > bounds.maxX ||
+          (image.y ?? 0) > bounds.maxY;
+
+        if (isOffscreen) {
+          this.renderer.setVisibility(id, false);
+          continue;
+        }
+      }
+
+      this.renderer.setVisibility(id, true);
       // Fire and forget async rendering
       this.renderer.render(image).catch((_err) => {
         // Error: [ImageRendererAdapter] Failed to render image: ${id}

@@ -1,7 +1,7 @@
 // CORRECTED table transform logic that properly handles Konva.Transformer
 // Implements the scale→reset→resize pattern correctly for complex elements
 
-import Konva from "konva";
+import type Konva from "konva";
 import type { TableElement } from "../../types/table";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 

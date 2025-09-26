@@ -16,10 +16,10 @@ export interface ConnectorSelectionOptions {
 }
 
 export class ConnectorSelectionManager {
-  private stage: Konva.Stage;
-  private overlayLayer: Konva.Layer;
+  private readonly stage: Konva.Stage;
+  private readonly overlayLayer: Konva.Layer;
   // facade-based access
-  private options: Required<ConnectorSelectionOptions>;
+  private readonly options: Required<ConnectorSelectionOptions>;
 
   // Track selected connector and its endpoint dots
   private selectedConnectorId: string | null = null;

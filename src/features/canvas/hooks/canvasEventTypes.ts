@@ -1,7 +1,7 @@
 /**
  * Canvas event types and interfaces
  */
-import React from 'react';
+import type React from 'react';
 import type Konva from 'konva';
 
 export type CanvasEventType =

@@ -20,8 +20,7 @@ export interface KeyboardShortcutHandlers {
 function isMacPlatform() {
   if (typeof navigator === 'undefined') return false;
   // userAgentData may not be available in all WebViews; fallback to platform testing
-  // @ts-expect-error - userAgentData may not be available in all browsers
-  const uaData = navigator.userAgentData?.platform ?? '';
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? '';
   const plat = (uaData || navigator.platform || '').toLowerCase();
   return plat.includes('mac') || plat.includes('iphone') || plat.includes('ipad');
 }

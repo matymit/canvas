@@ -3,7 +3,7 @@
 // Opinionated wrapper for timing labeled tasks and aggregating basic stats (count, total, avg, max).
 // Complements PerformanceLogger by exposing an in-app API to instrument hotspots.
 
-import { PerformanceLogger } from './performanceLogger';
+import type { PerformanceLogger } from './performanceLogger';
 
 export interface Stat {
   name: string;
@@ -14,8 +14,8 @@ export interface Stat {
 }
 
 export class PerformanceTracker {
-  private stats = new Map<string, { count: number; total: number; max: number }>();
-  private logger?: PerformanceLogger;
+  private readonly stats = new Map<string, { count: number; total: number; max: number }>();
+  private readonly logger?: PerformanceLogger;
 
   constructor(logger?: PerformanceLogger) {
     this.logger = logger;

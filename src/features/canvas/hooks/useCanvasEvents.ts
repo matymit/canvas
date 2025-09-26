@@ -2,7 +2,7 @@
  * Canvas events hook
  */
 import { useContext } from 'react';
-import { CanvasEventContextValue } from './canvasEventTypes';
+import type { CanvasEventContextValue } from './canvasEventTypes';
 import CanvasEventContext from './CanvasEventContext';
 
 export function useCanvasEvents(): CanvasEventContextValue {

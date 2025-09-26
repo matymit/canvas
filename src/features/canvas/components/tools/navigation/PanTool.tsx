@@ -1,11 +1,13 @@
-import React, { useRef, useEffect } from "react";
-import Konva from "konva";
+import type React from "react";
+import { useRef, useEffect } from "react";
+import type Konva from "konva";
 import { StoreActions } from "../../../stores/facade";
-import { RafBatcher } from "../../../utils/performance/RafBatcher";
+import type { RafBatcher } from "../../../utils/performance/RafBatcher";
 
 interface PanToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
   isActive: boolean;
+  rafBatcher: RafBatcher;
 }
 
 /**
@@ -17,10 +19,9 @@ interface PanToolProps {
  * - Uses namespaced events to avoid conflicts
  * - No direct stage manipulation
  */
-const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
+const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => {
   const isPanningRef = useRef(false);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
-  const rafBatcher = useRef(new RafBatcher()).current;
 
   useEffect(() => {
     const stage = stageRef.current;

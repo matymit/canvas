@@ -1,127 +1,245 @@
-// features/canvas/renderermodular/modules/DrawingModule.ts
-import Konva from 'konva';
-import { nanoid } from 'nanoid';
+import Konva from "konva";
+import { getWorldPointer } from "../../utils/pointer";
+import { RafBatcher } from "../../utils/performance/RafBatcher";
+import { ToolPreviewLayer } from "./ToolPreviewLayer";
 
-export type RendererLayers = {
-  background: Konva.Layer;
-  main: Konva.Layer;
-  preview: Konva.Layer;
-  overlay: Konva.Layer;
-};
+export type DrawingSubtype = "pen" | "marker" | "highlighter" | "eraser";
 
-export interface DrawingElement {
-  id: string;
-  type: string;
-  stroke: string;
-  strokeWidth: number;
-  opacity: number;
-  points: number[];
-}
-
-export interface StoreAdapter {
-  addElement: (element: DrawingElement) => void;
-}
-
-export interface DrawingOptions {
+interface DrawingModuleConfig {
+  subtype: DrawingSubtype;
   color: () => string;
   width: () => number;
-  opacity?: () => number; // 0..1
-  // If true, line will be translucent to mimic highlighter
+  opacity: () => number;
   multiplyBlend?: boolean;
+  actionName?: string;
+  interactiveAfterCommit?: boolean;
+  idFactory?: () => string;
+  rafBatcher?: RafBatcher;
+}
+
+interface StrokeBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export default class DrawingModule {
-  private layers: RendererLayers;
-  private store: StoreAdapter;
-  private opts: DrawingOptions;
+  private readonly stage: Konva.Stage;
+  private readonly config: DrawingModuleConfig;
+  private readonly rafBatcher: RafBatcher;
+  private readonly ownsBatcher: boolean;
 
+  private previewLayer: Konva.Layer | null = null;
+  private line: Konva.Line | null = null;
   private isDrawing = false;
   private points: number[] = [];
-  private line?: Konva.Line;
+  private lastPoint: { x: number; y: number } | null = null;
+  private static readonly MIN_DISTANCE_SQ = 4;
 
-  constructor(layers: RendererLayers, store: StoreAdapter, opts: DrawingOptions) {
-    this.layers = layers;
-    this.store = store;
-    this.opts = opts;
+  constructor(config: DrawingModuleConfig, stage: Konva.Stage) {
+    this.config = config;
+    this.stage = stage;
+    this.ownsBatcher = !config.rafBatcher;
+    this.rafBatcher = config.rafBatcher ?? new RafBatcher();
   }
 
-  onPointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
-    if (this.isDrawing) return true;
+  onPointerDown = () => {
+    if (this.isDrawing) return;
 
-    const stage = e.target.getStage();
-    const p = stage?.getPointerPosition();
-    if (!stage || !p) return false;
+    const previewLayer = ToolPreviewLayer.getPreviewLayer(this.stage);
+    if (!previewLayer) return;
+
+    const pointer = getWorldPointer(this.stage);
+    if (!pointer) return;
 
     this.isDrawing = true;
-    this.points = [p.x, p.y];
+    this.previewLayer = previewLayer;
+    this.points = [pointer.x, pointer.y];
+    this.lastPoint = { x: pointer.x, y: pointer.y };
 
     this.line = new Konva.Line({
       points: this.points,
-      stroke: this.opts.color(),
-      strokeWidth: this.opts.width(),
-      opacity: this.opts.opacity?.() ?? 1,
-      lineCap: 'round',
-      lineJoin: 'round',
-      listening: false, // performance
-      perfectDrawEnabled: false, // performance
-      tension: 0,
+      stroke: this.config.color(),
+      strokeWidth: this.config.width(),
+      opacity: this.config.opacity(),
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false,
+      perfectDrawEnabled: false,
       shadowForStrokeEnabled: false,
-      globalCompositeOperation: this.opts.multiplyBlend ? 'multiply' : 'source-over',
+      globalCompositeOperation: this.getCompositeOperation(),
     });
 
-    this.layers.preview.add(this.line);
-    this.layers.preview.draw();
-
-    return true;
+    this.previewLayer.add(this.line);
+    this.previewLayer.batchDraw();
   };
 
-  onPointerMove = (e: Konva.KonvaEventObject<PointerEvent>) => {
-    if (!this.isDrawing || !this.line) return false;
+  onPointerMove = () => {
+    if (!this.isDrawing || !this.line) return;
 
-    const stage = e.target.getStage();
-    const p = stage?.getPointerPosition();
-    if (!stage || !p) return false;
+    const pointer = getWorldPointer(this.stage);
+    if (!pointer) return;
 
-    this.points.push(p.x, p.y);
-    this.line.points(this.points);
+    const didAdd = this.tryAddPoint(pointer.x, pointer.y);
+    if (!didAdd) return;
 
-    // Immediate feedback on preview layer
-    this.layers.preview.batchDraw();
-    return true;
+    this.rafBatcher.schedule(() => {
+      if (!this.line) return;
+      this.line.points(this.points);
+      this.previewLayer?.batchDraw();
+    });
   };
 
-  onPointerUp = (_e: Konva.KonvaEventObject<PointerEvent>) => {
-    if (!this.isDrawing || !this.line) return false;
+  onPointerUp = () => {
+    if (!this.isDrawing) return;
+    const pointer = getWorldPointer(this.stage);
+    if (pointer) {
+      this.tryAddPoint(pointer.x, pointer.y, true);
+    }
+    this.commitStroke();
+  };
 
-    // Commit to main layer
-    const committed = this.line;
-    this.line = undefined;
+  onPointerLeave = () => {
+    if (!this.isDrawing) return;
+    const pointer = getWorldPointer(this.stage);
+    if (pointer) {
+      this.tryAddPoint(pointer.x, pointer.y, true);
+    }
+    this.commitStroke();
+  };
+
+  dispose() {
+    if (this.ownsBatcher) {
+      this.rafBatcher.dispose();
+    }
+    if (this.line) {
+      try {
+        this.line.destroy();
+      } catch {
+        // ignore destroy errors during cleanup
+      }
+    }
+    this.line = null;
+    this.previewLayer = null;
+    this.points = [];
     this.isDrawing = false;
+    this.lastPoint = null;
+  }
 
-    committed.listening(true); // re-enable if needed for selection/eraser hit detection
-    this.layers.preview.removeChildren(); // clear preview
-    this.layers.preview.draw();
+  private commitStroke() {
+    if (!this.line) {
+      this.reset();
+      return;
+    }
 
-    this.layers.main.add(committed);
-    this.layers.main.draw();
+    const actionName = this.config.actionName ?? this.getDefaultActionName();
+    const bounds = this.computeBounds();
+    const elementId = this.config.idFactory
+      ? this.config.idFactory()
+      : `${this.config.subtype}-stroke-${Date.now()}`;
 
-    // Persist into store as an element record
-    const id = nanoid();
-    this.store.addElement({
-      id,
-      type: 'freehand',
-      stroke: committed.stroke() as string,
-      strokeWidth: committed.strokeWidth(),
-      opacity: committed.opacity(),
-      points: committed.points(),
-      // additional metadata if needed
-    });
+    ToolPreviewLayer.commitStroke(
+      this.stage,
+      this.line,
+      {
+        id: elementId,
+        type: "drawing",
+        subtype: this.config.subtype,
+        points: [...this.points],
+        bounds,
+        style: {
+          stroke: this.config.subtype === "eraser" ? "#FFFFFF" : this.config.color(),
+          strokeWidth: this.config.width(),
+          opacity: this.config.opacity(),
+          lineCap: "round",
+          lineJoin: "round",
+          globalCompositeOperation: this.getCompositeOperation(),
+        },
+      },
+      actionName,
+      this.config.interactiveAfterCommit ?? this.config.subtype !== "eraser",
+    );
 
+    this.reset();
+  }
+
+  private reset() {
+    this.line = null;
+    this.previewLayer = null;
+    this.points = [];
+    this.isDrawing = false;
+    this.lastPoint = null;
+  }
+
+  private computeBounds(): StrokeBounds {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < this.points.length; i += 2) {
+      const x = this.points[i];
+      const y = this.points[i + 1];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    if (minX === Number.POSITIVE_INFINITY) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }
+
+  private getCompositeOperation(): GlobalCompositeOperation {
+    if (this.config.subtype === "eraser") {
+      return "destination-out";
+    }
+    if (this.config.multiplyBlend) {
+      return "multiply";
+    }
+    return "source-over";
+  }
+
+  private getDefaultActionName() {
+    switch (this.config.subtype) {
+      case "pen":
+        return "Draw with pen";
+      case "marker":
+        return "Draw with marker";
+      case "highlighter":
+        return "Draw with highlighter";
+      case "eraser":
+        return "Erase with eraser";
+      default:
+        return "Draw";
+    }
+  }
+
+  private tryAddPoint(x: number, y: number, force = false): boolean {
+    if (!this.line) return false;
+    if (!this.lastPoint) {
+      this.points.push(x, y);
+      this.lastPoint = { x, y };
+      return true;
+    }
+
+    const dx = x - this.lastPoint.x;
+    const dy = y - this.lastPoint.y;
+    if (!force && dx * dx + dy * dy <= DrawingModule.MIN_DISTANCE_SQ) {
+      return false;
+    }
+
+    this.points.push(x, y);
+    this.lastPoint = { x, y };
     return true;
-  };
-
-  // Optional fallbacks
-  onMouseDown = this.onPointerDown;
-  onMouseMove = this.onPointerMove;
-  onMouseUp = this.onPointerUp;
+  }
 }

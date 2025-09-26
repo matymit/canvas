@@ -4,7 +4,7 @@
 // Emits rolling FPS calculated over a window and logs LongTask entries via PerformanceObserver.
 // Falls back gracefully if the Long Tasks API is not supported.
 
-import { PerformanceLogger } from './performanceLogger';
+import type { PerformanceLogger } from './performanceLogger';
 
 export interface PerformanceMonitorOptions {
   fpsWindowMs?: number;   // Window over which to average FPS (default 1000ms)
@@ -30,13 +30,13 @@ export class PerformanceMonitor {
   private lastTick = 0;
   private samples: number[] = [];
   private lastEmit = 0;
-  private fpsWindowMs: number;
-  private emitEveryMs: number;
+  private readonly fpsWindowMs: number;
+  private readonly emitEveryMs: number;
   private listener?: PerfListener;
   private longTaskMs = 0;
   private longTaskCount = 0;
   private po?: PerformanceObserver;
-  private logger?: PerformanceLogger;
+  private readonly logger?: PerformanceLogger;
 
   constructor(opts: PerformanceMonitorOptions = {}) {
     this.fpsWindowMs = Math.max(250, opts.fpsWindowMs ?? 1000);

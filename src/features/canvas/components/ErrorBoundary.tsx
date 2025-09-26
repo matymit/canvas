@@ -26,7 +26,7 @@ export class ErrorBoundary extends React.Component<
     this.props.onError?.(error, info);
   }
 
-  private handleReset = () => {
+  private readonly handleReset = () => {
     this.setState({ hasError: false, error: undefined });
     this.props.onReset?.();
   };

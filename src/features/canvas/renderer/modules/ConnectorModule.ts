@@ -61,7 +61,7 @@ export default class ConnectorModule {
   private layers!: RendererLayers;
   private store?: StoreApi;
 
-  private lineById = new Map<ConnectorId, Konva.Line>();
+  private readonly lineById = new Map<ConnectorId, Konva.Line>();
   private previewLine?: Konva.Line;
 
   private unsubEdges?: () => void;

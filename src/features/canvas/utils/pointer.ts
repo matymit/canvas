@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import type Konva from 'konva';
 
 export function getWorldPointer(stage: Konva.Stage): { x: number; y: number } | null {
   const pointer = stage.getRelativePointerPosition?.() ?? stage.getPointerPosition();

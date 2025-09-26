@@ -39,7 +39,7 @@ export class TransformerManager {
   > &
     TransformerCallbacks;
   private transformer: Konva.Transformer | null = null;
-  private stage: Konva.Stage | null = null;
+  private readonly stage: Konva.Stage | null = null;
   private keyboardCleanup: (() => void) | null = null;
 
   constructor(stage: Konva.Stage, options: TransformerManagerOptions) {

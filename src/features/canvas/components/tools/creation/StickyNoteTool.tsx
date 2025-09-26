@@ -1,6 +1,7 @@
 // features/canvas/components/tools/creation/StickyNoteTool.tsx
-import React, { useEffect } from "react";
-import Konva from "konva";
+import type React from "react";
+import { useEffect } from "react";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "@features/canvas/stores/unifiedCanvasStore";
 import type { CanvasElement, ElementId } from "../../../../../../types/index";
 import { debug } from "../../../../../utils/debug";
@@ -57,7 +58,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 }) => {
   // Get the selected sticky note color from the store
   const selectedStickyNoteColor = useUnifiedCanvasStore(
-    (s) => s.stickyNoteColor || DEFAULT_FILL,
+    (s) => s.ui?.stickyNoteColor || DEFAULT_FILL,
   );
   const actualFill = fill ?? selectedStickyNoteColor;
 
@@ -151,8 +152,8 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         if (finalized) return;
         finalized = true;
         debug("Switching back to select tool", { category: 'StickyNoteTool' });
-        if (typeof store.setSelectedTool === "function") {
-          store.setSelectedTool("select");
+        if (typeof store.ui?.setSelectedTool === "function") {
+          store.ui.setSelectedTool("select");
         }
       };
 

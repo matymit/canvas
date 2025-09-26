@@ -1,7 +1,8 @@
 // Table tool for creating FigJam-style tables with preview/commit and auto-select functionality
 // Follows existing tool patterns with four-layer usage and unified store integration
 
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import type { TableElement } from "../../../types/table";
@@ -38,8 +39,8 @@ export const TableTool: React.FC<TableToolProps> = ({
   stageRef,
   toolId = "table",
 }) => {
-  const selectedTool = useUnifiedCanvasStore((s) => s.selectedTool);
-  const setSelectedTool = useUnifiedCanvasStore((s) => s.setSelectedTool);
+  const selectedTool = useUnifiedCanvasStore((s) => s.ui?.selectedTool);
+  const setSelectedTool = useUnifiedCanvasStore((s) => s.ui?.setSelectedTool);
 
   const drawingRef = useRef<{
     start: { x: number; y: number } | null;
@@ -140,7 +141,7 @@ export const TableTool: React.FC<TableToolProps> = ({
         store.addElement(elementData, { select: true });
       }
 
-      setSelectedTool("select");
+      setSelectedTool?.("select");
     };
 
     const onPointerUp = () => {

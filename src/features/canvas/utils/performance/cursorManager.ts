@@ -3,7 +3,7 @@
 // Robust cursor manager for Vanilla Konva: manipulates Stage container style.cursor,
 // offers a stack-based API, and convenience binding to shapes for hover cursors.
 
-import Konva from 'konva';
+import type Konva from 'konva';
 
 type Cursor = CSSStyleDeclaration['cursor'];
 
@@ -14,9 +14,9 @@ export interface CursorBindingOptions {
 }
 
 export class CursorManager {
-  private stage: Konva.Stage;
+  private readonly stage: Konva.Stage;
   private stack: Cursor[] = [];
-  private defaultCursor: Cursor;
+  private readonly defaultCursor: Cursor;
 
   constructor(stage: Konva.Stage, defaultCursor: Cursor = 'default') {
     this.stage = stage;

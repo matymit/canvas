@@ -1,9 +1,9 @@
 // Image drag handler that prevents snap-back and integrates with store
-import Konva from 'konva';
+import type Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 
 export class ImageDragHandler {
-  private stage: Konva.Stage;
+  private readonly stage: Konva.Stage;
   private isDragging = false;
   private dragStartPos: { x: number; y: number } | null = null;
   private draggedElementId: string | null = null;

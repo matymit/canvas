@@ -12,7 +12,7 @@ interface LogOptions {
 }
 
 class DebugLogger {
-  private isDevelopment: boolean;
+  private readonly isDevelopment: boolean;
   private enabledCategories: Set<string>;
 
   constructor() {

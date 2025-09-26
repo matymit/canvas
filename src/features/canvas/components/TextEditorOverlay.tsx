@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, FormEventHandler, KeyboardEventHandler } from "react";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 
 function measureTextWidth(
@@ -11,6 +12,43 @@ function measureTextWidth(
   ctx.font = font;
   const m = ctx.measureText(text);
   return Math.ceil(m.width);
+}
+
+function editorStyle(
+  fontSize: number,
+  pos: { x: number; y: number },
+): (CSSProperties & { msAppearance?: string }) {
+  return {
+    position: "absolute",
+    left: pos.x,
+    top: pos.y,
+    minWidth: 4,
+    padding: 4,
+    // Blue border to match selection frame
+    outline: "none !important",
+    border: "2px solid #4F46E5 !important",
+    borderStyle: "solid !important",
+    borderWidth: "2px !important",
+    borderColor: "#4F46E5 !important",
+    outlineStyle: "none !important",
+    outlineWidth: "0 !important",
+    outlineColor: "transparent !important",
+    background: "transparent",
+    color: "#111827",
+    fontFamily: "Inter, system-ui, sans-serif",
+    fontWeight: 400,
+    fontSize: `${fontSize}px`,
+    lineHeight: `${Math.round(fontSize * 1.2)}px`,
+    pointerEvents: "auto",
+    whiteSpace: "nowrap",
+    // Enhanced caret visibility and browser compatibility
+    caretColor: "#111827",
+    WebkitTextFillColor: "#111827",
+    WebkitAppearance: "none",
+    MozAppearance: "none",
+    msAppearance: "none",
+    appearance: "none",
+  };
 }
 
 export default function TextEditorOverlay() {
@@ -124,7 +162,7 @@ export default function TextEditorOverlay() {
     if (editorRef.current) editorRef.current.textContent = "";
   };
 
-  const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
+  const onKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       commit();
@@ -134,7 +172,7 @@ export default function TextEditorOverlay() {
     }
   };
 
-  const onInput: React.FormEventHandler<HTMLDivElement> = (e) => {
+  const onInput: FormEventHandler<HTMLDivElement> = (e) => {
     const text = (e.target as HTMLDivElement).textContent ?? "";
     const font = `400 ${fontSize}px Inter, system-ui, sans-serif`;
     const width = Math.max(4, measureTextWidth(text, font));
@@ -166,38 +204,7 @@ export default function TextEditorOverlay() {
         data-testid="text-portal-input"
         onKeyDown={onKeyDown}
         onInput={onInput}
-        style={{
-          position: "absolute",
-          left: pos.x,
-          top: pos.y,
-          minWidth: 4,
-          padding: 4,
-          // Blue border to match selection frame
-          outline: "none !important",
-          border: "2px solid #4F46E5 !important",
-          borderStyle: "solid !important",
-          borderWidth: "2px !important",
-          borderColor: "#4F46E5 !important",
-          outlineStyle: "none !important",
-          outlineWidth: "0 !important",
-          outlineColor: "transparent !important",
-          background: "transparent",
-          color: "#111827",
-          fontFamily: "Inter, system-ui, sans-serif",
-          fontWeight: 400,
-          fontSize: `${fontSize}px`,
-          lineHeight: `${Math.round(fontSize * 1.2)}px`,
-          pointerEvents: "auto",
-          whiteSpace: "nowrap",
-          // Enhanced caret visibility and browser compatibility
-          caretColor: "#111827",
-          WebkitTextFillColor: "#111827",
-          WebkitAppearance: "none",
-          MozAppearance: "none",
-          // @ts-expect-error - msAppearance not in React CSSProperties but valid CSS
-          msAppearance: "none",
-          appearance: "none",
-        }}
+        style={editorStyle(fontSize, pos)}
       />
     </div>
   );

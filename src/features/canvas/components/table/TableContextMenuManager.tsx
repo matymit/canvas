@@ -5,7 +5,7 @@ import { TableSpatialFeedback } from "./TableSpatialFeedback";
 import { TableConfirmationDialog } from "./TableConfirmationDialog";
 import { StoreSelectors, StoreActions } from "../../stores/facade";
 import { TableContextMenuTool } from "../../tools/TableContextMenuTool";
-import Konva from "konva";
+import type Konva from "konva";
 import type { TableElement } from "../../types/table";
 import {
   addRowAbove,

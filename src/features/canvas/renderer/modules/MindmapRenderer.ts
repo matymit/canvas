@@ -74,7 +74,7 @@ import {
   type MindmapNodeStyle,
   type BranchStyle,
 } from "@/features/canvas/types/mindmap";
-import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
+import type { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import { openMindmapNodeEditor } from "@/features/canvas/utils/editors/openMindmapNodeEditor";
 import { buildTaperedRibbonPoints, rightwardControls } from "./mindmapRouting";
 
@@ -86,9 +86,9 @@ export interface MindmapRendererOptions {
 }
 
 export class MindmapRenderer {
-  private layers: RendererLayers;
-  private nodeGroups = new Map<string, Konva.Group>();
-  private edgeShapes = new Map<string, Konva.Shape>();
+  private readonly layers: RendererLayers;
+  private readonly nodeGroups = new Map<string, Konva.Group>();
+  private readonly edgeShapes = new Map<string, Konva.Shape>();
   private options: MindmapRendererOptions;
   private readonly store: typeof useUnifiedCanvasStore;
   private static readonly HANDLER_FLAG = "__mindmapHandlers";
@@ -274,7 +274,7 @@ export class MindmapRenderer {
 
     // Check if pan tool is active - if so, disable dragging on elements
     const storeState = this.store.getState();
-    const isPanToolActive = storeState?.selectedTool === "pan";
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
     group.draggable(!isPanToolActive);
 
     // Track click timing for double-click vs drag detection
@@ -573,7 +573,7 @@ export class MindmapRenderer {
       }
       // Check if pan tool is active - if so, disable dragging on elements
       const storeState = this.store.getState();
-      const isPanToolActive = storeState?.selectedTool === "pan";
+      const isPanToolActive = storeState?.ui?.selectedTool === "pan";
 
       group = new Konva.Group({
         id: element.id,
@@ -596,7 +596,7 @@ export class MindmapRenderer {
 
     // Check if pan tool is active - if so, disable dragging on elements
     const storeState = this.store.getState();
-    const isPanToolActive = storeState?.selectedTool === "pan";
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
     group.draggable(!isPanToolActive);
     group.listening(true);
     // Ensure the group can receive mouse events

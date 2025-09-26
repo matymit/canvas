@@ -31,7 +31,7 @@ export interface SmartGuidesConfig {
  */
 export class SmartGuidesDetection {
   private config: Required<SmartGuidesConfig>;
-  private elements: Map<string, ElementBounds> = new Map();
+  private readonly elements: Map<string, ElementBounds> = new Map();
 
   constructor(config?: SmartGuidesConfig) {
     this.config = {

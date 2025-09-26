@@ -1,6 +1,6 @@
 // features/canvashooks/useCanvasEventManager.ts
 import { useEffect, useMemo, useRef } from 'react';
-import Konva from 'konva';
+import type Konva from 'konva';
 
 type AnyKonvaEvent = Konva.KonvaEventObject<Event>;
 
@@ -26,8 +26,8 @@ export interface ToolEventHandler {
 }
 
 class LocalCanvasEventManager {
-  private tools = new Map<string, ToolEventHandler>();
-  private priorities = new Map<string, number>();
+  private readonly tools = new Map<string, ToolEventHandler>();
+  private readonly priorities = new Map<string, number>();
   private activeToolId: string | null = null;
 
   registerTool(id: string, handler: ToolEventHandler, priority = 0) {
