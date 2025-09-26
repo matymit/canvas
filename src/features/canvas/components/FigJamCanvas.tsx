@@ -366,28 +366,16 @@ const FigJamCanvas: React.FC = () => {
     // Apply viewport state directly - store is the single source of truth
     stage.scale({ x: viewport.scale, y: viewport.scale });
 
-    // CORRECT KONVA PANNING: Apply pan to layers, not stage position
-    // This moves the viewport properly without breaking event handling
-    const { background, main, highlighter, preview, overlay } =
-      layersRef.current;
-    if (background) background.position({ x: viewport.x, y: viewport.y });
-    if (main) main.position({ x: viewport.x, y: viewport.y });
-    if (highlighter) highlighter.position({ x: viewport.x, y: viewport.y });
-    if (preview) preview.position({ x: viewport.x, y: viewport.y });
-    if (overlay) overlay.position({ x: viewport.x, y: viewport.y });
+    // FIXED: Apply viewport changes to stage position for unified panning
+    // This moves the entire viewport (including background/grid) together
+    stage.position({ x: viewport.x, y: viewport.y });
 
     // Force a batch draw to ensure changes are rendered
     stage.batchDraw();
 
     console.log("FigJamCanvas: Viewport sync completed", {
       stageScale: stage.scale(),
-      layerPositions: {
-        background: background?.position(),
-        main: main?.position(),
-        highlighter: highlighter?.position(),
-        preview: preview?.position(),
-        overlay: overlay?.position(),
-      },
+      stagePosition: stage.position(),
     });
 
     // Grid updates automatically via GridRenderer zoom listeners

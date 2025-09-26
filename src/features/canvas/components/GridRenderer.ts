@@ -129,8 +129,34 @@ export class GridRenderer {
       this.recacheLayerSoon();
     };
 
+    const updateGridPosition = () => {
+      // Update grid rect position to follow stage position changes (pan operations)
+      if (this.rect) {
+        const stagePos = this.stage.position();
+        const newGridPos = {
+          x: -stagePos.x - (this.options.hugeRectSize ?? DEFAULTS.hugeRectSize) / 2,
+          y: -stagePos.y - (this.options.hugeRectSize ?? DEFAULTS.hugeRectSize) / 2
+        };
+
+        // DIAGNOSTIC: Verify grid position updates
+        console.log("GridRenderer: Updating grid position", {
+          stagePosition: stagePos,
+          newGridPosition: newGridPos,
+          previousGridPosition: this.rect.position()
+        });
+
+        // Grid pattern needs to move opposite to stage position to maintain visual alignment
+        this.rect.position(newGridPos);
+        this.layer.batchDraw();
+      }
+    };
+
     // Attribute change events for Konva nodes fire on changes to scale/position.
     this.stage.on('scaleXChange scaleYChange', reTileAndCache);
+
+    // CRITICAL FIX: Listen to position changes to make background grid move with pan operations
+    this.stage.on('xChange yChange', updateGridPosition);
+
     // Optional: respond to DPR changes if caller updates dpr externally via options setter
     // Caller can call updateOptions({ dpr: next }) to re-tile explicitly.
   }
@@ -182,6 +208,9 @@ export class GridRenderer {
     if (this.zoomListenerBound) {
       this.stage.off('scaleXChange');
       this.stage.off('scaleYChange');
+      // Clean up position change listeners too
+      this.stage.off('xChange');
+      this.stage.off('yChange');
       this.zoomListenerBound = false;
     }
     try {
