@@ -4,6 +4,9 @@ import type { ModuleRendererCtx, RendererModule } from "../index";
 import { debug, error as logError } from "../../../../utils/debug";
 import { getTextConfig } from "../../constants/TextConstants";
 
+const MIN_STICKY_WIDTH = 60;
+const MIN_STICKY_HEIGHT = 40;
+
 type Id = string;
 
 type StickySnapshot = {
@@ -15,6 +18,52 @@ type StickySnapshot = {
   fill?: string;
   text?: string;
 };
+
+export interface StickyResizeResult {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function computeStickyResizeUpdate(
+  group: Konva.Group,
+  opts: { minWidth?: number; minHeight?: number } = {},
+): StickyResizeResult {
+  const { minWidth = MIN_STICKY_WIDTH, minHeight = MIN_STICKY_HEIGHT } = opts;
+  const scaleX = Math.abs(group.scaleX() ?? 1);
+  const scaleY = Math.abs(group.scaleY() ?? 1);
+
+  const baseWidth = group.width() || 0;
+  const baseHeight = group.height() || 0;
+
+  const widthCandidate =
+    baseWidth > 0
+      ? Math.round(baseWidth * scaleX)
+      : Math.round(
+          Math.abs(
+            group.getClientRect({ skipShadow: true, skipStroke: true }).width,
+          ),
+        );
+  const heightCandidate =
+    baseHeight > 0
+      ? Math.round(baseHeight * scaleY)
+      : Math.round(
+          Math.abs(
+            group.getClientRect({ skipShadow: true, skipStroke: true }).height,
+          ),
+        );
+
+  const width = Math.max(minWidth, widthCandidate);
+  const height = Math.max(minHeight, heightCandidate);
+
+  return {
+    x: Math.round(group.x()),
+    y: Math.round(group.y()),
+    width,
+    height,
+  };
+}
 
 // Define interfaces for window extensions and store types
 interface SelectionModule {
@@ -423,7 +472,7 @@ export class StickyNoteModule implements RendererModule {
       dragStartData = null;
     });
 
-    // FIXED: Add transform event handlers for resize operations with aspect ratio
+    // FIXED: Add transform event handlers for resize operations with proper scale reset
     group.on("transformstart", () => {
       const store = this.storeCtx?.store.getState();
       const element = store?.elements?.get?.(elementId);
@@ -463,6 +512,7 @@ export class StickyNoteModule implements RendererModule {
       if (!this.storeCtx || !transformStartData) return;
 
       const store = this.storeCtx.store.getState();
+      // CRITICAL FIX: Calculate dimensions correctly using the group's actual size and scale
       const newWidth = Math.max(
         50,
         Math.round(
@@ -490,14 +540,18 @@ export class StickyNoteModule implements RendererModule {
 
         if (updateElement) {
           const updateFn = () => {
+            // CRITICAL FIX: Only update width and height, preserve position to prevent jumping
             updateElement(elementId, {
               width: newWidth,
               height: newHeight,
             });
 
-            // Reset scale to 1 to maintain consistent hit testing
+            // CRITICAL FIX: Reset scale to 1 to maintain consistent hit testing and prevent accumulation
             group.scaleX(1);
             group.scaleY(1);
+            // Also reset the group dimensions to match the new size
+            group.width(newWidth);
+            group.height(newHeight);
           };
 
           if (withUndo) {

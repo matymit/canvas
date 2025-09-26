@@ -34,7 +34,7 @@
 **Strengths**:
 - Clean, focused canvas implementation (511 lines)
 - Direct Konva.Stage creation (line 67)
-- Proper five-layer architecture (background, highlighter, main, preview, overlay)
+- Proper four-layer architecture (background, main, preview, overlay)
 - Correct setupRenderer() integration (line 140)
 - Proper tool management and lifecycle
 - Modern React patterns with proper cleanup
@@ -83,7 +83,7 @@ App Router
 CURRENT UNUSED BUT CORRECT STRUCTURE:
 FigJamCanvas.tsx ✅
 ├── Direct Konva.Stage creation ✅
-├── Five-layer architecture ✅
+├── Four-layer architecture ✅
 ├── setupRenderer() integration ✅
 └── Proper tool management ✅
 ```
@@ -94,7 +94,7 @@ App Router
 └── Canvas.tsx (Simple Page) ✅
     └── FigJamCanvas.tsx (Single Implementation) ✅
         ├── Direct Konva.Stage creation
-        ├── Five-layer architecture
+        ├── Four-layer architecture
         ├── setupRenderer() integration
         └── All tool management
 ```
@@ -130,13 +130,13 @@ grep -r "new Konva.Stage" src/
 
 ### 2. Competing Konva.Stage Instances
 - **NonReactCanvasStage.tsx line 58**: Creates stage with 4 layers
-- **FigJamCanvas.tsx line 67**: Creates stage with 5 layers
+- **FigJamCanvas.tsx line 67**: Creates stage with 4 layers
 
 **Impact**: Tools and store may bind to wrong stage, elements appear in wrong place or not at all.
 
 ### 3. Layer Architecture Mismatch
 - **NonReactCanvasStage**: background, main, preview, overlay (4 layers)
-- **FigJamCanvas**: background, highlighter, main, preview, overlay (5 layers)
+- **FigJamCanvas**: background, main, preview, overlay (4 layers)
 
 **Impact**: Highlighter tools fail, z-index conflicts, rendering issues.
 

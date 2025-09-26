@@ -11,7 +11,7 @@ This comprehensive checklist ensures your Canvas application is production-ready
 - [ ] **Memory Peak**: ≤ 500MB under stress testing
 
 ### Canvas Performance
-- [ ] **Layer Count**: 3-5 layers maximum (background, main, preview, overlay)
+- [ ] **Layer Count**: 4 layers maximum (background, main, preview, overlay)
 - [ ] **Nodes per Layer**: ≤ 1,000 nodes per layer
 - [ ] **Canvas Size**: ≤ 8,192px maximum dimension
 - [ ] **Draw Operations**: ≤ 100 operations per frame

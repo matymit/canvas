@@ -2,6 +2,8 @@
 
 ## 🎯 Executive Summary
 
+> **Architectural Compliance Note:** While this project is designed to follow the principles in this document (vanilla Konva, four-layer pipeline, store-driven rendering), the current implementation has significant architectural violations as documented in the `technical-audit-report.md`. These include direct canvas manipulation bypassing the state store and viewport race conditions. Active work is underway to refactor the code and bring it into full compliance.
+
 A FigJam-style collaborative canvas application built with **React 19**, **TypeScript**, **vanilla Konva.js** (not react-konva), **Zustand**, and **Tauri 2.x** for secure desktop runtime. The system is designed with a strict four-layer Konva pipeline, RAF-batched updates, and performance-oriented architecture.
 
 ### Current Status vs Goals

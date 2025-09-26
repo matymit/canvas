@@ -4,6 +4,8 @@ A modern, high-performance canvas application built with React, TypeScript, Konv
 
 ## 🎯 Project Overview
 
+> **Architectural Compliance Note:** While this project is designed to follow the principles in the master blueprint (vanilla Konva, four-layer pipeline, store-driven rendering), the current implementation has significant architectural violations as documented in the `technical-audit-report.md`. These include direct canvas manipulation bypassing the state store and viewport race conditions. Active work is underway to refactor the code and bring it into full compliance.
+
 Canvas provides a FigJam-inspired drawing experience with a focus on performance, modularity, and desktop-first design. Built on a strict four-layer rendering architecture, the application delivers smooth 60fps interactions while maintaining clean, maintainable code.
 
 ### ✨ Key Features

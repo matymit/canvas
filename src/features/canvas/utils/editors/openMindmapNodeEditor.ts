@@ -195,23 +195,37 @@ export function openMindmapNodeEditor(
   editor.addEventListener("input", handleInput);
 
   // Focus the editor and position cursor at the end without selecting text
+  // CRITICAL FIX: Use multiple strategies to ensure reliable focus and caret positioning
   editor.focus();
 
-  // Move cursor to the end of the text
-  const range = document.createRange();
-  const selection = window.getSelection();
-  if (editor.childNodes.length > 0) {
-    // If there's text content, position cursor at the end
-    const textNode = editor.childNodes[editor.childNodes.length - 1];
-    range.setStart(textNode, textNode.textContent?.length || 0);
-    range.setEnd(textNode, textNode.textContent?.length || 0);
-  } else {
-    // If empty, just position at the beginning
-    range.selectNodeContents(editor);
-    range.collapse(false); // Collapse to end
-  }
-  selection?.removeAllRanges();
-  selection?.addRange(range);
+  // Ensure the editor is visible and properly positioned before caret positioning
+  editor.style.display = "flex";
+  editor.style.visibility = "visible";
+
+  // Move cursor to the end of the text with improved reliability
+  setTimeout(() => {
+    const range = document.createRange();
+    const selection = window.getSelection();
+
+    // Clear any existing selections first
+    selection?.removeAllRanges();
+
+    if (editor.textContent && editor.textContent.length > 0) {
+      // If there's text content, position cursor at the end
+      range.selectNodeContents(editor);
+      range.collapse(false); // Collapse to end
+    } else {
+      // If empty, just position at the beginning
+      range.selectNodeContents(editor);
+      range.collapse(true); // Collapse to start
+    }
+
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    // Ensure the editor is focused and caret is visible
+    editor.focus();
+  }, 0);
 
   const cleanup = () => {
     editor.removeEventListener("keydown", handleKeyDown);

@@ -471,6 +471,9 @@ export class TableRenderer {
         x: el.x,
         y: el.y,
       });
+      // CRITICAL FIX: Update width and height during transform to maintain proper sizing
+      g.width(el.width);
+      g.height(el.height);
       // Debug: [TableModule] Skipping child update during transform, scale: ${currentScale}
       return; // Don't rebuild children during transform
     }
