@@ -480,7 +480,7 @@ export class StickyNoteModule implements RendererModule {
       const deltaWidth = Math.abs(newWidth - transformStartData.storeWidth);
       const deltaHeight = Math.abs(newHeight - transformStartData.storeHeight);
 
-      if (deltaWidth > 1 || deltaHeight > 1) {
+      if (deltaWidth > 0 || deltaHeight > 0) {
         const storeWithHistory = store as StoreWithHistory;
         const withUndo =
           storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||

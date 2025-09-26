@@ -17,7 +17,7 @@ interface Port {
   id: string;
   elementId: string;
   position: { x: number; y: number };
-  anchor: 'top' | 'right' | 'bottom' | 'left' | 'center';
+  anchor: "top" | "right" | "bottom" | "left" | "center";
 }
 
 export class PortHoverModule implements RendererModule {
@@ -27,26 +27,26 @@ export class PortHoverModule implements RendererModule {
   private hoverTimeout?: number;
   private ports: Map<string, Konva.Circle[]> = new Map();
   private storeUnsubscribe?: () => void;
-  
+
   // Port configuration
   private readonly PORT_RADIUS = 6;
-  private readonly PORT_FILL = '#4F46E5';
-  private readonly PORT_STROKE = '#FFFFFF';
+  private readonly PORT_FILL = "#4F46E5";
+  private readonly PORT_STROKE = "#FFFFFF";
   private readonly PORT_STROKE_WIDTH = 2;
   private readonly HOVER_DELAY = 100; // ms delay before showing ports
   private readonly HIDE_DELAY = 300; // ms delay before hiding ports
   // CRITICAL FIX: Enhanced hit radius for better circle precision
   private readonly PORT_HIT_RADIUS_CIRCLE = 18; // Larger radius for trigonometric precision on circles
-  private readonly PORT_HIT_RADIUS_RECT = 12;   // Standard radius for rectangles
+  private readonly PORT_HIT_RADIUS_RECT = 12; // Standard radius for rectangles
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
 
     // Create port group on overlay layer
     this.portGroup = new Konva.Group({
-      name: 'port-hover-group',
+      name: "port-hover-group",
       listening: true, // CRITICAL FIX: Enable port interaction
-      visible: false
+      visible: false,
     });
 
     ctx.layers.overlay.add(this.portGroup);
@@ -57,7 +57,7 @@ export class PortHoverModule implements RendererModule {
     // CRITICAL FIX: Subscribe to element updates to refresh port positions
     this.setupStoreSubscriptions();
 
-    console.debug('[PortHoverModule] Mounted successfully');
+    console.debug("[PortHoverModule] Mounted successfully");
 
     return () => this.unmount();
   }
@@ -73,9 +73,9 @@ export class PortHoverModule implements RendererModule {
 
     // Remove event listeners
     if (this.storeCtx) {
-      this.storeCtx.layers.main.off('mouseover.port-hover');
-      this.storeCtx.layers.main.off('mouseout.port-hover');
-      this.storeCtx.stage.off('mousemove.port-hover');
+      this.storeCtx.layers.main.off("mouseover.port-hover");
+      this.storeCtx.layers.main.off("mouseout.port-hover");
+      this.storeCtx.stage.off("mousemove.port-hover");
     }
 
     // Unsubscribe from store updates
@@ -84,7 +84,7 @@ export class PortHoverModule implements RendererModule {
       this.storeUnsubscribe = undefined;
     }
 
-    console.debug('[PortHoverModule] Unmounted successfully');
+    console.debug("[PortHoverModule] Unmounted successfully");
   }
 
   private setupHoverDetection() {
@@ -94,7 +94,7 @@ export class PortHoverModule implements RendererModule {
     const stage = this.storeCtx.stage;
 
     // Handle element hover
-    mainLayer.on('mouseover.port-hover', (e) => {
+    mainLayer.on("mouseover.port-hover", (e) => {
       const target = e.target;
       if (!target) return;
 
@@ -108,7 +108,7 @@ export class PortHoverModule implements RendererModule {
     });
 
     // Handle element mouse out
-    mainLayer.on('mouseout.port-hover', (e) => {
+    mainLayer.on("mouseout.port-hover", (e) => {
       const target = e.target;
       if (!target) return;
 
@@ -119,7 +119,7 @@ export class PortHoverModule implements RendererModule {
     });
 
     // Handle stage mouse move for proximity detection
-    stage.on('mousemove.port-hover', () => {
+    stage.on("mousemove.port-hover", () => {
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
 
@@ -127,10 +127,10 @@ export class PortHoverModule implements RendererModule {
       const hit = stage.getIntersection(pointer) as Konva.Node | null;
       if (hit) {
         const isConnector =
-          hit.name?.() === 'connector' ||
-          hit.getAttr?.('elementType') === 'connector' ||
-          hit.getAttr?.('nodeType') === 'connector' ||
-          hit.getParent?.()?.name?.() === 'connector';
+          hit.name?.() === "connector" ||
+          hit.getAttr?.("elementType") === "connector" ||
+          hit.getAttr?.("nodeType") === "connector" ||
+          hit.getParent?.()?.name?.() === "connector";
         if (isConnector) {
           this.hideAllPorts();
           return;
@@ -157,7 +157,10 @@ export class PortHoverModule implements RendererModule {
     }
 
     // Hide current ports if showing different element
-    if (this.currentHoveredElement && this.currentHoveredElement !== elementId) {
+    if (
+      this.currentHoveredElement &&
+      this.currentHoveredElement !== elementId
+    ) {
       this.hidePortsForElement(this.currentHoveredElement);
     }
 
@@ -201,7 +204,7 @@ export class PortHoverModule implements RendererModule {
     for (const port of ports) {
       const portPos = port.getAbsolutePosition();
       const distance = Math.sqrt(
-        Math.pow(pointer.x - portPos.x, 2) + Math.pow(pointer.y - portPos.y, 2)
+        Math.pow(pointer.x - portPos.x, 2) + Math.pow(pointer.y - portPos.y, 2),
       );
 
       if (distance <= PROXIMITY_THRESHOLD) {
@@ -223,13 +226,12 @@ export class PortHoverModule implements RendererModule {
     const element = this.getElement(elementId);
     if (!element) return;
 
-
     // Calculate port positions
     const ports = this.calculatePortPositions(element);
-    
+
     // Create port visual elements
     const portNodes: Konva.Circle[] = [];
-    
+
     for (const port of ports) {
       // Create visual port dot
       const portNode = new Konva.Circle({
@@ -243,20 +245,22 @@ export class PortHoverModule implements RendererModule {
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,
         name: `port-${port.anchor}`,
-        opacity: 0 // Start invisible for animation
+        opacity: 0, // Start invisible for animation
       });
 
       // CRITICAL FIX: Use appropriate hit radius based on element type for better precision
       const element = this.getElement(port.elementId);
       const isCircular = element ? this.isElementCircular(element) : false;
-      const hitRadius = isCircular ? this.PORT_HIT_RADIUS_CIRCLE : this.PORT_HIT_RADIUS_RECT;
+      const hitRadius = isCircular
+        ? this.PORT_HIT_RADIUS_CIRCLE
+        : this.PORT_HIT_RADIUS_RECT;
 
       // Create larger invisible hit area for reliable clicking
       const hitArea = new Konva.Circle({
         x: port.position.x,
         y: port.position.y,
         radius: hitRadius,
-        fill: 'transparent',
+        fill: "transparent",
         listening: true, // CRITICAL FIX: Enable click detection
         perfectDrawEnabled: false,
         name: `port-hit-${port.anchor}`,
@@ -264,11 +268,11 @@ export class PortHoverModule implements RendererModule {
         // Store port data for event handling
         elementId: port.elementId,
         anchor: port.anchor,
-        portData: port
+        portData: port,
       });
 
       // Add click handler to hit area
-      hitArea.on('pointerdown', (e) => {
+      hitArea.on("pointerdown", (e) => {
         e.cancelBubble = true;
         this.handlePortClick(port, e);
       });
@@ -284,7 +288,7 @@ export class PortHoverModule implements RendererModule {
         scaleX: 1,
         scaleY: 1,
         duration: 0.15,
-        easing: Konva.Easings.EaseOut
+        easing: Konva.Easings.EaseOut,
       }).play();
     }
 
@@ -298,9 +302,8 @@ export class PortHoverModule implements RendererModule {
     const ports = this.ports.get(elementId);
     if (!ports) return;
 
-
     // Animate ports disappearance
-    const animations = ports.map(port => {
+    const animations = ports.map((port) => {
       return new Promise<void>((resolve) => {
         new Konva.Tween({
           node: port,
@@ -312,19 +315,19 @@ export class PortHoverModule implements RendererModule {
           onFinish: () => {
             port.destroy();
             resolve();
-          }
+          },
         }).play();
       });
     });
 
     Promise.all(animations).then(() => {
       this.ports.delete(elementId);
-      
+
       // Hide port group if no ports are visible
       if (this.ports.size === 0 && this.portGroup) {
         this.portGroup.visible(false);
       }
-      
+
       if (this.storeCtx) {
         this.storeCtx.layers.overlay.batchDraw();
       }
@@ -365,39 +368,43 @@ export class PortHoverModule implements RendererModule {
       // For circles/ellipses, use center + radius with trigonometric positioning
       const centerX = x + width / 2;
       const centerY = y + height / 2;
-      const radiusX = width / 2;  // For ellipses, this is the horizontal radius
+      const radiusX = width / 2; // For ellipses, this is the horizontal radius
       const radiusY = height / 2; // For ellipses, this is the vertical radius
 
       // Calculate port positions on the circle/ellipse perimeter using trigonometry
       // Use standard angles: 0° (right), 90° (bottom), 180° (left), 270° (top)
-      const portPositions: Array<{ anchor: 'top' | 'right' | 'bottom' | 'left' | 'center'; x: number; y: number }> = [
+      const portPositions: Array<{
+        anchor: "top" | "right" | "bottom" | "left" | "center";
+        x: number;
+        y: number;
+      }> = [
         {
-          anchor: 'right' as const,
+          anchor: "right" as const,
           x: centerX + radiusX * Math.cos(0), // 0 radians = rightmost point
-          y: centerY + radiusY * Math.sin(0)
+          y: centerY + radiusY * Math.sin(0),
         },
         {
-          anchor: 'bottom' as const,
+          anchor: "bottom" as const,
           x: centerX + radiusX * Math.cos(Math.PI / 2), // π/2 radians = bottommost point
-          y: centerY + radiusY * Math.sin(Math.PI / 2)
+          y: centerY + radiusY * Math.sin(Math.PI / 2),
         },
         {
-          anchor: 'left' as const,
+          anchor: "left" as const,
           x: centerX + radiusX * Math.cos(Math.PI), // π radians = leftmost point
-          y: centerY + radiusY * Math.sin(Math.PI)
+          y: centerY + radiusY * Math.sin(Math.PI),
         },
         {
-          anchor: 'top' as const,
-          x: centerX + radiusX * Math.cos(3 * Math.PI / 2), // 3π/2 radians = topmost point
-          y: centerY + radiusY * Math.sin(3 * Math.PI / 2)
-        }
+          anchor: "top" as const,
+          x: centerX + radiusX * Math.cos((3 * Math.PI) / 2), // 3π/2 radians = topmost point
+          y: centerY + radiusY * Math.sin((3 * Math.PI) / 2),
+        },
       ];
 
       // Always add center port for circular elements
       portPositions.push({
-        anchor: 'center' as const,
+        anchor: "center" as const,
         x: centerX,
-        y: centerY
+        y: centerY,
       });
 
       for (const pos of portPositions) {
@@ -405,7 +412,7 @@ export class PortHoverModule implements RendererModule {
           id: `${element.id}-port-${pos.anchor}`,
           elementId: element.id,
           position: { x: pos.x, y: pos.y },
-          anchor: pos.anchor
+          anchor: pos.anchor,
         });
       }
     } else {
@@ -414,19 +421,23 @@ export class PortHoverModule implements RendererModule {
       const centerY = y + height / 2;
 
       // Define port positions using same logic as AnchorSnapping for consistency
-      const portPositions: Array<{ anchor: 'top' | 'right' | 'bottom' | 'left' | 'center'; x: number; y: number }> = [
-        { anchor: 'left' as const, x: x, y: centerY },
-        { anchor: 'right' as const, x: x + width, y: centerY },
-        { anchor: 'top' as const, x: centerX, y: y },
-        { anchor: 'bottom' as const, x: centerX, y: y + height }
+      const portPositions: Array<{
+        anchor: "top" | "right" | "bottom" | "left" | "center";
+        x: number;
+        y: number;
+      }> = [
+        { anchor: "left" as const, x: x, y: centerY },
+        { anchor: "right" as const, x: x + width, y: centerY },
+        { anchor: "top" as const, x: centerX, y: y },
+        { anchor: "bottom" as const, x: centerX, y: y + height },
       ];
 
       // Add center port for some element types
       if (this.shouldShowCenterPort(element.type)) {
         portPositions.push({
-          anchor: 'center' as const,
+          anchor: "center" as const,
           x: centerX,
-          y: centerY
+          y: centerY,
         });
       }
 
@@ -435,7 +446,7 @@ export class PortHoverModule implements RendererModule {
           id: `${element.id}-port-${pos.anchor}`,
           elementId: element.id,
           position: { x: pos.x, y: pos.y },
-          anchor: pos.anchor
+          anchor: pos.anchor,
         });
       }
     }
@@ -445,7 +456,7 @@ export class PortHoverModule implements RendererModule {
 
   private shouldShowCenterPort(elementType: string): boolean {
     // Show center port for circular elements
-    return elementType === 'circle' || elementType === 'ellipse';
+    return elementType === "circle" || elementType === "ellipse";
   }
 
   /**
@@ -456,7 +467,7 @@ export class PortHoverModule implements RendererModule {
     if (!element || !element.type) return false;
 
     // First check element.type for backward compatibility
-    if (element.type === 'circle' || element.type === 'ellipse') {
+    if (element.type === "circle" || element.type === "ellipse") {
       return true;
     }
 
@@ -464,23 +475,28 @@ export class PortHoverModule implements RendererModule {
     // This matches the detection logic used in AnchorSnapping.ts and ConnectorRenderer.ts
     if (this.storeCtx) {
       const nodes = this.storeCtx.layers.main.find((node: Konva.Node) => {
-        const nodeElementId = node.getAttr('elementId') || node.id();
+        const nodeElementId = node.getAttr("elementId") || node.id();
         return nodeElementId === element.id;
       });
 
       if (nodes.length > 0) {
         const node = nodes[0];
-        const elementType = node.getAttr('elementType') || node.name() || '';
-        const isCircularByType = elementType.includes('circle') || elementType.includes('ellipse');
-        const isCircularByShape = node.getAttr('shapeType') === 'circle' || node.getAttr('shapeType') === 'ellipse';
+        const elementType = node.getAttr("elementType") || node.name() || "";
+        const isCircularByType =
+          elementType.includes("circle") || elementType.includes("ellipse");
+        const isCircularByShape =
+          node.getAttr("shapeType") === "circle" ||
+          node.getAttr("shapeType") === "ellipse";
 
         return isCircularByType || isCircularByShape;
       }
     }
 
     // Fallback: check if element type contains circle/ellipse keywords
-    const elementTypeStr = element.type?.toLowerCase() || '';
-    return elementTypeStr.includes('circle') || elementTypeStr.includes('ellipse');
+    const elementTypeStr = element.type?.toLowerCase() || "";
+    return (
+      elementTypeStr.includes("circle") || elementTypeStr.includes("ellipse")
+    );
   }
 
   private isConnectable(element: any): boolean {
@@ -488,15 +504,15 @@ export class PortHoverModule implements RendererModule {
 
     // Define which element types can have connectors
     const connectableTypes = [
-      'sticky-note',
-      'rectangle',
-      'circle',
-      'triangle',
-      'shape',
-      'text',
-      'image',
-      'table',
-      'mindmap'
+      "sticky-note",
+      "rectangle",
+      "circle",
+      "triangle",
+      "shape",
+      "text",
+      "image",
+      "table",
+      "mindmap",
     ];
 
     return connectableTypes.includes(element.type);
@@ -504,13 +520,13 @@ export class PortHoverModule implements RendererModule {
 
   private getElementIdFromNode(node: Konva.Node): string | null {
     // Try different methods to get element ID
-    const elementId = node.getAttr('elementId') || node.id();
+    const elementId = node.getAttr("elementId") || node.id();
     if (elementId) return elementId;
 
     // Check parent nodes
     let parent = node.getParent();
     while (parent && parent !== this.storeCtx?.layers.main) {
-      const parentElementId = parent.getAttr('elementId') || parent.id();
+      const parentElementId = parent.getAttr("elementId") || parent.id();
       if (parentElementId) return parentElementId;
       parent = parent.getParent();
     }
@@ -522,13 +538,14 @@ export class PortHoverModule implements RendererModule {
     if (!this.storeCtx) return null;
 
     const state = this.storeCtx.store.getState();
-    const element = state.elements?.get?.(elementId) || state.element?.getById?.(elementId);
+    const element =
+      state.elements?.get?.(elementId) || state.element?.getById?.(elementId);
 
     if (!element) return null;
 
     // Find the corresponding Konva node to get current position and size
     const nodes = this.storeCtx.layers.main.find((node: Konva.Node) => {
-      const nodeElementId = node.getAttr('elementId') || node.id();
+      const nodeElementId = node.getAttr("elementId") || node.id();
       return nodeElementId === elementId;
     });
 
@@ -541,7 +558,7 @@ export class PortHoverModule implements RendererModule {
       skipTransform: false,
       skipStroke: true,
       skipShadow: true,
-      relativeTo: this.storeCtx.stage // Ensure stage coordinates for consistency
+      relativeTo: this.storeCtx.stage, // Ensure stage coordinates for consistency
     });
 
     return {
@@ -550,7 +567,7 @@ export class PortHoverModule implements RendererModule {
       x: rect.x,
       y: rect.y,
       width: rect.width,
-      height: rect.height
+      height: rect.height,
     };
   }
 
@@ -587,14 +604,15 @@ export class PortHoverModule implements RendererModule {
    * Handle port click events - integrate with ConnectorTool
    */
   private handlePortClick(port: Port, e: Konva.KonvaEventObject<PointerEvent>) {
-
     // Get ConnectorTool instance from global registry or window
     const connectorTool = this.getActiveConnectorTool();
     if (connectorTool) {
       // Delegate port click to ConnectorTool
       connectorTool.handlePortClick(port, e);
     } else {
-      console.warn('[PortHoverModule] No active ConnectorTool found for port click');
+      console.warn(
+        "[PortHoverModule] No active ConnectorTool found for port click",
+      );
     }
   }
 
@@ -685,24 +703,27 @@ export class PortHoverModule implements RendererModule {
     if (!this.storeCtx) return false;
 
     const store = this.storeCtx.store.getState();
-    const currentTool = store.selectedTool || store.ui?.selectedTool || 'select';
+    const currentTool =
+      store.selectedTool || store.ui?.selectedTool || "select";
 
     // Define connector tools that should show ports
     const connectorTools = [
-      'connector',
-      'connector-line',
-      'connector-arrow',
-      'mindmap' // Mindmap tool also creates connectors
+      "connector",
+      "connector-line",
+      "connector-arrow",
+      // 'mindmap' removed - mindmap tool should not show ports
     ];
 
     // Never show ports when hovering connector elements themselves
-    const hit = this.storeCtx.stage.getIntersection(this.storeCtx.stage.getPointerPosition() || { x: -99999, y: -99999 }) as Konva.Node | null;
+    const hit = this.storeCtx.stage.getIntersection(
+      this.storeCtx.stage.getPointerPosition() || { x: -99999, y: -99999 },
+    ) as Konva.Node | null;
     if (hit) {
       const isConnector =
-        hit.name?.() === 'connector' ||
-        hit.getAttr?.('elementType') === 'connector' ||
-        hit.getAttr?.('nodeType') === 'connector' ||
-        hit.getParent?.()?.name?.() === 'connector';
+        hit.name?.() === "connector" ||
+        hit.getAttr?.("elementType") === "connector" ||
+        hit.getAttr?.("nodeType") === "connector" ||
+        hit.getParent?.()?.name?.() === "connector";
       if (isConnector) return false;
     }
 
@@ -725,22 +746,23 @@ export class PortHoverModule implements RendererModule {
     }
 
     // Check for shape text editors
-    if (document.querySelector('[data-shape-text-editor]')) {
+    if (document.querySelector("[data-shape-text-editor]")) {
       return true;
     }
 
     // Check for table text editors
-    if (document.querySelector('[data-table-text-editor]')) {
+    if (document.querySelector("[data-table-text-editor]")) {
       return true;
     }
 
     // Check for any focused input/textarea elements that might be editors
     const activeElement = document.activeElement;
-    if (activeElement && (
-      activeElement.tagName === 'INPUT' ||
-      activeElement.tagName === 'TEXTAREA' ||
-      activeElement.getAttribute('contenteditable') === 'true'
-    )) {
+    if (
+      activeElement &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.getAttribute("contenteditable") === "true")
+    ) {
       return true;
     }
 

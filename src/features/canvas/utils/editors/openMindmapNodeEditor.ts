@@ -1,7 +1,10 @@
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import type { MindmapNodeElement } from "@/features/canvas/types/mindmap";
-import { MINDMAP_CONFIG, measureMindmapLabelWithWrap } from "@/features/canvas/types/mindmap";
+import {
+  MINDMAP_CONFIG,
+  measureMindmapLabelWithWrap,
+} from "@/features/canvas/types/mindmap";
 
 type Nullable<T> = T | null | undefined;
 
@@ -13,7 +16,7 @@ function toScreenPoint(stage: Konva.Stage, x: number, y: number) {
 export function openMindmapNodeEditor(
   stage: Konva.Stage,
   nodeId: string,
-  nodeModel: MindmapNodeElement
+  nodeModel: MindmapNodeElement,
 ) {
   const container = stage.container();
   const rect = container.getBoundingClientRect();
@@ -25,7 +28,9 @@ export function openMindmapNodeEditor(
   const nodeOrigin = toScreenPoint(stage, nodeModel.x, nodeModel.y);
 
   // Maximum width for text wrapping (leaving some padding)
-  const maxTextWidth = Math.max(MINDMAP_CONFIG.defaultNodeWidth, nodeModel.width) - nodeModel.style.paddingX * 2;
+  const maxTextWidth =
+    Math.max(MINDMAP_CONFIG.defaultNodeWidth, nodeModel.width) -
+    nodeModel.style.paddingX * 2;
 
   // Track current dimensions
   let currentWidth = nodeModel.width;
@@ -66,9 +71,10 @@ export function openMindmapNodeEditor(
     borderRadius: `${nodeModel.style.cornerRadius * Math.min(scaleX, scaleY)}px`,
     background: nodeModel.style.fill,
     // Add the node's border to maintain visual consistency
-    border: nodeModel.style.strokeWidth > 0
-      ? `${nodeModel.style.strokeWidth}px solid ${nodeModel.style.stroke}`
-      : "none",
+    border:
+      nodeModel.style.strokeWidth > 0
+        ? `${nodeModel.style.strokeWidth}px solid ${nodeModel.style.stroke}`
+        : "none",
     // Match text properties
     color: nodeModel.style.textColor,
     fontFamily: nodeModel.style.fontFamily,
@@ -99,10 +105,10 @@ export function openMindmapNodeEditor(
 
   document.body.appendChild(editor);
 
-  // Add a subtle glow on focus to indicate editing mode
-  editor.addEventListener("focus", () => {
-    editor.style.boxShadow = `0 0 0 2px ${nodeModel.style.stroke || "rgba(59, 130, 246, 0.25)"}`;
-  });
+  // Removed focus glow - blue border was unwanted
+  // editor.addEventListener("focus", () => {
+  //   editor.style.boxShadow = `0 0 0 2px ${nodeModel.style.stroke || "rgba(59, 130, 246, 0.25)"}`;
+  // });
 
   // Real-time resize handler
   const handleInput = () => {
@@ -113,17 +119,17 @@ export function openMindmapNodeEditor(
       text,
       nodeModel.style,
       maxTextWidth,
-      MINDMAP_CONFIG.lineHeight
+      MINDMAP_CONFIG.lineHeight,
     );
 
     // Calculate new dimensions
     const newWidth = Math.max(
       metrics.width + nodeModel.style.paddingX * 2,
-      MINDMAP_CONFIG.minNodeWidth
+      MINDMAP_CONFIG.minNodeWidth,
     );
     const newHeight = Math.max(
       metrics.height + nodeModel.style.paddingY * 2,
-      MINDMAP_CONFIG.minNodeHeight
+      MINDMAP_CONFIG.minNodeHeight,
     );
 
     // Update editor dimensions if changed
@@ -132,8 +138,13 @@ export function openMindmapNodeEditor(
 
       // Also update the node in the store (without history)
       const store = useUnifiedCanvasStore.getState();
-      const update: Nullable<(id: string, patch: Partial<MindmapNodeElement>, opts?: { pushHistory?: boolean }) => void> =
-        store.updateElement ?? store.element?.update;
+      const update: Nullable<
+        (
+          id: string,
+          patch: Partial<MindmapNodeElement>,
+          opts?: { pushHistory?: boolean },
+        ) => void
+      > = store.updateElement ?? store.element?.update;
 
       if (update) {
         update(
@@ -144,7 +155,7 @@ export function openMindmapNodeEditor(
             textWidth: metrics.width,
             textHeight: metrics.height,
           },
-          { pushHistory: false }
+          { pushHistory: false },
         );
 
         // Force immediate transformer refresh by directly accessing the selection module
@@ -156,12 +167,21 @@ export function openMindmapNodeEditor(
           }
 
           // Directly refresh the transformer for immediate sync
-          const selectionModule = (window as unknown as { selectionModule?: { forceRefresh?: () => void } }).selectionModule;
-          if (selectionModule && typeof selectionModule.forceRefresh === "function") {
+          const selectionModule = (
+            window as unknown as {
+              selectionModule?: { forceRefresh?: () => void };
+            }
+          ).selectionModule;
+          if (
+            selectionModule &&
+            typeof selectionModule.forceRefresh === "function"
+          ) {
             selectionModule.forceRefresh();
           } else {
             // Fallback to bumping selection version if direct refresh not available
-            const bumpVersion = (store as unknown as { bumpSelectionVersion?: () => void }).bumpSelectionVersion;
+            const bumpVersion = (
+              store as unknown as { bumpSelectionVersion?: () => void }
+            ).bumpSelectionVersion;
             if (typeof bumpVersion === "function") {
               bumpVersion();
             }
@@ -208,8 +228,13 @@ export function openMindmapNodeEditor(
     if (cancel) return;
 
     const store = useUnifiedCanvasStore.getState();
-    const update: Nullable<(id: string, patch: Partial<MindmapNodeElement>, opts?: { pushHistory?: boolean }) => void> =
-      store.updateElement ?? store.element?.update;
+    const update: Nullable<
+      (
+        id: string,
+        patch: Partial<MindmapNodeElement>,
+        opts?: { pushHistory?: boolean },
+      ) => void
+    > = store.updateElement ?? store.element?.update;
 
     if (update) {
       const nextText = value || nodeModel.text;
@@ -219,16 +244,16 @@ export function openMindmapNodeEditor(
         nextText,
         nodeModel.style,
         maxTextWidth,
-        MINDMAP_CONFIG.lineHeight
+        MINDMAP_CONFIG.lineHeight,
       );
 
       const width = Math.max(
         metrics.width + nodeModel.style.paddingX * 2,
-        MINDMAP_CONFIG.minNodeWidth
+        MINDMAP_CONFIG.minNodeWidth,
       );
       const height = Math.max(
         metrics.height + nodeModel.style.paddingY * 2,
-        MINDMAP_CONFIG.minNodeHeight
+        MINDMAP_CONFIG.minNodeHeight,
       );
 
       update(
@@ -240,11 +265,13 @@ export function openMindmapNodeEditor(
           textWidth: metrics.width,
           textHeight: metrics.height,
         },
-        { pushHistory: true }
+        { pushHistory: true },
       );
 
       // Bump selection version to refresh transformer bounds after commit
-      const bumpVersion = (store as unknown as { bumpSelectionVersion?: () => void }).bumpSelectionVersion;
+      const bumpVersion = (
+        store as unknown as { bumpSelectionVersion?: () => void }
+      ).bumpSelectionVersion;
       if (typeof bumpVersion === "function") {
         bumpVersion();
       }

@@ -1,6 +1,6 @@
 // Adapter for ConnectorRenderer to implement RendererModule interface
 import Konva from "konva";
-import type { ModuleRendererCtx, RendererModule } from "../index";
+import type { ModuleRendererCtx, RendererModule } from "../types";
 import { ConnectorRenderer, type RendererLayers } from "./ConnectorRenderer";
 import type { ConnectorElement } from "../../types/connector";
 import type { CanvasElement } from "../../../../../types";
@@ -81,7 +81,8 @@ export class ConnectorRendererAdapter implements RendererModule {
     }
     if (this.renderer) {
       // Manually clear connectors since ConnectorRenderer doesn't have a clear method
-      const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
+      const layer = (this.renderer as unknown as { layers: RendererLayers })
+        .layers.main;
       if (layer) {
         layer.find(".connector").forEach((node: Konva.Node) => node.destroy());
         layer.batchDraw();
@@ -104,13 +105,13 @@ export class ConnectorRendererAdapter implements RendererModule {
       // Create a temporary group representing the element bounds
       const group = new Konva.Group({
         id,
-        x: (typeof element.x === 'number' ? element.x : 0),
-        y: (typeof element.y === 'number' ? element.y : 0),
-        width: (typeof element.width === 'number' ? element.width : 100),
-        height: (typeof element.height === 'number' ? element.height : 100),
+        x: typeof element.x === "number" ? element.x : 0,
+        y: typeof element.y === "number" ? element.y : 0,
+        width: typeof element.width === "number" ? element.width : 100,
+        height: typeof element.height === "number" ? element.height : 100,
       });
       // Mark as element container for consistent rect calculations downstream
-      group.setAttr('elementId', id);
+      group.setAttr("elementId", id);
       this.elementNodes.set(id, group);
     }
 
@@ -127,7 +128,8 @@ export class ConnectorRendererAdapter implements RendererModule {
     }
 
     // Remove deleted connectors (manually since ConnectorRenderer doesn't have removeNotIn)
-    const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
+    const layer = (this.renderer as unknown as { layers: RendererLayers })
+      .layers.main;
     if (layer) {
       layer.find(".connector").forEach((node: Konva.Node) => {
         const nodeId = node.id();

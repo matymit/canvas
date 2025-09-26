@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Resize Test</title>
+  <script src="https://unpkg.com/konva@8.3.13/konva.min.js"></script>
+</head>
+<body>
+  <input type="file" id="image-loader" />
+  <div id="container"></div>
+
+  <script>
+    const stage = new Konva.Stage({
+      container: 'container',
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+
+    const layer = new Konva.Layer();
+    stage.add(layer);
+
+    document.getElementById('image-loader').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = function () {
+          const konvaImage = new Konva.Image({
+            image: img,
+            x: 50,
+            y: 50,
+            width: 200,
+            height: 200 * (img.height / img.width),
+            draggable: true,
+            keepAspectRatio: true,
+            naturalWidth: img.width,
+            naturalHeight: img.height
+          });
+
+          layer.add(konvaImage);
+
+          const transformer = new Konva.Transformer();
+          layer.add(transformer);
+          transformer.nodes([konvaImage]);
+
+          konvaImage.on('transformend', () => {
+            const nodeScaleX = konvaImage.scaleX();
+            const nodeScaleY = konvaImage.scaleY();
+            
+            konvaImage.scaleX(1);
+            konvaImage.scaleY(1);
+
+            const { width, height } = applyImageResizeWithAspect(
+              {
+                width: konvaImage.width(),
+                height: konvaImage.height(),
+                keepAspectRatio: true,
+                naturalWidth: img.width,
+                naturalHeight: img.height
+              },
+              nodeScaleX,
+              nodeScaleY
+            );
+
+            konvaImage.width(width);
+            konvaImage.height(height);
+            layer.batchDraw();
+          });
+
+          layer.draw();
+        };
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function applyImageResizeWithAspect(el, nodeScaleX, nodeScaleY) {
+      if (!el.keepAspectRatio) {
+        const w = Math.max(1, Math.round(el.width * nodeScaleX));
+        const h = Math.max(1, Math.round(el.height * nodeScaleY));
+        return { width: w, height: h };
+      }
+
+      const naturalAspect = el.naturalWidth / el.naturalHeight;
+      const targetW = el.width * nodeScalex;
+      const targetH = el.height * nodeScaleY;
+
+      let finalW;
+      let finalH;
+
+      if (targetW / targetH > naturalAspect) {
+        // Height is the constraining dimension
+        finalW = Math.max(1, Math.round(targetW));
+        finalH = Math.max(1, Math.round(finalW / naturalAspect));
+      } else {
+        // Width is the constraining dimension
+        finalH = Math.max(1, Math.round(targetH));
+        finalW = Math.max(1, Math.round(finalH * naturalAspect));
+      }
+
+      return { width: finalW, height: finalH };
+    }
+  </script>
+</body>
+</html>

@@ -19,7 +19,18 @@ export interface TableTransformerControllerOptions
     "boundBoxFunc" | "onTransform" | "onTransformEnd"
   > {
   element: TableElement;
-  onTableUpdate?: (element: TableElement, resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => void;
+  keepAspectRatio?: boolean;
+  onTableUpdate?: (
+    element: TableElement,
+    resetAttrs?: {
+      scaleX: number;
+      scaleY: number;
+      width: number;
+      height: number;
+      x: number;
+      y: number;
+    },
+  ) => void;
 }
 
 /**
@@ -32,18 +43,28 @@ export interface TableTransformerControllerOptions
  */
 export class TableTransformerController extends TransformerController {
   private element: TableElement;
-  private onTableUpdate?: (element: TableElement, resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => void;
+  private onTableUpdate?: (
+    element: TableElement,
+    resetAttrs?: {
+      scaleX: number;
+      scaleY: number;
+      width: number;
+      height: number;
+      x: number;
+      y: number;
+    },
+  ) => void;
   private isTransforming = false;
 
   constructor(options: TableTransformerControllerOptions) {
-    const { element, onTableUpdate, ...baseOptions } = options;
+    const { element, onTableUpdate, keepAspectRatio, ...baseOptions } = options;
 
     // Create table-specific transformer configuration
     const tableOptions: TransformerControllerOptions = {
       ...baseOptions,
       // Table-specific settings
       rotateEnabled: false, // Tables shouldn't rotate
-      keepRatio: false, // Let user control with Shift key
+      keepRatio: keepAspectRatio || false, // Use provided keepAspectRatio or default to false
 
       // CRITICAL: Enable ALL horizontal and vertical anchors to prevent locking
       enabledAnchors: [
@@ -129,7 +150,6 @@ export class TableTransformerController extends TransformerController {
 
     const node = nodes[0];
 
-
     // Get keyboard state
     const event = window.event as KeyboardEvent | undefined;
     const shiftKey = event?.shiftKey ?? false;
@@ -146,7 +166,6 @@ export class TableTransformerController extends TransformerController {
     // CRITICAL: Apply the reset attributes to the node FIRST
     // This resets scale to 1 and updates width/height
     node.setAttrs(resetAttrs);
-
 
     // Update our internal element reference
     this.element = newElement;
@@ -190,7 +209,6 @@ export class TableTransformerController extends TransformerController {
     // This prevents cumulative scaling issues
     nodes.forEach((node) => {
       if (node.scaleX() !== 1 || node.scaleY() !== 1) {
-
         // Calculate current actual size
         const actualWidth = node.width() * node.scaleX();
         const actualHeight = node.height() * node.scaleY();
@@ -256,7 +274,17 @@ export function createTableTransformerController(
   stage: Konva.Stage,
   layer: Konva.Layer,
   options: {
-    onTableUpdate?: (element: TableElement, resetAttrs?: { scaleX: number; scaleY: number; width: number; height: number; x: number; y: number }) => void;
+    onTableUpdate?: (
+      element: TableElement,
+      resetAttrs?: {
+        scaleX: number;
+        scaleY: number;
+        width: number;
+        height: number;
+        x: number;
+        y: number;
+      },
+    ) => void;
   } = {},
 ): TableTransformerController {
   return new TableTransformerController({
@@ -291,5 +319,4 @@ export function resetNodeScale(node: Konva.Node): void {
     width: newWidth,
     height: newHeight,
   });
-
 }

@@ -264,6 +264,19 @@ export class TableRenderer {
         scaleY: 1,
       });
 
+      // Add transparent hitbox for better interaction
+      const hitbox = new Konva.Rect({
+        x: 0,
+        y: 0,
+        width: el.width,
+        height: el.height,
+        fill: "transparent",
+        listening: true,
+        name: "table-hitbox",
+        perfectDrawEnabled: false,
+      });
+      g.add(hitbox);
+
       // Set required attributes for SelectionModule integration
       g.setAttr("elementId", el.id);
       g.setAttr("elementType", "table");
@@ -524,6 +537,27 @@ export class TableRenderer {
     g.setAttr("elementId", el.id);
     g.setAttr("elementType", "table");
     g.className = "table-group";
+
+    // Add or update transparent hitbox for better interaction
+    let hitbox = g.findOne(".table-hitbox") as Konva.Rect;
+    if (!hitbox) {
+      hitbox = new Konva.Rect({
+        x: 0,
+        y: 0,
+        width: el.width,
+        height: el.height,
+        fill: "transparent",
+        listening: true,
+        name: "table-hitbox",
+        perfectDrawEnabled: false,
+      });
+      g.add(hitbox);
+    } else {
+      hitbox.setAttrs({
+        width: el.width,
+        height: el.height,
+      });
+    }
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
     const shouldCache = rows * cols > 50 || this.opts.cacheAfterCommit;

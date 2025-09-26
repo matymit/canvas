@@ -51,15 +51,28 @@ export class SelectionModule implements RendererModule {
         ctx.stage,
         {
           overlayLayer: ctx.layers.overlay,
-          onEndpointDrag: (connectorId: string, endpoint: 'from' | 'to', newPosition: { x: number; y: number }) => {
+          onEndpointDrag: (
+            connectorId: string,
+            endpoint: "from" | "to",
+            newPosition: { x: number; y: number },
+          ) => {
             // Real-time connector endpoint update during drag
-            this.handleConnectorEndpointDrag(connectorId, endpoint, newPosition);
+            this.handleConnectorEndpointDrag(
+              connectorId,
+              endpoint,
+              newPosition,
+            );
           },
-        }
+        },
       );
-      console.debug('[SelectionModule] ConnectorSelectionManager created successfully');
+      console.debug(
+        "[SelectionModule] ConnectorSelectionManager created successfully",
+      );
     } catch (error) {
-      console.error('[SelectionModule] Failed to create ConnectorSelectionManager:', error);
+      console.error(
+        "[SelectionModule] Failed to create ConnectorSelectionManager:",
+        error,
+      );
     }
 
     // Create transformer manager on overlay layer with dynamic aspect ratio control
@@ -94,9 +107,6 @@ export class SelectionModule implements RendererModule {
         }
       },
       onTransform: (nodes) => {
-        this.updateElementsFromNodes(nodes, false);
-      },
-      onTransform: (nodes) => {
         // Real-time updates during transform for smoother UX (all elements including tables)
         this.updateElementsFromNodes(nodes, false);
 
@@ -114,8 +124,8 @@ export class SelectionModule implements RendererModule {
 
         // Re-apply constraints to update the boundBoxFunc
         if (this.transformerManager) {
-            this.transformerManager.detach();
-            this.transformerManager.attachToNodes(nodes);
+          this.transformerManager.detach();
+          this.transformerManager.attachToNodes(nodes);
         }
       },
     });
@@ -187,83 +197,103 @@ export class SelectionModule implements RendererModule {
 
   private updateSelection(selectedIds: Set<string>) {
     if (!this.transformerManager || !this.storeCtx) {
-      console.warn('[SelectionModule] Missing required managers for selection update');
+      console.warn(
+        "[SelectionModule] Missing required managers for selection update",
+      );
       return;
     }
 
-    console.debug('[SelectionModule] Updating selection:', {
+    console.debug("[SelectionModule] Updating selection:", {
       selectedIds: Array.from(selectedIds),
-      size: selectedIds.size
+      size: selectedIds.size,
     });
 
     // CRITICAL FIX: Always clear both selection systems first to prevent conflicts
     this.transformerManager.setKeepRatio(false);
     this.transformerManager.detach();
-    
+
     if (this.connectorSelectionManager) {
       this.connectorSelectionManager.clearSelection();
     }
 
     if (selectedIds.size === 0) {
-      console.debug('[SelectionModule] No elements selected, clearing all selection');
+      console.debug(
+        "[SelectionModule] No elements selected, clearing all selection",
+      );
       return;
     }
 
     // CRITICAL FIX: Categorize selection with enhanced debugging
-    const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectedIds);
-    
-    console.debug('[SelectionModule] Selection categorized:', {
+    const { connectorIds, nonConnectorIds } =
+      this.categorizeSelection(selectedIds);
+
+    console.debug("[SelectionModule] Selection categorized:", {
       connectorIds,
       nonConnectorIds,
-      hasConnectorManager: !!this.connectorSelectionManager
+      hasConnectorManager: !!this.connectorSelectionManager,
     });
 
     // CRITICAL FIX: Handle connector selection with proper integration
     // If ANY connector is selected, prefer connector mode and never attach a transformer
     if (connectorIds.length >= 1) {
-      console.debug('[SelectionModule] Single connector selected, using ConnectorSelectionManager');
-      
+      console.debug(
+        "[SelectionModule] Single connector selected, using ConnectorSelectionManager",
+      );
+
       if (this.connectorSelectionManager) {
         // Use longer delay to ensure connector is fully rendered
         setTimeout(() => {
           const id = connectorIds[0];
-          console.debug('[SelectionModule] Showing connector selection for:', id);
+          console.debug(
+            "[SelectionModule] Showing connector selection for:",
+            id,
+          );
           this.connectorSelectionManager?.showSelection(id);
         }, 100);
       } else {
-        console.warn('[SelectionModule] ConnectorSelectionManager not available for connector selection');
+        console.warn(
+          "[SelectionModule] ConnectorSelectionManager not available for connector selection",
+        );
       }
       return;
     }
 
     // CRITICAL FIX: Handle mixed or non-connector selection
     if (connectorIds.length > 1) {
-      console.debug('[SelectionModule] Multiple connectors selected, falling back to transformer');
+      console.debug(
+        "[SelectionModule] Multiple connectors selected, falling back to transformer",
+      );
     }
-    
+
     if (nonConnectorIds.length > 0) {
-      console.debug('[SelectionModule] Non-connector elements selected, using TransformerManager');
-      
+      console.debug(
+        "[SelectionModule] Non-connector elements selected, using TransformerManager",
+      );
+
       const selectionSnapshot = new Set(nonConnectorIds);
 
       // Enhanced delay to ensure elements are fully rendered
       setTimeout(() => {
-        console.debug('[SelectionModule] Processing non-connector selection');
-        
+        console.debug("[SelectionModule] Processing non-connector selection");
+
         // Find Konva nodes for selected elements across all layers
         const nodes = this.resolveElementsToNodes(selectionSnapshot)
           // Extra guard: filter out connector nodes if any slipped in
-          .filter((n) => this.getElementTypeForNode?.(n) !== 'connector');
-        
-        console.debug('[SelectionModule] Resolved nodes for selection:', {
+          .filter((n) => this.getElementTypeForNode?.(n) !== "connector");
+
+        console.debug("[SelectionModule] Resolved nodes for selection:", {
           requestedIds: Array.from(selectionSnapshot),
           foundNodes: nodes.length,
-          nodeDetails: nodes.map(n => ({ id: n.id(), name: n.name(), className: n.className }))
+          nodeDetails: nodes.map((n) => ({
+            id: n.id(),
+            name: n.name(),
+            className: n.className,
+          })),
         });
 
         if (nodes.length > 0) {
-          console.debug('[SelectionModule] Attaching transformer to nodes');
-          
+          console.debug("[SelectionModule] Attaching transformer to nodes");
+
           // FIXED: Detach first to prevent any lingering transformers, then attach
           this.transformerManager?.detach();
           this.transformerManager?.attachToNodes(nodes);
@@ -276,16 +306,24 @@ export class SelectionModule implements RendererModule {
           // Additional safety check: force visibility and batch draw
           setTimeout(() => {
             if (this.transformerManager) {
-              const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
+              const transformer = (
+                this.transformerManager as unknown as {
+                  transformer: Konva.Transformer;
+                }
+              ).transformer;
               if (transformer && !transformer.visible()) {
-                console.debug('[SelectionModule] Transformer was not visible, forcing visibility');
+                console.debug(
+                  "[SelectionModule] Transformer was not visible, forcing visibility",
+                );
                 transformer.visible(true);
                 transformer.getLayer()?.batchDraw();
               }
             }
           }, 10);
         } else {
-          console.warn('[SelectionModule] Could not find nodes for selected elements');
+          console.warn(
+            "[SelectionModule] Could not find nodes for selected elements",
+          );
           this.transformerManager?.detach();
           this.transformerManager?.setKeepRatio(false);
         }
@@ -295,13 +333,13 @@ export class SelectionModule implements RendererModule {
 
   // Helper to infer element type for a given node using attrs/names
   private getElementTypeForNode(node: import("konva/lib/Node").Node): string {
-    const nodeType = (node as any).getAttr?.('nodeType');
+    const nodeType = (node as any).getAttr?.("nodeType");
     if (nodeType) return nodeType;
-    const elementType = (node as any).getAttr?.('elementType');
+    const elementType = (node as any).getAttr?.("elementType");
     if (elementType) return elementType;
-    const name = (node as any).name?.() || '';
-    if (name.includes('connector')) return 'connector';
-    return 'element';
+    const name = (node as any).name?.() || "";
+    if (name.includes("connector")) return "connector";
+    return "element";
   }
 
   private resolveElementsToNodes(
@@ -316,13 +354,15 @@ export class SelectionModule implements RendererModule {
       { name: "main", layer: this.storeCtx.layers.main },
       { name: "highlighter", layer: this.storeCtx.layers.highlighter },
       { name: "overlay", layer: this.storeCtx.layers.overlay },
-      { name: "preview", layer: this.storeCtx.layers.preview }
+      { name: "preview", layer: this.storeCtx.layers.preview },
     ];
 
     const validLayers = allLayers
       .filter(({ layer }) => {
         if (!layer) {
-          console.debug('[SelectionModule] Layer is undefined, skipping search');
+          console.debug(
+            "[SelectionModule] Layer is undefined, skipping search",
+          );
           return false;
         }
         return true;
@@ -330,7 +370,9 @@ export class SelectionModule implements RendererModule {
       .map(({ layer }) => layer);
 
     if (validLayers.length === 0) {
-      console.error('[SelectionModule] No valid layers available for element resolution');
+      console.error(
+        "[SelectionModule] No valid layers available for element resolution",
+      );
       return [];
     }
 
@@ -341,7 +383,7 @@ export class SelectionModule implements RendererModule {
       for (const layer of validLayers) {
         // Additional safety check before calling find()
         if (!layer || typeof layer.find !== "function") {
-          console.warn('[SelectionModule] Invalid layer encountered, skipping');
+          console.warn("[SelectionModule] Invalid layer encountered, skipping");
           continue;
         }
 
@@ -367,21 +409,27 @@ export class SelectionModule implements RendererModule {
           if (selectedNode) {
             nodes.push(selectedNode);
             found = true;
-            console.debug('[SelectionModule] Found node for element:', {
+            console.debug("[SelectionModule] Found node for element:", {
               elementId,
               nodeId: selectedNode.id(),
               nodeName: selectedNode.name(),
-              nodeClassName: selectedNode.className
+              nodeClassName: selectedNode.className,
             });
           } else {
-            console.warn('[SelectionModule] Found candidates but selectedNode is null for element:', elementId);
+            console.warn(
+              "[SelectionModule] Found candidates but selectedNode is null for element:",
+              elementId,
+            );
           }
           break;
         }
       }
 
       if (!found) {
-        console.warn('[SelectionModule] Could not find node for element:', elementId);
+        console.warn(
+          "[SelectionModule] Could not find node for element:",
+          elementId,
+        );
       }
     }
 
@@ -399,7 +447,7 @@ export class SelectionModule implements RendererModule {
     const withUndo = store.withUndo;
 
     if (!updateElement) {
-      console.error('[SelectionModule] No element update method available');
+      console.error("[SelectionModule] No element update method available");
       return;
     }
 
@@ -424,7 +472,7 @@ export class SelectionModule implements RendererModule {
       const isImage = element?.type === "image";
 
       if (isImage && node instanceof Konva.Group) {
-        const imageNode = node.findOne('Image');
+        const imageNode = node.findOne("Image");
         if (imageNode) {
           size = imageNode.size();
         }
@@ -432,7 +480,10 @@ export class SelectionModule implements RendererModule {
 
       // Log for debugging
       if (elementId && (rawScaleX !== 1 || rawScaleY !== 1)) {
-        console.debug('[SelectionModule] Processing transform for element:', elementId);
+        console.debug(
+          "[SelectionModule] Processing transform for element:",
+          elementId,
+        );
       }
 
       // CRITICAL FIX: Ensure dimensions never become 0 or negative
@@ -485,9 +536,11 @@ export class SelectionModule implements RendererModule {
           nextWidth = tableResizeResult.width;
           nextHeight = tableResizeResult.height;
 
-          console.debug('[SelectionModule] Table dimensions scaled via helper');
+          console.debug("[SelectionModule] Table dimensions scaled via helper");
         } else {
-          console.warn('[SelectionModule] Table element missing colWidths/rowHeights');
+          console.warn(
+            "[SelectionModule] Table element missing colWidths/rowHeights",
+          );
         }
       }
 
@@ -507,7 +560,10 @@ export class SelectionModule implements RendererModule {
 
       // Live-move commits (position-only) during transform to keep dependent renders (connectors) in sync
       if (!shouldCommitSizeNow) {
-        updates.push({ id: elementId, changes: { x: changes.x, y: changes.y, rotation: changes.rotation } });
+        updates.push({
+          id: elementId,
+          changes: { x: changes.x, y: changes.y, rotation: changes.rotation },
+        });
       }
 
       // Reset scale after applying to dimensions
@@ -529,7 +585,9 @@ export class SelectionModule implements RendererModule {
           const minTableHeight =
             tableResizeResult.rows * DEFAULT_TABLE_CONFIG.minCellHeight;
           if (nextWidth < minTableWidth || nextHeight < minTableHeight) {
-            console.warn('[SelectionModule] Table size fell below minimums after transform reset');
+            console.warn(
+              "[SelectionModule] Table size fell below minimums after transform reset",
+            );
           }
         }
       }
@@ -550,7 +608,10 @@ export class SelectionModule implements RendererModule {
             const storeState = this.storeCtx?.store?.getState();
             storeState?.updateElement?.(id, changes, { pushHistory: false });
           } catch (error) {
-            console.error('[SelectionModule] Failed to update element during transform:', error);
+            console.error(
+              "[SelectionModule] Failed to update element during transform:",
+              error,
+            );
           }
         }
       });
@@ -561,7 +622,7 @@ export class SelectionModule implements RendererModule {
           const storeState = this.storeCtx.store.getState();
           storeState.updateElement(id, changes, { pushHistory: false });
         } catch (error) {
-          console.error('[SelectionModule] Failed to update element:', error);
+          console.error("[SelectionModule] Failed to update element:", error);
         }
       }
     }
@@ -570,7 +631,9 @@ export class SelectionModule implements RendererModule {
   // FIXED: Public API for other modules to trigger selection with proper store integration
   selectElement(elementId: string, options?: { additive?: boolean }) {
     if (!this.storeCtx) {
-      console.error('[SelectionModule] No store context available for selection');
+      console.error(
+        "[SelectionModule] No store context available for selection",
+      );
       return;
     }
 
@@ -580,9 +643,14 @@ export class SelectionModule implements RendererModule {
     try {
       if (store.setSelection) {
         if (options?.additive) {
-          const cur = (store.selectedElementIds instanceof Set ? store.selectedElementIds : new Set<string>(store.selectedElementIds || [])) as Set<string>;
+          const cur = (
+            store.selectedElementIds instanceof Set
+              ? store.selectedElementIds
+              : new Set<string>(store.selectedElementIds || [])
+          ) as Set<string>;
           const next = new Set(cur);
-          if (next.has(elementId)) next.delete(elementId); else next.add(elementId);
+          if (next.has(elementId)) next.delete(elementId);
+          else next.add(elementId);
           store.setSelection(Array.from(next));
         } else {
           store.setSelection([elementId]);
@@ -590,7 +658,8 @@ export class SelectionModule implements RendererModule {
       } else if (store.selection?.set) {
         if (options?.additive && store.selectedElementIds instanceof Set) {
           const next = new Set(store.selectedElementIds);
-          if (next.has(elementId)) next.delete(elementId); else next.add(elementId);
+          if (next.has(elementId)) next.delete(elementId);
+          else next.add(elementId);
           store.selection.set(Array.from(next));
         } else {
           store.selection.set([elementId]);
@@ -599,7 +668,9 @@ export class SelectionModule implements RendererModule {
         // Handle Set-based selection
         if (store.selectedElementIds instanceof Set) {
           if (options?.additive) {
-            if (store.selectedElementIds.has(elementId)) store.selectedElementIds.delete(elementId); else store.selectedElementIds.add(elementId);
+            if (store.selectedElementIds.has(elementId))
+              store.selectedElementIds.delete(elementId);
+            else store.selectedElementIds.add(elementId);
           } else {
             store.selectedElementIds.clear();
             store.selectedElementIds.add(elementId);
@@ -608,7 +679,8 @@ export class SelectionModule implements RendererModule {
           if (options?.additive) {
             const arr = store.selectedElementIds as string[];
             const idx = arr.indexOf(elementId);
-            if (idx >= 0) arr.splice(idx, 1); else arr.push(elementId);
+            if (idx >= 0) arr.splice(idx, 1);
+            else arr.push(elementId);
           } else {
             (store.selectedElementIds as string[]).length = 0;
             (store.selectedElementIds as string[]).push(elementId);
@@ -619,10 +691,12 @@ export class SelectionModule implements RendererModule {
           selectedElementIds: store.selectedElementIds,
         });
       } else {
-        console.error('[SelectionModule] No valid selection method found in store');
+        console.error(
+          "[SelectionModule] No valid selection method found in store",
+        );
       }
     } catch (error) {
-      console.error('[SelectionModule] Error during element selection:', error);
+      console.error("[SelectionModule] Error during element selection:", error);
     }
   }
 
@@ -661,7 +735,9 @@ export class SelectionModule implements RendererModule {
           this.selectElement(elementId);
           attemptSelection(); // Recursive retry
         } else {
-          console.warn('[SelectionModule] Auto-selection failed after max attempts');
+          console.warn(
+            "[SelectionModule] Auto-selection failed after max attempts",
+          );
         }
       }, delay);
     };
@@ -720,8 +796,9 @@ export class SelectionModule implements RendererModule {
     // Small delay to ensure elements are fully re-rendered after dimension changes
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
-      const nodes = this.resolveElementsToNodes(selectionSnapshot)
-        .filter((n) => this.getElementTypeForNode?.(n) !== 'connector');
+      const nodes = this.resolveElementsToNodes(selectionSnapshot).filter(
+        (n) => this.getElementTypeForNode?.(n) !== "connector",
+      );
 
       if (nodes.length > 0) {
         // Force detach and reattach to recalculate bounds
@@ -733,7 +810,7 @@ export class SelectionModule implements RendererModule {
           this.transformerManager?.show();
         }, 10);
       } else {
-        console.warn('[SelectionModule] Could not find nodes for refresh');
+        console.warn("[SelectionModule] Could not find nodes for refresh");
         this.transformerManager?.detach();
         this.transformerManager?.setKeepRatio(false);
       }
@@ -747,7 +824,14 @@ export class SelectionModule implements RendererModule {
 
     const state = this.storeCtx.store.getState();
     const elementsMap = state?.elements as
-      | Map<string, { type?: string; keepAspectRatio?: boolean; data?: Record<string, unknown> }>
+      | Map<
+          string,
+          {
+            type?: string;
+            keepAspectRatio?: boolean;
+            data?: Record<string, unknown>;
+          }
+        >
       | undefined;
 
     if (!elementsMap || typeof elementsMap.get !== "function") {
@@ -807,7 +891,8 @@ export class SelectionModule implements RendererModule {
     }
 
     // Check if selection contains connectors
-    const { connectorIds, nonConnectorIds } = this.categorizeSelection(selectedIds);
+    const { connectorIds, nonConnectorIds } =
+      this.categorizeSelection(selectedIds);
 
     // Handle connector selection refresh
     if (connectorIds.length === 1 && nonConnectorIds.length === 0) {
@@ -846,7 +931,7 @@ export class SelectionModule implements RendererModule {
     nonConnectorIds: string[];
   } {
     if (!this.storeCtx) {
-      console.warn('[SelectionModule] No store context for categorization');
+      console.warn("[SelectionModule] No store context for categorization");
       return { connectorIds: [], nonConnectorIds: Array.from(selectedIds) };
     }
 
@@ -859,25 +944,31 @@ export class SelectionModule implements RendererModule {
     for (const id of selectedIds) {
       // CRITICAL FIX: Enhanced connector detection
       const element = elements.get?.(id) || state.element?.getById?.(id);
-      
-      console.debug('[SelectionModule] Categorizing element:', {
+
+      console.debug("[SelectionModule] Categorizing element:", {
         id,
         element,
-        elementType: element?.type
+        elementType: element?.type,
       });
-      
+
       if (element && element.type === "connector") {
         connectorIds.push(id);
-        console.debug('[SelectionModule] Element categorized as connector:', id);
+        console.debug(
+          "[SelectionModule] Element categorized as connector:",
+          id,
+        );
       } else {
         nonConnectorIds.push(id);
-        console.debug('[SelectionModule] Element categorized as non-connector:', id);
+        console.debug(
+          "[SelectionModule] Element categorized as non-connector:",
+          id,
+        );
       }
     }
 
-    console.debug('[SelectionModule] Final categorization:', {
+    console.debug("[SelectionModule] Final categorization:", {
       connectorIds,
-      nonConnectorIds
+      nonConnectorIds,
     });
 
     return { connectorIds, nonConnectorIds };
@@ -888,27 +979,29 @@ export class SelectionModule implements RendererModule {
    */
   private handleConnectorEndpointDrag(
     connectorId: string,
-    _endpoint: 'from' | 'to',
-    _newPosition: { x: number; y: number }
+    _endpoint: "from" | "to",
+    _newPosition: { x: number; y: number },
   ): void {
     // This is called during drag for real-time visual updates
     // The actual store update happens on drag end in ConnectorSelectionManager
 
-    console.debug('[SelectionModule] Connector endpoint drag:', {
+    console.debug("[SelectionModule] Connector endpoint drag:", {
       connectorId,
       endpoint: _endpoint,
-      position: _newPosition
+      position: _newPosition,
     });
 
     // Optionally trigger connector re-render for real-time feedback
     if (this.storeCtx) {
       const state = this.storeCtx.store.getState();
-      const connector = state.elements?.get?.(connectorId) || state.element?.getById?.(connectorId);
+      const connector =
+        state.elements?.get?.(connectorId) ||
+        state.element?.getById?.(connectorId);
 
       if (connector && connector.type === "connector") {
         // We could trigger a temporary re-render here, but for now
         // the ConnectorSelectionManager handles the visual feedback with endpoint dots
-        console.debug('[SelectionModule] Connector found for real-time update');
+        console.debug("[SelectionModule] Connector found for real-time update");
       }
     }
   }
@@ -921,7 +1014,10 @@ export class SelectionModule implements RendererModule {
     try {
       // Get the global ShapeRenderer instance from the window
       const shapeRenderer = (window as any).shapeRenderer;
-      if (!shapeRenderer || typeof shapeRenderer.syncTextDuringTransform !== 'function') {
+      if (
+        !shapeRenderer ||
+        typeof shapeRenderer.syncTextDuringTransform !== "function"
+      ) {
         return; // ShapeRenderer not available or method not implemented
       }
 
@@ -934,16 +1030,26 @@ export class SelectionModule implements RendererModule {
         const store = this.storeCtx?.store.getState();
         if (!store) continue;
 
-        const element = store.elements?.get?.(elementId) ?? store.element?.getById?.(elementId);
+        const element =
+          store.elements?.get?.(elementId) ??
+          store.element?.getById?.(elementId);
         if (!element) continue;
 
         // Only sync text for shapes that can have text
-        if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle' || element.type === 'ellipse') {
+        if (
+          element.type === "rectangle" ||
+          element.type === "circle" ||
+          element.type === "triangle" ||
+          element.type === "ellipse"
+        ) {
           shapeRenderer.syncTextDuringTransform(elementId);
         }
       }
     } catch (error) {
-      console.warn('[SelectionModule] Failed to sync shape text during transform:', error);
+      console.warn(
+        "[SelectionModule] Failed to sync shape text during transform:",
+        error,
+      );
     }
   }
 }

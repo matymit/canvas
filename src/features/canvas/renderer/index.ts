@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import Konva from "konva";
 import {
   RendererLayers,
   createRendererLayers,
@@ -6,65 +6,41 @@ import {
   ensureOverlayOnTop,
   resizeRenderer,
   setLayersPixelRatio,
-} from './layers';
-import { TransformerController, TransformerControllerOptions } from './TransformerController';
-import { useUnifiedCanvasStore } from '../stores/unifiedCanvasStore';
+} from "./layers";
+import { TransformerController } from "./TransformerController";
+import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 // facade not used directly here
-import { StickyNoteModule } from './modules/StickyNoteModule';
-import { ConnectorRendererAdapter } from './modules/ConnectorRendererAdapter';
-import { TableModuleAdapter } from './modules/TableModuleAdapter';
-import { ImageRendererAdapter } from './modules/ImageRendererAdapter';
-import { MindmapRendererAdapter } from './modules/MindmapRendererAdapter';
-import { TextRenderer } from './modules/TextRenderer';
-import { ShapeRenderer } from './modules/ShapeRenderer';
-import { DrawingRenderer } from './modules/DrawingRenderer';
-import { SelectionModule } from './modules/SelectionModule';
-import { PortHoverModule } from './modules/PortHoverModule';
+import { StickyNoteModule } from "./modules/StickyNoteModule";
+import { ConnectorRendererAdapter } from "./modules/ConnectorRendererAdapter";
+import { TableModuleAdapter } from "./modules/TableModuleAdapter";
+import { ImageRendererAdapter } from "./modules/ImageRendererAdapter";
+import { MindmapRendererAdapter } from "./modules/MindmapRendererAdapter";
+import { TextRenderer } from "./modules/TextRenderer";
+import { ShapeRenderer } from "./modules/ShapeRenderer";
+import { DrawingRenderer } from "./modules/DrawingRenderer";
+import { SelectionModule } from "./modules/SelectionModule";
+import { PortHoverModule } from "./modules/PortHoverModule";
 
-export interface CanvasElementLike {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  rotation?: number;
-  // Extend as needed (fill, stroke, text, points, etc.)
-}
+import {
+  CanvasElementLike,
+  CanvasRendererOptions,
+  ModuleRendererCtx,
+  RendererModule,
+} from "./types";
 
-export interface CanvasRendererOptions {
-  dpr?: number;
-  // Provide externally if layers are managed elsewhere; otherwise created automatically
-  layers?: RendererLayers;
-
-  // Optional transformer options
-  transformer?: Partial<TransformerControllerOptions>;
-
-  // Rendering hooks
-  getVisibleElements?: () => CanvasElementLike[]; // return only elements in viewport
-  reconcileNode?: (element: CanvasElementLike) => Konva.Node; // create/update node and ensure it is on a layer
-  disposeNode?: (node: Konva.Node) => void; // clean up node when removed
-
-  // Selection resolution
-  resolveSelectionNodes?: (ids: string[]) => Konva.Node[]; // map element ids to Konva nodes for transformer
-
-  // Called when stage size or DPR changes for custom drawing (e.g., grid on background)
-  onBackgroundDraw?: (background: Konva.Layer, stage: Konva.Stage) => void;
-}
-
-// Module registry interfaces
-export interface ModuleRendererCtx {
-  stage: Konva.Stage;
-  layers: { background: Konva.Layer; main: Konva.Layer; highlighter: Konva.Layer; preview: Konva.Layer; overlay: Konva.Layer };
-  store: typeof useUnifiedCanvasStore;
-}
-
-export interface RendererModule {
-  mount(ctx: ModuleRendererCtx): () => void; // returns dispose
-}
+// Re-export types for backward compatibility
+export type {
+  CanvasElementLike,
+  CanvasRendererOptions,
+  ModuleRendererCtx,
+  RendererModule,
+} from "./types";
 
 // CRITICAL FIX: Setup renderer modules with proper ordering
-export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['layers']) {
+export function setupRenderer(
+  stage: Konva.Stage,
+  layers: ModuleRendererCtx["layers"],
+) {
   const modules: RendererModule[] = [
     // Content rendering modules first
     new StickyNoteModule(),
@@ -81,26 +57,36 @@ export function setupRenderer(stage: Konva.Stage, layers: ModuleRendererCtx['lay
     new SelectionModule(),
   ];
 
-  console.debug('[Renderer] Setting up modules:', modules.map(m => m.constructor.name));
+  console.debug(
+    "[Renderer] Setting up modules:",
+    modules.map((m) => m.constructor.name),
+  );
 
-  const unsubs = modules.map(m => {
+  const unsubs = modules.map((m) => {
     try {
       const dispose = m.mount({ stage, layers, store: useUnifiedCanvasStore });
       // Expose PortHoverModule for tools wanting to hide ports immediately after commit
-      if ((m as any).constructor?.name === 'PortHoverModule') {
+      if ((m as any).constructor?.name === "PortHoverModule") {
         (window as any).portHoverModule = m;
       }
-      console.debug('[Renderer] Module mounted successfully:', m.constructor.name);
+      console.debug(
+        "[Renderer] Module mounted successfully:",
+        m.constructor.name,
+      );
       return dispose;
     } catch (error) {
-      console.error('[Renderer] Failed to mount module:', m.constructor.name, error);
+      console.error(
+        "[Renderer] Failed to mount module:",
+        m.constructor.name,
+        error,
+      );
       return () => {}; // Return no-op dispose function
     }
   });
 
   return () => {
-    console.debug('[Renderer] Disposing all modules');
-    unsubs.forEach(u => u && u());
+    console.debug("[Renderer] Disposing all modules");
+    unsubs.forEach((u) => u && u());
   };
 }
 
@@ -118,12 +104,18 @@ export class CanvasRenderer {
   private reconcileNode?: (e: CanvasElementLike) => Konva.Node;
   // private _disposeNode?: (n: Konva.Node) => void; // Removed unused
   private resolveSelectionNodes?: (ids: string[]) => Konva.Node[];
-  private onBackgroundDraw?: (background: Konva.Layer, stage: Konva.Stage) => void;
+  private onBackgroundDraw?: (
+    background: Konva.Layer,
+    stage: Konva.Stage,
+  ) => void;
 
   constructor(stage: Konva.Stage, options: CanvasRendererOptions = {}) {
     this.stage = stage;
-    this.dpr = options.dpr ?? (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
-    this.layers = options.layers ?? createRendererLayers(stage, { dpr: this.dpr });
+    this.dpr =
+      options.dpr ??
+      (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+    this.layers =
+      options.layers ?? createRendererLayers(stage, { dpr: this.dpr });
 
     this.getVisibleElements = options.getVisibleElements;
     this.reconcileNode = options.reconcileNode;
@@ -138,10 +130,10 @@ export class CanvasRenderer {
       keepRatio: false,
       rotateEnabled: true,
       anchorSize: 8,
-      borderStroke: '#4F46E5',
+      borderStroke: "#4F46E5",
       borderStrokeWidth: 1,
-      anchorStroke: '#FFFFFF',
-      anchorFill: '#4F46E5',
+      anchorStroke: "#FFFFFF",
+      anchorFill: "#4F46E5",
       anchorCornerRadius: 2,
       minSize: 6,
       onTransform: () => {
@@ -221,7 +213,9 @@ export class CanvasRenderer {
   /**
    * Destroy all resources. If layers were injected, this won't destroy them by default.
    */
-  destroy({ destroyInjectedLayers = false }: { destroyInjectedLayers?: boolean } = {}) {
+  destroy({
+    destroyInjectedLayers = false,
+  }: { destroyInjectedLayers?: boolean } = {}) {
     this.transformer.destroy();
     if (destroyInjectedLayers) {
       destroyLayers(this.layers);
