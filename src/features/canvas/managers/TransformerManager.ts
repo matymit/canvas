@@ -267,6 +267,8 @@ export class TransformerManager {
     const primaryNode = nodes[0];
     const elementType = this.getElementType(primaryNode);
     const isTextElement = elementType === 'text';
+    const keepAspectAttr = primaryNode.getAttr('keepAspectRatio');
+    const forceAspectRatio = keepAspectAttr === true;
 
     // Hard guard: NEVER show a transformer for connectors
     if (elementType === 'connector') {
@@ -333,7 +335,7 @@ export class TransformerManager {
       this.transformer.keepRatio(true);
 
       console.debug('[TransformerManager] Sticky note constraints applied successfully');
-    } else if (elementType === 'image') {
+    } else if (elementType === 'image' || forceAspectRatio) {
       // Enable corner-only anchors for images to maintain aspect ratio
       this.transformer.enabledAnchors([
         "top-left",
@@ -345,10 +347,17 @@ export class TransformerManager {
       // Get aspect configuration for images
       const aspectConfig = getElementAspectConfig('image', true);
 
+      let nodeForSize = primaryNode;
+      if (elementType === 'image' && primaryNode instanceof Konva.Group) {
+        const imageNode = primaryNode.findOne('Image');
+        if (imageNode) {
+          nodeForSize = imageNode;
+        }
+      }
       // Get original dimensions for constraint reference
       const originalDimensions = {
-        width: primaryNode.width() * (primaryNode.scaleX() || 1),
-        height: primaryNode.height() * (primaryNode.scaleY() || 1)
+        width: nodeForSize.width() * (nodeForSize.scaleX() || 1),
+        height: nodeForSize.height() * (nodeForSize.scaleY() || 1)
       };
 
       // Create and apply constraint function

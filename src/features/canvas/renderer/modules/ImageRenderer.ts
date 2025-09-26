@@ -58,6 +58,11 @@ export class ImageRenderer {
 
       // FIXED: Set elementId attribute for selection detection
       g.setAttr('elementId', el.id);
+      g.setAttr('elementType', 'image');
+      g.setAttr('nodeType', 'image');
+      if (typeof el.keepAspectRatio === 'boolean') {
+        g.setAttr('keepAspectRatio', el.keepAspectRatio);
+      }
 
       // FIXED: Add click handler that properly integrates with selection
       g.on('click', (e) => {
@@ -79,6 +84,13 @@ export class ImageRenderer {
 
     // Ensure elementId is maintained
     g.setAttr('elementId', el.id);
+    g.setAttr('elementType', 'image');
+    g.setAttr('nodeType', 'image');
+    if (typeof el.keepAspectRatio === 'boolean') {
+      g.setAttr('keepAspectRatio', el.keepAspectRatio);
+    } else {
+      g.setAttr('keepAspectRatio', true);
+    }
 
     let bitmap = this.imageNodeById.get(el.id);
     if (!bitmap || !bitmap.getLayer()) {
@@ -107,6 +119,14 @@ export class ImageRenderer {
       g.add(bitmap);
       this.imageNodeById.set(el.id, bitmap);
     }
+
+    bitmap.setAttr('elementId', el.id);
+    bitmap.setAttr('elementType', 'image');
+    bitmap.setAttr('nodeType', 'image');
+    bitmap.setAttr(
+      'keepAspectRatio',
+      typeof el.keepAspectRatio === 'boolean' ? el.keepAspectRatio : true,
+    );
 
     // Load bitmap asynchronously and update size
     await this.ensureBitmap(el, bitmap);

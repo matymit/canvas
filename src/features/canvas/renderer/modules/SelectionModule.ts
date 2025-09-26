@@ -94,6 +94,9 @@ export class SelectionModule implements RendererModule {
         }
       },
       onTransform: (nodes) => {
+        this.updateElementsFromNodes(nodes, false);
+      },
+      onTransform: (nodes) => {
         // Real-time updates during transform for smoother UX (all elements including tables)
         this.updateElementsFromNodes(nodes, false);
 
@@ -109,18 +112,11 @@ export class SelectionModule implements RendererModule {
           store.endTransform();
         }
 
-        // CRITICAL FIX: Ensure transformer remains visible after transform end
-        setTimeout(() => {
-          if (this.transformerManager) {
-            this.transformerManager.refresh();
-            // Ensure transformer is still visible after transform
-            const transformer = (this.transformerManager as unknown as { transformer: Konva.Transformer }).transformer;
-            if (transformer && !transformer.visible()) {
-              // Transformer was hidden after transform, reshowing
-              this.transformerManager.show();
-            }
-          }
-        }, 10);
+        // Re-apply constraints to update the boundBoxFunc
+        if (this.transformerManager) {
+            this.transformerManager.detach();
+            this.transformerManager.attachToNodes(nodes);
+        }
       },
     });
 
@@ -414,7 +410,7 @@ export class SelectionModule implements RendererModule {
       if (!elementId) continue;
 
       const pos = node.position();
-      const size = node.size();
+      let size = node.size();
       const rotation = node.rotation();
       const scale = node.scale();
       const rawScaleX = scale?.x ?? 1;
@@ -425,6 +421,14 @@ export class SelectionModule implements RendererModule {
         store?.elements?.get?.(elementId) ??
         store.element?.getById?.(elementId);
       const isTable = element?.type === "table";
+      const isImage = element?.type === "image";
+
+      if (isImage && node instanceof Konva.Group) {
+        const imageNode = node.findOne('Image');
+        if (imageNode) {
+          size = imageNode.size();
+        }
+      }
 
       // Log for debugging
       if (elementId && (rawScaleX !== 1 || rawScaleY !== 1)) {
@@ -512,10 +516,12 @@ export class SelectionModule implements RendererModule {
         (rawScaleX !== 1 || rawScaleY !== 1) &&
         shouldCommitSizeNow
       ) {
-        node.scale({ x: 1, y: 1 });
-        node.size({
+        node.to({
+          scaleX: 1,
+          scaleY: 1,
           width: nextWidth,
           height: nextHeight,
+          duration: 0,
         });
         if (tableResizeResult) {
           const minTableWidth =
@@ -740,27 +746,46 @@ export class SelectionModule implements RendererModule {
     }
 
     const state = this.storeCtx.store.getState();
-    const elementsMap = state?.elements as Map<string, { type?: string }> | undefined;
+    const elementsMap = state?.elements as
+      | Map<string, { type?: string; keepAspectRatio?: boolean; data?: Record<string, unknown> }>
+      | undefined;
+
     if (!elementsMap || typeof elementsMap.get !== "function") {
       return false;
     }
 
-    // Only lock aspect ratio for circles
-    // Tables and other elements should have independent width/height scaling
-    let allCircles = true;
+    let lockableCount = 0;
 
     for (const id of selectedIds) {
       const element = elementsMap.get(id);
       if (!element) {
         return false;
       }
-      if (element.type !== "circle") {
-        allCircles = false;
-        break;
+
+      if (element.type === "table") {
+        return false;
       }
+
+      const elementData = (element as { data?: Record<string, unknown> }).data;
+      const hasImageData =
+        element.type === "sticky-note" &&
+        (typeof elementData?.image === "string" ||
+          typeof elementData?.imageUrl === "string");
+
+      const shouldKeepAspect =
+        element.keepAspectRatio === true ||
+        element.type === "image" ||
+        element.type === "circle" ||
+        hasImageData;
+
+      if (!shouldKeepAspect) {
+        return false;
+      }
+
+      lockableCount += 1;
     }
 
-    return allCircles;
+    return lockableCount > 0 && lockableCount === selectedIds.size;
   }
 
   /**
