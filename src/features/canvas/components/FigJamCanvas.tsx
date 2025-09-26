@@ -248,8 +248,6 @@ const FigJamCanvas: React.FC = () => {
 
       // If clicking on empty stage, ALWAYS clear selection regardless of current tool
       if (e.target === stage) {
-        const s = useUnifiedCanvasStore.getState();
-
         StoreActions.clearSelection?.();
         return;
       }

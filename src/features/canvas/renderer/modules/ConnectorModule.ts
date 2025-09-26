@@ -176,7 +176,7 @@ export default class ConnectorModule {
         this.lineById.set(id, node);
 
         // CRITICAL FIX: Add drag interaction handlers for connector lines
-        this.setupConnectorInteraction(node, id, edge);
+        this.setupConnectorInteraction(node, id);
       } else {
         // Update properties and points
         node.points(pointsToArray(points));
@@ -200,20 +200,17 @@ export default class ConnectorModule {
   // CRITICAL FIX: Setup drag interaction handlers for connector lines
   private setupConnectorInteraction(
     node: Konva.Line,
-    id: string,
-    edge: ConnectorElement,
+    _id: string,
   ) {
     // Add drag start handler
     node.on("dragstart", (e) => {
       e.cancelBubble = true;
-      console.log("Connector drag start:", id);
       // Store initial position for undo/redo
     });
 
     // Add drag move handler
     node.on("dragmove", (e) => {
       e.cancelBubble = true;
-      console.log("Connector drag move:", id);
       // Update connector position during drag
       // This would require updating the store with new positions
     });
@@ -221,7 +218,6 @@ export default class ConnectorModule {
     // Add drag end handler
     node.on("dragend", (e) => {
       e.cancelBubble = true;
-      console.log("Connector drag end:", id);
       // Commit final position to store
       // This would require updating the store with final positions
     });
@@ -229,7 +225,6 @@ export default class ConnectorModule {
     // Add click handler for selection
     node.on("click tap", (e) => {
       e.cancelBubble = true;
-      console.log("Connector clicked:", id);
       // Handle connector selection
       // This would require integrating with the selection system
     });

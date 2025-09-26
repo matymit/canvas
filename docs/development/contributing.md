@@ -206,22 +206,20 @@ export class PenTool implements ToolEventHandler {
 #### Directory Structure
 ```
 src/features/canvas/
-├── components/          # React UI components
-│   ├── tools/          # Tool implementations
-│   ├── toolbar/        # Toolbar components
-│   └── ui/             # Reusable UI components
-├── hooks/              # Custom React hooks
-├── stores/             # Zustand store modules
-│   └── modules/        # Store slice modules
-├── renderer/           # Konva rendering modules
-│   └── modules/        # Element-specific renderers
-├── utils/              # Utility functions
-│   ├── performance/    # Performance utilities
-│   ├── geometry/       # Geometry calculations
-│   └── drawing/        # Drawing utilities
-├── types/              # TypeScript type definitions
-│   └── elements/       # Element type definitions
-└── constants/          # Application constants
+├── __tests__/         # E2E and integration tests
+├── components/        # UI components (tools, toolbar)
+├── constants/         # Shared constants
+├── hooks/             # Custom React hooks for canvas logic
+├── managers/          # High-level controllers (ToolManager, TransformerManager)
+├── plugins/           # Extensible modules for canvas features
+├── quality/           # Accessibility and monitoring
+├── renderer/           # Store-driven Konva rendering modules
+├── services/          # Cross-cutting concerns (File I/O, etc.)
+├── stores/            # Zustand state management
+├── toolbar/           # Toolbar specific components
+├── tools/             # (Legacy, being phased out or holding tool logic)
+├── types/             # Core TypeScript definitions
+└── utils/             # Shared utilities (geometry, performance)
 ```
 
 #### Import Conventions

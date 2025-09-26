@@ -57,8 +57,6 @@ export class PortHoverModule implements RendererModule {
     // CRITICAL FIX: Subscribe to element updates to refresh port positions
     this.setupStoreSubscriptions();
 
-    console.debug("[PortHoverModule] Mounted successfully");
-
     return () => this.unmount();
   }
 
@@ -83,8 +81,6 @@ export class PortHoverModule implements RendererModule {
       this.storeUnsubscribe();
       this.storeUnsubscribe = undefined;
     }
-
-    console.debug("[PortHoverModule] Unmounted successfully");
   }
 
   private setupHoverDetection() {
@@ -610,9 +606,7 @@ export class PortHoverModule implements RendererModule {
       // Delegate port click to ConnectorTool
       connectorTool.handlePortClick(port, e);
     } else {
-      console.warn(
-        "[PortHoverModule] No active ConnectorTool found for port click",
-      );
+      // Ignore error
     }
   }
 

@@ -51,8 +51,6 @@ export class EraserTool {
       previewOpacity: options.previewOpacity ?? 0.3,
       intersectionThreshold: options.intersectionThreshold ?? 0.1
     };
-
-    console.debug('[EraserTool] Initialized with options:', this.options);
   }
 
   /**
@@ -61,7 +59,6 @@ export class EraserTool {
   activate(): void {
     if (this.isActive) return;
     
-    console.debug('[EraserTool] Activating');
     this.isActive = true;
     
     // Set cursor
@@ -80,7 +77,6 @@ export class EraserTool {
   deactivate(): void {
     if (!this.isActive) return;
     
-    console.debug('[EraserTool] Deactivating');
     this.isActive = false;
     
     // Reset cursor
@@ -105,7 +101,6 @@ export class EraserTool {
       this.previewCircle.radius(size / 2);
       this.previewLayer.batchDraw();
     }
-    console.debug('[EraserTool] Size updated to:', size);
   }
 
   /**
@@ -175,7 +170,6 @@ export class EraserTool {
       const pos = this.stage.getPointerPosition();
       if (!pos) return;
       
-      console.debug('[EraserTool] Starting erase at:', pos);
       this.startErasing(pos);
     };
 
@@ -183,7 +177,6 @@ export class EraserTool {
     const onPointerUp = () => {
       if (!this.isActive || !this.isErasing) return;
       
-      console.debug('[EraserTool] Finishing erase');
       this.finishErasing();
     };
 
@@ -248,8 +241,6 @@ export class EraserTool {
   private finishErasing(): void {
     if (!this.isErasing) return;
     
-    console.debug('[EraserTool] Erasing elements:', Array.from(this.elementsToErase));
-    
     // Execute the deletion with undo support
     if (this.elementsToErase.size > 0) {
       this.executeErasure();
@@ -293,7 +284,6 @@ export class EraserTool {
       // Check if eraser intersects with element
       if (this.doesEraserIntersectElement(currentPos, eraserRadius, node)) {
         this.elementsToErase.add(elementId);
-        console.debug('[EraserTool] Element marked for erasure:', elementId);
       }
     }
   }
@@ -319,7 +309,6 @@ export class EraserTool {
         }
       );
     } catch (error) {
-      console.warn('[EraserTool] Error checking intersection for node:', error);
       return false;
     }
   }
@@ -423,9 +412,8 @@ export class EraserTool {
         for (const elementId of elementsToDelete) {
           try {
             state.element?.delete?.(elementId);
-            console.debug('[EraserTool] Deleted element:', elementId);
           } catch (error) {
-            console.error('[EraserTool] Failed to delete element:', elementId, error);
+            // Ignore error
           }
         }
       });
@@ -435,7 +423,7 @@ export class EraserTool {
         try {
           state.element?.delete?.(elementId);
         } catch (error) {
-          console.error('[EraserTool] Failed to delete element:', elementId, error);
+          // Ignore error
         }
       }
     }
@@ -457,7 +445,6 @@ export class EraserTool {
    * Destroy the eraser tool and clean up all resources
    */
   destroy(): void {
-    console.debug('[EraserTool] Destroying');
     this.deactivate();
     this.cleanup();
   }

@@ -21,4 +21,5 @@ export const StoreActions = {
     if (s.selection && typeof s.selection.set === 'function') return s.selection.set([id]);
   },
   panBy: (dx: number, dy: number) => useUnifiedCanvasStore.getState().panBy?.(dx, dy),
+  clearSelection: () => useUnifiedCanvasStore.getState().selection.clear(),
 };

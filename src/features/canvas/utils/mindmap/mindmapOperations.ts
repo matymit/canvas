@@ -87,7 +87,6 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     const parent = getElement?.(parentId) as MindmapNodeElement | undefined;
 
     if (!parent || parent.type !== "mindmap-node") {
-      console.warn(`Parent node ${parentId} not found or not a mindmap node`);
       return null;
     }
 
@@ -194,7 +193,6 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     const original = getElement?.(nodeId) as MindmapNodeElement | undefined;
 
     if (!original || original.type !== "mindmap-node") {
-      console.warn(`Node ${nodeId} not found or not a mindmap node`);
       return null;
     }
 
@@ -246,7 +244,6 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     const rootNode = getElement?.(rootId) as MindmapNodeElement | undefined;
 
     if (!rootNode || rootNode.type !== "mindmap-node") {
-      console.warn(`Root node ${rootId} not found or not a mindmap node`);
       return null;
     }
 

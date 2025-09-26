@@ -37,8 +37,6 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
   const fillColor = useUnifiedCanvasStore((s) => s.ui?.fillColor ?? '#ffffff');
   const strokeWidth = useUnifiedCanvasStore((s) => s.ui?.strokeWidth ?? 2);
 
-  // Tool state debugging removed for production
-
   const drawingRef = useRef<{
     circle: Konva.Circle | null;
     start: { x: number; y: number } | null;
@@ -56,17 +54,13 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
     const onPointerDown = () => {
-      // Pointer down triggered
       const pos = stage.getPointerPosition();
       if (!pos || !previewLayer) {
-        // Missing pointer position or preview layer
         return;
       }
 
-      // Starting circle creation
       drawingRef.current.start = { x: pos.x, y: pos.y };
 
-      // Size accounting for current zoom level
       const scale = stage.scaleX();
       const strokeWidthScaled = strokeWidth / scale;
 
@@ -130,8 +124,6 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       circle.remove();
       previewLayer.batchDraw();
 
-      // If click without drag, create default FigJam-sized circle
-      // Scale size inversely with zoom to maintain consistent visual size
       const scale = Math.max(MIN_SCALE, stage.scaleX()); // Prevent division by tiny values
       const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.width / scale);
 
@@ -156,19 +148,15 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
       const radius = diameter / 2;
       
-      // FIXED: Create element with proper center-based positioning and radius property
       const id = `circle-${Date.now()}`;
-      // Creating circle element with center-based positioning
 
       if (upsertElement) {
         try {
           upsertElement({
             id,
             type: 'circle',
-            // FIXED: Use center coordinates (Konva.Circle standard)
             x: centerX,
             y: centerY,
-            // Include all dimension properties for compatibility
             width: diameter,
             height: diameter,
             bounds: {
@@ -195,33 +183,23 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
             },
           });
 
-          // Select the new circle
           try {
-            // Attempting to select element
             replaceSelectionWithSingle?.(id);
             bumpSelectionVersion?.();
-            // Selection successful
           } catch (e) {
-            // Selection failed
+            // Ignore error
           }
 
-          // Auto-switch to select tool and open text editor
           setSelectedTool?.('select');
 
-          // Open editor immediately after element creation
-          // The editor itself will handle waiting for rendering
-          console.log('[CircleTool] About to schedule openShapeTextEditor for:', id);
           requestAnimationFrame(() => {
-            console.log('[CircleTool] RAF callback executing - calling openShapeTextEditor for:', id);
-            console.log('[CircleTool] Stage available:', !!stage);
             openShapeTextEditor(stage, id);
-            console.log('[CircleTool] openShapeTextEditor call completed');
           });
         } catch (error) {
-          // Error creating element
+          // Ignore error
         }
       } else {
-        // No upsertElement function available
+        // Ignore error
       }
     };
 

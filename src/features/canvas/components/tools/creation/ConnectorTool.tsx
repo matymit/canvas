@@ -55,21 +55,14 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     cleanupCursor?: () => void; // Cleanup function for cursor interval
   }>({ start: null, startSnap: null, preview: null, toolInstance: null });
 
-  // Helper to list candidate nodes (main-layer nodes) for snapping
-  const getCandidates = (stage: Konva.Stage): Konva.Node[] => {
-    const mainLayer = layers?.main ?? (stage.getLayers()[2] as Konva.Layer | undefined);
-    if (!mainLayer) return [];
-    // Include ellipse/circle nodes so connectors attach to circles
-    return mainLayer.find<Konva.Node>("Group, Rect, Ellipse, Circle, Image, Text");
-  };
-
-  // REMOVED: getPortsByAbsoluteTransform - now using unified PortHoverModule system
-
-  // REMOVED: showPortsForElement - now using unified PortHoverModule system
-
-  // REMOVED: hideAllPorts - now using unified PortHoverModule system
-
   useEffect(() => {
+    const getCandidates = (stage: Konva.Stage): Konva.Node[] => {
+      const mainLayer = layers?.main ?? (stage.getLayers()[2] as Konva.Layer | undefined);
+      if (!mainLayer) return [];
+      // Include ellipse/circle nodes so connectors attach to circles
+      return mainLayer.find<Konva.Node>("Group, Rect, Ellipse, Circle, Image, Text");
+    };
+
     try {
       const stage = stageRef.current;
       const active = isActive && selectedTool === toolId;
@@ -80,7 +73,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
           try {
             stage.container().style.cursor = 'crosshair';
           } catch (error) {
-            console.warn('[ConnectorTool] Failed to set crosshair cursor:', error);
+            // Ignore error
           }
         };
 
@@ -96,7 +89,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
           try {
             stage.container().style.cursor = '';
           } catch (error) {
-            console.warn('[ConnectorTool] Failed to reset cursor:', error);
+            // Ignore error
           }
         };
 
@@ -135,14 +128,12 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       // CRITICAL FIX: Handle port clicks from PortHoverModule
       const handlePortClick = (port: any, _e: any) => {
-        console.debug('[ConnectorTool] Port clicked:', port);
-
         // Initialize drawing from this port
         ref.current.start = { x: port.position.x, y: port.position.y };
         ref.current.startSnap = { elementId: port.elementId, side: port.anchor };
 
         const isArrow = toolId === 'connector-arrow';
-        const s = ref.current.start!;
+        const s = ref.current.start; if (!s) return;
         const shape = isArrow
           ? new Konva.Arrow({
               points: [s.x, s.y, s.x, s.y],
@@ -198,7 +189,6 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         }
         previewLayer.batchDraw();
       }
-      // REMOVED: Port hover handling - now managed by PortHoverModule
     };
 
     const onPointerDown = (evt: Konva.KonvaEventObject<PointerEvent>) => {
@@ -210,7 +200,6 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       const pos = getWorldPointer(stage);
       if (!pos) return;
-      // REMOVED: hideAllPorts(stage) - managed by PortHoverModule
 
       const candidates = getCandidates(stage);
       const snap = findNearestAnchor(pos, candidates, {
@@ -344,7 +333,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
           try {
             ghost.destroy();
           } catch (error) {
-            console.warn('[ConnectorTool] Failed to destroy ghost during pointer move cleanup:', error);
+            // Ignore error
           }
           ref.current.preview = null;
           previewLayer.batchDraw();
@@ -363,7 +352,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         try {
           ghost.destroy();
         } catch (error) {
-          console.warn('[ConnectorTool] Failed to destroy ghost during commit:', error);
+          // Ignore error
         }
         ref.current.preview = null;
         previewLayer.batchDraw();
@@ -397,6 +386,8 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     };
       window.addEventListener("keydown", onKeyDown);
 
+      const refCapture = ref.current;
+
       return () => {
         stage.off("pointerdown.connector", onPointerDown);
         stage.off("pointermove.connector", onPointerMove);
@@ -404,31 +395,31 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         window.removeEventListener("keydown", onKeyDown);
 
         // Clean up global registration
-        if ((window as any).activeConnectorTool === ref.current.toolInstance) {
+        if ((window as any).activeConnectorTool === refCapture.toolInstance) {
           (window as any).activeConnectorTool = null;
         }
 
         // Clean up cursor interval
-        if (ref.current.cleanupCursor) {
-          ref.current.cleanupCursor();
-          ref.current.cleanupCursor = undefined;
+        if (refCapture.cleanupCursor) {
+          refCapture.cleanupCursor();
+          refCapture.cleanupCursor = undefined;
         }
 
-        const g = ref.current.preview;
+        const g = refCapture.preview;
         if (g) {
           try {
             g.destroy();
           } catch {
             // Ignore preview destruction errors
           }
-          ref.current.preview = null;
+          refCapture.preview = null;
           previewLayer.batchDraw();
         }
-        ref.current.start = null;
-        ref.current.startSnap = null;
+        refCapture.start = null;
+        refCapture.startSnap = null;
       };
     } catch (e) {
-      console.error('[ConnectorTool] Fatal error during activation', e);
+      // Ignore error
       return;
     }
   }, [isActive, selectedTool, toolId, stageRef, upsertElement, selectOnly, begin, end, setTool, layers]);

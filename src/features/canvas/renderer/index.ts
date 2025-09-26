@@ -60,11 +60,6 @@ export function setupRenderer(
     new SelectionModule(),
   ];
 
-  console.debug(
-    "[Renderer] Setting up modules:",
-    modules.map((m) => m.constructor.name),
-  );
-
   const unsubs = modules.map((m) => {
     try {
       const dispose = m.mount({ stage, layers, store: useUnifiedCanvasStore });
@@ -72,23 +67,13 @@ export function setupRenderer(
       if ((m as any).constructor?.name === "PortHoverModule") {
         (window as any).portHoverModule = m;
       }
-      console.debug(
-        "[Renderer] Module mounted successfully:",
-        m.constructor.name,
-      );
       return dispose;
     } catch (error) {
-      console.error(
-        "[Renderer] Failed to mount module:",
-        m.constructor.name,
-        error,
-      );
       return () => {}; // Return no-op dispose function
     }
   });
 
   return () => {
-    console.debug("[Renderer] Disposing all modules");
     unsubs.forEach((u) => u && u());
   };
 }

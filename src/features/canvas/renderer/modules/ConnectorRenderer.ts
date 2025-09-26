@@ -135,7 +135,7 @@ export class ConnectorRenderer {
           // Always delegate to selection module; it will choose connector mode
           selectionModule.selectElement(conn.id, { additive: isAdditive });
         } else {
-          console.warn('[ConnectorRenderer] SelectionModule not available for connector selection');
+          // Ignore error
         }
       };
       g.on("pointerdown", onSelect);

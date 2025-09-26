@@ -281,21 +281,11 @@ export class TransformerManager {
     const elementResizable = primaryNode.getAttr('resizable');
     const isResizeDisabled = elementResizable === false || isTextElement;
 
-    console.debug('[TransformerManager] Applying constraints:', {
-      elementType,
-      isTextElement,
-      isResizeDisabled,
-      nodeId: primaryNode.id(),
-      nodeName: primaryNode.name(),
-      nodeAttrs: primaryNode.getAttrs()
-    });
-
     if (isResizeDisabled) {
       this.transformer.enabledAnchors([]);
       this.transformer.rotateEnabled(true);
       this.transformer.boundBoxFunc(undefined);
       this.transformer.keepRatio(false);
-      console.debug('[TransformerManager] Element is not resizable, disabling anchors');
       return;
     }
 
@@ -303,8 +293,6 @@ export class TransformerManager {
     const isStickyNote = this.isStickyNoteElement(primaryNode);
     
     if (isStickyNote) {
-      console.debug('[TransformerManager] Detected sticky note, applying aspect ratio constraints');
-      
       // CRITICAL FIX: Set corner-only anchors for sticky notes
       this.transformer.enabledAnchors([
         "top-left", 
@@ -322,19 +310,12 @@ export class TransformerManager {
         height: primaryNode.height() * (primaryNode.scaleY() || 1)
       };
 
-      console.debug('[TransformerManager] Applying aspect ratio constraint:', {
-        aspectConfig,
-        originalDimensions
-      });
-
       // Create and apply constraint function
       const constraintFunc = createAspectRatioConstraint(aspectConfig, originalDimensions);
       this.transformer.boundBoxFunc(constraintFunc);
       
       // CRITICAL: Force aspect ratio to be locked by default for sticky notes
       this.transformer.keepRatio(true);
-
-      console.debug('[TransformerManager] Sticky note constraints applied successfully');
     } else if (elementType === 'image' || forceAspectRatio) {
       // Enable corner-only anchors for images to maintain aspect ratio
       this.transformer.enabledAnchors([
@@ -377,8 +358,6 @@ export class TransformerManager {
       // Clear constraints for other element types
       this.transformer.boundBoxFunc(undefined);
       this.transformer.keepRatio(this.opts.lockAspectRatio || false);
-      
-      console.debug('[TransformerManager] Non-sticky element, using standard constraints');
     }
   }
 
@@ -389,28 +368,24 @@ export class TransformerManager {
     // Method 1: Check nodeType attribute (most reliable)
     const nodeType = node.getAttr('nodeType');
     if (nodeType === 'sticky-note' || nodeType === 'stickyNote') {
-      console.debug('[TransformerManager] Sticky note detected via nodeType:', nodeType);
       return true;
     }
 
     // Method 2: Check elementType attribute
     const elementType = node.getAttr('elementType');
     if (elementType === 'sticky-note' || elementType === 'stickyNote') {
-      console.debug('[TransformerManager] Sticky note detected via elementType:', elementType);
       return true;
     }
 
     // Method 3: Check node name
     const name = node.name();
     if (name && (name.includes('sticky') || name.includes('note'))) {
-      console.debug('[TransformerManager] Sticky note detected via name:', name);
       return true;
     }
 
     // Method 4: Check node ID
     const id = node.id();
     if (id && (id.includes('sticky') || id.includes('note'))) {
-      console.debug('[TransformerManager] Sticky note detected via id:', id);
       return true;
     }
 
@@ -421,7 +396,6 @@ export class TransformerManager {
       const parentId = parent.id();
       if ((parentName && (parentName.includes('sticky') || parentName.includes('note'))) ||
           (parentId && (parentId.includes('sticky') || parentId.includes('note')))) {
-        console.debug('[TransformerManager] Sticky note detected via parent:', { parentName, parentId });
         return true;
       }
     }
@@ -430,7 +404,6 @@ export class TransformerManager {
     const stickyColor = node.getAttr('stickyColor');
     const stickySize = node.getAttr('stickySize');
     if (stickyColor || stickySize) {
-      console.debug('[TransformerManager] Sticky note detected via sticky attributes');
       return true;
     }
 
@@ -444,14 +417,12 @@ export class TransformerManager {
     // Primary method: check nodeType attribute
     const nodeType = node.getAttr('nodeType');
     if (nodeType) {
-      console.debug('[TransformerManager] Element type from nodeType:', nodeType);
       return nodeType;
     }
 
     // Secondary method: check elementType attribute
     const elementType = node.getAttr('elementType');
     if (elementType) {
-      console.debug('[TransformerManager] Element type from elementType:', elementType);
       return elementType;
     }
 
@@ -463,7 +434,6 @@ export class TransformerManager {
       if (name.includes('shape') || name.includes('rect') || name.includes('circle') || name.includes('triangle')) return 'shape';
       if (name.includes('image')) return 'image';
       if (name.includes('table')) return 'table';
-      if (name.includes('mindmap')) return 'mindmap';
       if (name.includes('connector')) return 'connector';
     }
 
@@ -473,13 +443,6 @@ export class TransformerManager {
     if (className === 'Rect') return 'shape';
     if (className === 'Circle') return 'shape';
     if (className === 'Image') return 'image';
-
-    console.debug('[TransformerManager] Could not determine element type for node:', {
-      id: node.id(),
-      name: node.name(),
-      className: node.className,
-      attrs: node.getAttrs()
-    });
 
     return 'element';
   }

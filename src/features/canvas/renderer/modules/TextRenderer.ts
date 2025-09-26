@@ -1,7 +1,7 @@
 // Text renderer module for rendering text elements
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import { openKonvaTextEditor } from "../../utils/editors/openShapeTextEditor";
+import { openShapeTextEditor } from "../../utils/editors/openShapeTextEditor";
 import { getTextConfig } from "../../constants/TextConstants";
 
 type Id = string;

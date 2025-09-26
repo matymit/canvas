@@ -22,9 +22,16 @@ export class ToolPreviewLayer {
     // Use store action to persist the element with history
     const store = useUnifiedCanvasStore.getState();
     if (store.element?.upsert && store.withUndo) {
-      const { id, ...createProps } = elementProps;
+      const elementToCreate = {
+        id: elementProps.id,
+        type: elementProps.type,
+        subtype: elementProps.subtype,
+        points: elementProps.points,
+        ...elementProps.bounds, // Spread x, y, width, height
+        style: elementProps.style,
+      };
       store.withUndo(actionName, () => {
-        store.element.upsert(createProps);
+        store.element.upsert(elementToCreate as any);
       });
     }
   }

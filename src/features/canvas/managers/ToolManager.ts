@@ -24,10 +24,10 @@ import { TableTool, type TableToolProps } from "../components/tools/content/Tabl
 import { TextTool, type TextToolProps } from "../components/tools/content/TextTool";
 import { ImageTool, type ImageToolProps } from "../components/tools/content/ImageTool";
 import { MindmapTool, type MindmapToolProps } from "../components/tools/content/MindmapTool";
-import { PenTool, type PenToolProps } from "../components/tools/drawing/PenTool";
-import MarkerTool, { type MarkerToolProps } from "../components/tools/drawing/MarkerTool";
-import HighlighterTool, { type HighlighterToolProps } from "../components/tools/drawing/HighlighterTool";
-import EraserTool, { type EraserToolProps } from "../components/tools/drawing/EraserTool";
+import { PenTool } from "../components/tools/drawing/PenTool";
+import MarkerTool from "../components/tools/drawing/MarkerTool";
+import HighlighterTool from "../components/tools/drawing/HighlighterTool";
+import EraserTool from "../components/tools/drawing/EraserTool";
 import { CircleTool, type CircleToolProps } from "../components/tools/shapes/CircleTool";
 // RectangleTool and TriangleTool have been archived as they are no longer used
 import StickyNoteTool, { type StickyNoteToolProps } from "../components/tools/creation/StickyNoteTool";
@@ -39,10 +39,6 @@ type ToolProps =
   | TextToolProps
   | ImageToolProps
   | MindmapToolProps
-  | PenToolProps
-  | MarkerToolProps
-  | HighlighterToolProps
-  | EraserToolProps
   | CircleToolProps
   | StickyNoteToolProps
   | ConnectorToolProps;

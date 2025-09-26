@@ -138,13 +138,6 @@ export class GridRenderer {
           y: -stagePos.y - (this.options.hugeRectSize ?? DEFAULTS.hugeRectSize) / 2
         };
 
-        // DIAGNOSTIC: Verify grid position updates
-        console.log("GridRenderer: Updating grid position", {
-          stagePosition: stagePos,
-          newGridPosition: newGridPos,
-          previousGridPosition: this.rect.position()
-        });
-
         // Grid pattern needs to move opposite to stage position to maintain visual alignment
         this.rect.position(newGridPos);
         this.layer.batchDraw();

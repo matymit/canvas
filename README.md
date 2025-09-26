@@ -130,6 +130,8 @@ npm run audit:security        # Security audit
 
 ## 🎯 Current Status
 
+> **Note:** While the foundational architecture is in place, the project is in a **critical operational state** following recent feature integrations. An 87.5% MVP feature failure rate was identified, with significant architectural violations. A remediation plan is in progress to address these issues. For a detailed analysis, please see the [**Technical Audit Report**](./docs/technical-audit-report.md).
+
 ### ✅ Implemented
 - **Core Architecture**: Four-layer pipeline, store modules
 - **Basic Tools**: Drawing (pen, marker, highlighter), shapes, text

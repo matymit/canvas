@@ -1,4 +1,3 @@
-import Konva from 'konva';
 import type { ModuleRendererCtx, RendererModule } from '../types';
 
 export class ViewportRenderer implements RendererModule {

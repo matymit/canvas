@@ -160,6 +160,7 @@ export type UnifiedCanvasStore = CoreModuleSlice &
   HistoryModuleSlice &
   InteractionModuleSlice &
   ConvenienceSlice & {
+    panBy: (dx: number, dy: number) => void;
     // Compatibility history object for modules expecting nested history structure
     history: {
       record: (input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]) => void;

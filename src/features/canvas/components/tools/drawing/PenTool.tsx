@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
-import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { getWorldPointer } from '../../../utils/pointer';
 import { ToolPreviewLayer } from '../../../renderer/modules/ToolPreviewLayer';
 import { RafBatcher } from '../../../utils/performance/RafBatcher';
