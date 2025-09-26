@@ -2,109 +2,58 @@ import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { getWorldPointer } from '../../../utils/pointer';
-
-export interface MarkerToolProps {
-  stageRef: React.RefObject<Konva.Stage | null>;
-  isActive: boolean;
-  color?: string;
-  size?: number;
-  opacity?: number;
-}
-
-function getMainLayer(stage: Konva.Stage | null): Konva.Layer | null {
-  if (!stage) return null;
-  const layers = stage.getLayers();
-  return layers[1] as Konva.Layer | null;
-}
-
-function ensureOverlayOnTop(stage: Konva.Stage | null) {
-  if (!stage) return;
-  const layers = stage.getLayers();
-  const overlay = layers[3] as Konva.Layer | undefined;
-  if (overlay) overlay.moveToTop();
-}
+import { ToolPreviewLayer } from '../../../renderer/modules/ToolPreviewLayer';
+import { RafBatcher } from '../../../utils/performance/RafBatcher';
 
 const DEFAULT_COLOR = '#111827';
 const DEFAULT_SIZE = 6;
 const DEFAULT_OPACITY = 0.9;
 
-const MarkerTool: React.FC<MarkerToolProps> = ({
+const MarkerTool: React.FC<{
+  stageRef: React.RefObject<Konva.Stage | null>;
+  isActive: boolean;
+  color?: string;
+  size?: number;
+  opacity?: number;
+}> = ({
   stageRef,
   isActive,
   color = DEFAULT_COLOR,
   size = DEFAULT_SIZE,
   opacity = DEFAULT_OPACITY,
 }) => {
-  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const withUndo = useUnifiedCanvasStore((s) => s.withUndo);
   const previewLayerRef = useRef<Konva.Layer | null>(null);
   const lineRef = useRef<Konva.Line | null>(null);
   const drawingRef = useRef(false);
   const pointsRef = useRef<number[]>([]);
-  const rafPendingRef = useRef(false);
+  const rafBatcher = useRef(new RafBatcher()).current;
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
 
-    const layers = stage.getLayers();
-    const previewLayer = (layers[2] as Konva.Layer) ?? new Konva.Layer({ listening: false });
-    if (!previewLayer.getStage()) stage.add(previewLayer);
-    previewLayerRef.current = previewLayer;
-    ensureOverlayOnTop(stage);
+    const previewLayer = ToolPreviewLayer.getPreviewLayer(stage);
+    previewLayerRef.current = previewLayer || null;
 
     const commitStroke = () => {
-      const st = stageRef.current;
-      const ln = lineRef.current;
-      if (!st || !ln) return;
-      const main = getMainLayer(st);
-      if (main) {
-        ln.listening(true);
-        ln.moveTo(main);
-        main.batchDraw();
-      } else {
-        ln.moveToTop();
-        st.draw();
-      }
-      
-      // Also save to unified store for persistence with undo support
-      if (upsertElement && withUndo && pointsRef.current.length >= 4) {
-        const bounds = {
+      const stageNow = stageRef.current;
+      const line = lineRef.current;
+      if (!stageNow || !line) return;
+
+      const bounds = {
           x: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
           y: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1)),
           width: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 0)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
           height: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 1)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1))
-        };
+      };
+      ToolPreviewLayer.commitStroke(stageNow, line, { id: `marker-stroke-${Date.now()}`, type: 'drawing', subtype: 'marker', points: [...pointsRef.current], bounds, style: { stroke: color, strokeWidth: size, opacity, lineCap: 'round', lineJoin: 'round' } }, 'Draw with marker');
 
-        withUndo('Draw with marker', () => {
-          upsertElement({
-            id: `marker-stroke-${Date.now()}`,
-            type: 'drawing',
-            subtype: 'marker',
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-            bounds,
-            points: [...pointsRef.current],
-            style: {
-              stroke: color,
-              strokeWidth: size,
-              opacity,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }
-          });
-        });
-      }
-      
+      // Reset temp state for next stroke.
       lineRef.current = null;
       pointsRef.current = [];
       drawingRef.current = false;
-      rafPendingRef.current = false;
       try { previewLayerRef.current?.batchDraw(); } catch (error) {
         // Ignore cleanup errors
-        // Cleanup error
       }
     };
 
@@ -112,7 +61,6 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
       if (!isActive || drawingRef.current) return;
       const pos = getWorldPointer(stage);
       if (!pos) return;
-
       drawingRef.current = true;
       pointsRef.current = [pos.x, pos.y];
 
@@ -126,7 +74,6 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
         listening: false,
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,
-        // marker look is still source-over; use slightly higher opacity than highlighter
         globalCompositeOperation: 'source-over',
       });
 
@@ -139,18 +86,15 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
       if (!isActive || !drawingRef.current) return;
       const pos = getWorldPointer(stage);
       if (!pos) return;
+
       pointsRef.current.push(pos.x, pos.y);
 
-      if (!rafPendingRef.current) {
-        rafPendingRef.current = true;
-        requestAnimationFrame(() => {
-          rafPendingRef.current = false;
+      rafBatcher.schedule(() => {
           const line = lineRef.current;
           if (!line) return;
           line.points(pointsRef.current);
           previewLayerRef.current?.batchDraw();
-        });
-      }
+      });
     };
 
     const endStroke = () => {
@@ -162,33 +106,26 @@ const MarkerTool: React.FC<MarkerToolProps> = ({
     const onPointerLeave = () => endStroke();
 
     if (isActive) {
-      stage.on('pointerdown', onPointerDown);
-      stage.on('pointermove', onPointerMove);
-      stage.on('pointerup', onPointerUp);
-      stage.on('pointerleave', onPointerLeave);
+      stage.on('pointerdown.markertool', onPointerDown);
+      stage.on('pointermove.markertool', onPointerMove);
+      stage.on('pointerup.markertool', onPointerUp);
+      stage.on('pointerleave.markertool', onPointerLeave);
     }
 
     return () => {
-      stage.off('pointerdown', onPointerDown);
-      stage.off('pointermove', onPointerMove);
-      stage.off('pointerup', onPointerUp);
-      stage.off('pointerleave', onPointerLeave);
+      stage.off('.markertool');
 
       try {
         lineRef.current?.destroy();
       } catch (error) {
         // Ignore cleanup errors
-        // Cleanup error
       }
       lineRef.current = null;
-
       previewLayerRef.current = null;
-
       drawingRef.current = false;
       pointsRef.current = [];
-      rafPendingRef.current = false;
     };
-  }, [stageRef, isActive, color, size, opacity, upsertElement, withUndo]);
+  }, [stageRef, isActive, color, size, opacity, rafBatcher]);
 
   return null;
 };

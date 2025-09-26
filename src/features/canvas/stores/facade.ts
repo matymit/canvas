@@ -20,4 +20,5 @@ export const StoreActions = {
     if (typeof s.setSelection === 'function') return s.setSelection([id]);
     if (s.selection && typeof s.selection.set === 'function') return s.selection.set([id]);
   },
+  panBy: (dx: number, dy: number) => useUnifiedCanvasStore.getState().panBy?.(dx, dy),
 };

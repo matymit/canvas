@@ -1,6 +1,8 @@
 import React, { useRef, useEffect } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import { StoreActions } from "../../../stores/facade";
+import { RafBatcher } from "../../../utils/performance/RafBatcher";
 
 interface PanToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -19,7 +21,7 @@ interface PanToolProps {
 const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
   const isPanningRef = useRef(false);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const rafBatcher = useRef(new RafBatcher()).current;
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -95,53 +97,15 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
 
       console.log("PanTool handlePointerMove:", { deltaX, deltaY, currentPos, lastPos: lastPointerPosRef.current });
 
-      // Cancel existing RAF to prevent batching
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-
-      // RAF BATCHING - wrap store updates in requestAnimationFrame
-      rafRef.current = requestAnimationFrame(() => {
+      rafBatcher.schedule(() => {
         console.log("PanTool RAF executing with deltas:", { deltaX, deltaY });
 
-        // Get fresh store state inside RAF callback - access viewport directly
-        const storeState = useUnifiedCanvasStore.getState();
-
-        console.log("PanTool store state:", {
-          hasViewport: !!storeState.viewport,
-          hasSetPan: !!storeState.viewport?.setPan,
-          currentX: storeState.viewport?.x,
-          currentY: storeState.viewport?.y
-        });
-
-        if (!storeState.viewport?.setPan) {
-          console.error("PanTool: viewport.setPan not available");
-          return;
-        }
-
         try {
-          // Use store as single source of truth - calculate from current viewport position
-          const currentX = storeState.viewport.x || 0;
-          const currentY = storeState.viewport.y || 0;
-          const newX = currentX + deltaX;
-          const newY = currentY + deltaY;
-
-          console.log("PanTool updating viewport:", {
-            currentX,
-            currentY,
-            deltaX,
-            deltaY,
-            newX,
-            newY
-          });
-
-          // ONLY update store - FigJamCanvas useEffect will sync stage
-          storeState.viewport.setPan(newX, newY);
+          StoreActions.panBy(deltaX, deltaY);
 
           console.log("PanTool viewport.setPan completed successfully");
         } catch (error) {
           console.error("PanTool: Failed to update viewport:", error);
-          // Removed fallback: do not manipulate stage or layers directly
         }
       });
 
@@ -188,12 +152,6 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive }) => {
 
       // Clean up window event listener
       window.removeEventListener("pointerup", handleWindowPointerUp);
-
-      // Clean up RAF to prevent memory leaks
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
 
       // Reset cursor
       const currentContainer = stage.container();

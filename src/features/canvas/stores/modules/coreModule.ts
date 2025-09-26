@@ -937,16 +937,13 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         state.setSelection(allIds);
       },
       deleteSelected: () => {
-        const state = get();
-        const selectedIds = Array.from(state.selectedElementIds);
-        // Remove each selected element
-        selectedIds.forEach((id) => {
-          const removeElement =
-            (state as any).removeElement ?? (state as any).element?.delete;
-          removeElement?.(id);
+        const state = get() as any;
+        const ids = Array.from(state.selectedElementIds);
+        if (ids.length === 0) return;
+
+        state.withUndo('Delete elements', () => {
+          state.removeElements(ids, { deselect: true, pushHistory: false });
         });
-        // Clear selection
-        state.clearSelection();
       },
       moveSelectedBy: (dx: number, dy: number) => {
         const state = get();

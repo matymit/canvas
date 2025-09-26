@@ -250,18 +250,7 @@ const FigJamCanvas: React.FC = () => {
       if (e.target === stage) {
         const s = useUnifiedCanvasStore.getState();
 
-        // Try multiple ways to clear selection to ensure it works
-        if (s.selection?.clear) {
-          s.selection.clear();
-        } else if (s.clearSelection) {
-          s.clearSelection();
-        } else {
-          // Fallback: Use global SelectionModule if store methods aren't available
-          const selectionModule = (window as any).selectionModule;
-          if (selectionModule?.clearSelection) {
-            selectionModule.clearSelection();
-          }
-        }
+        StoreActions.clearSelection?.();
         return;
       }
 
@@ -351,35 +340,6 @@ const FigJamCanvas: React.FC = () => {
       // Pan tool drag cleanup is handled by PanTool component
     };
   }, [selectedTool]); // FIXED: Only depend on selectedTool; read store values at call time to prevent infinite loops
-
-  // Update viewport when store changes
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    console.log("FigJamCanvas: Viewport sync effect triggered", {
-      scale: viewport.scale,
-      x: viewport.x,
-      y: viewport.y,
-    });
-
-    // Apply viewport state directly - store is the single source of truth
-    stage.scale({ x: viewport.scale, y: viewport.scale });
-
-    // FIXED: Apply viewport changes to stage position for unified panning
-    // This moves the entire viewport (including background/grid) together
-    stage.position({ x: viewport.x, y: viewport.y });
-
-    // Force a batch draw to ensure changes are rendered
-    stage.batchDraw();
-
-    console.log("FigJamCanvas: Viewport sync completed", {
-      stageScale: stage.scale(),
-      stagePosition: stage.position(),
-    });
-
-    // Grid updates automatically via GridRenderer zoom listeners
-  }, [viewport.scale, viewport.x, viewport.y]);
 
   // Update cursor and activate tools based on selected tool
   useEffect(() => {

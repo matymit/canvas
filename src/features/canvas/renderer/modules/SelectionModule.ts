@@ -42,10 +42,7 @@ export class SelectionModule implements RendererModule {
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
 
-    // FIXED: Make module globally accessible for tool integration
-    (window as { selectionModule?: SelectionModule }).selectionModule = this;
-
-    // CRITICAL FIX: Create connector selection manager with proper error handling
+    // Create transformer manager on overlay layer with dynamic aspect ratio control
     try {
       this.connectorSelectionManager = new ConnectorSelectionManager(
         ctx.stage,
@@ -186,12 +183,6 @@ export class SelectionModule implements RendererModule {
     if (this.connectorSelectionManager) {
       this.connectorSelectionManager.destroy();
       this.connectorSelectionManager = undefined;
-    }
-
-    // Clean up global reference
-    const globalWindow = window as { selectionModule?: SelectionModule };
-    if (globalWindow.selectionModule === this) {
-      globalWindow.selectionModule = undefined;
     }
   }
 

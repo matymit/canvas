@@ -20,6 +20,7 @@ import { ShapeRenderer } from "./modules/ShapeRenderer";
 import { DrawingRenderer } from "./modules/DrawingRenderer";
 import { SelectionModule } from "./modules/SelectionModule";
 import { PortHoverModule } from "./modules/PortHoverModule";
+import { ViewportRenderer } from "./modules/ViewportRenderer";
 
 import {
   CanvasElementLike,
@@ -53,6 +54,8 @@ export function setupRenderer(
     new DrawingRenderer(),
     // CRITICAL FIX: Add port hover functionality
     new PortHoverModule(),
+    // Viewport renderer to handle stage transformations
+    new ViewportRenderer(),
     // Selection module last so it can find rendered nodes
     new SelectionModule(),
   ];

@@ -244,6 +244,15 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
           ...coreModule,
           ...interactionModule,
 
+          panBy: (dx: number, dy: number) => {
+            set(state => {
+              const vx = state.viewport.x ?? 0;
+              const vy = state.viewport.y ?? 0;
+              state.viewport.x = vx + dx;
+              state.viewport.y = vy + dy;
+            });
+          },
+
           // Compatibility shim for modules that expect state.history object with helper methods
           history: {
             record: (input: StoreHistoryOp | StoreHistoryOp[] | CanvasElement | CanvasElement[]) => get().record?.(input),

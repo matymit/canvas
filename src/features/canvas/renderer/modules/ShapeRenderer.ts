@@ -65,9 +65,6 @@ export class ShapeRenderer implements RendererModule {
     this.layer = ctx.layers.main;
     this.store = ctx.store;
 
-    // CRITICAL FIX: Make ShapeRenderer globally accessible for transform synchronization
-    (window as any).shapeRenderer = this;
-
     // Subscribe to store changes - watch shape elements
     this.unsubscribe = ctx.store.subscribe(
       // Selector: extract shape elements
@@ -112,12 +109,6 @@ export class ShapeRenderer implements RendererModule {
     // Unmounting ShapeRenderer
     if (this.unsubscribe) {
       this.unsubscribe();
-    }
-
-    // Clean up global reference
-    const globalWindow = window as any;
-    if (globalWindow.shapeRenderer === this) {
-      globalWindow.shapeRenderer = undefined;
     }
     for (const node of this.shapeNodes.values()) {
       node.destroy();

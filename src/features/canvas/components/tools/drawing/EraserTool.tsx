@@ -2,109 +2,52 @@ import React, { useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { getWorldPointer } from '../../../utils/pointer';
+import { ToolPreviewLayer } from '../../../renderer/modules/ToolPreviewLayer';
+import { RafBatcher } from '../../../utils/performance/RafBatcher';
 
-export interface EraserToolProps {
+const DEFAULT_SIZE = 20;
+
+const EraserTool: React.FC<{
   stageRef: React.RefObject<Konva.Stage | null>;
   isActive: boolean;
   size?: number;
   opacity?: number;
-}
-
-const DEFAULT_SIZE = 20;
-
-function getMainLayer(stage: Konva.Stage | null): Konva.Layer | null {
-  if (!stage) return null;
-  // Assumes four-layer architecture: [background, main, preview, overlay]
-  const layers = stage.getLayers();
-  return layers[1] as Konva.Layer | null;
-}
-
-function ensureOverlayOnTop(stage: Konva.Stage | null) {
-  if (!stage) return;
-  const layers = stage.getLayers();
-  const overlay = layers[3] as Konva.Layer | undefined;
-  if (overlay) overlay.moveToTop();
-}
-
-const EraserTool: React.FC<EraserToolProps> = ({
+}> = ({
   stageRef,
   isActive,
   size = DEFAULT_SIZE,
   opacity = 1,
 }) => {
-  const upsertElement = useUnifiedCanvasStore((s) => s.element?.upsert);
-  const withUndo = useUnifiedCanvasStore((s) => s.withUndo);
   const previewLayerRef = useRef<Konva.Layer | null>(null);
   const lineRef = useRef<Konva.Line | null>(null);
   const drawingRef = useRef(false);
   const pointsRef = useRef<number[]>([]);
-  const rafPendingRef = useRef(false);
+  const rafBatcher = useRef(new RafBatcher()).current;
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
 
-    // Use existing preview layer (four-layer pipeline: [background, main, preview, overlay])
-    const layers = stage.getLayers();
-    const previewLayer = (layers[2] as Konva.Layer) ?? new Konva.Layer({ listening: false });
-    // Only add if missing (should not happen in our pipeline)
-    if (!previewLayer.getStage()) stage.add(previewLayer);
-    previewLayerRef.current = previewLayer;
-    ensureOverlayOnTop(stage);
+    const previewLayer = ToolPreviewLayer.getPreviewLayer(stage);
+    previewLayerRef.current = previewLayer || null;
 
     const commitStroke = () => {
       const stageNow = stageRef.current;
       const line = lineRef.current;
       if (!stageNow || !line) return;
 
-      // Move the finished eraser stroke into the main layer for persistence
-      const main = getMainLayer(stageNow);
-      if (main) {
-        line.listening(false); // Eraser strokes don't need hit detection
-        line.moveTo(main);
-        main.batchDraw();
-      } else {
-        // Fallback: keep it on stage if main layer is not available.
-        line.moveToTop();
-        stageNow.draw();
-      }
-
-      // Also save to unified store for persistence with undo support
-      if (upsertElement && withUndo && pointsRef.current.length >= 4) {
-        const bounds = {
+      const bounds = {
           x: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
           y: Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1)),
           width: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 0)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 0)),
           height: Math.max(...pointsRef.current.filter((_, i) => i % 2 === 1)) - Math.min(...pointsRef.current.filter((_, i) => i % 2 === 1))
-        };
-
-        withUndo('Erase with eraser', () => {
-          upsertElement({
-            id: `eraser-stroke-${Date.now()}`,
-            type: 'drawing',
-            subtype: 'eraser',
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-            bounds,
-            points: [...pointsRef.current],
-            style: {
-              stroke: '#FFFFFF', // White color for destination-out composite
-              strokeWidth: size,
-              opacity,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }
-          });
-        });
-      }
+      };
+      ToolPreviewLayer.commitStroke(stageNow, line, { id: `eraser-stroke-${Date.now()}`, type: 'drawing', subtype: 'eraser', points: [...pointsRef.current], bounds, style: { stroke: '#FFFFFF', strokeWidth: size, opacity, lineCap: 'round', lineJoin: 'round' } }, 'Erase with eraser', false);
 
       // Reset temp state for next stroke.
       lineRef.current = null;
       pointsRef.current = [];
       drawingRef.current = false;
-      rafPendingRef.current = false;
       try { previewLayerRef.current?.batchDraw(); } catch (error) {
         // Ignore cleanup errors
       }
@@ -119,7 +62,7 @@ const EraserTool: React.FC<EraserToolProps> = ({
 
       const line = new Konva.Line({
         points: pointsRef.current,
-        stroke: '#FFFFFF', // White for destination-out composite
+        stroke: '#FFFFFF',
         strokeWidth: size,
         opacity,
         lineCap: 'round',
@@ -127,7 +70,7 @@ const EraserTool: React.FC<EraserToolProps> = ({
         listening: false,
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,
-        globalCompositeOperation: 'destination-out', // This creates the erasing effect
+        globalCompositeOperation: 'destination-out',
       });
 
       lineRef.current = line;
@@ -142,16 +85,12 @@ const EraserTool: React.FC<EraserToolProps> = ({
 
       pointsRef.current.push(pos.x, pos.y);
 
-      if (!rafPendingRef.current) {
-        rafPendingRef.current = true;
-        requestAnimationFrame(() => {
-          rafPendingRef.current = false;
+      rafBatcher.schedule(() => {
           const line = lineRef.current;
           if (!line) return;
           line.points(pointsRef.current);
           previewLayerRef.current?.batchDraw();
-        });
-      }
+      });
     };
 
     const endStroke = () => {
@@ -163,34 +102,26 @@ const EraserTool: React.FC<EraserToolProps> = ({
     const onPointerLeave = () => endStroke();
 
     if (isActive) {
-      stage.on('pointerdown', onPointerDown);
-      stage.on('pointermove', onPointerMove);
-      stage.on('pointerup', onPointerUp);
-      stage.on('pointerleave', onPointerLeave);
+      stage.on('pointerdown.erasertool', onPointerDown);
+      stage.on('pointermove.erasertool', onPointerMove);
+      stage.on('pointerup.erasertool', onPointerUp);
+      stage.on('pointerleave.erasertool', onPointerLeave);
     }
 
     return () => {
-      stage.off('pointerdown', onPointerDown);
-      stage.off('pointermove', onPointerMove);
-      stage.off('pointerup', onPointerUp);
-      stage.off('pointerleave', onPointerLeave);
+      stage.off('.erasertool');
 
-      // Cleanup transient resources
       try {
         lineRef.current?.destroy();
       } catch (error) {
         // Ignore cleanup errors
       }
       lineRef.current = null;
-
-      // Do not destroy shared preview layer
       previewLayerRef.current = null;
-
       drawingRef.current = false;
       pointsRef.current = [];
-      rafPendingRef.current = false;
     };
-  }, [stageRef, isActive, size, opacity, upsertElement, withUndo]);
+  }, [stageRef, isActive, size, opacity, rafBatcher]);
 
   return null;
 };
