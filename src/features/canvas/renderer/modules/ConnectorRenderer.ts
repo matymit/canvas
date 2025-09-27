@@ -127,19 +127,26 @@ export class ConnectorRenderer {
       g.setAttr("elementId", conn.id);
 
       // Use pointerdown for more reliable hit on thin lines
-      const onSelect = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+      const onSelect = (e: Konva.KonvaEventObject<Event>) => {
         e.cancelBubble = true;
-        const selectionModule = (window as any).selectionModule;
+        const selectionModule = typeof window !== "undefined" ? window.selectionModule : undefined;
         if (selectionModule) {
-          const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
+          const nativeEvent = e.evt;
+          const isPointerLike = (evt: Event): evt is PointerEvent | MouseEvent =>
+            typeof (evt as PointerEvent).ctrlKey === "boolean" &&
+            typeof (evt as PointerEvent).metaKey === "boolean" &&
+            typeof (evt as PointerEvent).shiftKey === "boolean";
+          const isAdditive = isPointerLike(nativeEvent)
+            ? nativeEvent.ctrlKey || nativeEvent.metaKey || nativeEvent.shiftKey
+            : false;
           // Always delegate to selection module; it will choose connector mode
-          selectionModule.selectElement(conn.id, { additive: isAdditive });
+          selectionModule.selectElement?.(conn.id, { additive: isAdditive });
         } else {
           // Ignore error
         }
       };
       g.on("pointerdown", onSelect);
-      g.on("tap", onSelect as any);
+      g.on("tap", onSelect);
 
       this.layers.main.add(g);
       this.groupById.set(conn.id, g);

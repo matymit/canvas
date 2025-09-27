@@ -66,12 +66,15 @@ export function computeStickyResizeUpdate(
 }
 
 // Define interfaces for window extensions and store types
-interface SelectionModule {
-  selectElement: (elementId: string, options?: { autoFocus?: boolean }) => void;
+interface SelectionModuleLike {
+  selectElement?: (elementId: string, options?: Record<string, unknown>) => void;
+  toggleSelection?: (elementId: string, additive?: boolean) => void;
+  clearSelection?: () => void;
+  [key: string]: unknown;
 }
 
 interface ExtendedWindow extends Window {
-  selectionModule?: SelectionModule;
+  selectionModule?: SelectionModuleLike;
   stickyNoteModule?: StickyNoteModule;
 }
 
@@ -87,7 +90,7 @@ interface StoreWithHistory {
 }
 
 // Get reference to SelectionModule for proper selection integration
-function getSelectionModule(): SelectionModule | undefined {
+function getSelectionModule(): SelectionModuleLike | undefined {
   return (window as ExtendedWindow).selectionModule;
 }
 
@@ -279,6 +282,7 @@ export class StickyNoteModule implements RendererModule {
     // CRITICAL FIX: Set nodeType attribute for TransformerManager aspect ratio detection
     group.setAttr("nodeType", "sticky-note");
     group.setAttr("elementType", "sticky-note");
+    group.setAttr("keepAspectRatio", true);
 
     // Add interaction handlers
     this.setupStickyInteractions(group, sticky.id);
@@ -338,6 +342,7 @@ export class StickyNoteModule implements RendererModule {
     // CRITICAL FIX: Ensure nodeType attribute is maintained for TransformerManager
     group.setAttr("nodeType", "sticky-note");
     group.setAttr("elementType", "sticky-note");
+    group.setAttr("keepAspectRatio", true);
 
     // Update rectangle
     const rect = group.findOne(".sticky-bg") as Konva.Rect;
@@ -385,7 +390,7 @@ export class StickyNoteModule implements RendererModule {
       if (selectionModule) {
         // Use SelectionModule for consistent selection behavior
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
-        selectionModule.selectElement(elementId, { autoFocus: !isAdditive });
+        selectionModule.selectElement?.(elementId, { autoFocus: !isAdditive });
       } else {
         // Fallback to direct store integration
         debug("No SelectionModule, using fallback", {
@@ -510,11 +515,11 @@ export class StickyNoteModule implements RendererModule {
       const element = store?.elements?.get?.(elementId);
 
       if (element) {
-        const width = element.width || 240;
-        const height = element.height || 180;
+        const width = element.width ?? group.width() ?? 240;
+        const height = element.height ?? group.height() ?? 180;
         transformStartData = {
-          width: group.width() || width,
-          height: group.height() || height,
+          width,
+          height,
           scaleX: group.scaleX() || 1,
           scaleY: group.scaleY() || 1,
           storeWidth: width,
@@ -524,43 +529,20 @@ export class StickyNoteModule implements RendererModule {
       }
     });
 
-    group.on("transform", () => {
-      // FIXED: Enforce aspect ratio when Shift key is held
-      if (transformStartData && (window.event as KeyboardEvent)?.shiftKey) {
-        // Calculate the average scale to maintain aspect ratio
-        const currentScaleX = group.scaleX() || 1;
-        const currentScaleY = group.scaleY() || 1;
-
-        // For sticky notes, we want to maintain a 1:1 aspect ratio (square)
-        // when Shift is held, regardless of the original aspect ratio
-        const targetScale = Math.min(currentScaleX, currentScaleY);
-
-        group.scaleX(targetScale);
-        group.scaleY(targetScale);
-      }
-    });
-
     group.on("transformend", () => {
       if (!this.storeCtx || !transformStartData) return;
+      const startData = transformStartData;
 
       const store = this.storeCtx.store.getState();
       // CRITICAL FIX: Calculate dimensions correctly using the group's actual size and scale
-      const newWidth = Math.max(
-        50,
-        Math.round(
-          (group.width() || transformStartData.width) * (group.scaleX() || 1),
-        ),
-      );
-      const newHeight = Math.max(
-        50,
-        Math.round(
-          (group.height() || transformStartData.height) * (group.scaleY() || 1),
-        ),
-      );
+      const scaleX = group.scaleX() || 1;
+      const scaleY = group.scaleY() || 1;
+      const newWidth = Math.max(50, Math.round(startData.width * scaleX));
+      const newHeight = Math.max(50, Math.round(startData.height * scaleY));
 
       // Only update if size actually changed
-      const deltaWidth = Math.abs(newWidth - transformStartData.storeWidth);
-      const deltaHeight = Math.abs(newHeight - transformStartData.storeHeight);
+      const deltaWidth = Math.abs(newWidth - startData.storeWidth);
+      const deltaHeight = Math.abs(newHeight - startData.storeHeight);
 
       if (deltaWidth > 0 || deltaHeight > 0) {
         const storeWithHistory = store as StoreWithHistory;
@@ -572,18 +554,33 @@ export class StickyNoteModule implements RendererModule {
 
         if (updateElement) {
           const updateFn = () => {
+            const aspectRatio = startData.aspectRatio || 1;
+            let constrainedWidth = newWidth;
+            let constrainedHeight = newHeight;
+
+            if (aspectRatio > 0) {
+              const widthDelta = Math.abs(newWidth - startData.storeWidth);
+              const heightDelta = Math.abs(newHeight - startData.storeHeight);
+              if (widthDelta >= heightDelta) {
+                constrainedHeight = Math.max(50, Math.round(constrainedWidth / aspectRatio));
+              } else {
+                constrainedWidth = Math.max(50, Math.round(constrainedHeight * aspectRatio));
+              }
+            }
+
             // CRITICAL FIX: Only update width and height, preserve position to prevent jumping
             updateElement(elementId, {
-              width: newWidth,
-              height: newHeight,
+              width: constrainedWidth,
+              height: constrainedHeight,
+              keepAspectRatio: true,
             });
 
             // CRITICAL FIX: Reset scale to 1 to maintain consistent hit testing and prevent accumulation
             group.scaleX(1);
             group.scaleY(1);
             // Also reset the group dimensions to match the new size
-            group.width(newWidth);
-            group.height(newHeight);
+            group.width(constrainedWidth);
+            group.height(constrainedHeight);
           };
 
           if (withUndo) {
@@ -729,6 +726,7 @@ export class StickyNoteModule implements RendererModule {
     });
 
     // FIXED: Seamless integration styling with background color matching
+    const textConfig = getTextConfig("STICKY_NOTE");
     editor.style.cssText = `
       position: fixed;
       left: ${pageX}px;
@@ -739,9 +737,10 @@ export class StickyNoteModule implements RendererModule {
       outline: none;
       background: ${bgColor || "#FEF08A"};
       z-index: 1000;
-      font-family: Inter, system-ui, sans-serif;
-      font-size: 14px;
-      line-height: 1.4;
+      font-family: ${textConfig.fontFamily};
+      font-size: ${textConfig.fontSize}px;
+      line-height: ${textConfig.lineHeight};
+      font-weight: ${textConfig.fontWeight};
       color: #374151;
       resize: none;
       padding: 0;

@@ -124,8 +124,11 @@ export class ConnectorSelectionManager {
   }
 
   private getConnectorElement(connectorId: string): ConnectorElement | null {
-    const el = StoreSelectors.getElementById(connectorId) as any;
-    return el && el.type === 'connector' ? (el as ConnectorElement) : null;
+    const element = StoreSelectors.getElementById(connectorId);
+    if (element?.type === 'connector') {
+      return element as ConnectorElement;
+    }
+    return null;
   }
 
   private createEndpointDots(connector: ConnectorElement): void {

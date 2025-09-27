@@ -1,5 +1,15 @@
 import type Konva from 'konva';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import type { CanvasElement } from '../../../../../types/index';
+
+interface DrawingElementProps {
+  id: string;
+  type: 'drawing';
+  subtype: 'pen' | 'marker' | 'highlighter' | 'eraser';
+  points: number[];
+  bounds: { x: number; y: number; width: number; height: number };
+  style?: CanvasElement['style'];
+}
 
 export class ToolPreviewLayer {
   static getPreviewLayer(stage: Konva.Stage): Konva.Layer | null {
@@ -8,7 +18,13 @@ export class ToolPreviewLayer {
     return layers.length > 2 ? (layers[2] as Konva.Layer) : null;
   }
 
-  static commitStroke(stage: Konva.Stage, line: Konva.Line, elementProps: { id: string; type: 'drawing'; subtype: string; points: number[]; bounds: {x:number;y:number;width:number;height:number}; style: any; }, actionName: string, interactiveAfter = true) {
+  static commitStroke(
+    stage: Konva.Stage,
+    line: Konva.Line,
+    elementProps: DrawingElementProps,
+    actionName: string,
+    interactiveAfter = true,
+  ) {
     if (interactiveAfter) {
       line.listening(true);
     } else {
@@ -20,16 +36,19 @@ export class ToolPreviewLayer {
     // Use store action to persist the element with history
     const store = useUnifiedCanvasStore.getState();
     if (store.element?.upsert && store.withUndo) {
-      const elementToCreate = {
+      const elementToCreate: CanvasElement = {
         id: elementProps.id,
         type: elementProps.type,
         subtype: elementProps.subtype,
         points: elementProps.points,
-        ...elementProps.bounds, // Spread x, y, width, height
+        x: elementProps.bounds.x,
+        y: elementProps.bounds.y,
+        width: elementProps.bounds.width,
+        height: elementProps.bounds.height,
         style: elementProps.style,
       };
       store.withUndo(actionName, () => {
-        store.element.upsert(elementToCreate as any);
+        store.element.upsert(elementToCreate);
       });
     }
   }

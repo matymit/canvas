@@ -3,6 +3,10 @@
 
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
+import type {
+  ConnectorPort,
+  ConnectorToolHandle,
+} from "../../types/connectorTool";
 
 interface ConnectableElement {
   id: string;
@@ -11,13 +15,6 @@ interface ConnectableElement {
   y: number;
   width: number;
   height: number;
-}
-
-interface Port {
-  id: string;
-  elementId: string;
-  position: { x: number; y: number };
-  anchor: "top" | "right" | "bottom" | "left" | "center";
 }
 
 export class PortHoverModule implements RendererModule {
@@ -352,8 +349,8 @@ export class PortHoverModule implements RendererModule {
     this.currentHoveredElement = undefined;
   }
 
-  private calculatePortPositions(element: ConnectableElement): Port[] {
-    const ports: Port[] = [];
+  private calculatePortPositions(element: ConnectableElement): ConnectorPort[] {
+    const ports: ConnectorPort[] = [];
     const { x, y, width, height } = element;
 
     // CRITICAL FIX: Use same comprehensive circle detection as AnchorSnapping.ts and ConnectorRenderer.ts
@@ -370,7 +367,7 @@ export class PortHoverModule implements RendererModule {
       // Calculate port positions on the circle/ellipse perimeter using trigonometry
       // Use standard angles: 0° (right), 90° (bottom), 180° (left), 270° (top)
       const portPositions: Array<{
-        anchor: "top" | "right" | "bottom" | "left" | "center";
+        anchor: ConnectorPort["anchor"];
         x: number;
         y: number;
       }> = [
@@ -418,7 +415,7 @@ export class PortHoverModule implements RendererModule {
 
       // Define port positions using same logic as AnchorSnapping for consistency
       const portPositions: Array<{
-        anchor: "top" | "right" | "bottom" | "left" | "center";
+        anchor: ConnectorPort["anchor"];
         x: number;
         y: number;
       }> = [
@@ -495,7 +492,7 @@ export class PortHoverModule implements RendererModule {
     );
   }
 
-  private isConnectable(element: any): boolean {
+  private isConnectable(element: ConnectableElement): boolean {
     if (!element || !element.type) return false;
 
     // Define which element types can have connectors
@@ -535,7 +532,7 @@ export class PortHoverModule implements RendererModule {
 
     const state = this.storeCtx.store.getState();
     const element =
-      state.elements?.get?.(elementId) || state.element?.getById?.(elementId);
+      state.elements.get(elementId) ?? state.element?.getById?.(elementId);
 
     if (!element) return null;
 
@@ -599,7 +596,7 @@ export class PortHoverModule implements RendererModule {
   /**
    * Handle port click events - integrate with ConnectorTool
    */
-  private handlePortClick(port: Port, e: Konva.KonvaEventObject<PointerEvent>) {
+  private handlePortClick(port: ConnectorPort, e: Konva.KonvaEventObject<PointerEvent>) {
     // Get ConnectorTool instance from global registry or window
     const connectorTool = this.getActiveConnectorTool();
     if (connectorTool) {
@@ -613,11 +610,11 @@ export class PortHoverModule implements RendererModule {
   /**
    * Get active ConnectorTool instance for delegation
    */
-  private getActiveConnectorTool(): any {
+  private getActiveConnectorTool(): ConnectorToolHandle | null {
     // Try to get ConnectorTool from global registry
     try {
-      const connectorTool = (window as any).activeConnectorTool;
-      return connectorTool;
+      if (typeof window === "undefined") return null;
+      return window.activeConnectorTool ?? null;
     } catch {
       return null;
     }

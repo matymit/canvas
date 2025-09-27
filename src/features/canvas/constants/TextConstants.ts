@@ -179,7 +179,9 @@ export function createFontString(config: typeof TEXT_ELEMENT_CONFIGS[keyof typeo
  */
 export const MIGRATION_HELPERS = {
   /** Get appropriate font size for legacy elements */
-  getLegacyFontSize: (currentSize?: number): number => {
+  getLegacyFontSize: (
+    currentSize?: number,
+  ): typeof FONT_SIZES[keyof typeof FONT_SIZES] => {
     if (!currentSize) return FONT_SIZES.MEDIUM;
 
     // Map existing sizes to standardized ones
@@ -191,7 +193,9 @@ export const MIGRATION_HELPERS = {
   },
 
   /** Get standardized font family from legacy strings */
-  getLegacyFontFamily: (_currentFamily?: string): string => {
+  getLegacyFontFamily: (
+    _currentFamily?: string,
+  ): typeof FONT_FAMILIES.PRIMARY | typeof FONT_FAMILIES.SYSTEM => {
     // All elements should use primary font family for consistency
     return FONT_FAMILIES.PRIMARY;
   }

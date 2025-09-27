@@ -41,32 +41,33 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
   const handleDeleteNode = useCallback(() => {
     const store = useUnifiedCanvasStore.getState();
     const withUndo = store.history?.withUndo;
-    const removeElement = store.removeElement || store.element?.delete;
+    const removeElementWithOptions = (
+      id: string,
+      options: { pushHistory: boolean; deselect: boolean },
+    ) => {
+      if (typeof store.removeElement === "function") {
+        store.removeElement(id, options);
+        return;
+      }
+      store.element?.delete?.(id);
+    };
 
-    if (withUndo && removeElement) {
+    if (withUndo) {
       withUndo("Delete mindmap node", () => {
         // Get all descendants
         const descendants = mindmapOps.getNodeDescendants(nodeId);
         const allToDelete = [nodeId, ...descendants];
 
         // Remove all nodes and their edges
-        allToDelete.forEach(id => {
-          if (typeof removeElement === "function" && removeElement.length > 1) {
-            (removeElement as any)(id, { pushHistory: false, deselect: true });
-          } else {
-            removeElement(id);
-          }
+        allToDelete.forEach((id) => {
+          removeElementWithOptions(id, { pushHistory: false, deselect: true });
         });
       });
-    } else if (removeElement) {
+    } else {
       // Fallback without undo
       const descendants = mindmapOps.getNodeDescendants(nodeId);
-      [nodeId, ...descendants].forEach(id => {
-        if (typeof removeElement === "function" && removeElement.length > 1) {
-          (removeElement as any)(id, { pushHistory: true, deselect: true });
-        } else {
-          removeElement(id);
-        }
+      [nodeId, ...descendants].forEach((id) => {
+        removeElementWithOptions(id, { pushHistory: true, deselect: true });
       });
     }
     onClose();

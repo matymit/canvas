@@ -238,6 +238,20 @@ function ensureArray<T>(v: T | T[] | undefined | null): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
+function toElementIdArray(input: unknown): ElementId[] {
+  return ensureArray(input)
+    .map((value) => {
+      if (typeof value === 'string') {
+        return value as ElementId;
+      }
+      if (value && typeof value === 'object' && 'id' in value) {
+        return (value as CanvasElement).id as ElementId;
+      }
+      return undefined;
+    })
+    .filter((id): id is ElementId => Boolean(id));
+}
+
 interface LooseRecordObject {
   type?: StoreHistoryOp['type'];
   op?: StoreHistoryOp['type'];
@@ -343,8 +357,8 @@ function normalizeLooseRecord(input: RecordInput): StoreHistoryOp[] {
   }
 
   if (opType === 'reorder') {
-    const beforeOrder = ensureArray<ElementId>(record.orderBefore ?? record.before);
-    const afterOrder = ensureArray<ElementId>(record.orderAfter ?? record.after);
+    const beforeOrder = toElementIdArray(record.orderBefore ?? record.before);
+    const afterOrder = toElementIdArray(record.orderAfter ?? record.after);
     if (beforeOrder.length && afterOrder.length) {
       return [{ type: 'reorder', before: beforeOrder, after: afterOrder }];
     }
@@ -400,7 +414,9 @@ function extractMergeKey(input: RecordInput): string | undefined {
 
 function applyOpToStore(state: ElementDraft, op: StoreHistoryOp, dir: 'undo' | 'redo') {
   const baseMap: Map<ElementId, CanvasElement> =
-    state.elements ?? state.element?.elements ?? new Map<ElementId, CanvasElement>();
+    (state as WritableDraft<{ elements?: Map<ElementId, CanvasElement> }>).elements ??
+    ((state.element as { elements?: Map<ElementId, CanvasElement> } | undefined)?.elements ??
+      new Map<ElementId, CanvasElement>());
   const map = new Map<ElementId, CanvasElement>(baseMap);
   const order: ElementId[] = Array.isArray(state.elementOrder) ? state.elementOrder.slice() : [];
 
@@ -709,7 +725,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
   },
 
   getMemoryUsage: () => {
-    const h = pickHistoryState(get() as HistoryModuleSlice);
+    const h = pickHistoryState(get() as unknown as HistoryRootDraft);
     const totalBytes = h.entries.reduce((sum: number, entry: HistoryEntry) => sum + (entry.estimatedSize || 0), 0);
     return {
       entriesCount: h.entries.length,
@@ -825,12 +841,12 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
     }),
 
   canUndo: () => {
-    const h = pickHistoryState(get() as HistoryModuleSlice);
+    const h = pickHistoryState(get() as unknown as HistoryRootDraft);
     return h.index >= 0;
   },
 
   canRedo: () => {
-    const h = pickHistoryState(get() as HistoryModuleSlice);
+    const h = pickHistoryState(get() as unknown as HistoryRootDraft);
     return h.index < h.entries.length - 1;
   },
 

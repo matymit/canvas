@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type Konva from 'konva';
 import DrawingModule from '../../../renderer/modules/DrawingModule';
 import { RafBatcher } from '../../../utils/performance/RafBatcher';
@@ -26,7 +26,15 @@ const HighlighterTool: React.FC<HighlighterToolProps> = ({
   rafBatcher,
 }) => {
   const fallbackBatcherRef = useRef<RafBatcher | null>(null);
-  const batcher = rafBatcher ?? (fallbackBatcherRef.current ?? (fallbackBatcherRef.current = new RafBatcher()));
+  const batcher = useMemo(() => {
+    if (rafBatcher) {
+      return rafBatcher;
+    }
+    if (!fallbackBatcherRef.current) {
+      fallbackBatcherRef.current = new RafBatcher();
+    }
+    return fallbackBatcherRef.current;
+  }, [rafBatcher]);
 
   useEffect(() => {
     const stage = stageRef.current;

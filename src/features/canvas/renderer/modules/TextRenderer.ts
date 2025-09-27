@@ -9,7 +9,9 @@ type Id = string;
 // Extended window interface for type safety
 interface ExtendedWindow extends Window {
   selectionModule?: {
-    selectElement: (elementId: string) => void;
+    selectElement?: (elementId: string, options?: Record<string, unknown>) => void;
+    clearSelection?: () => void;
+    [key: string]: unknown;
   };
 }
 
@@ -316,7 +318,7 @@ export class TextRenderer implements RendererModule {
       // Select this text element via the global selection module
       const selectionModule = (window as ExtendedWindow).selectionModule;
       if (selectionModule?.selectElement) {
-        selectionModule.selectElement(text.id);
+        selectionModule.selectElement?.(text.id);
       } else {
         // Fallback to store-based selection
         if (this.store) {
@@ -337,7 +339,7 @@ export class TextRenderer implements RendererModule {
 
       const selectionModule = (window as ExtendedWindow).selectionModule;
       if (selectionModule?.selectElement) {
-        selectionModule.selectElement(text.id);
+        selectionModule.selectElement?.(text.id);
       }
     });
 
@@ -400,7 +402,9 @@ export class TextRenderer implements RendererModule {
   }
 
   private startTextEditing(node: Konva.Text, text: TextElement) {
-    if (!this.stage || !this.layer) {
+    const stage = this.stage;
+    const layer = this.layer;
+    if (!stage || !layer) {
       // Warning: [TextRenderer] No stage or layer available for text editing
       return;
     }
@@ -410,8 +414,8 @@ export class TextRenderer implements RendererModule {
 
     // Opening text editor immediately
     openKonvaTextEditor({
-        stage: this.stage!,
-        layer: this.layer!,
+        stage,
+        layer,
         shape: node,
         onCommit: (newText: string) => {
           // Text editor committed

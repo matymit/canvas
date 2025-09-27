@@ -4,6 +4,11 @@ import {
   computeShapeInnerBox,
   type BaseShape
 } from '../text/computeShapeInnerBox';
+import {
+  applyVendorAppearanceReset,
+  applyVendorTextFillColor,
+  applyVendorTextStrokeReset
+} from '../text/vendorStyles';
 import type { ElementId } from '../../../../../types';
 
 const ZERO_WIDTH_SPACE = '\u200B';
@@ -80,11 +85,23 @@ export function openShapeTextEditor(
   let textNode: Konva.Node | null = null;
   if (typeof stage.findOne === 'function') {
     // First try the ID-based lookup
-    textNode = stage.findOne(`#${elementId}-text`) as any;
-    if (!textNode && typeof stage.find === 'function') {
+    const directMatch = stage.findOne<Konva.Node>(`#${elementId}-text`);
+    if (directMatch) {
+      textNode = directMatch;
+    } else if (typeof stage.find === 'function') {
       // Fallback: find node with matching elementId and shape-text nodeType
-      const candidates = stage.find((n: any) => n.getAttr && n.getAttr('elementId') === elementId && n.getAttr('nodeType') === 'shape-text-root');
-      textNode = candidates && candidates.length > 0 ? (candidates[0] as any) : null;
+      const candidatesRaw = stage.find((node: Konva.Node) => {
+        const elementAttr = node.getAttr<string | undefined>('elementId');
+        const nodeTypeAttr = node.getAttr<string | undefined>('nodeType');
+        return elementAttr === elementId && nodeTypeAttr === 'shape-text-root';
+      });
+      const candidates = Array.isArray(candidatesRaw)
+        ? (candidatesRaw as Konva.Node[])
+        : typeof (candidatesRaw as { toArray?: () => Konva.Node[] }).toArray ===
+            'function'
+          ? (candidatesRaw as { toArray: () => Konva.Node[] }).toArray()
+          : [];
+      textNode = candidates.length > 0 ? candidates[0] : null;
     }
   }
 
@@ -145,8 +162,6 @@ export function openShapeTextEditor(
     cursor: 'text',
     // CRITICAL FIX: Cross-browser caret visibility
     caretColor: `${textColor} !important`,
-    webkitTextFillColor: `${textColor} !important`,
-    textFillColor: textColor,
     // Remove all border styling - use selection frame instead
     borderStyle: 'none !important',
     borderWidth: '0 !important',
@@ -156,9 +171,6 @@ export function openShapeTextEditor(
     outlineColor: 'transparent !important',
     outlineOffset: '0 !important',
     // Additional browser-specific resets
-    webkitAppearance: 'none',
-    mozAppearance: 'none',
-    msAppearance: 'none',
     appearance: 'none',
     // Ensure text shadow doesn't interfere
     textShadow: 'none',
@@ -206,6 +218,8 @@ export function openShapeTextEditor(
   }
 
   Object.assign(editor.style, editorStyles);
+  applyVendorTextFillColor(editor.style, textColor);
+  applyVendorAppearanceReset(editor.style);
 
   const currentText = (typeof shapeSnapshot.data?.text === 'string' ? shapeSnapshot.data.text : '') || '';
   let latestEditorText = currentText;
@@ -503,19 +517,12 @@ export function openShapeTextEditor(
   const ensureCaretVisibility = () => {
     // Force caret color and text rendering
     editor.style.caretColor = textColor;
-    editor.style.webkitTextFillColor = textColor;
+    applyVendorTextFillColor(editor.style, textColor);
 
     // Additional browser-specific caret fixes
     if (navigator.userAgent.includes('Chrome')) {
       // Chrome-specific caret visibility
-      editor.style.webkitTextStroke = 'initial';
-    } else if (navigator.userAgent.includes('Firefox')) {
-      // Firefox-specific caret visibility
-      (editor.style as any).MozTextFillColor = textColor;
-    } else if (navigator.userAgent.includes('Safari')) {
-      // Safari-specific caret visibility
-      editor.style.webkitTextFillColor = textColor;
-      (editor.style as any).textFillColor = textColor;
+      applyVendorTextStrokeReset(editor.style);
     }
 
     // FIXED: Force visual refresh without display toggling

@@ -5,6 +5,10 @@ import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { AnchorSide } from "../../../types/connector";
 import type { ConnectorElement } from "../../../types/connector";
+import type {
+  ConnectorPort,
+  ConnectorToolHandle,
+} from "../../../types/connectorTool";
 import { findNearestAnchor } from "../../../utils/anchors/AnchorSnapping";
 import { getWorldPointer } from "../../../utils/pointer";
 
@@ -48,7 +52,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
     start: { x: number; y: number } | null;
     startSnap: { elementId: string; side: AnchorSide } | null;
     preview: Konva.Shape | null;
-    toolInstance: any; // Store tool instance for global access
+    toolInstance: ConnectorToolHandle | null; // Store tool instance for global access
     cleanupCursor?: () => void; // Cleanup function for cursor interval
   }>({ start: null, startSnap: null, preview: null, toolInstance: null });
 
@@ -124,7 +128,10 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       const isArrow = toolId === "connector-arrow";
 
       // CRITICAL FIX: Handle port clicks from PortHoverModule
-      const handlePortClick = (port: any, _e: any) => {
+      const handlePortClick: ConnectorToolHandle["handlePortClick"] = (
+        port: ConnectorPort,
+        _event,
+      ) => {
         // Initialize drawing from this port
         ref.current.start = { x: port.position.x, y: port.position.y };
         ref.current.startSnap = { elementId: port.elementId, side: port.anchor };
@@ -164,10 +171,13 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
       };
 
       // Register this tool instance globally for PortHoverModule integration
-      (window as any).activeConnectorTool = {
-        handlePortClick: handlePortClick
+      const connectorToolHandle: ConnectorToolHandle = {
+        handlePortClick,
       };
-      ref.current.toolInstance = (window as any).activeConnectorTool;
+      if (typeof window !== "undefined") {
+        window.activeConnectorTool = connectorToolHandle;
+      }
+      ref.current.toolInstance = connectorToolHandle;
 
     const onPointerMove = () => {
       if (ref.current.start) {
@@ -310,7 +320,7 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
 
       // Hide any hover ports after successful connection
       try {
-        const portHoverModule = (window as any).portHoverModule;
+        const portHoverModule = typeof window !== "undefined" ? window.portHoverModule : undefined;
         if (portHoverModule?.hideNow) {
           portHoverModule.hideNow();
         }
@@ -392,8 +402,11 @@ export const ConnectorTool: React.FC<ConnectorToolProps> = ({
         window.removeEventListener("keydown", onKeyDown);
 
         // Clean up global registration
-        if ((window as any).activeConnectorTool === refCapture.toolInstance) {
-          (window as any).activeConnectorTool = null;
+        if (
+          typeof window !== "undefined" &&
+          window.activeConnectorTool === refCapture.toolInstance
+        ) {
+          window.activeConnectorTool = null;
         }
 
         // Clean up cursor interval

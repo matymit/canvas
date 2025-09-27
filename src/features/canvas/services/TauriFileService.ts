@@ -1,12 +1,36 @@
 // features/canvas/services/TauriFileService.ts
 
-import type { CanvasElement, ElementId } from '../../../../types/index';
-import type { ViewportState } from '../stores/unifiedCanvasStore';
+import type { CanvasElement, ElementId } from "../../../../types/index";
+import type { ViewportState } from "../stores/unifiedCanvasStore";
+
+type FileDialogFilter = { name: string; extensions: string[] };
+interface DialogSaveOptions {
+  defaultPath?: string;
+  filters?: FileDialogFilter[];
+}
+interface DialogOpenOptions {
+  multiple?: boolean;
+  filters?: FileDialogFilter[];
+}
+interface TauriDialogModule {
+  save: (options?: DialogSaveOptions) => Promise<string | null>;
+  open: (options?: DialogOpenOptions) => Promise<string | string[] | null>;
+}
+interface TauriFsModule {
+  writeTextFile: (path: string, contents: string) => Promise<void>;
+  readTextFile: (path: string) => Promise<string>;
+  writeFile: (path: string, contents: Uint8Array) => Promise<void>;
+  exists: (path: string) => Promise<boolean>;
+}
+interface TauriPathModule {
+  appDataDir: () => Promise<string>;
+  join: (...paths: string[]) => Promise<string>;
+}
 
 // Dynamic imports for Tauri v2 plugins - these will be loaded at runtime only when in Tauri context
-let tauriDialog: typeof import('@tauri-apps/plugin-dialog') | null = null;
-let tauriFs: typeof import('@tauri-apps/plugin-fs') | null = null;
-let tauriPath: typeof import('@tauri-apps/api/path') | null = null;
+let tauriDialog: TauriDialogModule | null = null;
+let tauriFs: TauriFsModule | null = null;
+let tauriPath: TauriPathModule | null = null;
 
 // Check if running in Tauri context (v2 pattern)
 function isTauriContext(): boolean {
@@ -26,14 +50,28 @@ async function initTauriAPIs() {
     // Use dynamic imports to load Tauri plugins only when needed
     // This prevents build-time resolution issues
     if (!tauriDialog) {
-      tauriDialog = await import('@tauri-apps/plugin-dialog');
+      const dialogModule = await import("@tauri-apps/plugin-dialog");
+      tauriDialog = {
+        save: dialogModule.save,
+        open: dialogModule.open,
+      };
     }
     if (!tauriFs) {
-      tauriFs = await import('@tauri-apps/plugin-fs');
+      const fsModule = await import("@tauri-apps/plugin-fs");
+      tauriFs = {
+        writeTextFile: fsModule.writeTextFile,
+        readTextFile: fsModule.readTextFile,
+        writeFile: fsModule.writeFile,
+        exists: fsModule.exists,
+      };
     }
     if (!tauriPath) {
       // Path utilities are still in @tauri-apps/api for v2
-      tauriPath = await import('@tauri-apps/api/path');
+      const pathModule = await import("@tauri-apps/api/path");
+      tauriPath = {
+        appDataDir: pathModule.appDataDir,
+        join: pathModule.join,
+      };
     }
     return true;
   } catch (error) {

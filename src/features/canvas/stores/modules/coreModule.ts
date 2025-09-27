@@ -184,10 +184,28 @@ function getElementBounds(
 // COMBINED CORE MODULE SLICE
 // ============================================================================
 
+type HistoryCompat = Pick<
+  HistoryModuleSlice,
+  | "record"
+  | "add"
+  | "push"
+  | "withUndo"
+  | "beginBatch"
+  | "endBatch"
+>;
+
 export interface CoreModuleSlice
   extends ElementModuleSlice,
     SelectionModuleSlice,
-    ViewportModuleSlice {}
+    ViewportModuleSlice {
+  history?: Partial<HistoryCompat>;
+  record?: HistoryModuleSlice["record"];
+  add?: HistoryModuleSlice["add"];
+  push?: HistoryModuleSlice["push"];
+  withUndo?: HistoryModuleSlice["withUndo"];
+  beginBatch?: HistoryModuleSlice["beginBatch"];
+  endBatch?: HistoryModuleSlice["endBatch"];
+}
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -275,6 +293,11 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
     return { x: x * vp.scale + vp.x, y: y * vp.scale + vp.y };
   }
 
+  const getHistoryApi = (): Partial<HistoryCompat> => {
+    const state = get();
+    return state.history ?? state;
+  };
+
   return {
     // ========================================================================
     // ELEMENT MODULE IMPLEMENTATION
@@ -299,9 +322,12 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
     getAllElementsInOrder: () => {
       const map = get().elements;
-      return get()
-        .elementOrder.map((id) => map.get(id))
-        .filter(Boolean) as CanvasElement[];
+      const ordered: CanvasElement[] = [];
+      for (const id of get().elementOrder) {
+        const element = map.get(id);
+        if (element) ordered.push(element);
+      }
+      return ordered;
     },
 
     addElement: (element, opts) => {
@@ -326,8 +352,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         draft.elementOrder.splice(index, 0, element.id as ElementId);
       });
       if (opts?.pushHistory) {
-        const root = get() as HistoryModuleSlice;
-        root.record?.({ type: "add", elements: [element] });
+        const history = getHistoryApi();
+        history.record?.({ type: "add", elements: [element] });
       }
       if (opts?.select) {
         get().selection.selectOne(element.id as ElementId, true);
@@ -351,8 +377,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         }
       });
       if (opts?.pushHistory) {
-        const root = get() as HistoryModuleSlice;
-        root.record?.({ type: "add", elements });
+        const history = getHistoryApi();
+        history.record?.({ type: "add", elements });
       }
       if (opts?.selectIds && opts.selectIds.length > 0) {
         const combined = new Set(get().selectedElementIds);
@@ -383,8 +409,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       if (opts?.pushHistory && beforeOriginal) {
         const afterOriginal = __deepClone(get().getElement(id));
         if (afterOriginal) {
-          const root = get() as HistoryModuleSlice;
-          root.record?.({
+          const history = getHistoryApi();
+          history.record?.({
             type: "update",
             before: [beforeOriginal],
             after: [afterOriginal],
@@ -398,10 +424,12 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       opts?: { pushHistory?: boolean },
     ) => {
       const ids = patches.map((p) => p.id);
-      const beforeOriginals: CanvasElement[] = ids
-        .map((id) => get().getElement(id))
-        .filter(Boolean)
-        .map(__deepClone);
+      const beforeOriginals = ids
+        .map((elementId) => {
+          const element = get().getElement(elementId);
+          return element ? __deepClone(element) : undefined;
+        })
+        .filter((element): element is CanvasElement => Boolean(element));
 
       set((state) => {
         const draft = state as CoreDraft;
@@ -417,12 +445,14 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         draft.elements = newMap;
       });
       if (opts?.pushHistory && beforeOriginals.length > 0) {
-        const afterOriginals: CanvasElement[] = ids
-          .map((id) => get().getElement(id))
-          .filter(Boolean)
-          .map(__deepClone);
-        const root = get() as HistoryModuleSlice;
-        root.record?.({
+        const afterOriginals = ids
+          .map((elementId) => {
+            const element = get().getElement(elementId);
+            return element ? __deepClone(element) : undefined;
+          })
+          .filter((element): element is CanvasElement => Boolean(element));
+        const history = getHistoryApi();
+        history.record?.({
           type: "update",
           before: beforeOriginals,
           after: afterOriginals,
@@ -481,8 +511,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       });
 
       if (opts?.pushHistory) {
-        const root = get() as HistoryModuleSlice;
-        root.record?.({ type: "remove", elements: [removed] });
+        const history = getHistoryApi();
+        history.record?.({ type: "remove", elements: [removed] });
       }
     },
 
@@ -525,8 +555,8 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       });
 
       if (opts?.pushHistory && elementsToRemove.length > 0) {
-        const root = get() as HistoryModuleSlice;
-        root.record?.({ type: "remove", elements: elementsToRemove });
+        const history = getHistoryApi();
+        history.record?.({ type: "remove", elements: elementsToRemove });
       }
     },
 
@@ -617,7 +647,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
         // Only record if order actually changed
         if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
-          const history = get() as HistoryModuleSlice;
+          const history = getHistoryApi();
           history.record?.({
             type: "reorder",
             before: beforeOrder,
@@ -633,7 +663,7 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
 
         // Only record if order actually changed
         if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
-          const history = get() as HistoryModuleSlice;
+          const history = getHistoryApi();
           history.record?.({
             type: "reorder",
             before: beforeOrder,

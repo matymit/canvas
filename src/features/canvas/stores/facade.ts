@@ -1,4 +1,5 @@
 import { useUnifiedCanvasStore } from './unifiedCanvasStore';
+import type { UnifiedCanvasStore } from './unifiedCanvasStore';
 import type { ElementId, CanvasElement } from '../../../../types';
 
 export const StoreSelectors = {
@@ -16,10 +17,17 @@ export const StoreActions = {
   setSelectedTool: (tool: string) =>
     useUnifiedCanvasStore.getState().ui?.setSelectedTool?.(tool),
   selectSingle: (id: ElementId) => {
-    const s: any = useUnifiedCanvasStore.getState();
-    if (typeof s.replaceSelectionWithSingle === 'function') return s.replaceSelectionWithSingle(id);
-    if (typeof s.setSelection === 'function') return s.setSelection([id]);
-    if (s.selection && typeof s.selection.set === 'function') return s.selection.set([id]);
+    const state: UnifiedCanvasStore = useUnifiedCanvasStore.getState();
+    if (typeof state.replaceSelectionWithSingle === 'function') {
+      return state.replaceSelectionWithSingle(id);
+    }
+    if (typeof state.setSelection === 'function') {
+      return state.setSelection([id]);
+    }
+    if (state.selection && typeof state.selection.set === 'function') {
+      return state.selection.set([id]);
+    }
+    return undefined;
   },
   panBy: (dx: number, dy: number) => useUnifiedCanvasStore.getState().panBy?.(dx, dy),
   clearSelection: () => useUnifiedCanvasStore.getState().selection.clear(),

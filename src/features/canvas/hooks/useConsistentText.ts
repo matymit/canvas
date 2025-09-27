@@ -83,7 +83,7 @@ interface UseConsistentTextReturn {
 export function useConsistentText(): UseConsistentTextReturn {
   // Memoize commonly used configurations to avoid recreations
   const standardConfigs = useMemo(() => {
-    const configs: Record<TextElementType, TextConfig> = {} as any;
+    const configs = {} as Record<TextElementType, TextConfig>;
     (['TEXT', 'STICKY_NOTE', 'SHAPE', 'CIRCLE', 'MINDMAP_ROOT', 'MINDMAP_CHILD', 'UI', 'TABLE'] as const).forEach(type => {
       configs[type] = getTextConfig(type);
     });
@@ -203,9 +203,9 @@ export function useConsistentText(): UseConsistentTextReturn {
 
     return {
       ...standardConfig,
-      fontSize: normalizedSize as any,
-      fontFamily: normalizedFamily as any
-    };
+      fontSize: normalizedSize,
+      fontFamily: normalizedFamily
+    } as TextConfig;
   }, [getConfig]);
 
   // Normalize legacy text properties to consistent values

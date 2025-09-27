@@ -1,5 +1,6 @@
 import type Konva from "konva";
 import type { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
+import type { RendererLayers } from "./layers";
 import type { TransformerControllerOptions } from "./TransformerController";
 
 export interface CanvasElementLike {
@@ -16,7 +17,7 @@ export interface CanvasElementLike {
 export interface CanvasRendererOptions {
   dpr?: number;
   // Provide externally if layers are managed elsewhere; otherwise created automatically
-  layers?: any; // Will be typed as RendererLayers when imported
+  layers?: RendererLayers;
 
   // Optional transformer options
   transformer?: Partial<TransformerControllerOptions>;

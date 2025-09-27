@@ -4,6 +4,10 @@ import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { measureText } from "../../../utils/text/TextMeasurement";
 import type { CanvasTool } from "../../../managers/ToolManager";
 import type { CanvasElement, ElementId } from "../../../../../../types/index";
+import {
+  applyVendorAppearanceReset,
+  applyVendorTextFillColor,
+} from "../../../utils/text/vendorStyles";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -55,10 +59,8 @@ function createTextarea(
   ta.style.boxSizing = "border-box";
   // Enhanced caret visibility and browser compatibility
   ta.style.caretColor = DEFAULT_TEXT_COLOR;
-  (ta.style as any).webkitTextFillColor = DEFAULT_TEXT_COLOR;
-  (ta.style as any).webkitAppearance = "none";
-  (ta.style as any).mozAppearance = "none";
-  (ta.style as any).msAppearance = "none";
+  applyVendorTextFillColor(ta.style, DEFAULT_TEXT_COLOR);
+  applyVendorAppearanceReset(ta.style);
   ta.style.appearance = "none";
   return ta;
 }

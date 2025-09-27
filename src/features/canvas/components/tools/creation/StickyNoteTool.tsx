@@ -91,6 +91,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         y: pos.y - height / 2,
         width,
         height,
+        keepAspectRatio: true,
         text: text, // Start with specified text (empty for immediate editing)
         fill: actualFill, // Use fill property for color
         // Also include style for backward compatibility

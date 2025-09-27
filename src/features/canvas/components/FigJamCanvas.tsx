@@ -71,7 +71,7 @@ const FigJamCanvas: React.FC = () => {
   const imageDragHandlerRef = useRef<ImageDragHandler | null>(null);
 
   // Store subscriptions - subscribe to viewport with custom comparison to detect nested changes
-  const viewport = useUnifiedCanvasStore((state) => state.viewport) as any;
+  const viewport = useUnifiedCanvasStore((state) => state.viewport);
   const selectedTool = useUnifiedCanvasStore((state) => state.ui?.selectedTool);
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const selectedElementIds = useUnifiedCanvasStore(

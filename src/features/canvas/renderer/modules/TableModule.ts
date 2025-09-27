@@ -10,11 +10,25 @@ import { openCellEditorWithTracking } from "../../utils/editors/openCellEditorWi
 import type { ModuleRendererCtx } from "../index";
 
 // Extended window interface for type safety
+interface TableContextMenuBridge {
+  show?: (
+    screenX: number,
+    screenY: number,
+    tableId: string,
+    row: number,
+    col: number,
+  ) => void;
+  close?: () => void;
+}
+
 interface ExtendedWindow extends Window {
   selectionModule?: {
-    selectElement: (elementId: string) => void;
-    toggleSelection?: (elementId: string) => void;
+    selectElement?: (elementId: string, options?: Record<string, unknown>) => void;
+    toggleSelection?: (elementId: string, additive?: boolean) => void;
+    clearSelection?: () => void;
+    [key: string]: unknown;
   };
+  tableContextMenu?: TableContextMenuBridge;
 }
 
 // Re-use existing RendererLayers interface from the codebase
@@ -101,6 +115,77 @@ export class TableRenderer {
 
   private getStoreHook() {
     return this.storeCtx?.store;
+  }
+
+  private getTableFromStore(elementId: string): TableElement | undefined {
+    const storeHook = this.getStoreHook();
+    const state = storeHook?.getState();
+    const element = state?.element.getById?.(elementId);
+    if (element && (element as TableElement).type === "table") {
+      return element as TableElement;
+    }
+    return undefined;
+  }
+
+  private resolveCellFromLocal(
+    table: TableElement,
+    localX: number,
+    localY: number,
+  ): { row: number; col: number } {
+    let cumulativeX = 0;
+    let col = 0;
+    for (let c = 0; c < table.cols; c++) {
+      const width = table.colWidths[c] ?? 0;
+      const next = cumulativeX + width;
+      if (localX >= cumulativeX && localX <= next) {
+        col = c;
+        break;
+      }
+      col = c;
+      cumulativeX = next;
+    }
+
+    if (localX < 0) {
+      col = 0;
+    } else if (localX > cumulativeX) {
+      col = table.cols - 1;
+    }
+
+    let cumulativeY = 0;
+    let row = 0;
+    for (let r = 0; r < table.rows; r++) {
+      const height = table.rowHeights[r] ?? 0;
+      const next = cumulativeY + height;
+      if (localY >= cumulativeY && localY <= next) {
+        row = r;
+        break;
+      }
+      row = r;
+      cumulativeY = next;
+    }
+
+    if (localY < 0) {
+      row = 0;
+    } else if (localY > cumulativeY) {
+      row = table.rows - 1;
+    }
+
+    return {
+      row: Math.max(0, Math.min(table.rows - 1, row)),
+      col: Math.max(0, Math.min(table.cols - 1, col)),
+    };
+  }
+
+  private tryShowContextMenu(
+    tableId: string,
+    row: number,
+    col: number,
+    event: MouseEvent,
+  ): boolean {
+    const bridge = (window as ExtendedWindow).tableContextMenu;
+    if (!bridge?.show) return false;
+    bridge.show(event.clientX, event.clientY, tableId, row, col);
+    return true;
   }
 
   private commitCellText(
@@ -276,10 +361,14 @@ export class TableRenderer {
         perfectDrawEnabled: false,
       });
       g.add(hitbox);
+      hitbox.moveToBottom();
 
       // Set required attributes for SelectionModule integration
       g.setAttr("elementId", el.id);
       g.setAttr("elementType", "table");
+      g.setAttr("keepAspectRatio", true);
+      g.setAttr("rows", el.rows);
+      g.setAttr("cols", el.cols);
 
       // Add interaction handlers
       this.setupTableInteractions(g, el.id);
@@ -539,6 +628,9 @@ export class TableRenderer {
     // Ensure attributes are maintained during updates
     g.setAttr("elementId", el.id);
     g.setAttr("elementType", "table");
+    g.setAttr("keepAspectRatio", true);
+    g.setAttr("rows", rows);
+    g.setAttr("cols", cols);
     g.className = "table-group";
 
     // Add or update transparent hitbox for better interaction
@@ -554,6 +646,41 @@ export class TableRenderer {
         name: "table-hitbox",
         perfectDrawEnabled: false,
       });
+      hitbox.on("contextmenu", (evt) => {
+        evt.evt.preventDefault();
+        const mouseEvt = evt.evt as MouseEvent;
+
+        const stage = hitbox.getStage();
+        const table = this.getTableFromStore(el.id) ?? el;
+        if (stage) {
+          stage.setPointersPositions(mouseEvt);
+          const pointer = stage.getPointerPosition();
+          if (pointer) {
+            const local = hitbox
+              .getAbsoluteTransform()
+              .copy()
+              .invert()
+              .point(pointer);
+            const coords = this.resolveCellFromLocal(
+              table,
+              local.x,
+              local.y,
+            );
+            const handled = this.tryShowContextMenu(
+              el.id,
+              coords.row,
+              coords.col,
+              mouseEvt,
+            );
+            if (handled) {
+              evt.cancelBubble = true;
+              return;
+            }
+          }
+        }
+
+        evt.cancelBubble = false;
+      });
       g.add(hitbox);
     } else {
       hitbox.setAttrs({
@@ -561,6 +688,9 @@ export class TableRenderer {
         height: el.height,
       });
     }
+
+    // Always keep the hitbox underneath interactive cell overlays so double-click and resize work
+    hitbox.moveToBottom();
 
     // Performance optimization: Apply HiDPI-aware caching for large tables
     const shouldCache = rows * cols > 50 || this.opts.cacheAfterCommit;
@@ -676,10 +806,19 @@ export class TableRenderer {
           perfectDrawEnabled: false,
         });
 
-        // Context menu handling - let events bubble properly
-        clickArea.on("contextmenu", (_e) => {
-          // Debug: [TableModule] Cell [${row}, ${col}] contextmenu event
-          // Don't cancel bubble - let it go to table group and then stage
+        // Context menu handling - attempt direct table menu invocation first
+        clickArea.on("contextmenu", (evt) => {
+          evt.evt.preventDefault();
+
+          const mouseEvt = evt.evt as MouseEvent;
+          const handled = this.tryShowContextMenu(el.id, row, col, mouseEvt);
+          if (handled) {
+            evt.cancelBubble = true;
+            return;
+          }
+
+          // Fallback to stage-level handling if global bridge unavailable
+          evt.cancelBubble = false;
         });
 
         // Double-click to edit using the tracked editor for live resize support
@@ -739,6 +878,38 @@ export class TableRenderer {
 
       // Prevent position jumping during context menu
       e.evt.preventDefault();
+
+      const mouseEvt = e.evt as MouseEvent;
+      const stage = group.getStage();
+      const table = this.getTableFromStore(elementId);
+
+      if (stage && table) {
+        stage.setPointersPositions(mouseEvt);
+        const pointer = stage.getPointerPosition();
+        if (pointer) {
+          const local = group
+            .getAbsoluteTransform()
+            .copy()
+            .invert()
+            .point(pointer);
+          const coords = this.resolveCellFromLocal(
+            table,
+            local.x,
+            local.y,
+          );
+          const handled = this.tryShowContextMenu(
+            elementId,
+            coords.row,
+            coords.col,
+            mouseEvt,
+          );
+          if (handled) {
+            e.cancelBubble = true;
+            return;
+          }
+        }
+      }
+
       e.cancelBubble = false; // Allow bubbling to stage for context menu handling
 
       // Store the current position to prevent any updates during context menu
@@ -761,9 +932,9 @@ export class TableRenderer {
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
         if (isAdditive) {
           selectionModule.toggleSelection?.(elementId) ??
-            selectionModule.selectElement(elementId);
+            selectionModule.selectElement?.(elementId);
         } else {
-          selectionModule.selectElement(elementId);
+          selectionModule.selectElement?.(elementId);
         }
       } else {
         // Fallback to direct store integration

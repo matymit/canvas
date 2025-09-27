@@ -260,22 +260,22 @@ export class SelectionModule implements RendererModule {
   }
 
   // Helper to infer element type for a given node using attrs/names
-  private getElementTypeForNode(node: import("konva/lib/Node").Node): string {
-    const nodeType = (node as any).getAttr?.("nodeType");
+  private getElementTypeForNode(node: Konva.Node): string {
+    const nodeType = node.getAttr<string | undefined>("nodeType");
     if (nodeType) return nodeType;
-    const elementType = (node as any).getAttr?.("elementType");
+    const elementType = node.getAttr<string | undefined>("elementType");
     if (elementType) return elementType;
-    const name = (node as any).name?.() || "";
+    const name = typeof node.name === "function" ? node.name() : "";
     if (name.includes("connector")) return "connector";
     return "element";
   }
 
   private resolveElementsToNodes(
     elementIds: Set<string>,
-  ): import("konva/lib/Node").Node[] {
+  ): Konva.Node[] {
     if (!this.storeCtx) return [];
 
-    const nodes: import("konva/lib/Node").Node[] = [];
+    const nodes: Konva.Node[] = [];
 
     // Collect all available layers and filter out undefined/null ones
     const allLayers: Array<{
@@ -311,10 +311,18 @@ export class SelectionModule implements RendererModule {
           continue;
         }
 
-        const candidates = layer.find((node: import("konva/lib/Node").Node) => {
-          const nodeElementId = node.getAttr("elementId") || node.id();
+        const candidatesRaw = layer.find((node: Konva.Node) => {
+          const nodeElementId =
+            node.getAttr<string | undefined>("elementId") || node.id();
           return nodeElementId === elementId;
         });
+
+        const candidates = Array.isArray(candidatesRaw)
+          ? (candidatesRaw as Konva.Node[])
+          : typeof (candidatesRaw as { toArray?: () => Konva.Node[] }).toArray ===
+              "function"
+            ? (candidatesRaw as { toArray: () => Konva.Node[] }).toArray()
+            : [];
 
         if (candidates.length > 0) {
           // Prefer groups over individual shapes for better transform experience
@@ -349,7 +357,7 @@ export class SelectionModule implements RendererModule {
   }
 
   private updateElementsFromNodes(
-    nodes: import("konva/lib/Node").Node[],
+    nodes: Konva.Node[],
     commitWithHistory: boolean,
   ) {
     if (!this.storeCtx) return;
@@ -377,7 +385,7 @@ export class SelectionModule implements RendererModule {
 
       // CRITICAL FIX: Check if this is a table element by looking at the actual element data
       const element =
-        store?.elements?.get?.(elementId) ??
+        store.elements.get(elementId) ??
         store.element?.getById?.(elementId);
       const isTable = element?.type === "table";
       const isImage = element?.type === "image";
@@ -471,12 +479,11 @@ export class SelectionModule implements RendererModule {
         (rawScaleX !== 1 || rawScaleY !== 1) &&
         shouldCommitSizeNow
       ) {
-        node.to({
+        node.setAttrs({
           scaleX: 1,
           scaleY: 1,
           width: nextWidth,
           height: nextHeight,
-          duration: 0,
         });
         if (tableResizeResult) {
           const minTableWidth =
@@ -725,6 +732,12 @@ export class SelectionModule implements RendererModule {
     }
 
     let lockableCount = 0;
+    const lockableTypes = new Set([
+      "sticky-note",
+      "image",
+      "circle",
+      "table",
+    ]);
 
     for (const id of selectedIds) {
       const element = elementsMap.get(id);
@@ -732,21 +745,9 @@ export class SelectionModule implements RendererModule {
         return false;
       }
 
-      if (element.type === "table") {
-        return false;
-      }
-
-      const elementData = (element as { data?: Record<string, unknown> }).data;
-      const hasImageData =
-        element.type === "sticky-note" &&
-        (typeof elementData?.image === "string" ||
-          typeof elementData?.imageUrl === "string");
-
       const shouldKeepAspect =
         element.keepAspectRatio === true ||
-        element.type === "image" ||
-        element.type === "circle" ||
-        hasImageData;
+        (element.type ? lockableTypes.has(element.type) : false);
 
       if (!shouldKeepAspect) {
         return false;
@@ -828,7 +829,7 @@ export class SelectionModule implements RendererModule {
 
     for (const id of selectedIds) {
       // CRITICAL FIX: Enhanced connector detection
-      const element = elements.get?.(id) || state.element?.getById?.(id);
+      const element = elements.get(id) || state.element?.getById?.(id);
 
       if (element && element.type === "connector") {
         connectorIds.push(id);
@@ -855,7 +856,7 @@ export class SelectionModule implements RendererModule {
     if (this.storeCtx) {
       const state = this.storeCtx.store.getState();
       const connector =
-        state.elements?.get?.(connectorId) ||
+        state.elements.get(connectorId) ||
         state.element?.getById?.(connectorId);
 
       if (connector && connector.type === "connector") {
@@ -872,7 +873,7 @@ export class SelectionModule implements RendererModule {
   private syncShapeTextDuringTransform(nodes: Konva.Node[]) {
     try {
       // Get the global ShapeRenderer instance from the window
-      const shapeRenderer = (window as any).shapeRenderer;
+      const shapeRenderer = typeof window !== "undefined" ? window.shapeRenderer : undefined;
       if (
         !shapeRenderer ||
         typeof shapeRenderer.syncTextDuringTransform !== "function"
@@ -890,7 +891,7 @@ export class SelectionModule implements RendererModule {
         if (!store) continue;
 
         const element =
-          store.elements?.get?.(elementId) ??
+          store.elements.get(elementId) ??
           store.element?.getById?.(elementId);
         if (!element) continue;
 

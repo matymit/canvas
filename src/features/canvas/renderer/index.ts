@@ -61,12 +61,16 @@ export function setupRenderer(
     new SelectionModule(),
   ];
 
-  const unsubs = modules.map((m) => {
+  const unsubs = modules.map((moduleInstance) => {
     try {
-      const dispose = m.mount({ stage, layers, store: useUnifiedCanvasStore });
+      const dispose = moduleInstance.mount({
+        stage,
+        layers,
+        store: useUnifiedCanvasStore,
+      });
       // Expose PortHoverModule for tools wanting to hide ports immediately after commit
-      if ((m as any).constructor?.name === "PortHoverModule") {
-        (window as any).portHoverModule = m;
+      if (moduleInstance instanceof PortHoverModule && typeof window !== "undefined") {
+        window.portHoverModule = moduleInstance;
       }
       return dispose;
     } catch (error) {

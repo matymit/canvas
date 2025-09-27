@@ -2,6 +2,7 @@
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { StoreActions } from "../../stores/facade";
+import type { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 import {
   computeShapeInnerBox,
   type BaseShape,
@@ -58,7 +59,7 @@ export class ShapeRenderer implements RendererModule {
   private readonly textNodes = new Map<Id, ShapeTextAttachment>(); // Track text nodes for shapes
   private layer?: Konva.Layer;
   private unsubscribe?: () => void;
-  private store?: typeof import("../../stores/unifiedCanvasStore").useUnifiedCanvasStore;
+  private store?: typeof useUnifiedCanvasStore;
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.layer = ctx.layers.main;

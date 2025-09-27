@@ -73,6 +73,7 @@ export class TableContextMenuTool implements ToolEventHandler {
     if (!stage) return false;
 
     const tableId = tableGroup.id();
+    stage.setPointersPositions(e.evt as MouseEvent);
     const pointerPos = stage.getPointerPosition() ?? {
       x: (e.evt as MouseEvent)?.offsetX ?? (e.evt as MouseEvent)?.layerX ?? 0,
       y: (e.evt as MouseEvent)?.offsetY ?? (e.evt as MouseEvent)?.layerY ?? 0,
@@ -87,31 +88,41 @@ export class TableContextMenuTool implements ToolEventHandler {
     const tableTransform = tableGroup.getAbsoluteTransform();
     const localPos = tableTransform.copy().invert().point(pointerPos);
 
-    const cellWidth = (tableElement as TableElement).width / (tableElement as TableElement).cols;
-    const cellHeight = (tableElement as TableElement).height / (tableElement as TableElement).rows;
+    const table = tableElement as TableElement;
 
-    const col = Math.floor(localPos.x / cellWidth);
-    const row = Math.floor(localPos.y / cellHeight);
-
-    // Ensure we're within bounds
-    if (
-      row >= 0 &&
-      row < (tableElement as TableElement).rows &&
-      col >= 0 &&
-      col < (tableElement as TableElement).cols
-    ) {
-      // Convert stage coordinates to screen coordinates
-      const container = stage.container();
-      const rect = container.getBoundingClientRect();
-      const screenX = rect.left + pointerPos.x;
-      const screenY = rect.top + pointerPos.y;
-
-      // Show context menu if callback is provided
-      if (this.showContextMenu) {
-        this.showContextMenu(screenX, screenY, tableId, row, col);
+    let computedCol = -1;
+    let cumulativeX = 0;
+    for (let c = 0; c < table.cols; c++) {
+      const width = table.colWidths[c] ?? table.width / table.cols;
+      if (localPos.x >= cumulativeX && localPos.x <= cumulativeX + width) {
+        computedCol = c;
+        break;
       }
+      cumulativeX += width;
+    }
 
-      return true; // Event consumed
+    let computedRow = -1;
+    let cumulativeY = 0;
+    for (let r = 0; r < table.rows; r++) {
+      const height = table.rowHeights[r] ?? table.height / table.rows;
+      if (localPos.y >= cumulativeY && localPos.y <= cumulativeY + height) {
+        computedRow = r;
+        break;
+      }
+      cumulativeY += height;
+    }
+
+    if (computedRow === -1 || computedCol === -1) {
+      return false;
+    }
+
+    const nativeEvent = e.evt as MouseEvent;
+    const screenX = nativeEvent.clientX;
+    const screenY = nativeEvent.clientY;
+
+    if (this.showContextMenu) {
+      this.showContextMenu(screenX, screenY, tableId, computedRow, computedCol);
+      return true;
     }
 
     return false;

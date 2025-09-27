@@ -7,6 +7,7 @@ import { StoreSelectors, StoreActions } from "../../stores/facade";
 import { TableContextMenuTool } from "../../tools/TableContextMenuTool";
 import type Konva from "konva";
 import type { TableElement } from "../../types/table";
+import type { ToolEventHandler } from "../../hooks/useCanvasEventManager";
 import {
   addRowAbove,
   addRowBelow,
@@ -37,10 +38,25 @@ export interface TableConfirmationState {
   onConfirm: (() => void) | null;
 }
 
+interface TableContextMenuBridge {
+  show?: (
+    screenX: number,
+    screenY: number,
+    tableId: string,
+    row: number,
+    col: number,
+  ) => void;
+  close?: () => void;
+}
+
+interface ExtendedWindow extends Window {
+  tableContextMenu?: TableContextMenuBridge;
+}
+
 export interface TableContextMenuManagerProps {
   stageRef: React.RefObject<Konva.Stage | null>;
   eventManager?: {
-    registerTool: (id: string, handler: any, priority?: number) => void;
+    registerTool: (id: string, handler: ToolEventHandler, priority?: number) => void;
     unregisterTool: (id: string) => void;
   };
 }
@@ -123,6 +139,30 @@ export const TableContextMenuManager: React.FC<
     },
     [],
   );
+
+  // Expose a bridge for canvas modules that want to open the table menu directly
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const bridge: TableContextMenuBridge = {
+      show: (screenX, screenY, tableId, row, col) => {
+        showContextMenu(screenX, screenY, tableId, row, col);
+      },
+      close: () => {
+        closeContextMenu();
+        closeConfirmation();
+      },
+    };
+
+    const globalWindow = window as ExtendedWindow;
+    globalWindow.tableContextMenu = bridge;
+
+    return () => {
+      if (globalWindow.tableContextMenu === bridge) {
+        delete globalWindow.tableContextMenu;
+      }
+    };
+  }, [showContextMenu, closeContextMenu, closeConfirmation]);
 
   // Handle context menu actions
   const handleContextMenuAction = useCallback(
@@ -430,6 +470,8 @@ export const TableContextMenuManager: React.FC<
 
           e.evt?.preventDefault?.();
 
+          stage.setPointersPositions(e.evt as MouseEvent);
+
           const tableId = tableGroup.id();
           const pointerPos = stage.getPointerPosition() ?? {
             x: e.evt?.offsetX ?? e.evt?.layerX ?? 0,
@@ -442,21 +484,38 @@ export const TableContextMenuManager: React.FC<
           const tableTransform = tableGroup.getAbsoluteTransform();
           const localPos = tableTransform.copy().invert().point(pointerPos);
 
-          const cellWidth = (tableElement as TableElement).width / (tableElement as TableElement).cols;
-          const cellHeight = (tableElement as TableElement).height / (tableElement as TableElement).rows;
+          const table = tableElement as TableElement;
 
-          const col = Math.floor(localPos.x / cellWidth);
-          const row = Math.floor(localPos.y / cellHeight);
-
-          if (
-            row >= 0 && row < (tableElement as TableElement).rows &&
-            col >= 0 && col < (tableElement as TableElement).cols
-          ) {
-            const rect = stage.container().getBoundingClientRect();
-            const screenX = rect.left + pointerPos.x;
-            const screenY = rect.top + pointerPos.y;
-            showContextMenu(screenX, screenY, tableId, row, col);
+          let computedCol = -1;
+          let cumulativeX = 0;
+          for (let c = 0; c < table.cols; c++) {
+            const width = table.colWidths[c] ?? table.width / table.cols;
+            if (localPos.x >= cumulativeX && localPos.x <= cumulativeX + width) {
+              computedCol = c;
+              break;
+            }
+            cumulativeX += width;
           }
+
+          let computedRow = -1;
+          let cumulativeY = 0;
+          for (let r = 0; r < table.rows; r++) {
+            const height = table.rowHeights[r] ?? table.height / table.rows;
+            if (localPos.y >= cumulativeY && localPos.y <= cumulativeY + height) {
+              computedRow = r;
+              break;
+            }
+            cumulativeY += height;
+          }
+
+          if (computedRow === -1 || computedCol === -1) {
+            return;
+          }
+
+          const nativeEvent = e.evt as MouseEvent;
+          const screenX = nativeEvent.clientX;
+          const screenY = nativeEvent.clientY;
+          showContextMenu(screenX, screenY, tableId, computedRow, computedCol);
         };
 
         stage.on("contextmenu.table-menu", contextMenuHandler);

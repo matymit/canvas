@@ -338,6 +338,42 @@ This document provides an honest assessment of current Canvas limitations, known
 
 ## 🐛 Known Issues
 
+### 🚨 Active Regressions (April 2026)
+
+#### Sticky Notes
+
+- Font size shifts between creation, commit, and subsequent edits, breaking the 16 px standard.
+- Resize cursor release still overshoots/undershoots the intended size, especially on diagonal drags.
+
+#### Circles
+
+- Text editor still shows the blue bounding border immediately after creating a circle and when re-entering edit mode.
+
+#### Mindmap Nodes
+
+- “Add child node” action is non-functional; child nodes cannot be created.
+
+#### Connectors (Line & Arrow)
+
+- Hit target after placement is too small, making re-selection extremely difficult.
+- Once selected, connectors cannot be dragged as a whole—only endpoint handles respond.
+
+#### Eraser Tool
+
+- Requires mouse-up to apply changes; continuous erase while dragging is missing.
+
+#### Pan Tool
+
+- Moves rendered elements instead of the canvas viewport, acting like marquee selection rather than true panning.
+
+### ✅ Recently Fixed Issues (April 2026)
+
+#### Table Editing & Context Menu (RESOLVED)
+
+**Issue**: Double-click cell editing failed to launch the text editor, right-click context menus never appeared, and resize handles landed unpredictably.
+
+**Fix**: Table renderer now keeps its hitbox under interaction overlays and publishes a global bridge so context menus can be triggered directly, while transformer resets normalize scale snapshots. Confirmed via lint/type-check passes and manual QA.
+
 ### ✅ Recently Fixed Issues (January 2025)
 
 #### Sticky Note Editor Activation (RESOLVED)

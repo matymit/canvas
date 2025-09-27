@@ -116,9 +116,16 @@ export class MindmapContextMenuTool {
   private deleteNodeWithDescendants(nodeId: string) {
     const store = useUnifiedCanvasStore.getState();
     const withUndo = store.history?.withUndo;
-    const removeElement = store.removeElement || store.element?.delete;
-
-    if (!removeElement) return;
+    const removeElementWithOptions = (
+      id: string,
+      options: { pushHistory: boolean; deselect: boolean },
+    ) => {
+      if (typeof store.removeElement === 'function') {
+        store.removeElement(id, options);
+        return;
+      }
+      store.element?.delete?.(id);
+    };
 
     if (withUndo) {
       withUndo("Delete mindmap node", () => {
@@ -127,23 +134,15 @@ export class MindmapContextMenuTool {
         const allToDelete = [nodeId, ...descendants];
 
         // Remove all nodes and their edges
-        allToDelete.forEach(id => {
-          if (typeof removeElement === "function" && removeElement.length > 1) {
-            (removeElement as any)(id, { pushHistory: false, deselect: true });
-          } else {
-            removeElement(id);
-          }
+        allToDelete.forEach((id) => {
+          removeElementWithOptions(id, { pushHistory: false, deselect: true });
         });
       });
     } else {
       // Fallback without undo
       const descendants = this.mindmapOps.getNodeDescendants(nodeId);
-      [nodeId, ...descendants].forEach(id => {
-        if (typeof removeElement === "function" && removeElement.length > 1) {
-          (removeElement as any)(id, { pushHistory: true, deselect: true });
-        } else {
-          removeElement(id);
-        }
+      [nodeId, ...descendants].forEach((id) => {
+        removeElementWithOptions(id, { pushHistory: true, deselect: true });
       });
     }
   }

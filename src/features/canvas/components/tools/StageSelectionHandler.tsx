@@ -8,18 +8,16 @@ export interface StageSelectionHandlerProps {
   stageRef: React.RefObject<Konva.Stage | null>;
 }
 
-interface SelectionModule {
+interface SelectionModuleLike {
   clearSelection?: () => void;
-  selectElement?: (elementId: string) => void;
-}
-
-interface WindowWithSelectionModule extends Window {
-  selectionModule?: SelectionModule;
+  selectElement?: (elementId: string, options?: Record<string, unknown>) => void;
+  toggleSelection?: (elementId: string, additive?: boolean) => void;
+  [key: string]: unknown;
 }
 
 // Get reference to SelectionModule for consistent selection behavior
-function getSelectionModule(): SelectionModule | undefined {
-  return (window as WindowWithSelectionModule).selectionModule;
+function getSelectionModule(): SelectionModuleLike | undefined {
+  return (window as Window & { selectionModule?: SelectionModuleLike }).selectionModule;
 }
 
 const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef }) => {
@@ -80,7 +78,7 @@ const StageSelectionHandler: React.FC<StageSelectionHandlerProps> = ({ stageRef 
           // Single selection
           
           if (selectionModule?.selectElement) {
-            selectionModule.selectElement(elementId);
+            selectionModule.selectElement?.(elementId);
           } else if (setSelection) {
             setSelection([elementId]);
           }

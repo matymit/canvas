@@ -34,6 +34,24 @@ export interface MindmapOperationsAPI {
 export function createMindmapOperations(): MindmapOperationsAPI {
   const store = useUnifiedCanvasStore.getState();
 
+  const addElementToStore = (
+    element: MindmapNodeElement | MindmapEdgeElement,
+    options?: { pushHistory?: boolean; select?: boolean },
+  ) => {
+    if (store.addElement) {
+      store.addElement(element, options);
+      return;
+    }
+    const upsert = store.element?.upsert;
+    if (upsert) {
+      const resultingId = upsert(element);
+      if (options?.select && store.selection?.set) {
+        const targetId = typeof resultingId === 'string' ? resultingId : element.id;
+        store.selection.set([targetId]);
+      }
+    }
+  };
+
   /**
    * Get all direct children of a node
    */
@@ -142,18 +160,8 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     const withUndo = store.history?.withUndo;
     if (withUndo) {
       withUndo("Create mindmap child", () => {
-        const addElement = store.addElement || store.element?.upsert;
-        if (addElement) {
-          if (typeof addElement === "function" && addElement.length > 1) {
-            // If addElement accepts options
-            (addElement as any)(child, { pushHistory: false, select: true });
-            (addElement as any)(edge, { pushHistory: false });
-          } else {
-            // If it's the unified interface upsert
-            addElement(child);
-            addElement(edge);
-          }
-        }
+        addElementToStore(child, { pushHistory: false, select: true });
+        addElementToStore(edge, { pushHistory: false });
 
         // Update selection to new child
         const setSelection = store.setSelection || store.selection?.set;
@@ -161,16 +169,8 @@ export function createMindmapOperations(): MindmapOperationsAPI {
       });
     } else {
       // Fallback without undo
-      const addElement = store.addElement || store.element?.upsert;
-      if (addElement) {
-        if (typeof addElement === "function" && addElement.length > 1) {
-          (addElement as any)(child, { pushHistory: true, select: true });
-          (addElement as any)(edge, { pushHistory: true });
-        } else {
-          addElement(child);
-          addElement(edge);
-        }
-      }
+      addElementToStore(child, { pushHistory: true, select: true });
+      addElementToStore(edge, { pushHistory: true });
     }
 
     return childId;
@@ -208,14 +208,7 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     const withUndo = store.history?.withUndo;
     if (withUndo) {
       withUndo("Duplicate mindmap node", () => {
-        const addElement = store.addElement || store.element?.upsert;
-        if (addElement) {
-          if (typeof addElement === "function" && addElement.length > 1) {
-            (addElement as any)(duplicate, { pushHistory: false, select: true });
-          } else {
-            addElement(duplicate);
-          }
-        }
+        addElementToStore(duplicate, { pushHistory: false, select: true });
 
         // Update selection to new duplicate
         const setSelection = store.setSelection || store.selection?.set;
@@ -223,14 +216,7 @@ export function createMindmapOperations(): MindmapOperationsAPI {
       });
     } else {
       // Fallback without undo
-      const addElement = store.addElement || store.element?.upsert;
-      if (addElement) {
-        if (typeof addElement === "function" && addElement.length > 1) {
-          (addElement as any)(duplicate, { pushHistory: true, select: true });
-        } else {
-          addElement(duplicate);
-        }
-      }
+      addElementToStore(duplicate, { pushHistory: true, select: true });
     }
 
     return newId;
@@ -289,46 +275,40 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     if (!newRootId) return null;
 
     // Create duplicated nodes with new IDs and positions
-    const duplicatedNodes: MindmapNodeElement[] = nodesToDuplicate.map(node => ({
-      ...node,
-      id: idMapping.get(node.id)!,
-      x: node.x + offset.x,
-      y: node.y + offset.y,
-      parentId: node.parentId ? idMapping.get(node.parentId) || null : null,
-    }));
+    const duplicatedNodes: MindmapNodeElement[] = [];
+    for (const node of nodesToDuplicate) {
+      const mappedId = idMapping.get(node.id);
+      if (!mappedId) continue;
+      const parentMappedId = node.parentId ? idMapping.get(node.parentId) ?? null : null;
+      duplicatedNodes.push({
+        ...node,
+        id: mappedId,
+        x: node.x + offset.x,
+        y: node.y + offset.y,
+        parentId: parentMappedId,
+      });
+    }
 
     // Create duplicated edges with new IDs
-    const duplicatedEdges: MindmapEdgeElement[] = edgesToDuplicate.map(edge => ({
-      ...edge,
-      id: crypto?.randomUUID?.() ?? nanoid(),
-      fromId: idMapping.get(edge.fromId)!,
-      toId: idMapping.get(edge.toId)!,
-    }));
+    const duplicatedEdges: MindmapEdgeElement[] = [];
+    for (const edge of edgesToDuplicate) {
+      const fromId = idMapping.get(edge.fromId);
+      const toId = idMapping.get(edge.toId);
+      if (!fromId || !toId) continue;
+      duplicatedEdges.push({
+        ...edge,
+        id: crypto?.randomUUID?.() ?? nanoid(),
+        fromId,
+        toId,
+      });
+    }
 
     // Use withUndo to make the operation undoable
     const withUndo = store.history?.withUndo;
     if (withUndo) {
       withUndo("Duplicate mindmap subtree", () => {
-        const addElement = store.addElement || store.element?.upsert;
-        if (addElement) {
-          // Add all duplicated nodes
-          duplicatedNodes.forEach(node => {
-            if (typeof addElement === "function" && addElement.length > 1) {
-              (addElement as any)(node, { pushHistory: false });
-            } else {
-              addElement(node);
-            }
-          });
-
-          // Add all duplicated edges
-          duplicatedEdges.forEach(edge => {
-            if (typeof addElement === "function" && addElement.length > 1) {
-              (addElement as any)(edge, { pushHistory: false });
-            } else {
-              addElement(edge);
-            }
-          });
-        }
+        duplicatedNodes.forEach((node) => addElementToStore(node, { pushHistory: false }));
+        duplicatedEdges.forEach((edge) => addElementToStore(edge, { pushHistory: false }));
 
         // Update selection to new root
         const setSelection = store.setSelection || store.selection?.set;
@@ -336,16 +316,9 @@ export function createMindmapOperations(): MindmapOperationsAPI {
       });
     } else {
       // Fallback without undo
-      const addElement = store.addElement || store.element?.upsert;
-      if (addElement) {
-        [...duplicatedNodes, ...duplicatedEdges].forEach(element => {
-          if (typeof addElement === "function" && addElement.length > 1) {
-            (addElement as any)(element, { pushHistory: true });
-          } else {
-            addElement(element);
-          }
-        });
-      }
+      [...duplicatedNodes, ...duplicatedEdges].forEach((element) => {
+        addElementToStore(element, { pushHistory: true });
+      });
     }
 
     return newRootId;
