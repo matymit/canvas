@@ -1,0 +1,611 @@
+[
+  {
+    "type": "entity",
+    "name": "Canvas FigJam Whiteboard Project",
+    "entityType": "Project",
+    "observations": [
+      "A FigJam-style whiteboard application built with React 18, TypeScript, and vanilla Konva.js",
+      "Located at /home/mason/Projects/Canvas",
+      "Uses Zustand for state management with Immer for immutability",
+      "Has Tauri desktop app integration",
+      "Enforces strict 60fps performance targets",
+      "Current branch: sandbox-refactoring",
+      "Current commit: 9bfa860 with extensive documentation of broken features",
+      "September 23, 2025: Upgraded to React 19.1 with @types/react 19, @types/react-dom 19",
+      "State: Zustand upgraded from 4.4.1 → 5.x; ensure store APIs remain compatible",
+      "Build tooling: TypeScript 5.6, @vitejs/plugin-react 4.3; Vite remains 7.x",
+      "Canvas: Konva upgraded to 9.3.x (vanilla usage preserved; no react-konva)",
+      "All TypeScript compilation errors resolved post-upgrade; type-check passes",
+      "Ref typing adjustments made for Stage refs to allow null during lifecycle",
+      "Ref callback signatures normalized to return void in components relying on arrays of refs",
+      "September 24, 2025: CRITICAL FIX COMPLETED - Circle Text Positioning During Resize",
+      "Circle text positioning issue during resize operations has been resolved",
+      "Problem: Text was jumping outside circle boundaries and flipping around during live resize operations",
+      "Root cause: getClientRect() method in syncTextDuringTransform() returned inaccurate bounds during active transforms",
+      "Solution: Replaced getClientRect() with direct node property calculations (position(), size(), scale()) for accurate real-time dimensions",
+      "Enhancement: Added circle-specific center-based text positioning to prevent text jumping outside boundaries",
+      "Technical improvement: Enhanced visual dimension calculation using Math.abs(scale) to handle negative scaling correctly",
+      "UX improvement: Implemented 80% padding constraint for circle text to maintain visual spacing during resize",
+      "Result: Text now stays perfectly centered within circles during resize with no visual jumping or boundary violations",
+      "Files modified: ShapeRenderer.ts (lines 582-659 - enhanced syncTextDuringTransform method)",
+      "All documentation updated: CHANGELOG.md, canvas-implementation-progress.md, known-issues.md",
+      "TypeScript compilation: 0 errors maintained throughout fix implementation",
+      "This fix eliminates the jarring UX issue where text would appear completely disconnected from circle during resize",
+      "September 24, 2025: CRITICAL FIX COMPLETED - Circle Text Editor Caret Positioning Inconsistency",
+      "Problem: Text appeared at top during editing but centered when viewing, creating jarring 'jumping' effect",
+      "Root cause: ContentEditable editor used display: 'block' with ineffective verticalAlign: 'middle' which doesn't work on div elements",
+      "Solution: Replaced with flexbox centering approach using alignItems: 'center' and justifyContent: 'center'",
+      "Technical improvement: Removed ineffective verticalAlign: 'middle' property",
+      "UX improvement: Eliminates jarring 'jumping' behavior between edit and view modes",
+      "Result: Text now appears consistently centered in ALL editing scenarios (initial creation, typing, double-click re-editing)",
+      "Files modified: openShapeTextEditor.ts (lines 217-230 - flexbox centering for circles)",
+      "This fix ensures smooth UX consistency for circle text editing across all interaction modes",
+      "2025-09-27: DOM overlay prototype added to keep table cell editor aligned with stage transforms, but editor still drifts during window resize; issue remains open."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Architecture",
+    "entityType": "Architecture",
+    "observations": [
+      "Uses a mandatory 4-layer rendering pipeline: Background, Main, Preview, Overlay",
+      "Strictly uses vanilla Konva.js directly - react-konva is absolutely prohibited",
+      "Store-driven pattern where tools write to Zustand state and renderers subscribe",
+      "RAF batching for all canvas updates to maintain performance",
+      "Uses withUndo for all user-initiated state changes",
+      "Performance budgets: FCP ≤ 1.5s, TTI ≤ 3s, FPS ≥ 60fps, Memory ≤ 500MB peak"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Phase 17 Store Architecture Challenge",
+    "entityType": "Technical Challenge",
+    "observations": [
+      "232 ESLint warnings remain after Phase 16, with 219 being explicit any types (94% of issues)",
+      "Core issue is Zustand middleware stack (immer + subscribeWithSelector + persist) causing type safety loss",
+      "Store modules use 'set as any, get as any' pattern throughout createHistoryModule, createCoreModule, createInteractionModule",
+      "Complex middleware transformations make TypeScript lose type inference across store boundaries",
+      "Safe typing requires individual function improvements without modifying main middleware signatures",
+      "Successfully completed first safe typing improvement in __sanitize utility function",
+      "Reduced ESLint warnings from 232 to 230 (first 2 warnings resolved)",
+      "Implemented safe pattern: removed Record<string, any> and used proper null checks",
+      "All performance budgets remain passing (60fps maintained)",
+      "TypeScript compilation passes with zero errors",
+      "Strategy validation: Individual function improvements work without touching middleware signatures"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Store Typing Strategy",
+    "entityType": "Technical Strategy",
+    "observations": [
+      "Risk-based approach: Start with low-risk utility functions, then interactionModule (~30 warnings), historyModule (~40 warnings), finally coreModule (~150 warnings)",
+      "Safe patterns: Use WritableDraft<T> for Immer mutations, create specific interfaces for function parameters, preserve withUndo functionality",
+      "Critical constraints: Never modify main middleware (set, get) signatures, maintain 60fps performance, preserve RAF batching patterns",
+      "Validation requirements: Test canvas functionality after each module, verify undo/redo operations, ensure selection/transformation systems work",
+      "Success target: Reduce from 232 to <50 warnings (78% total reduction) while maintaining zero TypeScript errors",
+      "Phase 17A validation successful - safe typing patterns proven to work",
+      "Canvas Engineer successfully applied conservative approach to utility functions",
+      "Architectural constraints maintained - no middleware signature modifications",
+      "Foundation established for systematic store module improvements",
+      "Next phase should continue with interactionModule.ts as planned",
+      "Five successful typing patterns proven in Phase 17B: CoreModuleSlice casting, function parameter specification, tuple types, object clones, interface improvements",
+      "Safe approach validated: target utility functions and isolated improvements before complex patterns",
+      "Performance and functionality preserved: all 60fps targets and canvas features maintained",
+      "Architecture integrity preserved: no middleware signature modifications during improvements",
+      "Ready for Phase 17C: proven methodology can be applied to interactionModule.ts and remaining store modules",
+      "Phase 17C revealed interactionModule.ts requires different approach than coreModule.ts",
+      "Module uses nested property access patterns (state.ui, state.guides, state.animation) that prevent direct interface casting",
+      "Direct TypeScript interface casting causes compilation errors due to property structure mismatches",
+      "Future phases need specialized interactionModule typing patterns before attempting improvements",
+      "Current approach validates that systematic analysis prevents breaking changes",
+      "Technical roadmap created for future interactionModule typing work",
+      "Phase 17D validated conservative approach for complex store modules",
+      "Successfully applied targeted improvements to historyModule.ts without breaking functionality",
+      "Proven patterns: HistoryModuleSlice casting, simplified type assertions, get() improvements",
+      "Complex Zustand middleware signatures require careful preservation",
+      "Store modules benefit from utility function improvements over structural changes",
+      "History system improvements require extra caution due to critical undo/redo functionality",
+      "Future phases should continue conservative approach for remaining store modules",
+      "Total success: 57 warnings eliminated across Phases 17A-17D (21% total reduction)",
+      "Phase 17E validated defensive programming approach for utility files",
+      "Non-null assertions successfully replaced with undefined checks and nullish coalescing",
+      "One legitimate assertion preserved in QuadTree.ts with ESLint disable comment",
+      "Safety improvements demonstrate that utility files benefit from defensive null handling",
+      "Future phases should continue targeting remaining @typescript-eslint/no-explicit-any warnings",
+      "Total success across Phases 17A-17E: 67 warnings eliminated (24% total reduction)"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "FigJamCanvas Infinite Render Loop Fix",
+    "entityType": "Critical Bug Fix",
+    "observations": [
+      "Fixed infinite render loop in FigJamCanvas useEffect on September 24, 2025",
+      "Root cause: unstable dependencies in useEffect dependency array [selectedTool, elements, selectedElementIds, addToSelection, clearSelection, setSelection, viewport]",
+      "Symptoms: 600+ repeated console messages of 'Setting up stage event handlers' -> 'Cleaning up stage event handlers'",
+      "Impact: Pan tool completely broken due to event handlers being destroyed mid-pan operation",
+      "Solution: Reduced dependency array to only [selectedTool] and read store values at call time",
+      "Technical implementation: Event handlers use useUnifiedCanvasStore.getState() at execution time",
+      "Performance improvement: Eliminated hundreds of unnecessary event handler rebuilds per second",
+      "Files modified: src/features/canvas/components/FigJamCanvas.tsx:322",
+      "Result: Pan tool fully functional with 60fps performance restored"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "AI Conduct Standards",
+    "entityType": "behavioral_constraint",
+    "observations": [
+      "FORBIDDEN: Making grandiose, unfounded, over-inflated claims about work completion",
+      "FORBIDDEN: Lying about fix status or claiming something works without user verification",
+      "REQUIRED: Rigorous honesty, objectivity, and neutrality in all communications",
+      "REQUIRED: Never claim a fix is complete until user confirms it works",
+      "STANDARD: Be precise about what was attempted vs what was actually verified",
+      "STANDARD: Acknowledge failures and regressions immediately without excuses",
+      "September 24, 2025: Claude failed to validate canvas engineer's claimed pan tool fixes",
+      "Blindly accepted agent reports without testing actual functionality",
+      "Pan tool remained non-functional despite claiming fixes were successful",
+      "User had to fix the problem themselves after Claude's failed validation",
+      "Demonstrated poor quality control - accepted 'success' reports without verification",
+      "This failure violated the requirement to be rigorous and honest about work completion",
+      "Must always test and validate claimed fixes before marking tasks as complete"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Documentation Verification Heuristic",
+    "entityType": "Critical Thinking Pattern",
+    "observations": [
+      "Just because documentation claims something has been fixed or resolved, DO NOT take it at face value",
+      "Operate under the assumption that what's been stated/claimed isn't always 100% accurate and true",
+      "Documentation may be incomplete, outdated, or contain inaccuracies despite claims of fixes",
+      "Always verify actual functionality through testing rather than relying solely on documentation",
+      "Critical for maintaining realistic expectations and avoiding false assumptions about system state"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Phase 8 Risk Assessment",
+    "entityType": "Technical Audit",
+    "observations": [
+      "Phase 8 comprehensive risk consolidation and migration planning completed on September 25, 2025",
+      "Consolidated findings from all previous audit phases T0-T7 into prioritized risk register",
+      "Top 10 critical risks identified with quantified severity, likelihood, and business impact scores",
+      "R1 (CRITICAL): MVP Feature Cascade Failure - 87.5% feature failure rate, complete production blocker",
+      "R2 (CRITICAL): Store↔Konva Architecture Contract Violations - 12+ direct mutations bypassing store",
+      "R3 (HIGH): Viewport Race Conditions - 8 distinct race conditions causing infinite loops",
+      "R4 (HIGH): Undo/Redo Transaction Boundary Violations - 6 major transaction boundary failures",
+      "R5 (HIGH): Type Safety Crisis - 232 ESLint warnings, 84% from explicit any types",
+      "Evidence-first approach referencing VF-1 through VF-5 critical violation findings",
+      "Cross-referenced all findings from technical audit report and implementation documentation"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Quick Wins Strategy",
+    "entityType": "Technical Strategy",
+    "observations": [
+      "Top 10 quick wins identified with effort estimates and ROI scoring",
+      "QW1 (6-8 hours, CRITICAL impact): Restore Selection System Integration - fix sticky note selection completely broken",
+      "QW2 (4-6 hours, HIGH impact): Resolve Text Editing System Conflicts - re-enable circle text editing",
+      "QW3 (6-8 hours, HIGH impact): Fix Drawing Tool Cursor Positioning across all tools",
+      "QW4 (4-6 hours, HIGH impact): Implement Error Boundaries and Graceful Recovery",
+      "QW5 (8-12 hours, MEDIUM impact): Conservative ESLint Warning Reduction using proven Phase 17 patterns",
+      "All quick wins prioritized by effort vs impact analysis with ROI scores 2-10",
+      "Focus on immediate fixes that restore core MVP functionality",
+      "Conservative approach using proven methodologies from previous successful phases",
+      "Designed to address production deployment blockers with minimal risk"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Four-Layer Pipeline Migration Plan",
+    "entityType": "Architecture Migration",
+    "observations": [
+      "Comprehensive 24-day migration strategy to restore four-layer pipeline integrity",
+      "Phase 1 (Week 1-2): Foundation Stabilization - Store-driven rendering contract enforcement, Preview layer restoration, Global state elimination",
+      "Phase 2 (Week 3-4): Contract Hardening - Transaction boundary reinforcement, Performance contract enforcement",
+      "Phase 3 (Week 5-6): Architecture Validation - Serialization integrity restoration, Integration testing",
+      "Addresses VF-1 through VF-5 critical architectural violations systematically",
+      "Eliminates 15+ documented violations of store-driven rendering contract",
+      "Implements StoreRenderer interface and ViewportRenderer pattern",
+      "Creates PreviewRenderer module for centralized preview layer management",
+      "Enhances transaction API with complete operation batching",
+      "Includes comprehensive rollback procedures and risk mitigation strategies"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "sed command hazards",
+    "entityType": "development_warning",
+    "observations": [
+      "sed commands should NEVER be used for removing debug logs from source code",
+      "sed can break multi-line statements and function calls when removing console.debug lines",
+      "Debug log removal with sed creates syntax errors and compilation failures",
+      "Always use individual Edit operations or MultiEdit for safe debug log removal",
+      "The regex patterns in sed cannot safely handle complex JavaScript/TypeScript syntax",
+      "Example failure: sed '/console\\.debug.*TransformerManager/d' broke the TransformerManager.ts file completely",
+      "Safer approach: Read the file, identify specific debug statements, use Edit tool to remove each one carefully",
+      "Multi-line console.debug statements with object parameters are especially vulnerable to sed damage"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Canvas Global State Pollution",
+    "entityType": "technical_debt",
+    "observations": [
+      "window.selectionModule global variable used across multiple renderer modules",
+      "window.activeConnectorTool global variable used for connector tool coordination",
+      "SelectionModule.ts line 46: assigns itself to window.selectionModule on mount",
+      "SelectionModule.ts line 187-188: cleans up window.selectionModule on unmount",
+      "ConnectorTool.tsx line 179: assigns activeConnectorTool to window for port coordination",
+      "PortHoverModule.ts line 607: accesses window.activeConnectorTool for port click handling",
+      "Multiple modules (StickyNoteModule, TableModule, TextRenderer, etc.) access window.selectionModule",
+      "This global state pattern violates clean architecture principles",
+      "Refactoring would require significant architecture changes to pass dependencies properly",
+      "Current global state usage appears intentional for module coordination",
+      "Risk: High complexity to refactor, medium impact on maintainability",
+      "Recommendation: Document as technical debt, plan future refactoring when architecture allows"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "kg://active-task",
+    "entityType": "TaskTracker",
+    "observations": [
+      "Current branch: main",
+      "Current status: Setting up multi-agent coordination system",
+      "Last agent: Claude",
+      "Next steps: Create GitHub templates and workflows",
+      "No active PRs yet",
+      "Task started: 2025-01-25",
+      "Current branch: agent/claude/multi-agent-setup",
+      "Current status: Multi-agent system setup complete",
+      "Next steps: Test PR creation and labeling workflow",
+      "Setup files created: PR template, auto-label workflow, AI_HANDOFF.md",
+      "Ready for handoff to another agent",
+      "Status: Multi-agent system tabled for now",
+      "Current branch: agent/claude/multi-agent-setup (not pushed)",
+      "Files created but not active: PR template, auto-label workflow, AI_HANDOFF.md",
+      "Decision: System has complexity issues that need more thought",
+      "Next steps: Focus on Canvas MVP fixes instead"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "kg://project/canvas/rules",
+    "entityType": "ProjectRules",
+    "observations": [
+      "NEVER use react-konva - always use vanilla Konva.js directly",
+      "ALWAYS maintain 4-layer architecture: Background, Main, Preview, Overlay",
+      "ALWAYS use RAF batching for canvas updates",
+      "ALWAYS use withUndo for user-initiated state changes",
+      "ALWAYS run npm run type-check && npm run lint before commits",
+      "Repository: /home/mason/Projects/Canvas",
+      "Main branch: main",
+      "Performance targets: 60fps, <500MB memory, <3s TTI",
+      "Store: Zustand with Immer for state management",
+      "Critical files: CLAUDE.md, docs/architecture/README.md, docs/known-issues.md",
+      "Update after work: canvas-implementation-progress.md, CHANGELOG.md, known-issues.md"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "kg://agent-handoff/latest",
+    "entityType": "HandoffReport",
+    "observations": [
+      "Previous agent: None (initial setup)",
+      "Timestamp: 2025-01-25",
+      "Work completed: Initializing multi-agent system",
+      "Blockers: None",
+      "Files modified: None yet",
+      "Tests run: None yet",
+      "Warnings/Issues: Project has 87.5% MVP failure rate, 209 ESLint warnings",
+      "Recommendation: Complete system setup then address Quick Win fixes",
+      "Previous agent: Claude",
+      "Work completed: Created multi-agent coordination system",
+      "Files created: .github/pull_request_template.md, .github/workflows/auto-label-agent.yml, AI_HANDOFF.md",
+      "Memory graph initialized with project rules and status",
+      "System ready for use",
+      "Recommendation: Next agent should test the PR workflow by creating a branch and PR",
+      "Instructions: Tell any AI to 'Check AI_HANDOFF.md and continue'"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "kg://project/canvas/status",
+    "entityType": "ProjectStatus",
+    "observations": [
+      "MVP features: 7 of 8 broken (sticky notes, circle text, drawing tools, etc.)",
+      "ESLint warnings: 209",
+      "TypeScript errors: 0",
+      "Known critical issues: Selection system broken, text editing conflicts, drawing cursor positioning",
+      "Recent fixes: Circle text positioning during resize, infinite render loop in FigJamCanvas",
+      "Architecture violations: 12+ direct Konva mutations bypassing store",
+      "Global state pollution: window.selectionModule, window.activeConnectorTool"
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "programming.ai_tools.glm_4_5_sequential_thinking",
+    "entityType": "protocol",
+    "observations": [
+      "**GLM 4.5 SEQUENTIAL THINKING PROTOCOL:**\n\nIF YOU ARE GLM 4.5 MODEL: Follow these critical rules for Sequential Thinking MCP tool:\n\nPARAMETER REQUIREMENTS:\n- totalThoughts = INTEGER (like 5, 7, 10) - never boolean/string\n- thoughtNumber = INTEGER (1, 2, 3...) - never string \n- nextThoughtNeeded = BOOLEAN (true/false) - never \"true\"/\"false\"\n- isRevision = BOOLEAN when used\n\nVALIDATION BEFORE EACH CALL:\n✓ totalThoughts is number without quotes\n✓ thoughtNumber is number without quotes \n✓ nextThoughtNeeded is true or false (not string)\n✓ Using JSON format, never XML tags\n\nWORKFLOW:\n1. Start with thoughtNumber=1, estimate totalThoughts as integer\n2. Build progressive analysis through each thought\n3. Use nextThoughtNeeded=true until final conclusion\n4. Only set nextThoughtNeeded=false when complete\n\nEXAMPLE CORRECT FORMAT:\n{\"name\": \"sequentialthinking\", \"arguments\": {\"totalThoughts\": 7, \"thoughtNumber\": 1, \"thought\": \"Analysis...\", \"nextThoughtNeeded\": true}}\n\nOTHER MODELS: This protocol applies only to GLM 4.5. Other models can ignore or use their standard Sequential Thinking approach."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "coding agents",
+    "entityType": "agent role",
+    "observations": [
+      "Agents that write or modify code for the project."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "CANVAS _MASTER_BLUEPRINT.md",
+    "entityType": "File",
+    "observations": [
+      "The master technical blueprint for the Canvas project."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Consolidated Canvas Workflow",
+    "entityType": "Workflow",
+    "observations": [
+      "Before coding: Read essential docs: CANVAS _MASTER_BLUEPRINT.md, README.md, docs/architecture/README.md, and docs/known-issues.md.",
+      "Before coding: Read additional docs: api-reference.md, guides/agents.md, contributing.md, troubleshooting.md.",
+      "During coding (Constraint): NEVER use react-konva - always use vanilla Konva.js directly.",
+      "During coding (Constraint): ALWAYS maintain the 4-layer architecture (Background, Main, Preview, Overlay).",
+      "During coding (Constraint): ALWAYS use RAF batching for canvas updates.",
+      "During coding (Constraint): ALWAYS use withUndo for user-initiated state changes.",
+      "During coding (Constraint): ALWAYS cache complex shapes for performance.",
+      "During coding (Constraint): ALWAYS disable listening on static layers.",
+      "During coding (Constraint): Maintain 60fps performance.",
+      "After coding (Documentation): Update canvas-implementation-progress.md for task completion.",
+      "After coding (Documentation): Update CHANGELOG.md for user-visible changes.",
+      "After coding (Documentation): Update known-issues.md for fixed bugs or new issues.",
+      "Validation and Testing: Run 'npm run type-check && npm run lint' before commits.",
+      "Validation and Testing: Run 'npm test' for unit tests.",
+      "Validation and Testing: Run 'npm run test:performance-budgets' for performance testing.",
+      "Development Environment: Run 'npm run dev' for local server.",
+      "Development Environment: Run 'npm run tauri:dev' for desktop app."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Project Health Summary",
+    "entityType": "StatusSummary",
+    "observations": [
+      "This is a synthesized summary of the project's current health.",
+      "---",
+      "**Feature Status**",
+      "*Working Features:*",
+      "- Pan Tool (fully functional with 60fps performance)",
+      "- Circle Text Positioning (during resize)",
+      "- Circle Text Editor Caret Positioning",
+      "*Broken Features:*",
+      "- Selection System (especially for sticky notes)",
+      "- Sticky Note module (font/text constants not applied)",
+      "- Connector Selection/Integration",
+      "- Port Hover functionality",
+      "- Eraser Tool",
+      "- Text Editing (multiple conflicts and regressions)",
+      "- Drawing Tools (cursor positioning issues)",
+      "---",
+      "**Code Quality**",
+      "- ESLint Warnings: 209",
+      "- TypeScript Errors: 0",
+      "---",
+      "**Current Priority**",
+      "- Address the 'Quick Win' fixes to restore core MVP functionality.",
+      "- Top priority: Fix the broken Selection System."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Technical Debt",
+    "entityType": "Topic",
+    "observations": [
+      "A collection of identified technical debt items in the project."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Bug Fixes",
+    "entityType": "Topic",
+    "observations": [
+      "A collection of implemented bug fixes."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Key Decisions",
+    "entityType": "Topic",
+    "observations": [
+      "A log of important project decisions and their rationale."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "LLM Agent",
+    "entityType": "Agent",
+    "observations": [
+      "An AI agent responsible for assisting with project tasks."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Automated Graph Maintenance",
+    "entityType": "Task",
+    "observations": [
+      "A recurring task for LLM agents to proactively search for redundancies, inconsistencies, and outdated information in the memory graph and propose cleanup actions."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Avoid sed for code modification",
+    "entityType": "Decision",
+    "observations": [
+      "sed commands should NEVER be used for removing debug logs from source code as they can break multi-line statements and function calls, leading to syntax errors and compilation failures. Always use individual Edit operations or MultiEdit for safe debug log removal."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Tabled Multi-Agent System",
+    "entityType": "Decision",
+    "observations": [
+      "The multi-agent system setup was tabled due to complexity issues that require more thought. The focus should be on Canvas MVP fixes instead."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Circle Text Positioning During Resize",
+    "entityType": "Bug Fix",
+    "observations": [
+      "Text was jumping outside circle boundaries and flipping during resize. Replaced getClientRect() with direct node property calculations for accurate real-time dimensions."
+    ]
+  },
+  {
+    "type": "entity",
+    "name": "Circle Text Editor Caret Positioning Inconsistency",
+    "entityType": "Bug Fix",
+    "observations": [
+      "Text appeared at top during editing but centered when viewing. Replaced contentEditable display: 'block' with a flexbox centering approach."
+    ]
+  },
+  {
+    "type": "relation",
+    "from": "Canvas FigJam Whiteboard Project",
+    "to": "Canvas Architecture",
+    "relationType": "implements"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Phase 17 Store Architecture Challenge",
+    "to": "Canvas Store Typing Strategy",
+    "relationType": "requires"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Phase 8 Risk Assessment",
+    "to": "Canvas FigJam Whiteboard Project",
+    "relationType": "assesses risks for"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Quick Wins Strategy",
+    "to": "Canvas Phase 8 Risk Assessment",
+    "relationType": "provides remediation for"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Four-Layer Pipeline Migration Plan",
+    "to": "Canvas Architecture",
+    "relationType": "restores integrity of"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Four-Layer Pipeline Migration Plan",
+    "to": "Canvas Phase 8 Risk Assessment",
+    "relationType": "addresses violations identified in"
+  },
+  {
+    "type": "relation",
+    "from": "coding agents",
+    "to": "CANVAS _MASTER_BLUEPRINT.md",
+    "relationType": "should read before coding"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas FigJam Whiteboard Project",
+    "to": "Consolidated Canvas Workflow",
+    "relationType": "follows"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Store Typing Strategy",
+    "to": "Consolidated Canvas Workflow",
+    "relationType": "guides"
+  },
+  {
+    "type": "relation",
+    "from": "Documentation Verification Heuristic",
+    "to": "Consolidated Canvas Workflow",
+    "relationType": "informs"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Quick Wins Strategy",
+    "to": "Consolidated Canvas Workflow",
+    "relationType": "prioritizes immediate work for"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Architecture",
+    "to": "Consolidated Canvas Workflow",
+    "relationType": "defines"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas Phase 17 Store Architecture Challenge",
+    "to": "Consolidated Canvas Workflow",
+    "relationType": "must comply with"
+  },
+  {
+    "type": "relation",
+    "from": "Canvas FigJam Whiteboard Project",
+    "to": "Project Health Summary",
+    "relationType": "has health summary"
+  },
+  {
+    "type": "relation",
+    "from": "LLM Agent",
+    "to": "Automated Graph Maintenance",
+    "relationType": "performs"
+  },
+  {
+    "type": "relation",
+    "from": "Technical Debt",
+    "to": "Canvas Global State Pollution",
+    "relationType": "includes"
+  },
+  {
+    "type": "relation",
+    "from": "Technical Debt",
+    "to": "Canvas Phase 17 Store Architecture Challenge",
+    "relationType": "includes"
+  },
+  {
+    "type": "relation",
+    "from": "Bug Fixes",
+    "to": "FigJamCanvas Infinite Render Loop Fix",
+    "relationType": "includes"
+  },
+  {
+    "type": "relation",
+    "from": "Key Decisions",
+    "to": "Avoid sed for code modification",
+    "relationType": "includes"
+  },
+  {
+    "type": "relation",
+    "from": "Key Decisions",
+    "to": "Tabled Multi-Agent System",
+    "relationType": "includes"
+  },
+  {
+    "type": "relation",
+    "from": "Bug Fixes",
+    "to": "Circle Text Positioning During Resize",
+    "relationType": "includes"
+  },
+  {
+    "type": "relation",
+    "from": "Bug Fixes",
+    "to": "Circle Text Editor Caret Positioning Inconsistency",
+    "relationType": "includes"
+  }
+]
