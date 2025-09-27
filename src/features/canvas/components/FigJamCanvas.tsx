@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import Konva from "konva";
+
+const isDev = typeof process !== 'undefined' ? process.env.NODE_ENV !== 'production' : true;
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 import { StoreActions } from "../stores/facade";
 import { setupRenderer } from "../renderer";
@@ -46,7 +48,17 @@ import PanTool from "./tools/navigation/PanTool";
 
 const FigJamCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const rafBatcherRef = useRef(new RafBatcher());
+  const updateOverlayTransform = useCallback(() => {
+    const stage = stageRef.current;
+    const overlay = overlayRef.current;
+    if (!stage || !overlay) return;
+    const pos = stage.position();
+    const scaleX = stage.scaleX();
+    const scaleY = stage.scaleY();
+    overlay.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scaleX}, ${scaleY})`;
+  }, []);
   const stageRef = useRef<Konva.Stage | null>(null);
   const layersRef = useRef<{
     background: Konva.Layer | null;
@@ -160,6 +172,8 @@ const FigJamCanvas: React.FC = () => {
     stage.add(previewLayer);
     stage.add(overlayLayer); // Always on top
 
+    stage.on('xChange.overlayTransform yChange.overlayTransform scaleXChange.overlayTransform scaleYChange.overlayTransform', updateOverlayTransform);
+
     // Setup FigJam-style grid on background layer
     // Match the CSS styling: radial-gradient(circle at 1px 1px, #d0d0d0 1px, transparent 1px)
     const gridRenderer = new GridRenderer(stage, backgroundLayer, {
@@ -174,12 +188,45 @@ const FigJamCanvas: React.FC = () => {
 
     gridRendererRef.current = gridRenderer;
 
+    // Ensure overlay container exists for DOM-based editors
+    let overlayContainer = overlayRef.current;
+    if (!overlayContainer && containerRef.current) {
+      overlayContainer = document.createElement('div');
+      overlayContainer.style.position = 'absolute';
+      overlayContainer.style.top = '0';
+      overlayContainer.style.left = '0';
+      overlayContainer.style.width = '100%';
+      overlayContainer.style.height = '100%';
+      overlayContainer.style.pointerEvents = 'none';
+      overlayContainer.className = 'canvas-dom-overlay';
+      containerRef.current.appendChild(overlayContainer);
+      overlayRef.current = overlayContainer;
+    }
+    updateOverlayTransform();
+
     const storeState = useUnifiedCanvasStore.getState();
-    if (storeState.elements.size === 0) {
-      storeState.viewport.reset?.();
-    } else {
+    const applyViewportToStage = (reason: string) => {
       stage.position({ x: storeState.viewport.x, y: storeState.viewport.y });
       stage.scale({ x: storeState.viewport.scale, y: storeState.viewport.scale });
+      updateOverlayTransform();
+      if (isDev) {
+        console.debug('viewport:init-apply', {
+          reason,
+          viewport: { ...storeState.viewport },
+          stagePos: stage.position(),
+          stageScale: stage.scaleX(),
+        });
+      }
+    };
+
+    if (storeState.elements.size === 0) {
+      if (isDev) {
+        console.debug('viewport:init-reset', { reason: 'empty-canvas', viewport: { ...storeState.viewport } });
+      }
+      storeState.viewport.reset?.();
+      applyViewportToStage('reset');
+    } else {
+      applyViewportToStage('persisted-state');
     }
 
     // Setup renderer system - this is the KEY integration
@@ -212,6 +259,7 @@ const FigJamCanvas: React.FC = () => {
     const handleResize = () => {
       const state = useUnifiedCanvasStore.getState();
       const viewportState = state.viewport;
+      const stageBefore = { position: stage.position(), scale: stage.scaleX(), width: stage.width(), height: stage.height() };
       let worldCenter: { x: number; y: number } | null = null;
 
       if (typeof viewportState?.stageToWorld === 'function') {
@@ -233,9 +281,18 @@ const FigJamCanvas: React.FC = () => {
         viewportState.setPan(newPanX, newPanY);
       }
 
-      // FIXED: Do not call fitToContent - preserve user's manual zoom settings
-      // Only update grid DPR for crisp rendering on new window size
       gridRenderer.updateOptions({ dpr: window.devicePixelRatio });
+
+      if (isDev) {
+        console.debug('viewport:handle-resize', {
+          stageBefore,
+          stageAfter: { position: stage.position(), scale: stage.scaleX(), width: stage.width(), height: stage.height() },
+          worldCenter,
+          viewport: { ...viewportState },
+        });
+      }
+
+      updateOverlayTransform();
     };
 
     window.addEventListener("resize", handleResize);
@@ -267,6 +324,13 @@ const FigJamCanvas: React.FC = () => {
       if (rendererDisposeRef.current) {
         rendererDisposeRef.current();
         rendererDisposeRef.current = null;
+      }
+
+      stage.off('.overlayTransform');
+
+      if (overlayRef.current) {
+        overlayRef.current.remove();
+        overlayRef.current = null;
       }
 
       // Destroy stage

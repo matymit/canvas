@@ -3,6 +3,8 @@
 // Handles world-to-screen coordinate conversion and live updates during pan/zoom operations
 
 import type Konva from 'konva';
+
+const isDev = typeof process !== 'undefined' ? process.env.NODE_ENV !== 'production' : true;
 import type { TableElement } from '../../types/table';
 
 type CellEditorOpts = {
@@ -34,8 +36,6 @@ export function openCellEditorWithTracking({
   onSizeChange,
   getElement
 }: CellEditorOpts) {
-  const container = stage.container();
-
   // Find the table group to get positioning
   const tableGroup = stage.findOne(`#${elementId}`) as Konva.Group;
   if (!tableGroup) {
@@ -123,53 +123,64 @@ export function openCellEditorWithTracking({
   const currentText = snapshot.cells?.[initialCellIndex]?.text || '';
   editor.value = currentText;
 
+  const overlayContainer = stage.container().querySelector('.canvas-dom-overlay') as HTMLDivElement | null;
+  const container = overlayContainer ?? stage.container();
+  if (overlayContainer) {
+    overlayContainer.style.pointerEvents = 'auto';
+  }
+
   container.appendChild(editor);
 
-  function placeEditor() {
+  function placeEditor(reason = 'direct') {
     ({ cellX, cellY, cellWidth, cellHeight } = computeCellMetrics());
 
     if (!tableGroup) return;
 
-    // CRITICAL FIX: Use proper Konva coordinate transformation
     const tablePos = tableGroup.getAbsolutePosition();
-
-    // Calculate world coordinates of the cell (relative to stage)
-    const cellWorldX = tablePos.x + cellX;
-    const cellWorldY = tablePos.y + cellY;
+    const worldX = tablePos.x + cellX;
+    const worldY = tablePos.y + cellY;
 
     const scale = stage.scaleX();
     const innerWidth = Math.max(20, cellWidth - paddingX * 2);
     const innerHeight = Math.max(20, cellHeight - paddingY * 2);
 
-    const stagePos = stage.position();
-    const screenX = stagePos.x + cellWorldX * scale;
-    const screenY = stagePos.y + cellWorldY * scale;
-
-    editor.style.left = `${screenX + paddingX * scale}px`;
-    editor.style.top = `${screenY + paddingY * scale}px`;
-    editor.style.width = `${innerWidth * scale}px`;
-    editor.style.height = `${innerHeight * scale}px`;
+    editor.style.left = `${worldX + paddingX}px`;
+    editor.style.top = `${worldY + paddingY}px`;
+    editor.style.width = `${innerWidth}px`;
+    editor.style.height = `${innerHeight}px`;
     editor.style.transform = 'scale(1)';
     editor.style.transformOrigin = '0 0';
 
+    if (isDev) {
+      console.debug('table-editor:place', {
+        reason,
+        elementId,
+        row,
+        col,
+        scale,
+        stagePos: stage.position(),
+        world: { x: worldX, y: worldY },
+      });
+    }
   }
 
-  placeEditor();
+
+  placeEditor('initial');
 
   // Listen for stage transform changes to keep editor positioned correctly
-  const sync = () => placeEditor();
-  stage.on('dragmove.cell-editor wheel.cell-editor', sync);
-  stage.on('xChange.cell-editor yChange.cell-editor scaleXChange.cell-editor scaleYChange.cell-editor', sync);
-  stage.on('widthChange.cell-editor heightChange.cell-editor', sync);
+  const sync = (reason: string) => () => placeEditor(reason);
+  stage.on('dragmove.cell-editor wheel.cell-editor', sync('stage-move'));
+  stage.on('xChange.cell-editor yChange.cell-editor scaleXChange.cell-editor scaleYChange.cell-editor', sync('stage-transform'));
+  stage.on('widthChange.cell-editor heightChange.cell-editor', sync('stage-size'));
 
-  const handleWindowResize = () => sync();
+  const handleWindowResize = () => placeEditor('window-resize');
   window.addEventListener('resize', handleWindowResize);
 
-  const observer = new ResizeObserver(() => sync());
+  const observer = new ResizeObserver(() => placeEditor('container-resize'));
   observer.observe(container);
 
   // Also listen for table group transforms (resizing)
-  tableGroup.on('transform.cell-editor', sync);
+  tableGroup.on('transform.cell-editor', () => placeEditor('table-transform'));
 
   let resizeFrame: number | null = null;
 
@@ -180,7 +191,7 @@ export function openCellEditorWithTracking({
       const desiredHeight = Math.max(20, editor.scrollHeight);
       editor.style.width = `${desiredWidth}px`;
       editor.style.height = `${desiredHeight}px`;
-      requestAnimationFrame(() => placeEditor());
+      requestAnimationFrame(() => placeEditor('content-size'));
       return;
     }
 
@@ -192,11 +203,11 @@ export function openCellEditorWithTracking({
       resizeFrame = null;
 
       const scale = stage.scaleX();
-      const measuredInnerWidth = Math.max(20, editor.scrollWidth);
-      const measuredInnerHeight = Math.max(20, editor.scrollHeight);
+      const measuredInnerWidth = Math.max(20, editor.scrollWidth) / scale;
+      const measuredInnerHeight = Math.max(20, editor.scrollHeight) / scale;
 
-      const requiredWidth = measuredInnerWidth / scale + paddingX * 2;
-      const requiredHeight = measuredInnerHeight / scale + paddingY * 2;
+      const requiredWidth = measuredInnerWidth + paddingX * 2;
+      const requiredHeight = measuredInnerHeight + paddingY * 2;
 
       editor.style.width = `${measuredInnerWidth}px`;
       editor.style.height = `${measuredInnerHeight}px`;
@@ -212,7 +223,7 @@ export function openCellEditorWithTracking({
 
       // Re-position after potential store-driven resize
       requestAnimationFrame(() => {
-        placeEditor();
+        placeEditor('initial');
       });
     });
   };
@@ -242,6 +253,8 @@ export function openCellEditorWithTracking({
 
   const onBlur = () => finish(true);
 
+  editor.style.pointerEvents = 'auto';
+
   editor.addEventListener('keydown', onKey);
   editor.addEventListener('blur', onBlur, { once: true });
   editor.addEventListener('input', scheduleSizeNotification);
@@ -266,6 +279,9 @@ export function openCellEditorWithTracking({
     window.removeEventListener('resize', handleWindowResize);
     observer.disconnect();
     tableGroup?.off('transform.cell-editor');
+    if (overlayContainer) {
+      overlayContainer.style.pointerEvents = 'none';
+    }
     editor.remove();
     if (resizeFrame != null) {
       cancelAnimationFrame(resizeFrame);
