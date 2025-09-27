@@ -174,6 +174,14 @@ const FigJamCanvas: React.FC = () => {
 
     gridRendererRef.current = gridRenderer;
 
+    const storeState = useUnifiedCanvasStore.getState();
+    if (storeState.elements.size === 0) {
+      storeState.viewport.reset?.();
+    } else {
+      stage.position({ x: storeState.viewport.x, y: storeState.viewport.y });
+      stage.scale({ x: storeState.viewport.scale, y: storeState.viewport.scale });
+    }
+
     // Setup renderer system - this is the KEY integration
     const rendererDispose = setupRenderer(stage, {
       background: backgroundLayer,

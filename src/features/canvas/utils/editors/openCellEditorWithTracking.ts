@@ -165,6 +165,9 @@ export function openCellEditorWithTracking({
   const handleWindowResize = () => sync();
   window.addEventListener('resize', handleWindowResize);
 
+  const observer = new ResizeObserver(() => sync());
+  observer.observe(container);
+
   // Also listen for table group transforms (resizing)
   tableGroup.on('transform.cell-editor', sync);
 
@@ -261,6 +264,7 @@ export function openCellEditorWithTracking({
     stage.off('xChange.cell-editor yChange.cell-editor scaleXChange.cell-editor scaleYChange.cell-editor');
     stage.off('widthChange.cell-editor heightChange.cell-editor');
     window.removeEventListener('resize', handleWindowResize);
+    observer.disconnect();
     tableGroup?.off('transform.cell-editor');
     editor.remove();
     if (resizeFrame != null) {
