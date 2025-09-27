@@ -349,10 +349,6 @@ This document provides an honest assessment of current Canvas limitations, known
 
 - Text editor still shows the blue bounding border immediately after creating a circle and when re-entering edit mode.
 
-#### Mindmap Nodes
-
-- “Add child node” action is non-functional; child nodes cannot be created.
-
 #### Connectors (Line & Arrow)
 
 - Hit target after placement is too small, making re-selection extremely difficult.
@@ -373,6 +369,12 @@ This document provides an honest assessment of current Canvas limitations, known
 **Issue**: Double-click cell editing failed to launch the text editor, right-click context menus never appeared, and resize handles landed unpredictably.
 
 **Fix**: Table renderer now keeps its hitbox under interaction overlays and publishes a global bridge so context menus can be triggered directly, while transformer resets normalize scale snapshots. Confirmed via lint/type-check passes and manual QA.
+
+#### Mindmap Child Creation (RESOLVED)
+
+**Issue**: Mindmap nodes could not spawn child concepts—right-click context menus were intercepted by the general canvas menu, leaving the workflow blocked.
+
+**Fix**: Mounted a dedicated mindmap context menu manager and adjusted the generic canvas menu to defer to specialized handlers. Verified with lint/type checks; awaiting product QA for UX validation.
 
 ### ✅ Recently Fixed Issues (January 2025)
 

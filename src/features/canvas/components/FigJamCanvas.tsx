@@ -16,6 +16,7 @@ import "../utils/editors/openCellEditorWithTracking";
 
 // Import table context menu manager
 import { TableContextMenuManager } from "./table/TableContextMenuManager";
+import { MindmapContextMenuManager } from "./menus/MindmapContextMenuManager";
 
 // Import general canvas context menu manager
 import { CanvasContextMenuManager } from "./CanvasContextMenuManager";
@@ -752,6 +753,9 @@ const FigJamCanvas: React.FC = () => {
 
       {/* Table context menu system */}
       <TableContextMenuManager stageRef={stageRef} />
+
+      {/* Mindmap context menu system */}
+      <MindmapContextMenuManager stageRef={stageRef} />
 
       {/* General canvas context menu system */}
       <CanvasContextMenuManager stageRef={stageRef} />

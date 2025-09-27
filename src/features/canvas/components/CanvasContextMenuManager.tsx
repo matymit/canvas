@@ -223,19 +223,21 @@ export const CanvasContextMenuManager: React.FC<
         contextMenuHandler = (e: Konva.KonvaEventObject<MouseEvent>) => {
           const target = e.target;
 
-          // Defer to table-specific menu when right-click originates from a table element
+          // Defer to specialized menus (tables, mindmap) before falling back
           if (target && target !== stage) {
             let node: Konva.Node | null = target;
             let depth = 0;
-            const isTableNode = (n: Konva.Node | null) => {
+            const isSpecialNode = (n: Konva.Node | null) => {
               if (!n) return false;
-              if (typeof n.hasName === "function") return n.hasName("table-group");
-              return n.name?.() === "table-group";
+              const hasName = typeof n.hasName === "function" ? n.hasName.bind(n) : null;
+              if (hasName?.("table-group") || n.name?.() === "table-group") return true;
+              if (hasName?.("mindmap-node") || n.name?.() === "mindmap-node") return true;
+              return false;
             };
 
             while (node && node !== stage && depth < 10) {
-              if (isTableNode(node)) {
-                return; // Let TableContextMenuManager handle it
+              if (isSpecialNode(node)) {
+                return; // Let specialized context menu handlers run
               }
               node = node.getParent();
               depth += 1;
