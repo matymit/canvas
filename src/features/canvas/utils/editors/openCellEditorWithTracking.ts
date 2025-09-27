@@ -3,9 +3,10 @@
 // Handles world-to-screen coordinate conversion and live updates during pan/zoom operations
 
 import type Konva from 'konva';
+import { debug } from '../../../../utils/debug';
+import type { TableElement } from '../../types/table';
 
 const isDev = typeof process !== 'undefined' ? process.env.NODE_ENV !== 'production' : true;
-import type { TableElement } from '../../types/table';
 
 type CellEditorOpts = {
   stage: Konva.Stage;
@@ -136,30 +137,47 @@ export function openCellEditorWithTracking({
 
     if (!tableGroup) return;
 
-    const tablePos = tableGroup.getAbsolutePosition();
-    const worldX = tablePos.x + cellX;
-    const worldY = tablePos.y + cellY;
-
-    const scale = stage.scaleX();
     const innerWidth = Math.max(20, cellWidth - paddingX * 2);
     const innerHeight = Math.max(20, cellHeight - paddingY * 2);
 
-    editor.style.left = `${worldX + paddingX}px`;
-    editor.style.top = `${worldY + paddingY}px`;
-    editor.style.width = `${innerWidth}px`;
-    editor.style.height = `${innerHeight}px`;
+    const tableTransform = tableGroup.getAbsoluteTransform().copy();
+    const paddedTopLeft = tableTransform.point({
+      x: cellX + paddingX,
+      y: cellY + paddingY,
+    });
+    const paddedBottomRight = tableTransform.point({
+      x: cellX + paddingX + innerWidth,
+      y: cellY + paddingY + innerHeight,
+    });
+
+    const widthPx = Math.max(1, paddedBottomRight.x - paddedTopLeft.x);
+    const heightPx = Math.max(1, paddedBottomRight.y - paddedTopLeft.y);
+
+    editor.style.left = `${paddedTopLeft.x}px`;
+    editor.style.top = `${paddedTopLeft.y}px`;
+    editor.style.width = `${widthPx}px`;
+    editor.style.height = `${heightPx}px`;
     editor.style.transform = 'scale(1)';
     editor.style.transformOrigin = '0 0';
 
     if (isDev) {
-      console.debug('table-editor:place', {
-        reason,
-        elementId,
-        row,
-        col,
-        scale,
-        stagePos: stage.position(),
-        world: { x: worldX, y: worldY },
+      debug('table-editor:place', {
+        category: 'openCellEditorWithTracking',
+        data: {
+          reason,
+          elementId,
+          row,
+          col,
+          scale: stage.scaleX(),
+          stagePos: stage.position(),
+          absolute: { x: paddedTopLeft.x, y: paddedTopLeft.y },
+          css: {
+            left: editor.style.left,
+            top: editor.style.top,
+            width: editor.style.width,
+            height: editor.style.height,
+          },
+        },
       });
     }
   }

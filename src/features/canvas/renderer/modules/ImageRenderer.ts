@@ -14,6 +14,7 @@ export class ImageRenderer {
   private readonly layers: RendererLayers;
   private readonly groupById = new Map<string, Konva.Group>();
   private readonly imageNodeById = new Map<string, Konva.Image>();
+  private pendingDraw: number | null = null;
 
   constructor(layers: RendererLayers) {
     this.layers = layers;
@@ -39,6 +40,26 @@ export class ImageRenderer {
       // Error: Failed to load image
       // Set a placeholder or handle error gracefully
     }
+  }
+
+  private requestLayerRedraw(): void {
+    if (this.pendingDraw !== null) return;
+    const raf =
+      typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+        ? window.requestAnimationFrame.bind(window)
+        : typeof requestAnimationFrame === 'function'
+          ? requestAnimationFrame
+          : null;
+
+    if (!raf) {
+      this.layers.main.batchDraw();
+      return;
+    }
+
+    this.pendingDraw = raf(() => {
+      this.pendingDraw = null;
+      this.layers.main.batchDraw();
+    });
   }
 
   /**
@@ -136,7 +157,7 @@ export class ImageRenderer {
     const safeHeight = Math.max(1, el.height);
     bitmap.size({ width: safeWidth, height: safeHeight });
 
-    this.layers.main.batchDraw();
+    this.requestLayerRedraw();
   }
 
   setVisibility(id: string, visible: boolean): void {
@@ -146,7 +167,7 @@ export class ImageRenderer {
       group.visible(visible);
       const bitmap = this.imageNodeById.get(id);
       bitmap?.visible(visible);
-      group.getLayer()?.batchDraw();
+      this.requestLayerRedraw();
     }
   }
 
@@ -158,7 +179,7 @@ export class ImageRenderer {
     if (g) g.destroy();
     this.groupById.delete(id);
     this.imageNodeById.delete(id);
-    this.layers.main.batchDraw();
+    this.requestLayerRedraw();
   }
 
   /**
@@ -167,6 +188,18 @@ export class ImageRenderer {
   clear(): void {
     for (const [id] of this.groupById) {
       this.remove(id);
+    }
+    if (this.pendingDraw !== null) {
+      const caf =
+        typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function'
+          ? window.cancelAnimationFrame.bind(window)
+          : typeof cancelAnimationFrame === 'function'
+            ? cancelAnimationFrame
+            : null;
+      if (caf) {
+        caf(this.pendingDraw);
+      }
+      this.pendingDraw = null;
     }
   }
 }

@@ -51,13 +51,9 @@ const FigJamCanvas: React.FC = () => {
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const rafBatcherRef = useRef(new RafBatcher());
   const updateOverlayTransform = useCallback(() => {
-    const stage = stageRef.current;
     const overlay = overlayRef.current;
-    if (!stage || !overlay) return;
-    const pos = stage.position();
-    const scaleX = stage.scaleX();
-    const scaleY = stage.scaleY();
-    overlay.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scaleX}, ${scaleY})`;
+    if (!overlay) return;
+    overlay.style.transform = 'translate3d(0, 0, 0)';
   }, []);
   const stageRef = useRef<Konva.Stage | null>(null);
   const layersRef = useRef<{
@@ -198,9 +194,13 @@ const FigJamCanvas: React.FC = () => {
       overlayContainer.style.width = '100%';
       overlayContainer.style.height = '100%';
       overlayContainer.style.pointerEvents = 'none';
+      overlayContainer.style.transformOrigin = '0 0';
       overlayContainer.className = 'canvas-dom-overlay';
       containerRef.current.appendChild(overlayContainer);
       overlayRef.current = overlayContainer;
+    }
+    if (overlayRef.current) {
+      overlayRef.current.style.transformOrigin = '0 0';
     }
     updateOverlayTransform();
 
@@ -210,18 +210,24 @@ const FigJamCanvas: React.FC = () => {
       stage.scale({ x: storeState.viewport.scale, y: storeState.viewport.scale });
       updateOverlayTransform();
       if (isDev) {
-        console.debug('viewport:init-apply', {
-          reason,
-          viewport: { ...storeState.viewport },
-          stagePos: stage.position(),
-          stageScale: stage.scaleX(),
+        debug('viewport:init-apply', {
+          category: 'FigJamCanvas',
+          data: {
+            reason,
+            viewport: { ...storeState.viewport },
+            stagePos: stage.position(),
+            stageScale: stage.scaleX(),
+          },
         });
       }
     };
 
     if (storeState.elements.size === 0) {
       if (isDev) {
-        console.debug('viewport:init-reset', { reason: 'empty-canvas', viewport: { ...storeState.viewport } });
+        debug('viewport:init-reset', {
+          category: 'FigJamCanvas',
+          data: { reason: 'empty-canvas', viewport: { ...storeState.viewport } },
+        });
       }
       storeState.viewport.reset?.();
       applyViewportToStage('reset');
@@ -284,11 +290,14 @@ const FigJamCanvas: React.FC = () => {
       gridRenderer.updateOptions({ dpr: window.devicePixelRatio });
 
       if (isDev) {
-        console.debug('viewport:handle-resize', {
-          stageBefore,
-          stageAfter: { position: stage.position(), scale: stage.scaleX(), width: stage.width(), height: stage.height() },
-          worldCenter,
-          viewport: { ...viewportState },
+        debug('viewport:handle-resize', {
+          category: 'FigJamCanvas',
+          data: {
+            stageBefore,
+            stageAfter: { position: stage.position(), scale: stage.scaleX(), width: stage.width(), height: stage.height() },
+            worldCenter,
+            viewport: { ...viewportState },
+          },
         });
       }
 
@@ -337,7 +346,23 @@ const FigJamCanvas: React.FC = () => {
       stage.destroy();
       stageRef.current = null;
     };
-  }, []); // FIXED: Empty dependency array - initialize only once
+  }, [updateOverlayTransform]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    stage.position({ x: viewportX, y: viewportY });
+    stage.scale({ x: viewportScale, y: viewportScale });
+
+    updateOverlayTransform();
+
+    if (gridRendererRef.current) {
+      gridRendererRef.current.updateOptions({ dpr: window.devicePixelRatio });
+    }
+
+    stage.batchDraw();
+  }, [viewportX, viewportY, viewportScale, updateOverlayTransform]);
 
   // FIXED: Attach stage event handlers once; read store/state at call time to avoid rebind thrash
   useEffect(() => {

@@ -1,6 +1,6 @@
 // features/canvas/components/tools/creation/StickyNoteTool.tsx
 import type React from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "@features/canvas/stores/unifiedCanvasStore";
 import type { CanvasElement, ElementId } from "../../../../../../types/index";
@@ -56,11 +56,10 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   text = DEFAULT_TEXT,
   fontSize = DEFAULT_FONT_SIZE,
 }) => {
-  // Get the selected sticky note color from the store
-  const selectedStickyNoteColor = useUnifiedCanvasStore(
-    (s) => s.ui?.stickyNoteColor || DEFAULT_FILL,
-  );
-  const actualFill = fill ?? selectedStickyNoteColor;
+  const resolveFill = useCallback(() => {
+    const stateColor = useUnifiedCanvasStore.getState().ui?.stickyNoteColor;
+    return fill ?? stateColor ?? DEFAULT_FILL;
+  }, [fill]);
 
   // Tool activation effect
   useEffect(() => {
@@ -82,6 +81,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       debug("Pointer down detected", { category: 'StickyNoteTool', data: pos });
 
       const elementId = crypto.randomUUID() as ElementId;
+      const fillColor = resolveFill();
 
       // Create sticky note element with proper CanvasElement structure
       const stickyElement: CanvasElement = {
@@ -93,10 +93,10 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         height,
         keepAspectRatio: true,
         text: text, // Start with specified text (empty for immediate editing)
-        fill: actualFill, // Use fill property for color
+        fill: fillColor, // Use fill property for color
         // Also include style for backward compatibility
         style: {
-          fill: actualFill,
+          fill: fillColor,
           fontSize,
           fontFamily: "Inter, sans-serif",
           textAlign: "left",
@@ -105,7 +105,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
 
       debug("Creating sticky note element", { category: 'StickyNoteTool', data: {
         elementId,
-        fill: actualFill,
+        fill: fillColor,
         position: { x: stickyElement.x, y: stickyElement.y }
       }});
 
@@ -237,7 +237,7 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
         container.style.cursor = "default";
       }
     };
-  }, [isActive, stageRef, width, height, actualFill, text, fontSize]);
+  }, [isActive, stageRef, width, height, text, fontSize, resolveFill]);
 
   return null;
 };

@@ -6,6 +6,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import Konva from "konva";
+import type { CanvasElement, ElementId } from "../../../../types";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 import { StoreActions } from "../stores/facade";
 import ShapesDropdown from "@features/canvas/toolbar/ShapesDropdown";
@@ -264,10 +265,91 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     setStickyNoteColorsOpen(true);
   }, [handleToolSelect]);
 
-  const handleSelectStickyColor = useCallback((color: string) => {
+  const applyStickyColorToSelection = useCallback((color: string) => {
+    const state = useUnifiedCanvasStore.getState();
 
-    // For now, skip updating existing elements since they're not in the store
-    // applyStickyColorToSelection(color);
+    const collectSelectedIds = (): ElementId[] => {
+      if (typeof state.getSelectedIds === "function") {
+        return state.getSelectedIds().map((id) => id as ElementId);
+      }
+
+      const { selectedElementIds } = state as {
+        selectedElementIds?: Set<ElementId> | ElementId[];
+      };
+
+      if (selectedElementIds instanceof Set) {
+        return Array.from(selectedElementIds);
+      }
+
+      if (Array.isArray(selectedElementIds)) {
+        return selectedElementIds as ElementId[];
+      }
+
+      return [];
+    };
+
+    const selectedIds = collectSelectedIds();
+    if (selectedIds.length === 0) return;
+
+    const getElement = (() => {
+      if (typeof state.getElement === "function") return state.getElement.bind(state);
+      if (state.element && typeof state.element.getById === "function") {
+        return state.element.getById.bind(state.element) as (id: ElementId) => CanvasElement | undefined;
+      }
+      return null;
+    })();
+
+    if (!getElement) return;
+
+    const patches: Array<{ id: ElementId; patch: Partial<CanvasElement> }> = [];
+
+    selectedIds.forEach((id) => {
+      const element = getElement(id);
+      if (!element || element.type !== "sticky-note") return;
+
+      const nextStyle: CanvasElement["style"] = {
+        ...(element.style ?? {}),
+        fill: color,
+      };
+
+      patches.push({
+        id,
+        patch: {
+          fill: color,
+          style: nextStyle,
+        },
+      });
+    });
+
+    if (patches.length === 0) return;
+
+    const applyUpdates = () => {
+      if (typeof state.updateElements === "function") {
+        state.updateElements(patches, { pushHistory: true });
+        return;
+      }
+
+      if (state.element && typeof state.element.update === "function") {
+        patches.forEach(({ id, patch }) => state.element.update(id, patch));
+        return;
+      }
+
+      if (typeof state.updateElement === "function") {
+        patches.forEach(({ id, patch }) => {
+          state.updateElement(id, patch, { pushHistory: true });
+        });
+      }
+    };
+
+    if (typeof state.withUndo === "function") {
+      state.withUndo("Change sticky note color", applyUpdates);
+    } else {
+      applyUpdates();
+    }
+  }, []);
+
+  const handleSelectStickyColor = useCallback((color: string) => {
+    applyStickyColorToSelection(color);
 
     // Update the default sticky note color for NEW sticky notes
     const state = useUnifiedCanvasStore.getState();
@@ -275,10 +357,9 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
       state.setStickyNoteColor(color);
       // Updated default sticky note color
     }
-
     // Close portal, keep tool active for quick placement
     setStickyNoteColorsOpen(false);
-  }, []);
+  }, [applyStickyColorToSelection]);
 
   // Removed buttonStyle - now using CSS classes
 

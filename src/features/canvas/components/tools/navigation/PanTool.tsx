@@ -3,6 +3,7 @@ import type React from "react";
 import { useEffect, useRef } from "react";
 import type Konva from "konva";
 import { StoreActions } from "../../../stores/facade";
+import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import type { RafBatcher } from "../../../utils/performance/RafBatcher";
 
 interface PanToolProps {
@@ -77,7 +78,18 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => 
 
       rafBatcher.schedule(() => {
         try {
-          StoreActions.panBy(deltaX, deltaY);
+          const state = useUnifiedCanvasStore.getState();
+          const viewport = state.viewport;
+
+          if (viewport && typeof viewport.setPan === "function") {
+            const currentX = typeof viewport.x === "number" ? viewport.x : 0;
+            const currentY = typeof viewport.y === "number" ? viewport.y : 0;
+            viewport.setPan(currentX + deltaX, currentY + deltaY);
+          } else if (typeof state.panBy === "function") {
+            state.panBy(deltaX, deltaY);
+          } else {
+            StoreActions.panBy(deltaX, deltaY);
+          }
         } catch {
           // Ignore pan errors to keep interaction responsive
         }
