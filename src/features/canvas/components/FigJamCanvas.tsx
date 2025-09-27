@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
 import { StoreActions } from "../stores/facade";
@@ -23,6 +23,7 @@ import { CanvasContextMenuManager } from "./CanvasContextMenuManager";
 
 // Import ImageDragHandler for image drag functionality
 import ImageDragHandler from "./tools/selection/ImageDragHandler";
+import { useShallow } from "zustand/react/shallow";
 
 // Tool imports - all major tools
 import StickyNoteTool from "./tools/creation/StickyNoteTool";
@@ -73,6 +74,20 @@ const FigJamCanvas: React.FC = () => {
 
   // Store subscriptions - subscribe to viewport with custom comparison to detect nested changes
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
+  const { viewportX, viewportY, viewportScale } = useUnifiedCanvasStore(
+    useShallow((state) => ({
+      viewportX: state.viewport.x,
+      viewportY: state.viewport.y,
+      viewportScale: state.viewport.scale,
+    })),
+  );
+  const canvasBackgroundStyle = useMemo(() => {
+    const spacing = 20 * viewportScale;
+    return {
+      backgroundPosition: `${-viewportX}px ${-viewportY}px`,
+      backgroundSize: `${spacing}px ${spacing}px`,
+    } as React.CSSProperties;
+  }, [viewportX, viewportY, viewportScale]);
   const selectedTool = useUnifiedCanvasStore((state) => state.ui?.selectedTool);
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const selectedElementIds = useUnifiedCanvasStore(
@@ -187,8 +202,29 @@ const FigJamCanvas: React.FC = () => {
 
     // Window resize handler: resize stage only, preserve user's zoom level
     const handleResize = () => {
+      const state = useUnifiedCanvasStore.getState();
+      const viewportState = state.viewport;
+      let worldCenter: { x: number; y: number } | null = null;
+
+      if (typeof viewportState?.stageToWorld === 'function') {
+        const currentWidth = stage.width();
+        const currentHeight = stage.height();
+        worldCenter = viewportState.stageToWorld(currentWidth / 2, currentHeight / 2);
+      }
+
       stage.width(window.innerWidth);
       stage.height(window.innerHeight);
+
+      if (
+        worldCenter &&
+        typeof viewportState?.setPan === 'function' &&
+        typeof viewportState.scale === 'number'
+      ) {
+        const newPanX = window.innerWidth / 2 - worldCenter.x * viewportState.scale;
+        const newPanY = window.innerHeight / 2 - worldCenter.y * viewportState.scale;
+        viewportState.setPan(newPanX, newPanY);
+      }
+
       // FIXED: Do not call fitToContent - preserve user's manual zoom settings
       // Only update grid DPR for crisp rendering on new window size
       gridRenderer.updateOptions({ dpr: window.devicePixelRatio });
@@ -719,7 +755,7 @@ const FigJamCanvas: React.FC = () => {
   }, [selectedTool]);
 
   return (
-    <div className="canvas-wrapper" data-testid="canvas-container">
+    <div className="canvas-wrapper" data-testid="canvas-container" style={canvasBackgroundStyle}>
       <div className="toolbar-container">
         <CanvasToolbar
           selectedTool={selectedTool}

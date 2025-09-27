@@ -1,5 +1,6 @@
 // Shape renderer module for rendering basic shapes (rectangle, circle, triangle)
 import Konva from "konva";
+import { getWorldViewportBounds } from "../../utils/viewBounds";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { StoreActions } from "../../stores/facade";
 import type { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
@@ -129,20 +130,8 @@ export class ShapeRenderer implements RendererModule {
     if (!this.layer) return;
 
     const seen = new Set<Id>();
-    const viewport = this.store?.getState().viewport;
-    const viewBounds =
-      viewport && typeof window !== "undefined"
-        ? {
-            minX: viewport.x ?? 0,
-            minY: viewport.y ?? 0,
-            maxX:
-              (viewport.x ?? 0) +
-              window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
-            maxY:
-              (viewport.y ?? 0) +
-              window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
-          }
-        : null;
+    const stage = this.layer.getStage();
+    const viewBounds = stage ? getWorldViewportBounds(stage) : null;
 
     // Add/update shape elements
     for (const [id, shape] of shapes) {

@@ -3,6 +3,7 @@ import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { debug, error as logError } from "../../../../utils/debug";
 import { getTextConfig } from "../../constants/TextConstants";
+import { getWorldViewportBounds } from "../../utils/viewBounds";
 
 const MIN_STICKY_WIDTH = 60;
 const MIN_STICKY_HEIGHT = 40;
@@ -192,16 +193,8 @@ export class StickyNoteModule implements RendererModule {
     }
 
     const seen = new Set<Id>();
-    const viewport = this.storeCtx?.store?.getState().viewport;
-    const viewRect =
-      viewport && typeof window !== "undefined"
-        ? {
-            x: viewport.x ?? 0,
-            y: viewport.y ?? 0,
-            width: window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
-            height: window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
-          }
-        : null;
+    const stage = this.layers?.getStage();
+    const viewRect = stage ? getWorldViewportBounds(stage) : null;
 
     // Add/update existing sticky notes
     for (const [id, sticky] of stickyNotes) {
@@ -212,10 +205,10 @@ export class StickyNoteModule implements RendererModule {
         const stickyRight = sticky.x + sticky.width;
         const stickyBottom = sticky.y + sticky.height;
         const isOffscreen =
-          stickyRight < viewRect.x ||
-          stickyBottom < viewRect.y ||
-          sticky.x > viewRect.x + viewRect.width ||
-          sticky.y > viewRect.y + viewRect.height;
+          stickyRight < viewRect.minX ||
+          stickyBottom < viewRect.minY ||
+          sticky.x > viewRect.maxX ||
+          sticky.y > viewRect.maxY;
 
         if (isOffscreen) {
           if (existing) {

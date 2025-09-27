@@ -1,5 +1,6 @@
 // Drawing renderer module for rendering pen, marker, and highlighter paths
 import Konva from "konva";
+import { getWorldViewportBounds } from "../../utils/viewBounds";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 
 type Id = string;
@@ -21,12 +22,10 @@ export class DrawingRenderer implements RendererModule {
   private mainLayer?: Konva.Layer;
   private highlighterGroup?: Konva.Group;
   private unsubscribe?: () => void;
-  private store?: ModuleRendererCtx["store"];
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.mainLayer = ctx.layers.main;
     this.highlighterGroup = ctx.layers.highlighter;
-    this.store = ctx.store;
 
     // Subscribe to store changes - watch drawing elements
     this.unsubscribe = ctx.store.subscribe(
@@ -78,7 +77,6 @@ export class DrawingRenderer implements RendererModule {
       this.mainLayer.batchDraw();
     }
     this.highlighterGroup?.getLayer()?.batchDraw();
-    this.store = undefined;
   }
 
   private reconcile(drawings: Map<Id, DrawingElement>) {
@@ -86,20 +84,8 @@ export class DrawingRenderer implements RendererModule {
 
     const seen = new Set<Id>();
     const highlighterLayer = this.highlighterGroup.getLayer();
-    const viewport = this.store?.getState().viewport;
-    const viewBounds =
-      viewport && typeof window !== "undefined"
-        ? {
-            minX: viewport.x ?? 0,
-            minY: viewport.y ?? 0,
-            maxX:
-              (viewport.x ?? 0) +
-              window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
-            maxY:
-              (viewport.y ?? 0) +
-              window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
-          }
-        : null;
+    const stage = this.mainLayer.getStage();
+    const viewBounds = stage ? getWorldViewportBounds(stage) : null;
 
     // Add/update drawing elements
     for (const [id, drawing] of drawings) {

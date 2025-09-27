@@ -2,6 +2,7 @@
 import type Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import { ImageRenderer, type RendererLayers } from "./ImageRenderer";
+import { getWorldViewportBounds } from "../../utils/viewBounds";
 import type ImageElement from "../../types/image";
 
 type Id = string;
@@ -9,12 +10,10 @@ type Id = string;
 export class ImageRendererAdapter implements RendererModule {
   private renderer?: ImageRenderer;
   private unsubscribe?: () => void;
-  private store?: ModuleRendererCtx["store"];
 
   mount(ctx: ModuleRendererCtx): () => void {
     // Create ImageRenderer instance
     this.renderer = new ImageRenderer(ctx.layers);
-    this.store = ctx.store;
 
     // Subscribe to store changes - watch image elements
     this.unsubscribe = ctx.store.subscribe(
@@ -52,7 +51,6 @@ export class ImageRendererAdapter implements RendererModule {
     if (this.unsubscribe) {
       this.unsubscribe();
     }
-    this.store = undefined;
     // Cleanup images manually
     const layer = (this.renderer as unknown as { layers: RendererLayers }).layers.main;
     if (layer) {
@@ -65,20 +63,9 @@ export class ImageRendererAdapter implements RendererModule {
     if (!this.renderer) return;
 
     const seen = new Set<Id>();
-    const viewport = this.store?.getState().viewport;
-    const bounds =
-      viewport && typeof window !== "undefined"
-        ? {
-            minX: viewport.x ?? 0,
-            minY: viewport.y ?? 0,
-            maxX:
-              (viewport.x ?? 0) +
-              window.innerWidth / Math.max(viewport.scale || 1, 0.0001),
-            maxY:
-              (viewport.y ?? 0) +
-              window.innerHeight / Math.max(viewport.scale || 1, 0.0001),
-          }
-        : null;
+    const layers = (this.renderer as unknown as { layers?: RendererLayers }).layers;
+    const stage = layers?.main?.getStage ? layers.main.getStage() : null;
+    const bounds = stage ? getWorldViewportBounds(stage) : null;
 
     // Render/update images (async due to image loading)
     for (const [id, image] of images) {

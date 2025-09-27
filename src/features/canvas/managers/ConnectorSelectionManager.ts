@@ -6,6 +6,7 @@ import Konva from "konva";
 import type { CanvasElement } from "../../../../types";
 import type { ConnectorElement } from "../types/connector";
 import { StoreSelectors, StoreActions } from "../stores/facade";
+import { getWorldPointer } from "../utils/pointer";
 
 export interface ConnectorSelectionOptions {
   overlayLayer: Konva.Layer;
@@ -308,7 +309,7 @@ export class ConnectorSelectionManager {
       if (!this.selectedConnectorId || !this.dragBaseline) return;
 
       evt.cancelBubble = true;
-      const pointer = this.stage.getPointerPosition();
+      const pointer = getWorldPointer(this.stage);
       if (!pointer) return;
 
       const connectorGroup = this.stage.findOne<Konva.Group>(`#${this.selectedConnectorId}`);
@@ -332,7 +333,7 @@ export class ConnectorSelectionManager {
 
       this.pointerMoveListener = () => {
         if (!this.dragState.startPos) return;
-        const current = this.stage.getPointerPosition();
+        const current = getWorldPointer(this.stage);
         if (!current) return;
         const dx = current.x - this.dragState.startPos.x;
         const dy = current.y - this.dragState.startPos.y;
@@ -344,7 +345,7 @@ export class ConnectorSelectionManager {
           this.cleanupWholeDragListeners();
           return;
         }
-        const current = this.stage.getPointerPosition();
+        const current = getWorldPointer(this.stage);
         const dx = current ? current.x - this.dragState.startPos.x : 0;
         const dy = current ? current.y - this.dragState.startPos.y : 0;
         this.commitWholeConnectorDrag(dx, dy);
@@ -458,30 +459,38 @@ export class ConnectorSelectionManager {
     const elementNode = this.findElementNode(endpoint.elementId);
     if (!elementNode) return null;
 
-    const rect = elementNode.getClientRect({ skipStroke: true, skipShadow: true });
-    const cx = rect.x + rect.width / 2;
-    const cy = rect.y + rect.height / 2;
+        const rect = elementNode.getClientRect({ skipStroke: true, skipShadow: true });
+    const stageTransform = this.stage.getAbsoluteTransform().copy().invert();
+    const topLeft = stageTransform.point({ x: rect.x, y: rect.y });
+    const bottomRight = stageTransform.point({ x: rect.x + rect.width, y: rect.y + rect.height });
+
+    const minX = Math.min(topLeft.x, bottomRight.x);
+    const minY = Math.min(topLeft.y, bottomRight.y);
+    const maxX = Math.max(topLeft.x, bottomRight.x);
+    const maxY = Math.max(topLeft.y, bottomRight.y);
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
 
     let x = cx;
     let y = cy;
 
-    // Calculate anchor position
     switch (endpoint.anchor) {
       case "left":
-        x = rect.x;
+        x = minX;
         y = cy;
         break;
       case "right":
-        x = rect.x + rect.width;
+        x = maxX;
         y = cy;
         break;
       case "top":
         x = cx;
-        y = rect.y;
+        y = minY;
         break;
       case "bottom":
         x = cx;
-        y = rect.y + rect.height;
+        y = maxY;
         break;
       case "center":
       default:
@@ -490,7 +499,6 @@ export class ConnectorSelectionManager {
         break;
     }
 
-    // Apply offset if present
     if (endpoint.offset) {
       x += endpoint.offset.dx;
       y += endpoint.offset.dy;

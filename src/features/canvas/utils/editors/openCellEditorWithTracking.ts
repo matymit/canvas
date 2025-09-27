@@ -125,9 +125,6 @@ export function openCellEditorWithTracking({
 
   container.appendChild(editor);
 
-  let pendingInnerWidth: number | null = null;
-  let pendingInnerHeight: number | null = null;
-
   function placeEditor() {
     ({ cellX, cellY, cellWidth, cellHeight } = computeCellMetrics());
 
@@ -140,36 +137,21 @@ export function openCellEditorWithTracking({
     const cellWorldX = tablePos.x + cellX;
     const cellWorldY = tablePos.y + cellY;
 
-    // FIXED: Use stage.getAbsoluteTransform().point() for proper coordinate transformation
-    const stageTransform = stage.getAbsoluteTransform();
-    const screenPoint = stageTransform.point({ x: cellWorldX, y: cellWorldY });
-
-    // FIXED: Get container rect offset for accurate screen positioning
-    const containerRect = container.getBoundingClientRect();
-    const screenX = containerRect.left + screenPoint.x;
-    const screenY = containerRect.top + screenPoint.y;
-
-    // Apply scale to cell dimensions
     const scale = stage.scaleX();
     const innerWidth = Math.max(20, cellWidth - paddingX * 2);
     const innerHeight = Math.max(20, cellHeight - paddingY * 2);
-    const effectiveInnerWidth = Math.max(innerWidth, pendingInnerWidth ?? innerWidth);
-    const effectiveInnerHeight = Math.max(innerHeight, pendingInnerHeight ?? innerHeight);
+
+    const stagePos = stage.position();
+    const screenX = stagePos.x + cellWorldX * scale;
+    const screenY = stagePos.y + cellWorldY * scale;
 
     editor.style.left = `${screenX + paddingX * scale}px`;
     editor.style.top = `${screenY + paddingY * scale}px`;
-    editor.style.width = `${effectiveInnerWidth}px`;
-    editor.style.height = `${effectiveInnerHeight}px`;
-    editor.style.transform = `scale(${scale})`;
+    editor.style.width = `${innerWidth * scale}px`;
+    editor.style.height = `${innerHeight * scale}px`;
+    editor.style.transform = 'scale(1)';
     editor.style.transformOrigin = '0 0';
 
-    if (pendingInnerWidth !== null && effectiveInnerWidth <= innerWidth + 0.5) {
-      pendingInnerWidth = null;
-    }
-
-    if (pendingInnerHeight !== null && effectiveInnerHeight <= innerHeight + 0.5) {
-      pendingInnerHeight = null;
-    }
   }
 
   placeEditor();
@@ -178,6 +160,10 @@ export function openCellEditorWithTracking({
   const sync = () => placeEditor();
   stage.on('dragmove.cell-editor wheel.cell-editor', sync);
   stage.on('xChange.cell-editor yChange.cell-editor scaleXChange.cell-editor scaleYChange.cell-editor', sync);
+  stage.on('widthChange.cell-editor heightChange.cell-editor', sync);
+
+  const handleWindowResize = () => sync();
+  window.addEventListener('resize', handleWindowResize);
 
   // Also listen for table group transforms (resizing)
   tableGroup.on('transform.cell-editor', sync);
@@ -191,8 +177,6 @@ export function openCellEditorWithTracking({
       const desiredHeight = Math.max(20, editor.scrollHeight);
       editor.style.width = `${desiredWidth}px`;
       editor.style.height = `${desiredHeight}px`;
-      pendingInnerWidth = desiredWidth;
-      pendingInnerHeight = desiredHeight;
       requestAnimationFrame(() => placeEditor());
       return;
     }
@@ -211,12 +195,9 @@ export function openCellEditorWithTracking({
       const requiredWidth = measuredInnerWidth / scale + paddingX * 2;
       const requiredHeight = measuredInnerHeight / scale + paddingY * 2;
 
-      // Optimistically resize editor to avoid clipping while waiting for store update
       editor.style.width = `${measuredInnerWidth}px`;
       editor.style.height = `${measuredInnerHeight}px`;
 
-      pendingInnerWidth = measuredInnerWidth;
-      pendingInnerHeight = measuredInnerHeight;
 
       onSizeChange({
         elementId,
@@ -278,6 +259,8 @@ export function openCellEditorWithTracking({
     stage.off('dragmove.cell-editor');
     stage.off('wheel.cell-editor');
     stage.off('xChange.cell-editor yChange.cell-editor scaleXChange.cell-editor scaleYChange.cell-editor');
+    stage.off('widthChange.cell-editor heightChange.cell-editor');
+    window.removeEventListener('resize', handleWindowResize);
     tableGroup?.off('transform.cell-editor');
     editor.remove();
     if (resizeFrame != null) {

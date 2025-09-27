@@ -1,5 +1,6 @@
+
 import type React from "react";
-import { useRef, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type Konva from "konva";
 import { StoreActions } from "../../../stores/facade";
 import type { RafBatcher } from "../../../utils/performance/RafBatcher";
@@ -10,119 +11,131 @@ interface PanToolProps {
   rafBatcher: RafBatcher;
 }
 
+const listenerOptions: AddEventListenerOptions = { capture: true, passive: false };
+
 /**
  * PanTool: Handles canvas panning via mouse drag when pan tool is selected.
  *
- * Architecture:
- * - Uses store-only updates to avoid feedback loops
- * - FigJamCanvas useEffect handles stage sync from store
- * - Uses namespaced events to avoid conflicts
- * - No direct stage manipulation
+ * Implementation uses DOM-level pointer events on the stage container so we can
+ * intercept events before Konva nodes receive them. This guarantees elements do
+ * not enter their own drag flows when the pan tool is active.
  */
 const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => {
   const isPanningRef = useRef(false);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const stage = stageRef.current;
     const container = stage?.container();
 
-    if (!stage || !isActive) {
+    if (!stage || !container || !isActive) {
       return;
     }
 
-    if (!container) {
-      return;
-    }
+    const setCursor = (cursor: string) => {
+      container.style.cursor = cursor;
+    };
+    setCursor("grab");
 
-    // Set initial cursor
-    container.style.cursor = "grab";
-
-    const handlePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      // Only handle left mouse button/primary touch
-      if (e.evt.button !== undefined && e.evt.button !== 0) {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== undefined && event.button !== 0) {
         return;
       }
-
-      e.evt.preventDefault();
-      e.evt.stopPropagation();
-      e.cancelBubble = true;
+      event.preventDefault();
+      event.stopPropagation();
 
       isPanningRef.current = true;
-      lastPointerPosRef.current = {
-        x: e.evt.clientX,
-        y: e.evt.clientY,
-      };
+      lastPointerPosRef.current = { x: event.clientX, y: event.clientY };
+      activePointerIdRef.current = event.pointerId;
 
-      // Change cursor to grabbing during drag
-      container.style.cursor = "grabbing";
+      try {
+        container.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore capture errors (e.g., unsupported environments)
+      }
+
+      container.classList.add("grabbing");
+      setCursor("grabbing");
     };
 
-    const handlePointerMove = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    const handlePointerMove = (event: PointerEvent) => {
       if (!isPanningRef.current || !lastPointerPosRef.current) {
         return;
       }
 
-      e.evt.preventDefault();
-      // Removed stopPropagation to allow other handlers to work
+      event.preventDefault();
+      event.stopPropagation();
 
-      const currentPos = {
-        x: e.evt.clientX,
-        y: e.evt.clientY,
-      };
+      const current = { x: event.clientX, y: event.clientY };
+      const deltaX = current.x - lastPointerPosRef.current.x;
+      const deltaY = current.y - lastPointerPosRef.current.y;
 
-      // Calculate delta movement
-      const deltaX = currentPos.x - lastPointerPosRef.current.x;
-      const deltaY = currentPos.y - lastPointerPosRef.current.y;
+      if (deltaX === 0 && deltaY === 0) {
+        return;
+      }
 
       rafBatcher.schedule(() => {
         try {
           StoreActions.panBy(deltaX, deltaY);
-        } catch (error) {
-          // Ignore error
+        } catch {
+          // Ignore pan errors to keep interaction responsive
         }
       });
 
-      lastPointerPosRef.current = currentPos;
+      lastPointerPosRef.current = current;
     };
 
-    const handlePointerUp = () => {
+    const endPan = (event?: PointerEvent) => {
       if (!isPanningRef.current) return;
+
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
 
       isPanningRef.current = false;
       lastPointerPosRef.current = null;
 
-      // Reset cursor to grab
-      container.style.cursor = "grab";
-    };
-
-    // Use proper Konva event system with namespaced handlers
-    stage.on("pointerdown.pantool", handlePointerDown);
-    stage.on("pointermove.pantool", handlePointerMove);
-    stage.on("pointerup.pantool", handlePointerUp);
-    stage.on("pointercancel.pantool", handlePointerUp);
-    stage.on("pointerleave.pantool", handlePointerUp);
-
-    // Also handle window-level pointer up to catch events outside canvas
-    const handleWindowPointerUp = () => {
-      if (isPanningRef.current) {
-        handlePointerUp();
+      if (activePointerIdRef.current != null) {
+        try {
+          container.releasePointerCapture(activePointerIdRef.current);
+        } catch {
+          // Ignore release errors
+        }
+        activePointerIdRef.current = null;
       }
+
+      container.classList.remove("grabbing");
+      setCursor("grab");
     };
-    window.addEventListener("pointerup", handleWindowPointerUp);
+
+    container.addEventListener("pointerdown", handlePointerDown, listenerOptions);
+    container.addEventListener("pointermove", handlePointerMove, listenerOptions);
+    container.addEventListener("pointerup", endPan, listenerOptions);
+    container.addEventListener("pointercancel", endPan, listenerOptions);
+    container.addEventListener("pointerleave", endPan, listenerOptions);
 
     return () => {
-      // Clean up Konva event listeners
-      stage.off(".pantool");
+      container.removeEventListener("pointerdown", handlePointerDown, listenerOptions);
+      container.removeEventListener("pointermove", handlePointerMove, listenerOptions);
+      container.removeEventListener("pointerup", endPan, listenerOptions);
+      container.removeEventListener("pointercancel", endPan, listenerOptions);
+      container.removeEventListener("pointerleave", endPan, listenerOptions);
 
-      // Clean up window event listener
-      window.removeEventListener("pointerup", handleWindowPointerUp);
-
-      // Reset cursor
-      const currentContainer = stage.container();
-      if (currentContainer) {
-        currentContainer.style.cursor = "default";
+      if (isPanningRef.current && activePointerIdRef.current != null) {
+        try {
+          container.releasePointerCapture(activePointerIdRef.current);
+        } catch {
+          // Ignore release errors during cleanup
+        }
       }
+
+      isPanningRef.current = false;
+      lastPointerPosRef.current = null;
+      activePointerIdRef.current = null;
+      container.classList.remove("grabbing");
+      container.style.cursor = "";
     };
   }, [isActive, stageRef, rafBatcher]);
 

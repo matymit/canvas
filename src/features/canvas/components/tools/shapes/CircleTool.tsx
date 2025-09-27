@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import Konva from 'konva';
+import { getWorldPointer } from '../../../utils/pointer';
 import { useUnifiedCanvasStore } from '../../../stores/unifiedCanvasStore';
 import { openShapeTextEditor } from '../../../utils/editors/openShapeTextEditor';
 
@@ -25,9 +26,6 @@ const FIGJAM_CIRCLE_SIZE = { width: 160, height: 160 }; // Same as your sticky n
 // Safety limits to prevent extreme dimensions
 const MAX_DIMENSION = 5000;
 const MIN_DIMENSION = 10;
-const MIN_SCALE = 0.01; // Prevent division by extremely small scale values
-
-
 export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, toolId = 'draw-circle' }) => {
   const selectedTool = useUnifiedCanvasStore((s) => s.ui?.selectedTool);
   const setSelectedTool = useUnifiedCanvasStore((s) => s.ui?.setSelectedTool);
@@ -55,7 +53,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       getNamedOrIndexedLayer(stage, 'preview', 2) || stage.getLayers()[stage.getLayers().length - 2] || stage.getLayers()[0];
 
     const onPointerDown = () => {
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       if (!pos || !previewLayer) {
         return;
       }
@@ -86,7 +84,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
     };
 
     const onPointerMove = () => {
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       const layer = previewLayer;
       const circle = drawingRef.current.circle;
       const start = drawingRef.current.start;
@@ -112,7 +110,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
 
       const circle = drawingRef.current.circle;
       const start = drawingRef.current.start;
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointer(stage);
       drawingRef.current.circle = null;
       drawingRef.current.start = null;
 
@@ -125,8 +123,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
       circle.remove();
       previewLayer.batchDraw();
 
-      const scale = Math.max(MIN_SCALE, stage.scaleX()); // Prevent division by tiny values
-      const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.width / scale);
+      const visualWidth = Math.min(MAX_DIMENSION, FIGJAM_CIRCLE_SIZE.width);
 
       let centerX: number;
       let centerY: number;
@@ -139,7 +136,7 @@ export const CircleTool: React.FC<CircleToolProps> = ({ isActive, stageRef, tool
         diameter = visualWidth; // Use consistent diameter
       } else {
         // Dragged - use larger dimension for perfect circle
-        const minSize = Math.max(MIN_DIMENSION, 40 / scale);
+        const minSize = Math.max(MIN_DIMENSION, 40);
         const maxDimension = Math.max(w, h, minSize);
         diameter = Math.min(MAX_DIMENSION, maxDimension);
         // Calculate center of the dragged area
