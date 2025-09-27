@@ -96,8 +96,7 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
         onClick={handleCreateChild}
       >
         <span className="w-4 h-4 flex items-center justify-center">+</span>
-        Add Child Node
-        <span className="ml-auto text-xs text-gray-400">Enter</span>
+        Add child node
       </button>
 
       <div className="border-t border-gray-100" />
@@ -107,8 +106,7 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
         onClick={handleDuplicateNode}
       >
         <span className="w-4 h-4 flex items-center justify-center">⧉</span>
-        Duplicate Node
-        <span className="ml-auto text-xs text-gray-400">⌘D</span>
+        Duplicate node
       </button>
 
       {hasChildren && (
@@ -117,8 +115,7 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
           onClick={handleDuplicateSubtree}
         >
           <span className="w-4 h-4 flex items-center justify-center">⧈</span>
-          Duplicate Subtree
-          <span className="ml-auto text-xs text-gray-400">⇧⌘D</span>
+          Duplicate subtree
         </button>
       )}
 
@@ -129,8 +126,7 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
         onClick={handleDeleteNode}
       >
         <span className="w-4 h-4 flex items-center justify-center">×</span>
-        Delete Node{hasChildren ? " & Children" : ""}
-        <span className="ml-auto text-xs text-gray-400">Del</span>
+        Delete node{hasChildren ? " & children" : ""}
       </button>
     </div>
   );
