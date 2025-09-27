@@ -92,29 +92,26 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
       onMouseLeave={onClose}
     >
       <button
-        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
         onClick={handleCreateChild}
       >
-        <span className="w-4 h-4 flex items-center justify-center">+</span>
         Add child node
       </button>
 
       <div className="border-t border-gray-100" />
 
       <button
-        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
         onClick={handleDuplicateNode}
       >
-        <span className="w-4 h-4 flex items-center justify-center">⧉</span>
         Duplicate node
       </button>
 
       {hasChildren && (
         <button
-          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
           onClick={handleDuplicateSubtree}
         >
-          <span className="w-4 h-4 flex items-center justify-center">⧈</span>
           Duplicate subtree
         </button>
       )}
@@ -122,10 +119,9 @@ export const MindmapContextMenu: React.FC<MindmapContextMenuProps> = ({
       <div className="border-t border-gray-100" />
 
       <button
-        className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+        className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600"
         onClick={handleDeleteNode}
       >
-        <span className="w-4 h-4 flex items-center justify-center">×</span>
         Delete node{hasChildren ? " & children" : ""}
       </button>
     </div>
