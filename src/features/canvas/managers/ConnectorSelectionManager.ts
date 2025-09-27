@@ -3,6 +3,7 @@
 // Parallel to the standard TransformerManager selection system
 
 import Konva from "konva";
+import type { CanvasElement } from "../../../../types";
 import type { ConnectorElement } from "../types/connector";
 import { StoreSelectors, StoreActions } from "../stores/facade";
 
@@ -26,11 +27,21 @@ export class ConnectorSelectionManager {
   private endpointGroup: Konva.Group | null = null;
   private fromDot: Konva.Circle | null = null;
   private toDot: Konva.Circle | null = null;
+  private dragLine: Konva.Line | null = null;
+  private dragBaseline: {
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null = null;
+
+  private pointerMoveListener?: (evt: Konva.KonvaEventObject<PointerEvent>) => void;
+  private pointerUpListener?: (evt: Konva.KonvaEventObject<PointerEvent>) => void;
+  private pointerCancelListener?: (evt: Konva.KonvaEventObject<PointerEvent>) => void;
+  private activeConnectorShape: Konva.Shape | null = null;
 
   // Drag state
   private dragState: {
     isDragging: boolean;
-    endpoint: 'from' | 'to' | null;
+    endpoint: 'from' | 'to' | 'all' | null;
     startPos: { x: number; y: number } | null;
   } = {
     isDragging: false,
@@ -84,6 +95,21 @@ export class ConnectorSelectionManager {
 
     this.fromDot = null;
     this.toDot = null;
+    this.dragLine = null;
+    this.dragBaseline = null;
+    if (this.pointerMoveListener) {
+      this.stage.off('pointermove.connector-drag', this.pointerMoveListener);
+      this.pointerMoveListener = undefined;
+    }
+    if (this.pointerUpListener) {
+      this.stage.off('pointerup.connector-drag', this.pointerUpListener);
+      this.pointerUpListener = undefined;
+    }
+    if (this.pointerCancelListener) {
+      this.stage.off('pointercancel.connector-drag', this.pointerCancelListener);
+      this.pointerCancelListener = undefined;
+    }
+    this.activeConnectorShape = null;
     this.selectedConnectorId = null;
     this.dragState = {
       isDragging: false,
@@ -144,6 +170,29 @@ export class ConnectorSelectionManager {
 
     if (!fromPos || !toPos) return;
 
+    this.dragBaseline = {
+      from: { x: fromPos.x, y: fromPos.y },
+      to: { x: toPos.x, y: toPos.y },
+    };
+
+    const allowWholeDrag =
+      connector.from.kind === 'point' && connector.to.kind === 'point';
+
+    this.dragLine = new Konva.Line({
+      points: [fromPos.x, fromPos.y, toPos.x, toPos.y],
+      stroke: 'transparent',
+      strokeWidth: Math.max(connector.style.strokeWidth, 2),
+      hitStrokeWidth: Math.max(connector.style.strokeWidth, 24),
+      listening: allowWholeDrag,
+      name: 'connector-hit-line',
+      perfectDrawEnabled: false,
+    });
+    if (allowWholeDrag) {
+      this.setupWholeConnectorDragHandlers(this.dragLine);
+    }
+    this.endpointGroup.add(this.dragLine);
+    this.dragLine.moveToBottom();
+
     // Create "from" endpoint dot
     this.fromDot = new Konva.Circle({
       x: fromPos.x,
@@ -184,11 +233,6 @@ export class ConnectorSelectionManager {
 
     // Add group to overlay layer
     this.overlayLayer.add(this.endpointGroup);
-    // Allow dragging the whole connector by dragging between endpoints
-    this.endpointGroup.on('dragstart', (e) => {
-      // prevent default group drag; endpoints handle drags
-      e.cancelBubble = true;
-    });
     this.overlayLayer.batchDraw();
   }
 
@@ -244,6 +288,165 @@ export class ConnectorSelectionManager {
       dot.strokeWidth(this.options.endpointStrokeWidth);
       this.overlayLayer.batchDraw();
     });
+  }
+
+  private setupWholeConnectorDragHandlers(line: Konva.Line): void {
+    line.on('pointerenter', () => {
+      if (line.listening() && !this.dragState.isDragging) {
+        this.stage.container().style.cursor = 'grab';
+      }
+    });
+
+    line.on('pointerleave', () => {
+      if (!this.dragState.isDragging) {
+        this.stage.container().style.cursor = 'default';
+      }
+    });
+
+    line.on('pointerdown', (evt) => {
+      if (!line.listening()) return;
+      if (!this.selectedConnectorId || !this.dragBaseline) return;
+
+      evt.cancelBubble = true;
+      const pointer = this.stage.getPointerPosition();
+      if (!pointer) return;
+
+      const connectorGroup = this.stage.findOne<Konva.Group>(`#${this.selectedConnectorId}`);
+      const connectorShape = connectorGroup?.findOne<Konva.Shape>('.connector-shape');
+      this.activeConnectorShape = connectorShape || null;
+
+      this.dragState.isDragging = true;
+      this.dragState.endpoint = 'all';
+      this.dragState.startPos = { x: pointer.x, y: pointer.y };
+      this.stage.container().style.cursor = 'grabbing';
+
+      if (this.pointerMoveListener) {
+        this.stage.off('pointermove.connector-drag', this.pointerMoveListener);
+      }
+      if (this.pointerUpListener) {
+        this.stage.off('pointerup.connector-drag', this.pointerUpListener);
+      }
+      if (this.pointerCancelListener) {
+        this.stage.off('pointercancel.connector-drag', this.pointerCancelListener);
+      }
+
+      this.pointerMoveListener = () => {
+        if (!this.dragState.startPos) return;
+        const current = this.stage.getPointerPosition();
+        if (!current) return;
+        const dx = current.x - this.dragState.startPos.x;
+        const dy = current.y - this.dragState.startPos.y;
+        this.applyWholeConnectorPreview(dx, dy);
+      };
+
+      this.pointerUpListener = () => {
+        if (!this.dragState.startPos) {
+          this.cleanupWholeDragListeners();
+          return;
+        }
+        const current = this.stage.getPointerPosition();
+        const dx = current ? current.x - this.dragState.startPos.x : 0;
+        const dy = current ? current.y - this.dragState.startPos.y : 0;
+        this.commitWholeConnectorDrag(dx, dy);
+        this.cleanupWholeDragListeners();
+      };
+
+      this.pointerCancelListener = () => {
+        this.applyWholeConnectorPreview(0, 0);
+        this.cleanupWholeDragListeners();
+      };
+
+      this.stage.on('pointermove.connector-drag', this.pointerMoveListener);
+      this.stage.on('pointerup.connector-drag', this.pointerUpListener);
+      this.stage.on('pointercancel.connector-drag', this.pointerCancelListener);
+    });
+  }
+
+  private cleanupWholeDragListeners(): void {
+    if (this.pointerMoveListener) {
+      this.stage.off('pointermove.connector-drag', this.pointerMoveListener);
+      this.pointerMoveListener = undefined;
+    }
+    if (this.pointerUpListener) {
+      this.stage.off('pointerup.connector-drag', this.pointerUpListener);
+      this.pointerUpListener = undefined;
+    }
+    if (this.pointerCancelListener) {
+      this.stage.off('pointercancel.connector-drag', this.pointerCancelListener);
+      this.pointerCancelListener = undefined;
+    }
+    this.dragState = {
+      isDragging: false,
+      endpoint: null,
+      startPos: null,
+    };
+    this.stage.container().style.cursor = 'default';
+    this.activeConnectorShape = null;
+  }
+
+  private applyWholeConnectorPreview(dx: number, dy: number): void {
+    if (!this.dragBaseline || !this.fromDot || !this.toDot || !this.dragLine) {
+      return;
+    }
+
+    const from = {
+      x: this.dragBaseline.from.x + dx,
+      y: this.dragBaseline.from.y + dy,
+    };
+    const to = {
+      x: this.dragBaseline.to.x + dx,
+      y: this.dragBaseline.to.y + dy,
+    };
+
+    this.fromDot.position(from);
+    this.toDot.position(to);
+    this.dragLine.points([from.x, from.y, to.x, to.y]);
+    if (this.activeConnectorShape) {
+      const shape = this.activeConnectorShape;
+      if (shape instanceof Konva.Line || shape instanceof Konva.Arrow) {
+        shape.points([from.x, from.y, to.x, to.y]);
+        shape.getLayer()?.batchDraw();
+      }
+    }
+    this.overlayLayer.batchDraw();
+  }
+
+  private commitWholeConnectorDrag(dx: number, dy: number): void {
+    if (!this.selectedConnectorId || !this.dragBaseline) {
+      this.applyWholeConnectorPreview(0, 0);
+      return;
+    }
+
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      this.applyWholeConnectorPreview(0, 0);
+      return;
+    }
+
+    const connector = this.getConnectorElement(this.selectedConnectorId);
+    if (!connector) {
+      this.applyWholeConnectorPreview(0, 0);
+      return;
+    }
+
+    const fromEndpoint = {
+      kind: 'point' as const,
+      x: Math.round(this.dragBaseline.from.x + dx),
+      y: Math.round(this.dragBaseline.from.y + dy),
+    };
+    const toEndpoint = {
+      kind: 'point' as const,
+      x: Math.round(this.dragBaseline.to.x + dx),
+      y: Math.round(this.dragBaseline.to.y + dy),
+    };
+
+    this.updateConnectorEndpoints(this.selectedConnectorId, fromEndpoint, toEndpoint);
+
+    this.dragBaseline = {
+      from: { x: fromEndpoint.x, y: fromEndpoint.y },
+      to: { x: toEndpoint.x, y: toEndpoint.y },
+    };
+
+    this.applyWholeConnectorPreview(0, 0);
   }
 
   private resolveEndpointPosition(endpoint: ConnectorElement['from']): { x: number; y: number } | null {
@@ -334,6 +537,17 @@ export class ConnectorSelectionManager {
       this.toDot.position(toPos);
     }
 
+    if (fromPos && toPos && this.dragLine) {
+      this.dragLine.points([fromPos.x, fromPos.y, toPos.x, toPos.y]);
+    }
+
+    if (fromPos && toPos && this.dragBaseline) {
+      this.dragBaseline = {
+        from: { x: fromPos.x, y: fromPos.y },
+        to: { x: toPos.x, y: toPos.y },
+      };
+    }
+
     this.overlayLayer.batchDraw();
   }
 
@@ -348,15 +562,38 @@ export class ConnectorSelectionManager {
     // Update the connector endpoint to be a point
     const updates = {
       [endpoint]: {
-        kind: "point" as const,
+        kind: 'point' as const,
         x: Math.round(newPosition.x),
         y: Math.round(newPosition.y),
-      }
+      },
     };
 
     withUndo?.(`Move connector ${endpoint} endpoint`, () => {
       updateElement(connectorId, updates);
     });
+  }
+
+  private updateConnectorEndpoints(
+    connectorId: string,
+    from: ConnectorElement['from'],
+    to: ConnectorElement['to'],
+  ): void {
+    const updateElement = StoreActions.updateElement;
+    const withUndo = StoreActions.withUndo;
+
+    if (!updateElement) {
+      return;
+    }
+
+    const patch = { from, to } as unknown as Partial<CanvasElement>;
+
+    if (withUndo) {
+      withUndo('Move connector', () => {
+        updateElement(connectorId, patch);
+      });
+    } else {
+      updateElement(connectorId, patch);
+    }
   }
 
   /**

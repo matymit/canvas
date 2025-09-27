@@ -187,6 +187,7 @@ export class ConnectorRenderer {
         // Mark shape with metadata as well (defensive)
         shape.setAttr('nodeType', 'connector');
         shape.setAttr('elementType', 'connector');
+        shape.hitStrokeWidth(Math.max(conn.style.strokeWidth, 24));
         this.shapeById.set(conn.id, shape);
       } else {
         shape.points(points);
@@ -198,6 +199,7 @@ export class ConnectorRenderer {
         (shape as Konva.Arrow).pointerWidth((conn.style.arrowSize ?? 10) * 0.7);
         shape.lineCap(rounded ? "round" : "butt");
         shape.lineJoin(rounded ? "round" : "miter");
+        shape.hitStrokeWidth(Math.max(conn.style.strokeWidth, 24));
       }
     } else {
       // line
@@ -219,6 +221,7 @@ export class ConnectorRenderer {
         g.add(shape);
         shape.setAttr('nodeType', 'connector');
         shape.setAttr('elementType', 'connector');
+        shape.hitStrokeWidth(Math.max(conn.style.strokeWidth, 24));
         this.shapeById.set(conn.id, shape);
       } else {
         shape.points(points);
@@ -228,6 +231,7 @@ export class ConnectorRenderer {
         shape.opacity(conn.style.opacity ?? 1);
         shape.lineCap(rounded ? "round" : "butt");
         shape.lineJoin(rounded ? "round" : "miter");
+        shape.hitStrokeWidth(Math.max(conn.style.strokeWidth, 24));
       }
     }
 

@@ -348,11 +348,12 @@ This document provides an honest assessment of current Canvas limitations, known
 #### Circles
 
 - Text editor still shows the blue bounding border immediately after creating a circle and when re-entering edit mode.
+- [Needs investigation] Circles linked by connectors disappear when zooming beyond ~115%; zooming back out restores them.
 
 #### Connectors (Line & Arrow)
 
-- Hit target after placement is too small, making re-selection extremely difficult.
-- Once selected, connectors cannot be dragged as a whole—only endpoint handles respond.
+- [Needs QA] Connector hit targets expanded via renderer hitStrokeWidth tweak; verify re-selection is reliable.
+- [Needs QA] Whole-connector drag overlay added for free-floating connectors; confirm arrows/lines with point endpoints can be repositioned.
 
 #### Eraser Tool
 
