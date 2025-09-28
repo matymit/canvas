@@ -119,7 +119,32 @@ export const TableTool: React.FC<TableToolProps> = ({
     };
 
     const commit = (x: number, y: number, w: number, h: number) => {
-      const tableData = createEmptyTable(x, y, w, h);
+      const viewport = useUnifiedCanvasStore.getState().viewport;
+      const toWorld = viewport?.stageToWorld;
+
+      const topLeftWorld = toWorld ? toWorld(x, y) : { x, y };
+      const bottomRightWorld = toWorld
+        ? toWorld(x + w, y + h)
+        : { x: x + w, y: y + h };
+
+      let worldX = Math.min(topLeftWorld.x, bottomRightWorld.x);
+      let worldY = Math.min(topLeftWorld.y, bottomRightWorld.y);
+      let worldWidth = Math.abs(bottomRightWorld.x - topLeftWorld.x);
+      let worldHeight = Math.abs(bottomRightWorld.y - topLeftWorld.y);
+
+      const { minWidth, minHeight } = DEFAULT_TABLE_CONFIG;
+      if (worldWidth < minWidth) {
+        const centerX = worldX + worldWidth / 2;
+        worldWidth = minWidth;
+        worldX = centerX - worldWidth / 2;
+      }
+      if (worldHeight < minHeight) {
+        const centerY = worldY + worldHeight / 2;
+        worldHeight = minHeight;
+        worldY = centerY - worldHeight / 2;
+      }
+
+      const tableData = createEmptyTable(worldX, worldY, worldWidth, worldHeight);
       const id = nanoid();
 
       // FIXED: Create proper TableElement structure without redundant data/bounds
@@ -167,11 +192,7 @@ export const TableTool: React.FC<TableToolProps> = ({
       const w = Math.abs(pos.x - start.x);
       const h = Math.abs(pos.y - start.y);
 
-      const { minWidth, minHeight } = DEFAULT_TABLE_CONFIG;
-      const finalW = w < 4 ? minWidth : Math.max(minWidth, w);
-      const finalH = h < 4 ? minHeight : Math.max(minHeight, h);
-
-      commit(x, y, finalW, finalH);
+      commit(x, y, w, h);
     };
 
     const onDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
