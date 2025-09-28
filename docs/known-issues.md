@@ -2,7 +2,7 @@
 
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
 
-## 🚨 STATUS (September 26, 2025)
+## 🚨 STATUS (September 27, 2025)
 
 ### ❌ BROKEN: Phase 18 MVP Features Status
 
@@ -10,6 +10,26 @@ This document provides an honest assessment of current Canvas limitations, known
 **Status:** Multiple critical features broken with recent regressions
 
 #### Recently Addressed
+
+0. **🖐️ Pan Tool Drag Reliability (FIXED - September 27, 2025)**
+   - **Issue**: Hand tool drags would sometimes do nothing or abandon mid-gesture
+   - **Fix**: Delegated dragging back to Konva's native stage dragging and mirrored the resulting position into the viewport store every frame
+   - **Impact**: Consistent panning across mouse/touch devices with correct cursor feedback (`grab`/`grabbing`) and no more "dead" drags
+
+0. **⭕ Circle Text Editor Caret & Alignment (FIXED - September 27, 2025)**
+   - **Issue**: Choosing between centered caret vs blinking caret caused regressions during create/re-edit flows
+   - **Fix**: Wrapped the editor in a positioning container so both text and caret stay centered while blinking normally for single and multi-line content
+   - **Impact**: Circle shapes now match sticky note UX—caret appears immediately on create and remains centered during edits
+
+0. **🗒️ Sticky Note Default Color Drift (FIXED - September 27, 2025)**
+   - **Issue**: Picking a color in the toolbar only affected selected notes; newly added notes reverted to the default yellow
+   - **Fix**: Palette selection now updates both the active selection (with undo support) and the stored default used by the creation tool
+   - **Impact**: Agents can pick a color before placing a note and see it applied on first click, matching FigJam ergonomics
+
+0. **🖼️ Image Resize Flashing (FIXED - September 27, 2025)**
+   - **Issue**: Konva images flashed or "jumped" when a resize gesture finished because scale normalization lagged behind bitmap updates
+   - **Fix**: Update the underlying Konva.Image dimensions before resetting group scale so renderer, transformer, and bitmap stay aligned
+   - **Impact**: Image resizing now feels stable with no end-of-drag flicker
 
 0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
    - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)

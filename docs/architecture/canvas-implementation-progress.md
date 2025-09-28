@@ -4,6 +4,28 @@
 
 This document tracks the implementation progress of the FigJam-style modular canvas application, ensuring all tools and systems follow the four-layer pipeline architecture with store-driven rendering.
 
+## 🚨 STATUS UPDATE (September 27, 2025)
+
+### ✅ Interaction Stabilization & Editor Polish (September 27, 2025)
+
+**Repository:** `main`
+**Status:** Pan navigation, circle shape editing, sticky note palette, and image resizing refinements landed
+
+- **🖐️ Pan tool reliability**
+  - Rebounded the hand tool onto Konva's native stage dragging so pointer capture is handled by the library instead of manual listeners
+  - Keeps the viewport store synchronized on every drag frame through the RafBatcher, eliminating the "sometimes nothing moves" regression
+  - Cursor state (`grab` ↔ `grabbing`) now tracks drag lifecycle consistently across mouse and touch inputs
+- **⭕ Circle text editor parity**
+  - Introduced a wrapper/inner editor overlay that maintains centered layout while allowing the caret to blink normally
+  - Creation, commit, and re-edit flows now render centered text with a visible caret regardless of single vs multi-line content
+- **🗒️ Sticky note defaults**
+  - Toolbar color picker updates both the active selection and the default color for the next note, honoring palette choices made before placement
+  - Fallback pulls from the shared `colors.stickyNote` state when no explicit pick has been made in the current session
+- **🖼️ Image resize polish**
+  - Normalizes Konva image nodes by updating the bitmap dimensions before resetting scale so the post-resize flash/jump is gone
+  - Ensures the renderer and SelectionModule stay in agreement about the committed width/height values
+- **Verification**: `npm run type-check`
+
 ## 🚨 STATUS UPDATE (September 26, 2025)
 
 ### ⚙️ TYPE SAFETY: Store Typing Remediation (September 26, 2025)
