@@ -179,10 +179,25 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
       const selectedIds = Array.from(selectedIdSet);
       if (selectedIds.length > 0 && setSelection) {
-        setSelection(selectedIds);
-        selectionRef.current = selectedIds;
+        const connectors: string[] = [];
+        const nonConnectors: string[] = [];
+        for (const id of selectedIds) {
+          if (elementMetadata.get(id)?.isConnector) {
+            connectors.push(id);
+          } else {
+            nonConnectors.push(id);
+          }
+        }
 
-        // Inform selection module of any connectors in the selection so it can trigger connector selection manager
+        const finalSelection =
+          nonConnectors.length > 0 && connectors.length > 0
+            ? nonConnectors
+            : selectedIds;
+
+        setSelection(finalSelection);
+        selectionRef.current = finalSelection;
+
+        // Notify selection module so it can refresh transformer state / connector overlays
         StoreActions.bumpSelectionVersion?.();
       }
     };

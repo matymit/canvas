@@ -34,7 +34,7 @@ This document provides an honest assessment of current Canvas limitations, known
 0. **📐 Marquee Selection Coverage (PARTIAL - September 27, 2025)**
    - **Issue**: Selection rectangle skipped connectors, mindmap nodes, and freehand strokes; moving multi-select produced misalignment artifacts
    - **Fix so far**: Added `elementId` metadata to mindmap groups/edges and drawing strokes so marquee hit-testing can see more node types. Marquee now scans across all layers and bumps selection version for connector refreshes. Full drag integration still tracking (connectors/mindmap remain WIP)
-   - **Impact**: Selection is more inclusive but not yet perfect; connectors and mindmap nodes still require remaining work for fully aligned group drags
+   - **Research update**: Connectors intentionally bypass the Konva transformer; they redraw only after elements move. Next steps under evaluation: live reroute during marquee drags or temporarily grouping connectors into the transformer.
 
 0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
    - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)

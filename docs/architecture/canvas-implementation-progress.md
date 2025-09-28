@@ -27,6 +27,8 @@ This document tracks the implementation progress of the FigJam-style modular can
 - **🚨 Marquee selection coverage (in progress)**
   - Added element metadata to drawing strokes, connectors, and mindmap nodes so marquee hit-testing sees more node types
   - Still under refinement: complex node groups (mindmap) and connector/pen layers require deeper integration to drag as a unified group (tracked for follow-up)
+- **📌 Connector research findings**
+  - Konva docs confirm connectors bypass the transformer: they redraw only after attached shapes update. Architectural options: include connectors in transformer or apply live reroute during drags. We have not yet implemented either experiment.
 - **🗑️ Clear canvas confirmation**
   - Trash action now surfaces an in-app confirm dialog before purging the stage; the wipe remains undoable for safety
 - **Verification**: `npm run type-check`

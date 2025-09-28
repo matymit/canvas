@@ -885,6 +885,23 @@ export class SelectionModule implements RendererModule {
 
     if (refreshIds.length > 0) {
       this.connectorSelectionManager?.refreshSelection();
+      const connectorService =
+        typeof window !== "undefined"
+          ? (window as Window & {
+              connectorService?: {
+                forceRerouteElement: (id: string) => void;
+              };
+            }).connectorService
+          : undefined;
+      if (connectorService) {
+        refreshIds.forEach((id) => {
+          try {
+            connectorService.forceRerouteElement(id);
+          } catch {
+            // Ignore routing errors during live drag
+          }
+        });
+      }
     }
   }
 

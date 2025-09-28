@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Image resize artifacts**: Normalized Konva image bitmaps before resetting transform scales to remove the flash/jump that appeared at the end of resize gestures.
 - **Clear canvas confirmation**: Added an in-app confirmation dialog before destructive wipes so users can cancel or proceed confidently.
 - **Drawing & connectors in marquee**: Added element metadata so marquee selection picks up hand-drawn strokes, connectors, and mindmap nodes instead of only generic shapes.
+- **Connector/mindmap selection (WIP)**: Research shows connectors deliberately bypass the transformer; current behavior still snaps connectors only after the drag. Next steps: experiment with live rerouting during marquee drags or temporarily grouping connectors into the transformer.
 - **Verification**: `npm run type-check`
 
 ## [3.1.9] - 2025-09-26
