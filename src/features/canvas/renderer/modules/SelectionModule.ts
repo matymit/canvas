@@ -1,6 +1,7 @@
 // features/canvas/renderer/modules/SelectionModule.ts
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
+import type { ConnectorElement } from "../../types/connector";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
@@ -205,15 +206,13 @@ export class SelectionModule implements RendererModule {
     // If ANY connector is selected, prefer connector mode and never attach a transformer
     if (connectorIds.length >= 1) {
       if (this.connectorSelectionManager) {
-        // Use longer delay to ensure connector is fully rendered
         setTimeout(() => {
           const id = connectorIds[0];
           this.connectorSelectionManager?.showSelection(id);
         }, 100);
-      } else {
-        // Ignore error
       }
-      return;
+    } else {
+      this.connectorSelectionManager?.clearSelection();
     }
 
     // CRITICAL FIX: Handle mixed or non-connector selection
@@ -371,10 +370,12 @@ export class SelectionModule implements RendererModule {
     }
 
     const updates: ElementUpdate[] = [];
+    const movedElementIds = new Set<string>();
 
     for (const node of nodes) {
       const elementId = node.getAttr("elementId") || node.id();
       if (!elementId) continue;
+      movedElementIds.add(elementId);
 
       const pos = node.position();
       let size = node.size();
@@ -531,6 +532,9 @@ export class SelectionModule implements RendererModule {
         } catch (error) {
           // Ignore error
         }
+      }
+      if (movedElementIds.size > 0) {
+        this.refreshConnectedConnectors(movedElementIds);
       }
     }
   }
@@ -845,6 +849,43 @@ export class SelectionModule implements RendererModule {
     }
 
     return { connectorIds, nonConnectorIds };
+  }
+
+  private refreshConnectedConnectors(elementIds: Set<string>) {
+    if (!this.storeCtx) return;
+    const state = this.storeCtx.store.getState();
+    const refreshIds: string[] = [];
+
+    for (const [id, element] of state.elements.entries()) {
+      if (element.type !== 'connector') continue;
+      const connector = element as ConnectorElement;
+      const fromElement =
+        connector.from.kind === 'element' ? connector.from.elementId : null;
+      const toElement =
+        connector.to.kind === 'element' ? connector.to.elementId : null;
+      if (
+        (fromElement && elementIds.has(fromElement)) ||
+        (toElement && elementIds.has(toElement))
+      ) {
+        refreshIds.push(id);
+      }
+    }
+
+    refreshIds.forEach((connectorId) => {
+      try {
+        state.updateElement?.(
+          connectorId,
+          (existing) => ({ ...existing }),
+          { pushHistory: false },
+        );
+      } catch {
+        // ignore connector refresh errors
+      }
+    });
+
+    if (refreshIds.length > 0) {
+      this.connectorSelectionManager?.refreshSelection();
+    }
   }
 
   /**
