@@ -3,12 +3,14 @@ import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import type {
   ConnectorElement,
+  ConnectorEndpoint,
   ConnectorEndpointPoint,
 } from "../../types/connector";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import type { TableElement } from "../../types/table";
+import type { ConnectorService } from "../../services/ConnectorService";
 import { applyTableScaleResize } from "./tableTransform";
 
 // Element update interface
@@ -22,6 +24,9 @@ interface ElementUpdate {
     rotation?: number;
     colWidths?: number[];
     rowHeights?: number[];
+    from?: ConnectorEndpoint;
+    to?: ConnectorEndpoint;
+    points?: number[];
   };
 }
 
@@ -34,6 +39,9 @@ interface ElementChanges {
   rotation?: number;
   colWidths?: number[];
   rowHeights?: number[];
+  from?: ConnectorEndpoint;
+  to?: ConnectorEndpoint;
+  points?: number[];
 }
 
 export class SelectionModule implements RendererModule {
@@ -44,10 +52,16 @@ export class SelectionModule implements RendererModule {
   private unsubscribeVersion?: () => void;
   private transformSnapshot?: {
     basePositions: Map<string, { x: number; y: number }>;
-    standaloneConnectors: Map<string, {
-      from: ConnectorEndpointPoint;
-      to: ConnectorEndpointPoint;
-    }>;
+    connectors: Map<
+      string,
+      {
+        originalFrom: ConnectorEndpoint;
+        originalTo: ConnectorEndpoint;
+        startFrom: ConnectorEndpointPoint;
+        startTo: ConnectorEndpointPoint;
+        wasAnchored: boolean;
+      }
+    >;
   };
 
   mount(ctx: ModuleRendererCtx): () => void {
@@ -118,7 +132,7 @@ export class SelectionModule implements RendererModule {
 
         const delta = this.computeTransformDelta(nodes);
         if (delta) {
-          this.applyStandaloneConnectorTranslation(delta);
+          this.applyConnectorTranslation(delta);
         }
       },
       onTransformEnd: (nodes) => {
@@ -126,7 +140,7 @@ export class SelectionModule implements RendererModule {
 
         const delta = this.computeTransformDelta(nodes);
         if (delta) {
-          this.applyStandaloneConnectorTranslation(delta);
+          this.applyConnectorTranslation(delta);
         }
 
         this.releaseTransformSnapshot();
@@ -934,44 +948,93 @@ export class SelectionModule implements RendererModule {
     }
 
     const basePositions = new Map<string, { x: number; y: number }>();
-    const standaloneConnectors = new Map<string, {
-      from: ConnectorEndpointPoint;
-      to: ConnectorEndpointPoint;
-    }>();
+    const connectors = new Map<
+      string,
+      {
+        originalFrom: ConnectorEndpoint;
+        originalTo: ConnectorEndpoint;
+        startFrom: ConnectorEndpointPoint;
+        startTo: ConnectorEndpointPoint;
+        wasAnchored: boolean;
+      }
+    >();
+
+    const stage =
+      this.storeCtx.stage ||
+      (typeof window !== "undefined"
+        ? ((window as Window & { konvaStage?: Konva.Stage }).konvaStage ?? null)
+        : null);
+    const movingElementIds = new Set<string>();
 
     for (const id of selectedIds) {
       const element = state.elements.get(id) || state.element?.getById?.(id);
       if (!element) continue;
 
       if (element.type === "connector") {
-        const connector = element as ConnectorElement;
-        if (connector.from.kind === "point" && connector.to.kind === "point") {
-          standaloneConnectors.set(id, {
-            from: { ...connector.from },
-            to: { ...connector.to },
-          });
-        }
-        continue;
+        continue; // handled below so we can include non-selected connectors
       }
 
+      movingElementIds.add(id);
       basePositions.set(id, {
         x: element.x ?? 0,
         y: element.y ?? 0,
       });
     }
 
-    if (basePositions.size === 0 && standaloneConnectors.size === 0) {
+    const includeConnector = (connector: ConnectorElement, id: string) => {
+      const shouldInclude =
+        selectedIds.has(id) ||
+        (connector.from.kind === "element" && movingElementIds.has(connector.from.elementId)) ||
+        (connector.to.kind === "element" && movingElementIds.has(connector.to.elementId));
+
+      if (!shouldInclude) {
+        return;
+      }
+
+      const points = this.getConnectorAbsolutePoints(stage, id);
+      if (!points) {
+        return;
+      }
+
+      const [fromPoint, toPoint] = points;
+
+      connectors.set(id, {
+        originalFrom: connector.from,
+        originalTo: connector.to,
+        startFrom: fromPoint,
+        startTo: toPoint,
+        wasAnchored:
+          connector.from.kind !== "point" || connector.to.kind !== "point",
+      });
+    };
+
+    for (const [id, element] of state.elements.entries()) {
+      if (element.type !== "connector") continue;
+      includeConnector(element as ConnectorElement, id);
+    }
+
+    if (basePositions.size === 0 && connectors.size === 0) {
       this.transformSnapshot = undefined;
       return;
     }
 
     this.transformSnapshot = {
       basePositions,
-      standaloneConnectors,
+      connectors,
     };
+
+    if (connectors.size > 0) {
+      this.setLiveRoutingEnabled(false);
+      for (const [id, snapshot] of connectors) {
+        if (!snapshot.wasAnchored) continue;
+        this.applyConnectorEndpointOverride(id, snapshot.startFrom, snapshot.startTo);
+      }
+    }
   }
 
-  private computeTransformDelta(nodes: Konva.Node[]): { dx: number; dy: number } | null {
+  private computeTransformDelta(
+    nodes: Konva.Node[],
+  ): { dx: number; dy: number } | null {
     if (!this.transformSnapshot) return null;
 
     for (const node of nodes) {
@@ -988,40 +1051,153 @@ export class SelectionModule implements RendererModule {
       };
     }
 
+    // Fallback: if we have connector snapshots but no baseline (e.g., connectors only), treat delta as zero.
+    if (this.transformSnapshot.connectors.size > 0) {
+      return { dx: 0, dy: 0 };
+    }
+
     return null;
   }
 
-  private applyStandaloneConnectorTranslation(delta: { dx: number; dy: number }) {
+  private applyConnectorTranslation(delta: { dx: number; dy: number }) {
     if (!this.transformSnapshot || !this.storeCtx) return;
-    if (delta.dx === 0 && delta.dy === 0) return;
-    if (this.transformSnapshot.standaloneConnectors.size === 0) return;
 
-    const state = this.storeCtx.store.getState();
-    const update = state.element?.update || state.updateElement;
-    if (!update) return;
+    const { connectors } = this.transformSnapshot;
+    if (connectors.size === 0) return;
 
-    for (const [id, endpoints] of this.transformSnapshot.standaloneConnectors) {
-      const from = {
-        ...endpoints.from,
-        x: endpoints.from.x + delta.dx,
-        y: endpoints.from.y + delta.dy,
+    for (const [id, snapshot] of connectors) {
+      const nextFrom = {
+        kind: "point" as const,
+        x: snapshot.startFrom.x + delta.dx,
+        y: snapshot.startFrom.y + delta.dy,
       };
-      const to = {
-        ...endpoints.to,
-        x: endpoints.to.x + delta.dx,
-        y: endpoints.to.y + delta.dy,
+      const nextTo = {
+        kind: "point" as const,
+        x: snapshot.startTo.x + delta.dx,
+        y: snapshot.startTo.y + delta.dy,
       };
 
-      try {
-        update(id, { from, to } as Partial<ConnectorElement>);
-      } catch {
-        // Ignore connector update errors during live drag
-      }
+      this.updateConnectorElement(id, {
+        from: nextFrom,
+        to: nextTo,
+      });
     }
   }
 
   private releaseTransformSnapshot() {
+    if (!this.transformSnapshot) {
+      this.setLiveRoutingEnabled(true);
+      return;
+    }
+
+    const snapshot = this.transformSnapshot;
     this.transformSnapshot = undefined;
+
+    for (const [id, connectorSnapshot] of snapshot.connectors) {
+      if (!connectorSnapshot.wasAnchored) {
+        continue;
+      }
+
+      this.updateConnectorElement(id, {
+        from: connectorSnapshot.originalFrom,
+        to: connectorSnapshot.originalTo,
+      });
+    }
+
+    this.setLiveRoutingEnabled(true);
+
+    const connectorService = this.getConnectorService();
+    try {
+      connectorService?.forceRerouteAll();
+    } catch {
+      // Ignore reroute errors
+    }
+  }
+
+  private applyConnectorEndpointOverride(
+    id: string,
+    fromPoint: ConnectorEndpointPoint,
+    toPoint: ConnectorEndpointPoint,
+  ) {
+    this.updateConnectorElement(id, {
+      from: fromPoint,
+      to: toPoint,
+    });
+  }
+
+  private getConnectorAbsolutePoints(
+    stage: Konva.Stage | null | undefined,
+    connectorId: string,
+  ): [ConnectorEndpointPoint, ConnectorEndpointPoint] | null {
+    if (!stage) return null;
+
+    const group = stage.findOne<Konva.Group>(`#${connectorId}`);
+    if (!group) return null;
+
+    const shape = group.findOne<Konva.Line | Konva.Arrow>(".connector-shape");
+    if (!shape || typeof (shape as Konva.Line).points !== "function") {
+      return null;
+    }
+
+    const points = (shape as Konva.Line).points();
+    if (!points || points.length < 4) return null;
+
+    const transform = shape.getAbsoluteTransform().copy();
+    const from = transform.point({ x: points[0], y: points[1] });
+    const to = transform.point({ x: points[2], y: points[3] });
+
+    return [
+      { kind: "point", x: from.x, y: from.y },
+      { kind: "point", x: to.x, y: to.y },
+    ];
+  }
+
+  private setLiveRoutingEnabled(enabled: boolean) {
+    const service = this.getConnectorService();
+    if (!service) return;
+
+    try {
+      if (enabled) {
+        service.enableLiveRouting();
+      } else {
+        service.disableLiveRouting();
+      }
+    } catch {
+      // Ignore enable/disable errors
+    }
+  }
+
+  private getConnectorService(): ConnectorService | null {
+    if (typeof window === "undefined") return null;
+    return (
+      (window as Window & { connectorService?: ConnectorService }).connectorService ||
+      null
+    );
+  }
+
+  private updateConnectorElement(
+    id: string,
+    changes: Partial<ConnectorElement>,
+  ) {
+    const state = this.storeCtx?.store.getState();
+    if (!state) return;
+
+    if (state.element?.update) {
+      try {
+        state.element.update(id, changes);
+      } catch {
+        // ignore update errors
+      }
+      return;
+    }
+
+    if (state.updateElement) {
+      try {
+        state.updateElement(id, changes, { pushHistory: false });
+      } catch {
+        // ignore update errors
+      }
+    }
   }
 
   /**
