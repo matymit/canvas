@@ -5,6 +5,7 @@ import type Konva from "konva";
 import { useUnifiedCanvasStore } from "@features/canvas/stores/unifiedCanvasStore";
 import type { CanvasElement, ElementId } from "../../../../../../types/index";
 import { debug } from "../../../../../utils/debug";
+import { getWorldPointer } from "@features/canvas/utils/pointer";
 
 export interface StickyNoteToolProps {
   isActive: boolean;
@@ -77,10 +78,10 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
     debug("Tool activated, adding stage listener", { category: 'StickyNoteTool' });
 
     const handlePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
-      const pos = stage.getPointerPosition();
-      if (!pos) return;
+      const worldPointer = getWorldPointer(stage);
+      if (!worldPointer) return;
 
-      debug("Pointer down detected", { category: 'StickyNoteTool', data: pos });
+      debug("Pointer down detected", { category: 'StickyNoteTool', data: worldPointer });
 
       const elementId = crypto.randomUUID() as ElementId;
       const fillColor = resolveFill();
@@ -89,8 +90,8 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
       const stickyElement: CanvasElement = {
         id: elementId,
         type: "sticky-note",
-        x: pos.x - width / 2,
-        y: pos.y - height / 2,
+        x: worldPointer.x - width / 2,
+        y: worldPointer.y - height / 2,
         width,
         height,
         keepAspectRatio: true,
