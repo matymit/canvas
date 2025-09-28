@@ -17,6 +17,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 }) => {
   const elements = useUnifiedCanvasStore((state) => state.elements);
   const setSelection = useUnifiedCanvasStore((state) => state.setSelection);
+  const beginTransform = useUnifiedCanvasStore((state) => state.selection?.beginTransform);
+  const endTransform = useUnifiedCanvasStore((state) => state.selection?.endTransform);
+  const selectionRef = useRef<string[]>([]);
   const selectedTool = useUnifiedCanvasStore((state) => state.ui?.selectedTool);
 
   // Track marquee state
@@ -133,47 +136,69 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       marqueeRef.current.isSelecting = false;
       marqueeRef.current.startPoint = null;
       marqueeRef.current.selectionRect = null;
+      selectionRef.current = [];
     };
 
     const selectElementsInBounds = (bounds: { x: number; y: number; width: number; height: number }) => {
-      const selectedIds: string[] = [];
-      const mainLayer = layers[1]; // Main layer
+      const stage = stageRef.current;
+      if (!stage) return;
 
-      if (!mainLayer) return;
+      const selectedIdSet = new Set<string>();
 
-      // Find all element nodes that intersect with the selection bounds
-      const allNodes = mainLayer.getChildren();
+      const candidateNodes = stage.find<Konva.Node>((node: Konva.Node) => {
+        if (typeof node.getAttr !== "function") return false;
+        return Boolean(node.getAttr("elementId"));
+      });
 
-      for (const node of allNodes) {
+      for (const node of candidateNodes) {
         const elementId = node.getAttr("elementId") || node.id();
+        if (!elementId || !elements.has(elementId)) continue;
 
-        if (elementId && elements.has(elementId)) {
-          const nodeRect = node.getClientRect();
+        const nodeRect = node.getClientRect({
+          skipStroke: false,
+          skipShadow: true,
+        });
 
-          // Check if node intersects with selection bounds
-          const intersects = !(
-            nodeRect.x > bounds.x + bounds.width ||
-            nodeRect.x + nodeRect.width < bounds.x ||
-            nodeRect.y > bounds.y + bounds.height ||
-            nodeRect.y + nodeRect.height < bounds.y
-          );
+        const intersects = !(
+          nodeRect.x > bounds.x + bounds.width ||
+          nodeRect.x + nodeRect.width < bounds.x ||
+          nodeRect.y > bounds.y + bounds.height ||
+          nodeRect.y + nodeRect.height < bounds.y
+        );
 
-          if (intersects) {
-            selectedIds.push(elementId);
-          }
+        if (intersects) {
+          selectedIdSet.add(elementId);
         }
       }
 
-      // Update selection if any elements were found
+      const selectedIds = Array.from(selectedIdSet);
       if (selectedIds.length > 0 && setSelection) {
         setSelection(selectedIds);
+        selectionRef.current = selectedIds;
       }
+    };
+
+    const onPointerDownSelectionMove = () => {
+      if (selectionRef.current.length === 0) {
+        return;
+      }
+      const start = marqueeRef.current.startPoint;
+      if (start) {
+        return;
+      }
+      beginTransform?.();
     };
 
     // Register event handlers
     stage.on("pointerdown.marquee", onPointerDown);
     stage.on("pointermove.marquee", onPointerMove);
     stage.on("pointerup.marquee", onPointerUp);
+    stage.on("dragstart.marquee", onPointerDownSelectionMove);
+    stage.on("dragend.marquee", () => {
+      if (selectionRef.current.length > 0) {
+        endTransform?.();
+      }
+    });
 
     // Handle escape key to cancel marquee
     const onKeyDown = (e: KeyboardEvent) => {
@@ -188,6 +213,8 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       stage.off("pointerdown.marquee", onPointerDown);
       stage.off("pointermove.marquee", onPointerMove);
       stage.off("pointerup.marquee", onPointerUp);
+      stage.off("dragstart.marquee", onPointerDownSelectionMove);
+      stage.off("dragend.marquee");
       window.removeEventListener("keydown", onKeyDown);
 
       // Cleanup any ongoing marquee
