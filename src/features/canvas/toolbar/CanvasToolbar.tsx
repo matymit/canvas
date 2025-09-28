@@ -96,6 +96,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
   onRedo,
 }) => {
   const store = useUnifiedCanvasStore();
+  const viewportScale = useUnifiedCanvasStore((state) => state.viewport.scale);
   const currentTool = selectedTool ?? "select";
 
   const handleToolSelect = useMemo(() =>
@@ -108,15 +109,34 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
   const handleRedo = onRedo || (() => store.redo?.());
 
   // Zoom control handlers
+  const getViewportCenter = useCallback(() => {
+    if (typeof window === "undefined") {
+      return { x: 0, y: 0 };
+    }
+
+    const stage = (window as KonvaWindow).konvaStage;
+    if (stage) {
+      return { x: stage.width() / 2, y: stage.height() / 2 };
+    }
+
+    return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  }, []);
+
   const handleZoomIn = useCallback(() => {
     const state = useUnifiedCanvasStore.getState();
-    state.viewport?.zoomIn?.();
-  }, []);
+    const viewport = state.viewport;
+    if (!viewport || typeof viewport.zoomIn !== "function") return;
+    const center = getViewportCenter();
+    viewport.zoomIn(center.x, center.y);
+  }, [getViewportCenter]);
 
   const handleZoomOut = useCallback(() => {
     const state = useUnifiedCanvasStore.getState();
-    state.viewport?.zoomOut?.();
-  }, []);
+    const viewport = state.viewport;
+    if (!viewport || typeof viewport.zoomOut !== "function") return;
+    const center = getViewportCenter();
+    viewport.zoomOut(center.x, center.y);
+  }, [getViewportCenter]);
 
   const handleZoomReset = useCallback(() => {
     const state = useUnifiedCanvasStore.getState();
@@ -552,7 +572,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           className="tool-button"
           title="Zoom In"
           onClick={handleZoomIn}
-          data-testid="toolbar-zoom-in"
+          data-testid="zoom-in"
         >
           {getIcon("zoom-in")}
         </button>
@@ -562,17 +582,17 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           title="Reset Zoom (100%)"
           onClick={handleZoomReset}
           aria-label="Reset Zoom"
-          data-testid="toolbar-zoom-indicator"
+          data-testid="zoom-reset"
           style={{ minWidth: 56 }}
         >
-          {Math.round(((useUnifiedCanvasStore.getState().viewport?.scale) ?? 1) * 100)}%
+          {Math.round((viewportScale ?? 1) * 100)}%
         </button>
         <button
           type="button"
           className="tool-button"
           title="Zoom Out"
           onClick={handleZoomOut}
-          data-testid="toolbar-zoom-out"
+          data-testid="zoom-out"
         >
           {getIcon("zoom-out")}
         </button>
@@ -601,3 +621,4 @@ export default CanvasToolbar;
 
 // Legacy export aliases for backward compatibility
 export { CanvasToolbar as ModernKonvaToolbar, CanvasToolbar as FigJamToolbar };
+type KonvaWindow = Window & { konvaStage?: Konva.Stage };
