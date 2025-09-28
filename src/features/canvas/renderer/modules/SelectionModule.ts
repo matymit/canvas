@@ -479,6 +479,12 @@ export class SelectionModule implements RendererModule {
         (rawScaleX !== 1 || rawScaleY !== 1) &&
         shouldCommitSizeNow
       ) {
+        if (isImage && node instanceof Konva.Group) {
+          const imageChild = node.findOne<Konva.Image>('Image');
+          if (imageChild) {
+            imageChild.size({ width: nextWidth, height: nextHeight });
+          }
+        }
         node.setAttrs({
           scaleX: 1,
           scaleY: 1,

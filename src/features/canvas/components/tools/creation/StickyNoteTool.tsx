@@ -57,8 +57,10 @@ const StickyNoteTool: React.FC<StickyNoteToolProps> = ({
   fontSize = DEFAULT_FONT_SIZE,
 }) => {
   const resolveFill = useCallback(() => {
-    const stateColor = useUnifiedCanvasStore.getState().ui?.stickyNoteColor;
-    return fill ?? stateColor ?? DEFAULT_FILL;
+    const state = useUnifiedCanvasStore.getState();
+    const uiColor = state.ui?.stickyNoteColor;
+    const paletteColor = state.colors?.stickyNote;
+    return fill ?? uiColor ?? paletteColor ?? DEFAULT_FILL;
   }, [fill]);
 
   // Tool activation effect

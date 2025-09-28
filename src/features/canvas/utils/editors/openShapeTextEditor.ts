@@ -136,33 +136,52 @@ export function openShapeTextEditor(
     // Ignore error
   }
 
+  const wrapper: HTMLDivElement = document.createElement('div');
+  wrapper.setAttribute('data-shape-text-editor-wrapper', elementId);
+  wrapper.setAttribute('role', 'presentation');
+
   const editor: HTMLDivElement = document.createElement('div');
   editor.contentEditable = 'true';
   editor.setAttribute('data-shape-text-editor', elementId);
   editor.setAttribute('role', 'textbox');
   editor.setAttribute('aria-label', 'Shape text editor');
 
-  // Enhanced caret visibility - no border, relies on selection frame
-  const editorStyles = {
+  const wrapperStyles = {
     position: 'absolute',
     zIndex: '1000',
     minWidth: '1px',
+    minHeight: '1px',
+    outline: 'none',
+    border: 'none',
+    borderRadius: '0',
+    background: 'transparent',
+    boxSizing: 'border-box',
+    boxShadow: 'none',
+    pointerEvents: 'auto',
+    overflow: 'hidden',
+    transform: 'translateZ(0)',
+    willChange: 'transform',
+    display: 'block'
+  };
+
+  const editorStyles = {
+    position: 'relative',
+    display: 'block',
+    maxWidth: '100%',
+    minWidth: '1px',
+    margin: '0',
     outline: 'none !important',
     border: 'none !important',
     borderRadius: '0',
     background: 'transparent',
     color: textColor,
-    fontFamily: fontFamily,
+    fontFamily,
     fontSize: `${fontSize}px`,
-    lineHeight: `${lineHeight}`,
+    lineHeight: `${fontSize * lineHeight}px`,
     boxSizing: 'border-box',
     boxShadow: 'none !important',
-    transition: 'width 0.2s ease, height 0.2s ease',
-    overflow: 'hidden',
     cursor: 'text',
-    // CRITICAL FIX: Cross-browser caret visibility
     caretColor: `${textColor} !important`,
-    // Remove all border styling - use selection frame instead
     borderStyle: 'none !important',
     borderWidth: '0 !important',
     borderColor: 'transparent !important',
@@ -170,53 +189,44 @@ export function openShapeTextEditor(
     outlineWidth: '0 !important',
     outlineColor: 'transparent !important',
     outlineOffset: '0 !important',
-    // Additional browser-specific resets
     appearance: 'none',
-    // Ensure text shadow doesn't interfere
     textShadow: 'none',
-    // Force hardware acceleration for better rendering
+    whiteSpace: 'pre-wrap',
+    wordWrap: 'break-word',
+    overflowWrap: 'break-word',
+    padding: '0',
     transform: 'translateZ(0)',
-    willChange: 'transform'
+    willChange: 'contents',
+    maxHeight: '100%',
+    overflowY: 'hidden',
+    minHeight: `${fontSize * lineHeight}px`
   };
 
-  // Apply styles based on shape type - CRITICAL FIX: Use padding-based centering instead of flexbox/line-height
   if (isCircle) {
-    Object.assign(editorStyles, {
+    Object.assign(wrapperStyles, {
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'column',
-      textAlign: 'center',
-      whiteSpace: 'pre-wrap',
-      wordWrap: 'break-word',
-      overflowWrap: 'break-word',
-      padding: `${getCirclePadding()}px`,
+      justifyContent: 'center'
+    });
+
+    Object.assign(editorStyles, {
       minHeight: '1px',
-      lineHeight: `${fontSize * lineHeight}px`,
-      boxSizing: 'border-box',
-      maxHeight: '100%',
-      overflowY: 'hidden'
+      textAlign: 'center',
+      padding: `${getCirclePadding()}px`
     });
   } else if (isTriangle) {
     Object.assign(editorStyles, {
       textAlign: 'center',
-      whiteSpace: 'pre-wrap',
-      wordWrap: 'break-word',
-      overflowWrap: 'break-word',
-      padding: `${Math.max(0, effectivePadding * 0.25)}px`,
-      minHeight: `${fontSize * lineHeight}px`
+      padding: `${Math.max(0, effectivePadding * 0.25)}px`
     });
   } else {
     Object.assign(editorStyles, {
       textAlign: 'center',
-      whiteSpace: 'pre-wrap',
-      wordWrap: 'break-word',
-      overflowWrap: 'break-word',
-      padding: `${Math.max(0, effectivePadding * 0.25)}px`,
-      minHeight: `${fontSize * lineHeight}px`
+      padding: `${Math.max(0, effectivePadding * 0.25)}px`
     });
   }
 
+  Object.assign(wrapper.style, wrapperStyles);
   Object.assign(editor.style, editorStyles);
   applyVendorTextFillColor(editor.style, textColor);
   applyVendorAppearanceReset(editor.style);
@@ -230,7 +240,8 @@ export function openShapeTextEditor(
     editor.textContent = ZERO_WIDTH_SPACE;
   }
 
-  document.body.appendChild(editor);
+  wrapper.appendChild(editor);
+  document.body.appendChild(wrapper);
 
   function updateEditorPosition() {
     try {
@@ -252,26 +263,25 @@ export function openShapeTextEditor(
       const scaledWidth = liveInnerBox.width * stageScale;
       const scaledHeight = liveInnerBox.height * stageScale;
 
-      editor.style.left = `${Math.round(screenX)}px`;
-      editor.style.top = `${Math.round(screenY)}px`;
+      wrapper.style.left = `${Math.round(screenX)}px`;
+      wrapper.style.top = `${Math.round(screenY)}px`;
 
       const finalWidth = Math.max(1, Math.round(scaledWidth));
       const finalHeight = Math.max(1, Math.round(scaledHeight));
 
-      editor.style.width = `${finalWidth}px`;
-      editor.style.height = `${finalHeight}px`;
+      wrapper.style.width = `${finalWidth}px`;
+      wrapper.style.height = `${finalHeight}px`;
 
       const effectiveFontSize = stageScale >= 1
         ? Math.max(Math.round(fontSize * stageScale), fontSize)
         : fontSize;
       editor.style.fontSize = `${effectiveFontSize}px`;
 
+      editor.style.lineHeight = `${effectiveFontSize * lineHeight}px`;
+
       if (isCircle) {
         const scaledPadding = Math.max(0, getCirclePadding() * stageScale);
         editor.style.padding = `${Math.round(scaledPadding)}px`;
-        editor.style.lineHeight = `${effectiveFontSize * lineHeight}px`;
-        editor.style.alignItems = 'center';
-        editor.style.justifyContent = 'center';
       }
     } catch (error) {
       // Ignore error
@@ -290,7 +300,7 @@ export function openShapeTextEditor(
   }
 
   const handleGlobalPointerDown = (event: PointerEvent) => {
-    if (!editor.contains(event.target as Node)) {
+    if (!wrapper.contains(event.target as Node)) {
       commit(true);
     }
   };
@@ -300,7 +310,7 @@ export function openShapeTextEditor(
     if (isCleaning) return;
     isCleaning = true;
     try {
-      editor.remove();
+      wrapper.remove();
     } catch (error) {
       // Ignore error
     }

@@ -25,6 +25,7 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => 
   const isPanningRef = useRef(false);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
+  const globalListenersAttachedRef = useRef(false);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -39,29 +40,39 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => 
     };
     setCursor("grab");
 
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== undefined && event.button !== 0) {
+    const attachGlobalListeners = () => {
+      if (globalListenersAttachedRef.current) {
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
 
-      isPanningRef.current = true;
-      lastPointerPosRef.current = { x: event.clientX, y: event.clientY };
-      activePointerIdRef.current = event.pointerId;
-
-      try {
-        container.setPointerCapture(event.pointerId);
-      } catch {
-        // Ignore capture errors (e.g., unsupported environments)
-      }
-
-      container.classList.add("grabbing");
-      setCursor("grabbing");
+      window.addEventListener("pointermove", handlePointerMove, listenerOptions);
+      window.addEventListener("pointerup", endPan, listenerOptions);
+      window.addEventListener("pointercancel", endPan, listenerOptions);
+      window.addEventListener("pointerleave", endPan, listenerOptions);
+      globalListenersAttachedRef.current = true;
     };
 
-    const handlePointerMove = (event: PointerEvent) => {
+    const detachGlobalListeners = () => {
+      if (!globalListenersAttachedRef.current) {
+        return;
+      }
+
+      window.removeEventListener("pointermove", handlePointerMove, listenerOptions);
+      window.removeEventListener("pointerup", endPan, listenerOptions);
+      window.removeEventListener("pointercancel", endPan, listenerOptions);
+      window.removeEventListener("pointerleave", endPan, listenerOptions);
+      globalListenersAttachedRef.current = false;
+    };
+
+    const performPan = (event: PointerEvent) => {
       if (!isPanningRef.current || !lastPointerPosRef.current) {
+        return;
+      }
+
+      if (
+        activePointerIdRef.current !== null &&
+        event.pointerId !== activePointerIdRef.current
+      ) {
         return;
       }
 
@@ -98,6 +109,32 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => 
       lastPointerPosRef.current = current;
     };
 
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== undefined && event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      isPanningRef.current = true;
+      lastPointerPosRef.current = { x: event.clientX, y: event.clientY };
+      activePointerIdRef.current = event.pointerId;
+
+      try {
+        container.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore capture errors (e.g., unsupported environments)
+      }
+
+      container.classList.add("grabbing");
+      setCursor("grabbing");
+      attachGlobalListeners();
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      performPan(event);
+    };
+
     const endPan = (event?: PointerEvent) => {
       if (!isPanningRef.current) return;
 
@@ -120,6 +157,7 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => 
 
       container.classList.remove("grabbing");
       setCursor("grab");
+      detachGlobalListeners();
     };
 
     container.addEventListener("pointerdown", handlePointerDown, listenerOptions);
@@ -134,6 +172,8 @@ const PanTool: React.FC<PanToolProps> = ({ stageRef, isActive, rafBatcher }) => 
       container.removeEventListener("pointerup", endPan, listenerOptions);
       container.removeEventListener("pointercancel", endPan, listenerOptions);
       container.removeEventListener("pointerleave", endPan, listenerOptions);
+
+      detachGlobalListeners();
 
       if (isPanningRef.current && activePointerIdRef.current != null) {
         try {

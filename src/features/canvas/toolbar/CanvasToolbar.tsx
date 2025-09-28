@@ -353,10 +353,15 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
     // Update the default sticky note color for NEW sticky notes
     const state = useUnifiedCanvasStore.getState();
-    if (state.setStickyNoteColor) {
-      state.setStickyNoteColor(color);
-      // Updated default sticky note color
+    const setUiStickyColor = state.ui?.setStickyNoteColor;
+    const setLegacyStickyColor = state.setStickyNoteColor;
+
+    if (typeof setUiStickyColor === "function") {
+      setUiStickyColor(color);
+    } else if (typeof setLegacyStickyColor === "function") {
+      setLegacyStickyColor(color);
     }
+
     // Close portal, keep tool active for quick placement
     setStickyNoteColorsOpen(false);
   }, [applyStickyColorToSelection]);
