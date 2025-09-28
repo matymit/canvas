@@ -24,6 +24,11 @@ This document tracks the implementation progress of the FigJam-style modular can
 - **🖼️ Image resize polish**
   - Normalizes Konva image nodes by updating the bitmap dimensions before resetting scale so the post-resize flash/jump is gone
   - Ensures the renderer and SelectionModule stay in agreement about the committed width/height values
+- **🚨 Marquee selection coverage (in progress)**
+  - Added element metadata to drawing strokes, connectors, and mindmap nodes so marquee hit-testing sees more node types
+  - Still under refinement: complex node groups (mindmap) and connector/pen layers require deeper integration to drag as a unified group (tracked for follow-up)
+- **🗑️ Clear canvas confirmation**
+  - Trash action now surfaces an in-app confirm dialog before purging the stage; the wipe remains undoable for safety
 - **Verification**: `npm run type-check`
 
 ## 🚨 STATUS UPDATE (September 26, 2025)

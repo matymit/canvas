@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Circle text editor**: Replaced the flex-based overlay with a wrapper + centered editor, so the caret now appears and blinks while both caret and text stay centered during creation, commit, and re-edit flows.
 - **Sticky note palette**: Selecting a color in the toolbar now updates the default used for the next note, and falls back to the shared palette when no recent choice exists.
 - **Image resize artifacts**: Normalized Konva image bitmaps before resetting transform scales to remove the flash/jump that appeared at the end of resize gestures.
+- **Clear canvas confirmation**: Added an in-app confirmation dialog before destructive wipes so users can cancel or proceed confidently.
+- **Drawing & connectors in marquee**: Added element metadata so marquee selection picks up hand-drawn strokes, connectors, and mindmap nodes instead of only generic shapes.
 - **Verification**: `npm run type-check`
 
 ## [3.1.9] - 2025-09-26
