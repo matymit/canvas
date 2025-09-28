@@ -144,14 +144,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     state.viewport?.reset?.();
   }, []);
 
-  const handleClearCanvas = useCallback(() => {
-    const ok =
-      typeof window !== "undefined"
-        ? window.confirm(
-            "Clear all items from the canvas? This cannot be undone.",
-          )
-        : true;
-    if (!ok) return;
+  const performClearCanvas = useCallback(() => {
     const s = useUnifiedCanvasStore.getState();
     const begin = s.history?.beginBatch;
     const end = s.history?.endBatch;
@@ -189,6 +182,25 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
 
     // Force a render by nudging selection version if present
     StoreActions.bumpSelectionVersion?.();
+  }, []);
+
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  const handleClearCanvas = useCallback(() => {
+    if (typeof window === "undefined") {
+      performClearCanvas();
+      return;
+    }
+    setConfirmingClear(true);
+  }, [performClearCanvas]);
+
+  const confirmClearCanvas = useCallback(() => {
+    performClearCanvas();
+    setConfirmingClear(false);
+  }, [performClearCanvas]);
+
+  const cancelClearCanvas = useCallback(() => {
+    setConfirmingClear(false);
   }, []);
 
   const [shapesOpen, setShapesOpen] = useState(false);
@@ -613,6 +625,66 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         onChange={handleSelectStickyColor}
         color={store.ui?.stickyNoteColor || store.colors?.stickyNote || "#FDE68A"}
       />
+      {confirmingClear ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "#111827",
+              color: "#e5e7eb",
+              padding: "24px",
+              borderRadius: "12px",
+              minWidth: "320px",
+              boxShadow: "0 20px 45px rgba(0,0,0,0.45)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 12px", fontSize: "18px" }}>Clear canvas?</h3>
+            <p style={{ margin: "0 0 20px", lineHeight: 1.5 }}>
+              This removes every element from the canvas. You can undo afterwards if you change your mind.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button
+                type="button"
+                onClick={cancelClearCanvas}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(229, 231, 235, 0.2)",
+                  background: "transparent",
+                  color: "#e5e7eb",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmClearCanvas}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#ef4444",
+                  color: "#0f172a",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };
