@@ -585,6 +585,8 @@ export class MindmapRenderer {
         listening: true,
         draggable: !isPanToolActive,
       });
+      group.setAttr("elementId", element.id);
+      group.setAttr("nodeType", "mindmap-node");
 
       this.layers.main.add(group);
       this.nodeGroups.set(element.id, group);
@@ -705,6 +707,8 @@ export class MindmapRenderer {
     } else if (shape.id() !== element.id) {
       shape.id(element.id);
     }
+    shape.setAttr("elementId", element.id);
+    shape.setAttr("nodeType", "mindmap-edge");
 
     // Get node centers
     const fromCenter = getNodePoint(element.fromId, "right");

@@ -153,7 +153,7 @@ export class DrawingRenderer implements RendererModule {
     const isHighlighter = drawing.subtype === "highlighter";
     const isEraser = drawing.subtype === "eraser";
 
-    return new Konva.Line({
+    const node = new Konva.Line({
       id: drawing.id,
       points: drawing.points,
       stroke: this.getStrokeColor(drawing),
@@ -171,6 +171,9 @@ export class DrawingRenderer implements RendererModule {
           ? "multiply"
           : "source-over",
     });
+    node.setAttr("elementId", drawing.id);
+    node.setAttr("nodeType", "drawing");
+    return node;
   }
 
   private updateDrawingNode(node: Konva.Line, drawing: DrawingElement) {

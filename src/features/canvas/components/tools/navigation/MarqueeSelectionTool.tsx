@@ -5,6 +5,7 @@ import type React from "react";
 import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import { StoreActions } from "../../../stores/facade";
 
 export interface MarqueeSelectionToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -144,6 +145,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       if (!stage) return;
 
       const selectedIdSet = new Set<string>();
+      const elementMetadata = new Map<string, { isConnector: boolean }>();
 
       const candidateNodes = stage.find<Konva.Node>((node: Konva.Node) => {
         if (typeof node.getAttr !== "function") return false;
@@ -168,6 +170,10 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
         if (intersects) {
           selectedIdSet.add(elementId);
+          const isConnector =
+            node.getAttr("nodeType") === "connector" ||
+            node.getAttr("elementType") === "connector";
+          elementMetadata.set(elementId, { isConnector });
         }
       }
 
@@ -175,6 +181,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       if (selectedIds.length > 0 && setSelection) {
         setSelection(selectedIds);
         selectionRef.current = selectedIds;
+
+        // Inform selection module of any connectors in the selection so it can trigger connector selection manager
+        StoreActions.bumpSelectionVersion?.();
       }
     };
 
