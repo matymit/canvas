@@ -1,7 +1,10 @@
 // features/canvas/renderer/modules/SelectionModule.ts
 import Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
-import type { ConnectorElement } from "../../types/connector";
+import type {
+  ConnectorElement,
+  ConnectorEndpointPoint,
+} from "../../types/connector";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
@@ -39,6 +42,13 @@ export class SelectionModule implements RendererModule {
   private storeCtx?: ModuleRendererCtx;
   private unsubscribe?: () => void;
   private unsubscribeVersion?: () => void;
+  private transformSnapshot?: {
+    basePositions: Map<string, { x: number; y: number }>;
+    standaloneConnectors: Map<string, {
+      from: ConnectorEndpointPoint;
+      to: ConnectorEndpointPoint;
+    }>;
+  };
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
@@ -97,6 +107,7 @@ export class SelectionModule implements RendererModule {
         if (store?.beginTransform) {
           store.beginTransform();
         }
+        this.captureTransformSnapshot();
       },
       onTransform: (nodes) => {
         // Real-time updates during transform for smoother UX (all elements including tables)
@@ -104,9 +115,21 @@ export class SelectionModule implements RendererModule {
 
         // CRITICAL FIX: Synchronize shape text positioning during transform
         this.syncShapeTextDuringTransform(nodes);
+
+        const delta = this.computeTransformDelta(nodes);
+        if (delta) {
+          this.applyStandaloneConnectorTranslation(delta);
+        }
       },
       onTransformEnd: (nodes) => {
         this.updateElementsFromNodes(nodes, true); // Commit with history
+
+        const delta = this.computeTransformDelta(nodes);
+        if (delta) {
+          this.applyStandaloneConnectorTranslation(delta);
+        }
+
+        this.releaseTransformSnapshot();
 
         // End transform in store if available
         const store = this.storeCtx?.store.getState();
@@ -203,8 +226,8 @@ export class SelectionModule implements RendererModule {
       this.categorizeSelection(selectedIds);
 
     // CRITICAL FIX: Handle connector selection with proper integration
-    // If ANY connector is selected, prefer connector mode and never attach a transformer
-    if (connectorIds.length >= 1) {
+    // If ONLY connectors are selected, use connector selection manager
+    if (connectorIds.length >= 1 && nonConnectorIds.length === 0) {
       if (this.connectorSelectionManager) {
         setTimeout(() => {
           const id = connectorIds[0];
@@ -222,9 +245,9 @@ export class SelectionModule implements RendererModule {
       // Enhanced delay to ensure elements are fully rendered
       setTimeout(() => {
         // Find Konva nodes for selected elements across all layers
-        const nodes = this.resolveElementsToNodes(selectionSnapshot)
-          // Extra guard: filter out connector nodes if any slipped in
-          .filter((n) => this.getElementTypeForNode?.(n) !== "connector");
+        const nodes = this.resolveElementsToNodes(selectionSnapshot).filter(
+          (node) => this.getElementTypeForNode?.(node) !== "connector",
+        );
 
         if (nodes.length > 0) {
           // FIXED: Detach first to prevent any lingering transformers, then attach
@@ -365,9 +388,23 @@ export class SelectionModule implements RendererModule {
     const updateElement = store.element?.update;
     const withUndo = store.withUndo;
 
-    if (!updateElement) {
-      return;
-    }
+    const applyUpdate = (
+      id: string,
+      changes: ElementChanges,
+      options?: { pushHistory?: boolean },
+    ) => {
+      try {
+        if (updateElement) {
+          updateElement(id, changes);
+        } else {
+          this.storeCtx?.store
+            ?.getState()
+            ?.updateElement?.(id, changes, options);
+        }
+      } catch (error) {
+        // Ignore error
+      }
+    };
 
     const updates: ElementUpdate[] = [];
     const movedElementIds = new Set<string>();
@@ -440,45 +477,33 @@ export class SelectionModule implements RendererModule {
             { keepAspectRatio },
           );
 
+          nextWidth = tableResizeResult.width;
+          nextHeight = tableResizeResult.height;
           changes.width = Math.round(tableResizeResult.width * 100) / 100;
           changes.height = Math.round(tableResizeResult.height * 100) / 100;
           changes.colWidths = tableResizeResult.colWidths;
           changes.rowHeights = tableResizeResult.rowHeights;
-
-          nextWidth = tableResizeResult.width;
-          nextHeight = tableResizeResult.height;
         } else {
           // Ignore error
         }
       }
 
       if (shouldCommitSizeNow) {
-        changes.width = nextWidth;
-        changes.height = nextHeight;
-
-        updates.push({
-          id: elementId,
-          changes,
-        });
-      } else {
-        // For non-table elements during live transform, defer size commit
-        // to transform end to avoid jitter caused by double-normalization.
-        continue;
+        changes.width = Math.round(nextWidth * 100) / 100;
+        changes.height = Math.round(nextHeight * 100) / 100;
       }
 
-      // Live-move commits (position-only) during transform to keep dependent renders (connectors) in sync
-      if (!shouldCommitSizeNow) {
-        updates.push({
-          id: elementId,
-          changes: { x: changes.x, y: changes.y, rotation: changes.rotation },
-        });
-      }
+      // Always enqueue an update so connected visuals (connectors, mindmap branches) can respond
+      updates.push({
+        id: elementId,
+        changes: { ...changes },
+      });
 
-      // Reset scale after applying to dimensions
+      // Reset scale after applying to dimensions when width/height have been normalized
       if (
+        shouldCommitSizeNow &&
         scale &&
-        (rawScaleX !== 1 || rawScaleY !== 1) &&
-        shouldCommitSizeNow
+        (rawScaleX !== 1 || rawScaleY !== 1)
       ) {
         if (isImage && node instanceof Konva.Group) {
           const imageChild = node.findOne<Konva.Image>('Image');
@@ -514,28 +539,18 @@ export class SelectionModule implements RendererModule {
       // Use withUndo to wrap all updates in a single history entry
       withUndo(actionName, () => {
         for (const { id, changes } of updates) {
-          try {
-            // Use the store's updateElement directly without pushHistory since we're already in withUndo
-            const storeState = this.storeCtx?.store?.getState();
-            storeState?.updateElement?.(id, changes, { pushHistory: false });
-          } catch (error) {
-            // Ignore error
-          }
+          applyUpdate(id, changes, { pushHistory: false });
         }
       });
-    } else {
+    } else if (updates.length > 0) {
       // For non-history updates (during transform), use updateElement directly
       for (const { id, changes } of updates) {
-        try {
-          const storeState = this.storeCtx.store.getState();
-          storeState.updateElement(id, changes, { pushHistory: false });
-        } catch (error) {
-          // Ignore error
-        }
+        applyUpdate(id, changes, { pushHistory: false });
       }
-      if (movedElementIds.size > 0) {
-        this.refreshConnectedConnectors(movedElementIds);
-      }
+    }
+
+    if (movedElementIds.size > 0) {
+      this.refreshConnectedConnectors(movedElementIds);
     }
   }
 
@@ -701,7 +716,7 @@ export class SelectionModule implements RendererModule {
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
       const nodes = this.resolveElementsToNodes(selectionSnapshot).filter(
-        (n) => this.getElementTypeForNode?.(n) !== "connector",
+        (node) => this.getElementTypeForNode?.(node) !== "connector",
       );
 
       if (nodes.length > 0) {
@@ -803,7 +818,9 @@ export class SelectionModule implements RendererModule {
       this.connectorSelectionManager?.clearSelection();
 
       // Find Konva nodes for selected elements
-      const nodes = this.resolveElementsToNodes(new Set(nonConnectorIds));
+      const nodes = this.resolveElementsToNodes(new Set(nonConnectorIds)).filter(
+        (node) => this.getElementTypeForNode?.(node) !== "connector",
+      );
 
       if (nodes.length > 0) {
         // Detach and reattach to force bounds recalculation
@@ -838,7 +855,6 @@ export class SelectionModule implements RendererModule {
     const nonConnectorIds: string[] = [];
 
     for (const id of selectedIds) {
-      // CRITICAL FIX: Enhanced connector detection
       const element = elements.get(id) || state.element?.getById?.(id);
 
       if (element && element.type === "connector") {
@@ -854,24 +870,24 @@ export class SelectionModule implements RendererModule {
   private refreshConnectedConnectors(elementIds: Set<string>) {
     if (!this.storeCtx) return;
     const state = this.storeCtx.store.getState();
-    const refreshIds: string[] = [];
+    const affectedConnectorIds: string[] = [];
 
     for (const [id, element] of state.elements.entries()) {
-      if (element.type !== 'connector') continue;
+      if (element.type !== "connector") continue;
       const connector = element as ConnectorElement;
       const fromElement =
-        connector.from.kind === 'element' ? connector.from.elementId : null;
+        connector.from.kind === "element" ? connector.from.elementId : null;
       const toElement =
-        connector.to.kind === 'element' ? connector.to.elementId : null;
+        connector.to.kind === "element" ? connector.to.elementId : null;
       if (
         (fromElement && elementIds.has(fromElement)) ||
         (toElement && elementIds.has(toElement))
       ) {
-        refreshIds.push(id);
+        affectedConnectorIds.push(id);
       }
     }
 
-    refreshIds.forEach((connectorId) => {
+    affectedConnectorIds.forEach((connectorId) => {
       try {
         state.updateElement?.(
           connectorId,
@@ -883,26 +899,129 @@ export class SelectionModule implements RendererModule {
       }
     });
 
-    if (refreshIds.length > 0) {
+    if (affectedConnectorIds.length > 0) {
       this.connectorSelectionManager?.refreshSelection();
-      const connectorService =
-        typeof window !== "undefined"
-          ? (window as Window & {
-              connectorService?: {
-                forceRerouteElement: (id: string) => void;
-              };
-            }).connectorService
-          : undefined;
-      if (connectorService) {
-        refreshIds.forEach((id) => {
-          try {
-            connectorService.forceRerouteElement(id);
-          } catch {
-            // Ignore routing errors during live drag
-          }
-        });
+    }
+
+    const connectorService =
+      typeof window !== "undefined"
+        ? (window as Window & {
+            connectorService?: {
+              forceRerouteElement: (id: string) => void;
+            };
+          }).connectorService
+        : undefined;
+
+    if (connectorService) {
+      elementIds.forEach((elementId) => {
+        try {
+          connectorService.forceRerouteElement(elementId);
+        } catch {
+          // Ignore routing errors during live drag
+        }
+      });
+    }
+  }
+
+  private captureTransformSnapshot() {
+    if (!this.storeCtx) return;
+
+    const state = this.storeCtx.store.getState();
+    const selectedIds = state.selectedElementIds || new Set<string>();
+    if (selectedIds.size === 0) {
+      this.transformSnapshot = undefined;
+      return;
+    }
+
+    const basePositions = new Map<string, { x: number; y: number }>();
+    const standaloneConnectors = new Map<string, {
+      from: ConnectorEndpointPoint;
+      to: ConnectorEndpointPoint;
+    }>();
+
+    for (const id of selectedIds) {
+      const element = state.elements.get(id) || state.element?.getById?.(id);
+      if (!element) continue;
+
+      if (element.type === "connector") {
+        const connector = element as ConnectorElement;
+        if (connector.from.kind === "point" && connector.to.kind === "point") {
+          standaloneConnectors.set(id, {
+            from: { ...connector.from },
+            to: { ...connector.to },
+          });
+        }
+        continue;
+      }
+
+      basePositions.set(id, {
+        x: element.x ?? 0,
+        y: element.y ?? 0,
+      });
+    }
+
+    if (basePositions.size === 0 && standaloneConnectors.size === 0) {
+      this.transformSnapshot = undefined;
+      return;
+    }
+
+    this.transformSnapshot = {
+      basePositions,
+      standaloneConnectors,
+    };
+  }
+
+  private computeTransformDelta(nodes: Konva.Node[]): { dx: number; dy: number } | null {
+    if (!this.transformSnapshot) return null;
+
+    for (const node of nodes) {
+      const elementId = node.getAttr("elementId") || node.id();
+      if (!elementId) continue;
+
+      const baseline = this.transformSnapshot.basePositions.get(elementId);
+      if (!baseline) continue;
+
+      const pos = node.position();
+      return {
+        dx: pos.x - baseline.x,
+        dy: pos.y - baseline.y,
+      };
+    }
+
+    return null;
+  }
+
+  private applyStandaloneConnectorTranslation(delta: { dx: number; dy: number }) {
+    if (!this.transformSnapshot || !this.storeCtx) return;
+    if (delta.dx === 0 && delta.dy === 0) return;
+    if (this.transformSnapshot.standaloneConnectors.size === 0) return;
+
+    const state = this.storeCtx.store.getState();
+    const update = state.element?.update || state.updateElement;
+    if (!update) return;
+
+    for (const [id, endpoints] of this.transformSnapshot.standaloneConnectors) {
+      const from = {
+        ...endpoints.from,
+        x: endpoints.from.x + delta.dx,
+        y: endpoints.from.y + delta.dy,
+      };
+      const to = {
+        ...endpoints.to,
+        x: endpoints.to.x + delta.dx,
+        y: endpoints.to.y + delta.dy,
+      };
+
+      try {
+        update(id, { from, to } as Partial<ConnectorElement>);
+      } catch {
+        // Ignore connector update errors during live drag
       }
     }
+  }
+
+  private releaseTransformSnapshot() {
+    this.transformSnapshot = undefined;
   }
 
   /**

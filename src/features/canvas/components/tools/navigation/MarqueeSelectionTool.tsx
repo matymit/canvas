@@ -41,11 +41,19 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     const layers = stage.getLayers();
     const overlayLayer = layers[layers.length - 1] as Konva.Layer; // Overlay layer
 
+    const getWorldPointerPosition = () => {
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return null;
+      const transform = stage.getAbsoluteTransform().copy();
+      transform.invert();
+      return transform.point(pointer);
+    };
+
     const onPointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
       // Only start marquee if clicking on empty stage
       if (e.target !== stage) return;
 
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointerPosition();
       if (!pos) return;
 
       marqueeRef.current.isSelecting = true;
@@ -75,7 +83,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     const onPointerMove = (_e: Konva.KonvaEventObject<PointerEvent>) => {
       if (!marqueeRef.current.isSelecting || !marqueeRef.current.startPoint || !marqueeRef.current.selectionRect) return;
 
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointerPosition();
       if (!pos) return;
 
       const startPoint = marqueeRef.current.startPoint;
@@ -98,7 +106,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     const onPointerUp = () => {
       if (!marqueeRef.current.isSelecting || !marqueeRef.current.startPoint || !marqueeRef.current.selectionRect) return;
 
-      const pos = stage.getPointerPosition();
+      const pos = getWorldPointerPosition();
       if (!pos) {
         // Cleanup if no position
         cleanup();
@@ -145,7 +153,6 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       if (!stage) return;
 
       const selectedIdSet = new Set<string>();
-      const elementMetadata = new Map<string, { isConnector: boolean }>();
 
       const candidateNodes = stage.find<Konva.Node>((node: Konva.Node) => {
         if (typeof node.getAttr !== "function") return false;
@@ -170,32 +177,13 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
         if (intersects) {
           selectedIdSet.add(elementId);
-          const isConnector =
-            node.getAttr("nodeType") === "connector" ||
-            node.getAttr("elementType") === "connector";
-          elementMetadata.set(elementId, { isConnector });
         }
       }
 
       const selectedIds = Array.from(selectedIdSet);
       if (selectedIds.length > 0 && setSelection) {
-        const connectors: string[] = [];
-        const nonConnectors: string[] = [];
-        for (const id of selectedIds) {
-          if (elementMetadata.get(id)?.isConnector) {
-            connectors.push(id);
-          } else {
-            nonConnectors.push(id);
-          }
-        }
-
-        const finalSelection =
-          nonConnectors.length > 0 && connectors.length > 0
-            ? nonConnectors
-            : selectedIds;
-
-        setSelection(finalSelection);
-        selectionRef.current = finalSelection;
+        setSelection(selectedIds);
+        selectionRef.current = selectedIds;
 
         // Notify selection module so it can refresh transformer state / connector overlays
         StoreActions.bumpSelectionVersion?.();

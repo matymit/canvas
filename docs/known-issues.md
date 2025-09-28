@@ -31,10 +31,11 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Fix**: Update the underlying Konva.Image dimensions before resetting group scale so renderer, transformer, and bitmap stay aligned
    - **Impact**: Image resizing now feels stable with no end-of-drag flicker
 
-0. **📐 Marquee Selection Coverage (PARTIAL - September 27, 2025)**
+0. **📐 Marquee Selection Coverage (IMPROVED - September 28, 2025)**
    - **Issue**: Selection rectangle skipped connectors, mindmap nodes, and freehand strokes; moving multi-select produced misalignment artifacts
-   - **Fix so far**: Added `elementId` metadata to mindmap groups/edges and drawing strokes so marquee hit-testing can see more node types. Marquee now scans across all layers and bumps selection version for connector refreshes. Full drag integration still tracking (connectors/mindmap remain WIP)
-   - **Research update**: Connectors intentionally bypass the Konva transformer; they redraw only after elements move. Next steps under evaluation: live reroute during marquee drags or temporarily grouping connectors into the transformer.
+   - **Fix so far**: Added `elementId` metadata to mindmap groups/edges and drawing strokes so marquee hit-testing can see more node types. Marquee now scans across all layers and bumps selection version for connector refreshes. Connectors remain transformer-free; anchored connectors reroute continuously while their attached elements move.
+   - **Update (Pending QA)**: Marquee pointer math now respects the stage inverse transform, keeping the selection rectangle aligned with the cursor after zoom/pan or minimizing/restoring the window. The SelectionModule pushes live updates into the store and calls `connectorService.forceRerouteElement` for each moved element, so connectors and mindmap branches should track marquee drags without snapping back on release—needs verification across complex boards.
+   - **Research update**: Konva still bypasses the transformer for connector primitives. If rerouting proves insufficient, the backup plan remains to temporarily include connector groups in the transformer during marquee moves.
 
 0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
    - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)

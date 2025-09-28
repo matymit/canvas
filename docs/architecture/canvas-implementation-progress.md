@@ -24,11 +24,13 @@ This document tracks the implementation progress of the FigJam-style modular can
 - **🖼️ Image resize polish**
   - Normalizes Konva image nodes by updating the bitmap dimensions before resetting scale so the post-resize flash/jump is gone
   - Ensures the renderer and SelectionModule stay in agreement about the committed width/height values
-- **🚨 Marquee selection coverage (in progress)**
+- **🚨 Marquee selection coverage (improved, pending QA)**
   - Added element metadata to drawing strokes, connectors, and mindmap nodes so marquee hit-testing sees more node types
-  - Still under refinement: complex node groups (mindmap) and connector/pen layers require deeper integration to drag as a unified group (tracked for follow-up)
+  - SelectionModule now pushes live position updates for transformer nodes and reroutes connected lines via `connectorService.forceRerouteElement`, so connectors and mindmap branches stay aligned while marquee dragging
+  - Connectors remain transformer-free; anchored connectors reroute continuously while standalone connectors continue to rely on endpoint handles exposed by the connector selection manager
+  - Marquee pointer math now uses the stage inverse transform, keeping the selection rectangle under the cursor after zoom/pan or window minimize/restore cycles
 - **📌 Connector research findings**
-  - Konva docs confirm connectors bypass the transformer: they redraw only after attached shapes update. Architectural options: include connectors in transformer or apply live reroute during drags. We have not yet implemented either experiment.
+  - Konva docs confirm connectors bypass the transformer: they redraw only after attached shapes update. If the new reroute flow exposes gaps, revisit temporarily grouping anchored connectors into the transformer during marquee moves.
 - **🗑️ Clear canvas confirmation**
   - Trash action now surfaces an in-app confirm dialog before purging the stage; the wipe remains undoable for safety
 - **Verification**: `npm run type-check`

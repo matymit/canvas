@@ -5,6 +5,15 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.11] - 2025-09-28
+
+### 🧭 Marquee Selection & Connector Routing
+
+- **SelectionModule**: Normalized live transform handling so transformer nodes push position updates on every frame, keeping store state in sync while resizing or marquee dragging mixed element groups. Connectors remain transformer-free; anchored connectors reroute live via the connector service while standalone connectors continue to expose endpoint handles only.
+- **Connector reroute**: `refreshConnectedConnectors` now triggers `connectorService.forceRerouteElement` using the moved element ids, so connectors and mindmap branches redraw while the drag is in progress instead of snapping back on release.
+- **Marquee coordinates**: Marquee rectangle now uses stage inverse transforms for pointer tracking, so selection stays under the cursor after viewport pan/zoom or window minimize/restore cycles. Connectors are kept in the marquee selection set even when mixed with other elements.
+- **Validation**: `npm run type-check`
+
 ## [3.1.10] - 2025-09-27
 
 ### 🛠️ Interaction Stability & Editor Polish
