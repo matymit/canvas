@@ -200,10 +200,20 @@ export class TransformerManager {
         node.draggable(true);
       });
 
-      this.transformer.nodes(live);
-      this.transformer.visible(true);
-      this.transformer.update();
-      this.applyElementConstraints(live);
+      try {
+        this.transformer.nodes(live);
+        this.transformer.visible(true);
+        this.transformer.update();
+      } catch {
+        // Ignore transformer update failures so selection can proceed
+      }
+
+      try {
+        this.applyElementConstraints(live);
+      } catch {
+        // Ignore constraint application failures; transformer will keep prior anchors
+      }
+
       this.overlay.batchDraw();
     }
   }
