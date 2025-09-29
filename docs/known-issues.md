@@ -31,11 +31,11 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Fix**: Update the underlying Konva.Image dimensions before resetting group scale so renderer, transformer, and bitmap stay aligned
    - **Impact**: Image resizing now feels stable with no end-of-drag flicker
 
-0. **📐 Marquee Selection Coverage (IMPROVED - September 28, 2025)**
-   - **Issue**: Selection rectangle skipped connectors, mindmap nodes, and freehand strokes; moving multi-select produced misalignment artifacts
-   - **Fix so far**: Added `elementId` metadata to mindmap groups/edges and drawing strokes so marquee hit-testing can see more node types. Marquee now scans across all layers and bumps selection version for connector refreshes. Connectors remain transformer-free; anchored connectors reroute continuously while their attached elements move.
-   - **Update (Pending QA)**: Marquee pointer math now respects the stage inverse transform, keeping the selection rectangle aligned with the cursor after zoom/pan or minimizing/restoring the window. The SelectionModule pushes live updates into the store and calls `connectorService.forceRerouteElement` for each moved element, so connectors and mindmap branches should track marquee drags without snapping back on release—needs verification across complex boards.
-   - **Research update**: Konva still bypasses the transformer for connector primitives. If rerouting proves insufficient, the backup plan remains to temporarily include connector groups in the transformer during marquee moves.
+0. **📐 Marquee Selection Coverage (STILL BROKEN - September 29, 2025)**
+   - **Issue**: Selection rectangle detects connectors/mindmap edges, but connectors stay parked when the marquee group moves and mindmap branches stretch/snap on release.
+   - **Work so far**: Added `elementId` metadata to mindmap groups/edges and refined hit-testing across layers. SelectionModule now attempts connector reroutes during drag, yet snapshot capture frequently misses the connector Konva groups exposed by `ConnectorRenderer`, so nothing moves.
+   - **Current status**: Manual QA (see screenshots 2025-09-29 14-21-13/20) confirms connectors remain stationary and the transformer disappears after release. Mindmap branches are still store-driven, so they only update after drag end.
+   - **Next steps**: Ensure `ConnectorRenderer` publishes a stable group identifier for snapshot capture or introduce a transformer-aware proxy; push live node position updates into the mindmap store during drag so `MindmapRenderer` has fresh coordinates; disable mindmap live routing mid-drag to avoid rollback.
 
 0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
    - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)

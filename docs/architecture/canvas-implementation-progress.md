@@ -24,11 +24,11 @@ This document tracks the implementation progress of the FigJam-style modular can
 - **🖼️ Image resize polish**
   - Normalizes Konva image nodes by updating the bitmap dimensions before resetting scale so the post-resize flash/jump is gone
   - Ensures the renderer and SelectionModule stay in agreement about the committed width/height values
-- **🚨 Marquee selection coverage (improved, pending QA)**
-  - Added element metadata to drawing strokes, connectors, and mindmap nodes so marquee hit-testing sees more node types
-  - SelectionModule now pushes live position updates for transformer nodes and reroutes connected lines via `connectorService.forceRerouteElement`, so connectors and mindmap branches stay aligned while marquee dragging
-  - Connectors remain transformer-free; anchored connectors reroute continuously while standalone connectors continue to rely on endpoint handles exposed by the connector selection manager
-  - Marquee pointer math now uses the stage inverse transform, keeping the selection rectangle under the cursor after zoom/pan or window minimize/restore cycles
+- **⚠️ Marquee selection coverage (investigation in progress)**
+  - Added element metadata to drawing strokes, connectors, and mindmap nodes so marquee hit-testing can at least discover more node types across layers.
+  - Updated SelectionModule to schedule connector reroutes during marquee drags; however, connectors still fail to translate with the selection because the snapshot cannot always resolve the Konva groups created by `ConnectorRenderer`.
+  - Mindmap branches continue to snap back on release—the live delta never reaches the renderer because node positions remain store-driven. Additional store updates (or renderer integration work) are required.
+  - Pointer math now uses the stage inverse transform, keeping the marquee rectangle under the cursor after zoom/pan or minimize/restore, but full connector/mindmap parity remains unresolved.
 - **📌 Connector research findings**
   - Konva docs confirm connectors bypass the transformer: they redraw only after attached shapes update. If the new reroute flow exposes gaps, revisit temporarily grouping anchored connectors into the transformer during marquee moves.
 - **🗑️ Clear canvas confirmation**
