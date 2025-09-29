@@ -72,8 +72,9 @@ export function setupRenderer(
       if (moduleInstance instanceof PortHoverModule && typeof window !== "undefined") {
         window.portHoverModule = moduleInstance;
       }
-      // Expose SelectionModule for marquee selection and other tools
+      // Expose SelectionModule for marquee selection and other tools  
       if (moduleInstance instanceof SelectionModule && typeof window !== "undefined") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).selectionModule = moduleInstance;
       }
       return dispose;

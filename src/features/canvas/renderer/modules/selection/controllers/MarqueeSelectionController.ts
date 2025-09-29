@@ -2,8 +2,10 @@ import type Konva from "konva";
 import type { ConnectorElement } from "@features/canvas/types/connector";
 import { categorizeSelection } from "../SelectionResolver";
 
+import type { CanvasElement } from "../../../../../../../types/index";
+
 export interface MarqueeSelectionControllerDeps {
-  elements: () => Map<string, any>;
+  elements: () => Map<string, CanvasElement>;
   setSelection: (ids: string[]) => void;
   onSelectionComplete?: (selectedIds: string[]) => void;
   debug?: (message: string, data?: unknown) => void;
