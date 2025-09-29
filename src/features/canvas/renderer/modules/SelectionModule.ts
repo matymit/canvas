@@ -484,11 +484,22 @@ export class SelectionModule implements RendererModule {
   }
 
   private beginSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
+    // Ensure snapshot structure matches TransformController expectations
+    const normalize = (s: TransformSnapshot | null): TransformSnapshot | null => {
+      if (!s) return null;
+      return {
+        basePositions: s.basePositions ?? new Map(),
+        connectors: s.connectors ?? new Map(),
+        mindmapEdges: s.mindmapEdges ?? new Map(),
+        movedMindmapNodes: s.movedMindmapNodes ?? new Set(),
+        transformerBox: s.transformerBox,
+      };
+    };
     // Delegate to TransformStateManager
     transformStateManager.beginTransform(nodes, source);
 
     // Minimal orchestration to keep snapshot for visual updates
-    const snapshot = this.captureTransformSnapshot(nodes);
+    const snapshot = normalize(this.captureTransformSnapshot(nodes));
     if (snapshot) {
       this.transformController?.start(snapshot);
     } else {

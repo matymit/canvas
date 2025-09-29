@@ -43,11 +43,11 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return;
     }
 
-    // console.debug("[TransformStateManager] Beginning transform", {
+    /* console.debug("[TransformStateManager] Beginning transform", {
       nodeCount: nodes.length,
       source,
       nodeTypes: nodes.map(n => n.getAttr("nodeType") || n.constructor.name)
-    });
+    }); */
 
     // Capture initial state
     this.currentSnapshot = this.captureSnapshot(nodes);
@@ -69,11 +69,11 @@ export class TransformStateManagerImpl implements TransformStateManager {
     }
 
     // console.debug can be re-enabled when needed
-    // console.debug("[TransformStateManager] Progress transform", {
+    /* console.debug("[TransformStateManager] Progress transform", {
       nodeCount: nodes.length,
       source,
       elapsed: Date.now() - this.currentSnapshot.transformStartTime
-    });
+    }); */
 
     // Transform progress is tracked locally
     // Store doesn't have updateTransformProgress method
@@ -86,11 +86,11 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return;
     }
 
-    // console.debug("[TransformStateManager] Ending transform", {
+    /* console.debug("[TransformStateManager] Ending transform", {
       nodeCount: nodes.length,
       source,
       duration: this.currentSnapshot ? Date.now() - this.currentSnapshot.transformStartTime : 0
-    });
+    }); */
 
     try {
       // Finalize the transform
