@@ -202,6 +202,7 @@ export class TransformerManager {
 
       this.transformer.nodes(live);
       this.transformer.visible(true);
+      this.transformer.update();
       this.applyElementConstraints(live);
       this.overlay.batchDraw();
     }
