@@ -25,6 +25,7 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
   private refreshScheduled = false;
   private liveRoutingEnabled = true;
   private connectorService: any = null;
+  private moveSelectedConnectorsWasCalled = false; // Track if moveSelectedConnectors was called
 
   constructor() {
     // Bind methods to preserve context
@@ -204,7 +205,17 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
 
   // Extracted from SelectionModule.ts lines 1562-1565
   commitTranslation(delta: { dx: number; dy: number }): void {
-    console.log("[ConnectorSelectionManager] Committing connector translation", delta);
+    console.log("[ConnectorSelectionManager] Committing connector translation", { 
+      delta, 
+      moveSelectedConnectorsWasCalled: this.moveSelectedConnectorsWasCalled 
+    });
+    
+    // Skip if moveSelectedConnectors was already called - prevents double processing
+    if (this.moveSelectedConnectorsWasCalled) {
+      console.log("[ConnectorSelectionManager] Skipping commitTranslation - connectors already moved by moveSelectedConnectors");
+      this.moveSelectedConnectorsWasCalled = false; // Reset flag
+      return;
+    }
     
     // This would be called at the end of a transform to finalize connector positions
     // The actual translation work is done by updateVisuals during the transform
@@ -358,6 +369,9 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       delta,
       connectorIds: Array.from(connectorIds).slice(0, 5)
     });
+
+    // Set flag to prevent double processing in commitTranslation
+    this.moveSelectedConnectorsWasCalled = true;
 
     const store = useUnifiedCanvasStore.getState();
     const elements = store.elements;

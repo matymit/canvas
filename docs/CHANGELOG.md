@@ -15,20 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.1.13] - 2025-01-25
 
-### 🔧 Connector Marquee Selection (PARTIAL FIX)
+### 🔧 Connector Marquee Selection (POTENTIALLY FIXED)
 
-- **Connector Selection**: Attempted to fix critical issue where connectors (lines and arrows) selected via marquee selection were not moving during drag operations
-- **Investigation Results**: 
-  - Root cause identified: MarqueeSelectionTool was skipping connectors during position updates
-  - Enhanced ConnectorSelectionManager with `moveSelectedConnectors()` method
-  - Fixed selection state synchronization between persistentSelection and selectionRef
-  - Added temporary draggable property enabling for connectors during marquee operations
-- **Current Status**: 
-  - ✅ Connectors are properly detected and selected (7 nodes found vs expected 7)
-  - ✅ Connectors are made draggable during operations (draggable: true)
-  - ❌ **CRITICAL ISSUE REMAINS**: Connectors still don't participate in live drag movement
-  - ❌ Base positions show {x: 0, y: 0} indicating position calculation issues
-- **Files Modified**: `MarqueeSelectionTool.tsx`, `ConnectorSelectionManager.ts`, `ElementSynchronizer.ts`
+- **Connector Selection**: Applied targeted fixes for connectors not moving during marquee selection drag operations
+- **Key Changes Applied**: 
+  - Fixed fallback selection bounds to include connectors via `node.id()` check against `elements.has(elementId)`
+  - Separated commit logic: regular elements use `updateElements`, connectors use `ConnectorSelectionManager.moveSelectedConnectors()`
+  - Maintained existing drag handling improvements and debugging infrastructure
+- **Root Cause**: Connectors were excluded from fallback selection and used incorrect commit API
+- **Expected Result**: 
+  - ✅ Connectors should now be included in marquee selection bounds detection
+  - ✅ Connectors should move properly during drag operations via specialized API
+  - ✅ Mixed selections (shapes + connectors) should drag as unified groups
+- **Testing Required**: Manual verification needed with mixed element selections
+- **Files Modified**: `MarqueeSelectionTool.tsx` (selection bounds + commit logic)
 
 ### 🐛 Known Issues
 

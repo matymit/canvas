@@ -480,6 +480,8 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
       // End any active transform
       if (marqueeRef.current.isDragging && marqueeRef.current.selectedNodes.length > 0) {
+        console.log("[MarqueeSelectionTool] *** EXECUTING DRAG COMMIT LOGIC IN onPointerUp ***");
+        
         // Commit final positions to store with history
         const store = useUnifiedCanvasStore.getState();
         const finalDelta = {
@@ -488,8 +490,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
         };
 
         // Update elements with history for undo support
+        // Separate connectors from regular elements  
+        const connectorIds = new Set<string>();
         const elementUpdates: Array<{ id: string; patch: Partial<CanvasElement> }> = [];
-        const selectedConnectorIds = new Set<string>();
         
         console.log("[MarqueeSelectionTool] Processing nodes for final update", {
           nodeCount: marqueeRef.current.selectedNodes.length,
@@ -512,9 +515,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           
           if (basePos && element) {
             if (element.type === 'connector') {
-              // Collect directly selected connectors
-              console.log("[MarqueeSelectionTool] Adding connector to selectedConnectorIds:", elementId);
-              selectedConnectorIds.add(elementId);
+              // Collect connectors for specialized handling
+              console.log("[MarqueeSelectionTool] Adding connector to connectorIds:", elementId);
+              connectorIds.add(elementId);
             } else {
               // Handle regular elements
               elementUpdates.push({
@@ -528,36 +531,24 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           }
         });
 
-        // Update regular elements first
+        // Commit non-connector moves with history
         if (elementUpdates.length > 0 && store.updateElements) {
           store.updateElements(elementUpdates, { pushHistory: true });
         }
 
-        // Handle directly selected connectors using ConnectorSelectionManager
-        if (selectedConnectorIds.size > 0) {
-          console.log("[MarqueeSelectionTool] Moving selected connectors:", {
-            connectorCount: selectedConnectorIds.size,
+        // Commit connectors via ConnectorSelectionManager BEFORE endTransform
+        if (connectorIds.size > 0) {
+          console.log("[MarqueeSelectionTool] Moving selected connectors via ConnectorSelectionManager:", {
+            connectorCount: connectorIds.size,
             delta: finalDelta,
-            connectorIds: Array.from(selectedConnectorIds)
+            connectorIds: Array.from(connectorIds)
           });
           
-          // Use ConnectorSelectionManager for proper connector movement
-          (window as any).connectorSelectionManager?.moveSelectedConnectors(selectedConnectorIds, finalDelta);
-          
-          // CRITICAL FIX: Also sync connectors through ElementSynchronizer
-          // The transform system filters out connectors, so we need to sync them manually
-          const connectorNodes = marqueeRef.current.selectedNodes.filter(node => {
-            const elementId = node.getAttr("elementId") || node.id();
-            return selectedConnectorIds.has(elementId);
-          });
-          
-          if (connectorNodes.length > 0) {
-            console.log("[MarqueeSelectionTool] Manually syncing connector nodes:", connectorNodes.length);
-            // Get ElementSynchronizer from window registry
-            const elementSynchronizer = (window as any).elementSynchronizer;
-            if (elementSynchronizer?.updateElementsFromNodes) {
-              elementSynchronizer.updateElementsFromNodes(connectorNodes, "drag", { pushHistory: true });
-            }
+          const manager = (window as any).connectorSelectionManager;
+          if (manager && typeof manager.moveSelectedConnectors === 'function') {
+            manager.moveSelectedConnectors(connectorIds, finalDelta);
+          } else {
+            console.warn("[MarqueeSelectionTool] ConnectorSelectionManager not available for connector movement");
           }
         }
 
@@ -652,7 +643,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
       const candidateNodes = stage.find<Konva.Node>((node: Konva.Node) => {
         if (typeof node.getAttr !== "function") return false;
-        return Boolean(node.getAttr("elementId"));
+        // Include connectors by id or shapes by elementId
+        const elementId = node.getAttr("elementId") || node.id();
+        return Boolean(elementId) && elements.has(elementId);
       });
 
       console.log("[MarqueeSelectionTool] candidateNodes found:", candidateNodes.length);

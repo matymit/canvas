@@ -522,16 +522,77 @@ export class SelectionModule implements RendererModule {
     this.updateMindmapEdgeVisuals(delta);
   }
 
+  // Helper method to get current selected element IDs
+  private getSelectedElementIds(): Set<string> {
+    const state = this.storeCtx?.store.getState();
+    if (!state) return new Set();
+    
+    const selection = state.selectedElementIds || new Set<string>();
+    return selection instanceof Set ? selection : new Set<string>();
+  }
+
+  // Helper method to get all selected nodes including connectors
+  private getAllSelectedNodes(): Konva.Node[] {
+    const stage = this.stageCtx?.getStage();
+    if (!stage) return [];
+    
+    const selectedElementIds = this.getSelectedElementIds();
+    if (selectedElementIds.size === 0) return [];
+    
+    return stage.find<Konva.Node>((node: Konva.Node) => {
+      const elementId = node.getAttr("elementId") || node.id();
+      return elementId && selectedElementIds.has(elementId);
+    });
+  }
+
   private endSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
     // Delegate to TransformStateManager
     transformStateManager.endTransform(nodes, source);
+
+    // CRITICAL FIX: Handle directly selected connectors before standard commit
+    const allSelectedNodes = this.getAllSelectedNodes(); // Get all 7 nodes including connectors
+    const connectorNodes = allSelectedNodes.filter(node => {
+      const elementId = node.getAttr("elementId") || node.id();
+      const elementType = node.getAttr("elementType");
+      return elementType === 'connector';
+    });
+    
+    if (connectorNodes.length > 0) {
+      console.log("[SelectionModule] Found directly selected connectors for commit:", {
+        connectorCount: connectorNodes.length,
+        totalSelectedNodes: allSelectedNodes.length,
+        standardNodes: nodes.length
+      });
+      
+      const connectorIds = new Set(connectorNodes.map(node => 
+        node.getAttr("elementId") || node.id()
+      ));
+      
+      const delta = this.transformController?.computeDelta(allSelectedNodes) || { dx: 0, dy: 0 };
+      
+      console.log("[SelectionModule] Moving directly selected connectors:", {
+        connectorIds: Array.from(connectorIds),
+        delta
+      });
+      
+      connectorSelectionManager.moveSelectedConnectors(connectorIds, delta);
+    }
 
     // Commit final positions and clean up visuals
     if (nodes.length > 0) {
       this.updateElementsFromNodes(nodes, true);
       const delta = this.transformController?.computeDelta(nodes);
       if (delta) {
-        connectorSelectionManager.commitTranslation(delta);
+        // Only commit translation for connected connectors, not directly selected ones
+        const hasDirectlySelectedConnectors = connectorNodes.length > 0;
+        if (!hasDirectlySelectedConnectors) {
+          // Skip calling commitTranslation if connectors were already moved by MarqueeSelectionTool
+          // The MarqueeSelectionTool calls moveSelectedConnectors() directly with correct deltas
+          const wasMarqueeSelection = this.transformController?.snapshot?.source === 'marquee';
+          if (!wasMarqueeSelection) {
+            connectorSelectionManager.commitTranslation(delta);
+          }
+        }
       }
     }
 

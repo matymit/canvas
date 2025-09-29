@@ -57,17 +57,18 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Fix**: Update the underlying Konva.Image dimensions before resetting group scale so renderer, transformer, and bitmap stay aligned
    - **Impact**: Image resizing now feels stable with no end-of-drag flicker
 
-0. **📐 Marquee Selection Coverage (PARTIALLY FIXED - January 25, 2025)**
+0. **📐 Marquee Selection Coverage (POTENTIALLY FIXED - January 25, 2025)**
    - **Issue**: Selection rectangle detects connectors/mindmap edges, but connectors stay parked when the marquee group moves and mindmap branches stretch/snap on release.
    - **Root Cause**: MarqueeSelectionTool.tsx was skipping connectors during final position commit (lines 420-423) expecting ConnectorSelectionManager to handle them, but ConnectorSelectionManager only handled connected connectors, not directly selected ones.
-   - **Progress**: 
+   - **Recent Fixes Applied**: 
      - ✅ Fixed selection state synchronization issues (persistentSelection vs selectionRef)
      - ✅ Enhanced ConnectorSelectionManager with moveSelectedConnectors() method  
      - ✅ Temporarily enable draggable property for connectors during marquee operations
+     - ✅ **NEW**: Fixed fallback selection to include connectors by checking node.id() for elements.has(elementId)
+     - ✅ **NEW**: Separated connector commit logic to use ConnectorSelectionManager.moveSelectedConnectors()
      - ✅ Added comprehensive debugging and logging
-     - ❌ **CRITICAL ISSUE REMAINS**: Connectors still don't move during live drag operations
-   - **Current Status**: Connectors are detected, selected, and made draggable, but are not participating in the actual drag movement. Base positions show {x: 0, y: 0} and live drag logs are missing.
-   - **Next Steps**: Debug why connectors bypass onPointerMove drag handling despite being draggable and selected.
+   - **Expected Status**: Connectors should now participate in marquee selection and move correctly during drag operations
+   - **Testing Required**: Manual testing needed to verify fix effectiveness - run marquee selection with mixed elements including connectors
 
 0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
    - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)
