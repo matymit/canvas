@@ -171,6 +171,9 @@ export function wireMindmapLiveRouting(
 
   // Throttled re-routing function
   const rerouteConnectedEdges = (movedNodeId?: string) => {
+    if (typeof renderer.isLiveRoutingPaused === "function" && renderer.isLiveRoutingPaused()) {
+      return;
+    }
     if (throttleTimer) return;
 
     throttleTimer = window.setTimeout(() => {

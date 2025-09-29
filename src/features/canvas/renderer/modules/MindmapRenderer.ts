@@ -97,6 +97,7 @@ export class MindmapRenderer {
     descendants: Set<string>;
     initialPositions: Map<string, { x: number; y: number }>;
   } | null = null;
+  private liveRoutingPaused = false;
 
   constructor(
     layers: RendererLayers,
@@ -111,6 +112,18 @@ export class MindmapRenderer {
       edgeSegments: 12,
       ...options,
     };
+  }
+
+  public pauseLiveRouting(): void {
+    this.liveRoutingPaused = true;
+  }
+
+  public resumeLiveRouting(): void {
+    this.liveRoutingPaused = false;
+  }
+
+  public isLiveRoutingPaused(): boolean {
+    return this.liveRoutingPaused;
   }
 
   private mergeNodeStyle(style?: MindmapNodeStyle): MindmapNodeStyle {

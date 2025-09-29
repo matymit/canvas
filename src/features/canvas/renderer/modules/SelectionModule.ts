@@ -6,12 +6,15 @@ import type {
   ConnectorEndpoint,
   ConnectorEndpointPoint,
 } from "../../types/connector";
+import type { MindmapRenderer } from "./MindmapRenderer";
+import { batchMindmapReroute } from "./mindmapWire";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
 import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import type { TableElement } from "../../types/table";
 import type { ConnectorService } from "../../services/ConnectorService";
 import { applyTableScaleResize } from "./tableTransform";
+import { debug } from "@/utils/debug";
 
 // Element update interface
 interface ElementUpdate {
@@ -62,6 +65,8 @@ export class SelectionModule implements RendererModule {
         wasAnchored: boolean;
       }
     >;
+    transformerBox?: { x: number; y: number };
+    movedMindmapNodes: Set<string>;
   };
 
   mount(ctx: ModuleRendererCtx): () => void {
@@ -153,8 +158,11 @@ export class SelectionModule implements RendererModule {
 
         // Re-apply constraints to update the boundBoxFunc
         if (this.transformerManager) {
+          const filteredNodes = this.filterTransformableNodes(nodes);
           this.transformerManager.detach();
-          this.transformerManager.attachToNodes(nodes);
+          if (filteredNodes.length > 0) {
+            this.transformerManager.attachToNodes(filteredNodes);
+          }
         }
       },
     });
@@ -236,12 +244,16 @@ export class SelectionModule implements RendererModule {
     }
 
     // CRITICAL FIX: Categorize selection with enhanced debugging
-    const { connectorIds, nonConnectorIds } =
+    const { connectorIds, mindmapEdgeIds, nonConnectorIds } =
       this.categorizeSelection(selectedIds);
 
     // CRITICAL FIX: Handle connector selection with proper integration
     // If ONLY connectors are selected, use connector selection manager
-    if (connectorIds.length >= 1 && nonConnectorIds.length === 0) {
+    if (
+      connectorIds.length >= 1 &&
+      nonConnectorIds.length === 0 &&
+      mindmapEdgeIds.length === 0
+    ) {
       if (this.connectorSelectionManager) {
         setTimeout(() => {
           const id = connectorIds[0];
@@ -259,8 +271,8 @@ export class SelectionModule implements RendererModule {
       // Enhanced delay to ensure elements are fully rendered
       setTimeout(() => {
         // Find Konva nodes for selected elements across all layers
-        const nodes = this.resolveElementsToNodes(selectionSnapshot).filter(
-          (node) => this.getElementTypeForNode?.(node) !== "connector",
+        const nodes = this.filterTransformableNodes(
+          this.resolveElementsToNodes(selectionSnapshot),
         );
 
         if (nodes.length > 0) {
@@ -304,6 +316,13 @@ export class SelectionModule implements RendererModule {
     const name = typeof node.name === "function" ? node.name() : "";
     if (name.includes("connector")) return "connector";
     return "element";
+  }
+
+  private filterTransformableNodes(nodes: Konva.Node[]): Konva.Node[] {
+    return nodes.filter((node) => {
+      const type = this.getElementTypeForNode(node);
+      return type !== "connector" && type !== "mindmap-edge";
+    });
   }
 
   private resolveElementsToNodes(
@@ -563,7 +582,7 @@ export class SelectionModule implements RendererModule {
       }
     }
 
-    if (movedElementIds.size > 0) {
+    if (movedElementIds.size > 0 && !this.transformSnapshot) {
       this.refreshConnectedConnectors(movedElementIds);
     }
   }
@@ -651,7 +670,9 @@ export class SelectionModule implements RendererModule {
 
       setTimeout(() => {
         // Check if element is now available
-        const nodes = this.resolveElementsToNodes(new Set([elementId]));
+        const nodes = this.filterTransformableNodes(
+          this.resolveElementsToNodes(new Set([elementId])),
+        );
 
         if (nodes.length > 0) {
           // FIXED: Force clean transformer state and attach
@@ -681,7 +702,7 @@ export class SelectionModule implements RendererModule {
 
   // Public method to clear selection
   clearSelection() {
-    if (!this.storeCtx) return;
+    if (!this.storeCtx || this.transformSnapshot) return;
 
     const store = this.storeCtx.store.getState();
 
@@ -729,8 +750,8 @@ export class SelectionModule implements RendererModule {
     // Small delay to ensure elements are fully re-rendered after dimension changes
     setTimeout(() => {
       // Find Konva nodes for selected elements across all layers
-      const nodes = this.resolveElementsToNodes(selectionSnapshot).filter(
-        (node) => this.getElementTypeForNode?.(node) !== "connector",
+      const nodes = this.filterTransformableNodes(
+        this.resolveElementsToNodes(selectionSnapshot),
       );
 
       if (nodes.length > 0) {
@@ -817,11 +838,15 @@ export class SelectionModule implements RendererModule {
     }
 
     // Check if selection contains connectors
-    const { connectorIds, nonConnectorIds } =
+    const { connectorIds, mindmapEdgeIds, nonConnectorIds } =
       this.categorizeSelection(selectedIds);
 
     // Handle connector selection refresh
-    if (connectorIds.length === 1 && nonConnectorIds.length === 0) {
+    if (
+      connectorIds.length === 1 &&
+      nonConnectorIds.length === 0 &&
+      mindmapEdgeIds.length === 0
+    ) {
       this.transformerManager.detach();
       this.connectorSelectionManager?.refreshSelection();
       return;
@@ -832,8 +857,8 @@ export class SelectionModule implements RendererModule {
       this.connectorSelectionManager?.clearSelection();
 
       // Find Konva nodes for selected elements
-      const nodes = this.resolveElementsToNodes(new Set(nonConnectorIds)).filter(
-        (node) => this.getElementTypeForNode?.(node) !== "connector",
+      const nodes = this.filterTransformableNodes(
+        this.resolveElementsToNodes(new Set(nonConnectorIds)),
       );
 
       if (nodes.length > 0) {
@@ -856,29 +881,42 @@ export class SelectionModule implements RendererModule {
    */
   private categorizeSelection(selectedIds: Set<string>): {
     connectorIds: string[];
+    mindmapEdgeIds: string[];
     nonConnectorIds: string[];
   } {
     if (!this.storeCtx) {
-      return { connectorIds: [], nonConnectorIds: Array.from(selectedIds) };
+      return {
+        connectorIds: [],
+        mindmapEdgeIds: [],
+        nonConnectorIds: Array.from(selectedIds),
+      };
     }
 
     const state = this.storeCtx.store.getState();
     const elements = state.elements || new Map();
 
     const connectorIds: string[] = [];
+    const mindmapEdgeIds: string[] = [];
     const nonConnectorIds: string[] = [];
 
     for (const id of selectedIds) {
       const element = elements.get(id) || state.element?.getById?.(id);
 
-      if (element && element.type === "connector") {
+      if (!element) {
+        nonConnectorIds.push(id);
+        continue;
+      }
+
+      if (element.type === "connector") {
         connectorIds.push(id);
+      } else if (element.type === "mindmap-edge") {
+        mindmapEdgeIds.push(id);
       } else {
         nonConnectorIds.push(id);
       }
     }
 
-    return { connectorIds, nonConnectorIds };
+    return { connectorIds, mindmapEdgeIds, nonConnectorIds };
   }
 
   private refreshConnectedConnectors(elementIds: Set<string>) {
@@ -958,6 +996,7 @@ export class SelectionModule implements RendererModule {
         wasAnchored: boolean;
       }
     >();
+    const movedMindmapNodes = new Set<string>();
 
     const stage =
       this.storeCtx.stage ||
@@ -979,6 +1018,10 @@ export class SelectionModule implements RendererModule {
         x: element.x ?? 0,
         y: element.y ?? 0,
       });
+
+      if (element.type === "mindmap-node") {
+        movedMindmapNodes.add(id);
+      }
     }
 
     const includeConnector = (connector: ConnectorElement, id: string) => {
@@ -1006,6 +1049,15 @@ export class SelectionModule implements RendererModule {
         wasAnchored:
           connector.from.kind !== "point" || connector.to.kind !== "point",
       });
+
+      debug("Captured connector in transform snapshot", {
+        category: "selection/transform",
+        data: {
+          id,
+          wasAnchored:
+            connector.from.kind !== "point" || connector.to.kind !== "point",
+        },
+      });
     };
 
     for (const [id, element] of state.elements.entries()) {
@@ -1018,10 +1070,28 @@ export class SelectionModule implements RendererModule {
       return;
     }
 
+    const transformerRect = this.transformerManager
+      ?.getTransformer()
+      ?.getClientRect();
+
     this.transformSnapshot = {
       basePositions,
       connectors,
+      movedMindmapNodes,
+      transformerBox: transformerRect
+        ? { x: transformerRect.x, y: transformerRect.y }
+        : undefined,
     };
+
+    debug("Transform snapshot initialized", {
+      category: "selection/transform",
+      data: {
+        movingElements: basePositions.size,
+        connectors: connectors.size,
+        movedMindmapNodes: movedMindmapNodes.size,
+        hasTransformerBox: Boolean(transformerRect),
+      },
+    });
 
     if (connectors.size > 0) {
       this.setLiveRoutingEnabled(false);
@@ -1029,6 +1099,10 @@ export class SelectionModule implements RendererModule {
         if (!snapshot.wasAnchored) continue;
         this.applyConnectorEndpointOverride(id, snapshot.startFrom, snapshot.startTo);
       }
+    }
+
+    if (movedMindmapNodes.size > 0) {
+      this.setMindmapLiveRoutingEnabled(false);
     }
   }
 
@@ -1045,17 +1119,49 @@ export class SelectionModule implements RendererModule {
       if (!baseline) continue;
 
       const pos = node.position();
-      return {
+      const delta = {
         dx: pos.x - baseline.x,
         dy: pos.y - baseline.y,
       };
+      debug("Computed transform delta from node baseline", {
+        category: "selection/transform",
+        data: {
+          elementId,
+          delta,
+        },
+      });
+      return {
+        dx: delta.dx,
+        dy: delta.dy,
+      };
     }
 
-    // Fallback: if we have connector snapshots but no baseline (e.g., connectors only), treat delta as zero.
-    if (this.transformSnapshot.connectors.size > 0) {
-      return { dx: 0, dy: 0 };
+    const transformerBox = this.transformSnapshot.transformerBox;
+    if (transformerBox) {
+      const rect = this.transformerManager?.getTransformer()?.getClientRect();
+      if (rect) {
+        const delta = {
+          dx: rect.x - transformerBox.x,
+          dy: rect.y - transformerBox.y,
+        };
+        debug("Computed transform delta from transformer box", {
+          category: "selection/transform",
+          data: delta,
+        });
+        return {
+          dx: delta.dx,
+          dy: delta.dy,
+        };
+      }
     }
 
+    debug("Unable to compute transform delta", {
+      category: "selection/transform",
+      data: {
+        hasSnapshot: Boolean(this.transformSnapshot),
+        connectors: this.transformSnapshot.connectors.size,
+      },
+    });
     return null;
   }
 
@@ -1064,6 +1170,14 @@ export class SelectionModule implements RendererModule {
 
     const { connectors } = this.transformSnapshot;
     if (connectors.size === 0) return;
+
+    debug("Applying connector translation", {
+      category: "selection/transform",
+      data: {
+        delta,
+        connectors: connectors.size,
+      },
+    });
 
     for (const [id, snapshot] of connectors) {
       const nextFrom = {
@@ -1082,11 +1196,32 @@ export class SelectionModule implements RendererModule {
         to: nextTo,
       });
     }
+
+    if (this.transformSnapshot.movedMindmapNodes.size > 0) {
+      const renderer = this.getMindmapRenderer();
+      if (renderer) {
+        try {
+          debug("Triggering mindmap reroute during transform", {
+            category: "selection/transform",
+            data: {
+              nodes: Array.from(this.transformSnapshot.movedMindmapNodes),
+            },
+          });
+          batchMindmapReroute(
+            renderer,
+            Array.from(this.transformSnapshot.movedMindmapNodes),
+          );
+        } catch {
+          // Ignore reroute errors during live drag
+        }
+      }
+    }
   }
 
   private releaseTransformSnapshot() {
     if (!this.transformSnapshot) {
       this.setLiveRoutingEnabled(true);
+      this.setMindmapLiveRoutingEnabled(true);
       return;
     }
 
@@ -1105,12 +1240,29 @@ export class SelectionModule implements RendererModule {
     }
 
     this.setLiveRoutingEnabled(true);
+    this.setMindmapLiveRoutingEnabled(true);
 
     const connectorService = this.getConnectorService();
     try {
       connectorService?.forceRerouteAll();
     } catch {
       // Ignore reroute errors
+    }
+
+    const movedMindmapNodes = Array.from(snapshot.movedMindmapNodes);
+    if (movedMindmapNodes.length > 0) {
+      const mindmapRenderer = this.getMindmapRenderer();
+      if (mindmapRenderer) {
+        try {
+          debug("Triggering mindmap reroute after transform", {
+            category: "selection/transform",
+            data: { nodes: movedMindmapNodes },
+          });
+          batchMindmapReroute(mindmapRenderer, movedMindmapNodes);
+        } catch {
+          // Ignore reroute errors
+        }
+      }
     }
   }
 
@@ -1167,6 +1319,21 @@ export class SelectionModule implements RendererModule {
     }
   }
 
+  private setMindmapLiveRoutingEnabled(enabled: boolean) {
+    const renderer = this.getMindmapRenderer();
+    if (!renderer) return;
+
+    try {
+      if (enabled) {
+        renderer.resumeLiveRouting();
+      } else {
+        renderer.pauseLiveRouting();
+      }
+    } catch {
+      // Ignore enable/disable errors
+    }
+  }
+
   private getConnectorService(): ConnectorService | null {
     if (typeof window === "undefined") return null;
     return (
@@ -1198,6 +1365,14 @@ export class SelectionModule implements RendererModule {
         // ignore update errors
       }
     }
+  }
+
+  private getMindmapRenderer(): MindmapRenderer | null {
+    if (typeof window === "undefined") return null;
+    return (
+      (window as Window & { mindmapRenderer?: MindmapRenderer }).mindmapRenderer ||
+      null
+    );
   }
 
   /**

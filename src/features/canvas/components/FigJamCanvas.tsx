@@ -364,7 +364,7 @@ const FigJamCanvas: React.FC = () => {
     stage.batchDraw();
   }, [viewportX, viewportY, viewportScale, updateOverlayTransform]);
 
-  // FIXED: Attach stage event handlers once; read store/state at call time to avoid rebind thrash
+  // Attach stage event handlers once; read store/state at call time to avoid rebind thrash
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -468,7 +468,7 @@ const FigJamCanvas: React.FC = () => {
       stage.off("contextmenu", handleStageContextMenu);
       // Pan tool drag cleanup is handled by PanTool component
     };
-  }, [selectedTool]); // FIXED: Only depend on selectedTool; read store values at call time to prevent infinite loops
+  }, []);
 
   // Update cursor and activate tools based on selected tool
   useEffect(() => {
