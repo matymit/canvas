@@ -1,5 +1,12 @@
 # Known Issues and Limitations
 
+## Selection & Connectors (September 29, 2025)
+- Marquee selection with connectors: lines/arrows may not always live-update while dragging a marquee-selected group.
+  - Status: Partially mitigated by batched scheduleRefresh during drag; final routing commits on release.
+  - Impact: Visual lag or anchored appearance during drag on some endpoints.
+  - Next steps: implement visual-only updates for point endpoints during drag and make finalize path idempotent.
+
+
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
 
 ## 🚨 STATUS (January 25, 2025)
@@ -50,11 +57,17 @@ This document provides an honest assessment of current Canvas limitations, known
    - **Fix**: Update the underlying Konva.Image dimensions before resetting group scale so renderer, transformer, and bitmap stay aligned
    - **Impact**: Image resizing now feels stable with no end-of-drag flicker
 
-0. **📐 Marquee Selection Coverage (STILL BROKEN - September 29, 2025)**
+0. **📐 Marquee Selection Coverage (PARTIALLY FIXED - January 25, 2025)**
    - **Issue**: Selection rectangle detects connectors/mindmap edges, but connectors stay parked when the marquee group moves and mindmap branches stretch/snap on release.
-   - **Work so far**: Added `elementId` metadata to mindmap groups/edges and refined hit-testing across layers. SelectionModule now attempts connector reroutes during drag, yet snapshot capture frequently misses the connector Konva groups exposed by `ConnectorRenderer`, so nothing moves.
-   - **Current status**: Manual QA (see screenshots 2025-09-29 14-21-13/20) confirms connectors remain stationary and the transformer disappears after release. Mindmap branches are still store-driven, so they only update after drag end.
-   - **Next steps**: Ensure `ConnectorRenderer` publishes a stable group identifier for snapshot capture or introduce a transformer-aware proxy; push live node position updates into the mindmap store during drag so `MindmapRenderer` has fresh coordinates; disable mindmap live routing mid-drag to avoid rollback.
+   - **Root Cause**: MarqueeSelectionTool.tsx was skipping connectors during final position commit (lines 420-423) expecting ConnectorSelectionManager to handle them, but ConnectorSelectionManager only handled connected connectors, not directly selected ones.
+   - **Progress**: 
+     - ✅ Fixed selection state synchronization issues (persistentSelection vs selectionRef)
+     - ✅ Enhanced ConnectorSelectionManager with moveSelectedConnectors() method  
+     - ✅ Temporarily enable draggable property for connectors during marquee operations
+     - ✅ Added comprehensive debugging and logging
+     - ❌ **CRITICAL ISSUE REMAINS**: Connectors still don't move during live drag operations
+   - **Current Status**: Connectors are detected, selected, and made draggable, but are not participating in the actual drag movement. Base positions show {x: 0, y: 0} and live drag logs are missing.
+   - **Next Steps**: Debug why connectors bypass onPointerMove drag handling despite being draggable and selected.
 
 0. **⚙️ IN PROGRESS: Store Typing Remediation (September 26, 2025)**
    - **Update**: Core, history, and interaction Zustand slices now use typed Immer drafts (no more `state as any` mutations)

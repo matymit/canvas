@@ -444,4 +444,10 @@ selection/
 
 ---
 
+### Status Update (September 29, 2025)
+- Phase 2 COMPLETE: Managers integrated; SelectionModule delegates to Transform/Element/Connector/Mindmap/Text managers.
+- Marquee selection improved; connectors refreshed during drag via scheduleRefresh.
+- Known behavior: connectors (lines/arrows) may not always live-update visually during marquee drag; final commit is correct.
+- Next steps (Phase 3): tests + cleanup, visual-only updates for point endpoints, idempotent finalize.
+
 *This plan provides complete line-by-line accounting of SelectionModule.ts and systematic extraction strategy while maintaining Canvas architectural principles.*

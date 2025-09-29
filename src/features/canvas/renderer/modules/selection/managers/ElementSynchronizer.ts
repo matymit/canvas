@@ -2,7 +2,7 @@
 // Extracted from SelectionModule.ts lines 575-909
 // Handles synchronization between Konva nodes and store elements
 
-import Konva from "konva";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
 import type { CanvasElement } from "../../../../../../../types/index";
 
@@ -267,3 +267,8 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
 
 // Export singleton instance
 export const elementSynchronizer = new ElementSynchronizerImpl();
+
+// Register globally for cross-module access
+if (typeof window !== "undefined") {
+  (window as any).elementSynchronizer = elementSynchronizer;
+}

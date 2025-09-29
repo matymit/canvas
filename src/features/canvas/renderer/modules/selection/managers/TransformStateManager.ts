@@ -2,7 +2,7 @@
 // Extracted from SelectionModule.ts lines 485-574, 993-1046, 1262-1483
 // Handles transform lifecycle and state management
 
-import Konva from "konva";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
 import type { CanvasElement } from "../../../../../../../types/index";
 
@@ -167,10 +167,10 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return null;
     }
 
-    // console.debug("[TransformStateManager] Capturing transform snapshot", {
+    /* console.debug("[TransformStateManager] Capturing transform snapshot", {
       nodeCount: initialNodes.length,
       timestamp: Date.now()
-    });
+    }); */
 
     // Create deep copy of initial store state for affected elements
     const initialStoreState = new Map<string, CanvasElement>();

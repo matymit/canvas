@@ -98,10 +98,10 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
       ? selectedElementIds.length
       : (selectedElementIds instanceof Set ? selectedElementIds.size : 0);
 
-    console.log("[MindmapSelectionManager] Updating mindmap edge visuals", {
-      delta,
-      selectedCount
-    });
+    // console.debug("[MindmapSelectionManager] Updating mindmap edge visuals", {
+    //   delta,
+    //   selectedCount
+    // });
 
     // Update visual representation of mindmap edges during live transforms
     selectedElementIds.forEach(elementId => {

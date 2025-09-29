@@ -2,7 +2,7 @@
 // Extracted from SelectionModule.ts lines 1813-1852
 // Handles shape text synchronization during transforms
 
-import Konva from "konva";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
 
 export interface ShapeTextSynchronizer {

@@ -70,7 +70,7 @@ export class SelectionModule implements RendererModule {
   private marqueeSelectionController?: MarqueeSelectionController;
   private connectorSelectionTimer: number | null = null;
   private transformLifecycle?: TransformLifecycleCoordinator;
-  private transformActive = false;
+  private readonly transformActive = false;
   private pendingConnectorRefresh: Set<string> | null = null;
   private connectorRefreshHandle: number | null = null;
   private pendingMindmapReroute: Set<string> | null = null;

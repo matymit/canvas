@@ -1,9 +1,40 @@
 # Changelog
 
+### Selection Module Phase 2 Integration (September 29, 2025)
+- Completed Phase 2 integration of SelectionModule modularization.
+- Integrated managers: TransformStateManager, ElementSynchronizer, ConnectorSelectionManager, MindmapSelectionManager, ShapeTextSynchronizer.
+- Marquee selection improvements: base-positioning from store, better cleanup timing, batched connector refresh during drag.
+- Reduced console noise (debug logs gated) and normalized TransformController snapshot to avoid crashes.
+- Known behavior: Connectors (lines/arrows) may not always live-update with marquee drag; final positions commit correctly on release.
+- Next steps: Add visual-only updates for point endpoints during drag, make finalize idempotent, Phase 3 tests + cleanup.
+
 All notable changes to the Canvas application will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.1.13] - 2025-01-25
+
+### 🔧 Connector Marquee Selection (PARTIAL FIX)
+
+- **Connector Selection**: Attempted to fix critical issue where connectors (lines and arrows) selected via marquee selection were not moving during drag operations
+- **Investigation Results**: 
+  - Root cause identified: MarqueeSelectionTool was skipping connectors during position updates
+  - Enhanced ConnectorSelectionManager with `moveSelectedConnectors()` method
+  - Fixed selection state synchronization between persistentSelection and selectionRef
+  - Added temporary draggable property enabling for connectors during marquee operations
+- **Current Status**: 
+  - ✅ Connectors are properly detected and selected (7 nodes found vs expected 7)
+  - ✅ Connectors are made draggable during operations (draggable: true)
+  - ❌ **CRITICAL ISSUE REMAINS**: Connectors still don't participate in live drag movement
+  - ❌ Base positions show {x: 0, y: 0} indicating position calculation issues
+- **Files Modified**: `MarqueeSelectionTool.tsx`, `ConnectorSelectionManager.ts`, `ElementSynchronizer.ts`
+
+### 🐛 Known Issues
+
+- Connector marquee selection still not functional despite extensive debugging
+- Only 5 elements (not 7) processed by ElementSynchronizer during transform end
+- Connectors bypass onPointerMove drag handling for unknown reasons
 
 ## [3.1.12] - 2025-01-25
 

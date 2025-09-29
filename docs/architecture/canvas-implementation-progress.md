@@ -8,6 +8,12 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 ### 🔄 Selection Module Modularization & Marquee Improvements (January 25, 2025)
 
+Update (September 29, 2025):
+- Phase 2 integration COMPLETE: SelectionModule now delegates to focused managers (transform, element sync, connectors, mindmap, text).
+- Marquee selection: improved base position capture and cleanup; connectors are refreshed during drag via scheduleRefresh.
+- Remaining glitches: connector lines/arrows may not always move visually with marquee drag; they do commit on release.
+- Next steps: visual-only endpoint updates for point endpoints during drag, idempotent finalize, Phase 3 tests + cleanup.
+
 **Repository:** `main`
 **Status:** In progress - Marquee selection improvements and beginning of SelectionModule modularization
 

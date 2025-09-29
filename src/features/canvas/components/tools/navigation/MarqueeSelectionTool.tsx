@@ -49,6 +49,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     selectedNodes: Konva.Node[];
     basePositions: Map<string, { x: number; y: number }>;
     persistentSelection: string[]; // Add persistent selection state
+    originalDraggableStates: Map<string, boolean>; // Track original draggable states
   }>({
     isSelecting: false,
     isDragging: false,
@@ -57,6 +58,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     selectedNodes: [],
     basePositions: new Map(),
     persistentSelection: [], // Initialize persistent selection
+    originalDraggableStates: new Map(), // Initialize draggable state tracking
   });
 
   useEffect(() => {
@@ -144,19 +146,52 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           marqueeRef.current.startPoint = { x: pos.x, y: pos.y };
 
           // Get all selected nodes for dragging
+          console.log("[MarqueeSelectionTool] Finding nodes for drag", {
+            persistentSelectionCount: marqueeRef.current.persistentSelection.length,
+            persistentSelection: marqueeRef.current.persistentSelection.slice(0, 5),
+            selectionRefCount: selectionRef.current.length,
+            selectionRef: selectionRef.current.slice(0, 5)
+          });
+          
           const selectedNodes = stage.find<Konva.Node>((node: Konva.Node) => {
             const elementId = node.getAttr("elementId") || node.id();
-            return elementId && selectionRef.current.includes(elementId);
+            // Use persistentSelection instead of selectionRef to ensure consistency
+            return elementId && marqueeRef.current.persistentSelection.includes(elementId);
           });
 
           console.log("[MarqueeSelectionTool] found selected nodes for drag:", selectedNodes.length);
+          
+          // Enhanced debugging for connectors
+          selectedNodes.forEach((node, index) => {
+            const elementId = node.getAttr("elementId") || node.id();
+            const element = elements.get(elementId);
+            console.log(`[MarqueeSelectionTool] Selected node ${index}:`, {
+              elementId,
+              nodeType: node.constructor.name,
+              elementType: element?.type,
+              position: node.position(),
+              draggable: node.draggable()
+            });
+          });
 
           marqueeRef.current.selectedNodes = selectedNodes;
           marqueeRef.current.basePositions.clear();
           
+          // Store original draggable states and enable dragging for connectors
+          const originalDraggableStates = new Map<string, boolean>();
+          
           // Capture base positions
           selectedNodes.forEach((node) => {
             const elementId = node.getAttr("elementId") || node.id();
+            const element = elements.get(elementId);
+            
+            // Store original draggable state and enable dragging for connectors
+            originalDraggableStates.set(elementId, node.draggable());
+            if (element?.type === 'connector') {
+              console.log(`[MarqueeSelectionTool] Enabling draggable for connector ${elementId}`);
+              node.draggable(true);
+            }
+            
             // For connectors and other groups, get the actual position
             // Connectors might not have explicit x,y positioning since they're drawn with points
             let nodePos = node.position();
@@ -208,11 +243,35 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
               }
             }
             
+            // Store original draggable state and enable dragging for connectors
+            originalDraggableStates.set(elementId, node.draggable());
+            if (element?.type === 'connector') {
+              console.log(`[MarqueeSelectionTool] Enabling draggable for connector ${elementId}`);
+              node.draggable(true);
+            }
+            
             // Use store position as base, not node position to avoid drift
             const storeElement = elements.get(elementId);
-            const storePos = storeElement ? { x: storeElement.x, y: storeElement.y } : nodePos;
+            let storePos;
+            
+            if (element?.type === 'connector') {
+              // For connectors, use the calculated center position as base
+              storePos = nodePos || { x: 0, y: 0 };
+              console.log("[MarqueeSelectionTool] Using connector center as base position", {
+                elementId,
+                centerPos: storePos,
+                originalStorePos: { x: storeElement?.x, y: storeElement?.y }
+              });
+            } else {
+              // For regular elements, use store position
+              storePos = storeElement ? { x: storeElement.x, y: storeElement.y } : nodePos;
+            }
+            
             marqueeRef.current.basePositions.set(elementId, storePos);
           });
+          
+          // Store the original draggable states for cleanup
+          marqueeRef.current.originalDraggableStates = originalDraggableStates;
 
           console.log("[MarqueeSelectionTool] captured base positions for drag:", Array.from(marqueeRef.current.basePositions.entries()));
 
@@ -315,30 +374,49 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
         marqueeRef.current.selectedNodes.forEach((node) => {
           const elementId = node.getAttr("elementId") || node.id();
           const element = store.elements?.get(elementId);
-          
-          // Skip connectors during live drag
-          if (element?.type === 'connector') {
-            console.log("[MarqueeSelectionTool] skipping connector store update during drag", {
-              elementId,
-              reason: "connectors will be updated via endpoint rerouting"
-            });
-            return;
-          }
-          
           const basePos = marqueeRef.current.basePositions.get(elementId);
+          
           if (basePos && store.updateElement) {
             const newStorePos = {
               x: basePos.x + dragDelta.dx,
               y: basePos.y + dragDelta.dy,
             };
             
-            movedElementIds.add(elementId);
+            if (element?.type === 'connector') {
+              // CRITICAL FIX: Handle connector live updates during drag
+              console.log("[MarqueeSelectionTool] updating connector position during drag", {
+                elementId,
+                oldPos: { x: element.x, y: element.y },
+                newPos: newStorePos,
+                dragDelta
+              });
+              
+              // Update connector position AND endpoints if they are point-based
+              const connectorElement = element as any;
+              const connectorPatch: any = { ...newStorePos };
+              
+              if (connectorElement.from?.kind === 'point') {
+                connectorPatch.from = {
+                  ...connectorElement.from,
+                  x: connectorElement.from.x + dragDelta.dx,
+                  y: connectorElement.from.y + dragDelta.dy,
+                };
+              }
+              if (connectorElement.to?.kind === 'point') {
+                connectorPatch.to = {
+                  ...connectorElement.to,
+                  x: connectorElement.to.x + dragDelta.dx,
+                  y: connectorElement.to.y + dragDelta.dy,
+                };
+              }
+              
+              store.updateElement(elementId, connectorPatch, { pushHistory: false });
+            } else {
+              // Handle regular elements
+              store.updateElement(elementId, newStorePos, { pushHistory: false });
+            }
             
-            store.updateElement(
-              elementId,
-              newStorePos,
-              { pushHistory: false } // Don't add to undo history during live drag
-            );
+            movedElementIds.add(elementId);
           }
         });
 
@@ -411,37 +489,95 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
         // Update elements with history for undo support
         const elementUpdates: Array<{ id: string; patch: Partial<CanvasElement> }> = [];
+        const selectedConnectorIds = new Set<string>();
+        
+        console.log("[MarqueeSelectionTool] Processing nodes for final update", {
+          nodeCount: marqueeRef.current.selectedNodes.length,
+          finalDelta,
+          hasStore: !!store,
+          hasElements: !!store.elements
+        });
+        
         marqueeRef.current.selectedNodes.forEach((node) => {
           const elementId = node.getAttr("elementId") || node.id();
           const element = store.elements?.get(elementId);
           const basePos = marqueeRef.current.basePositions.get(elementId);
           
+          console.log("[MarqueeSelectionTool] Processing node for update", {
+            elementId,
+            elementType: element?.type,
+            hasBasePos: !!basePos,
+            hasElement: !!element
+          });
+          
           if (basePos && element) {
-            // Skip connectors - they will be handled by ConnectorSelectionManager
             if (element.type === 'connector') {
-              return;
+              // Collect directly selected connectors
+              console.log("[MarqueeSelectionTool] Adding connector to selectedConnectorIds:", elementId);
+              selectedConnectorIds.add(elementId);
+            } else {
+              // Handle regular elements
+              elementUpdates.push({
+                id: elementId,
+                patch: {
+                  x: basePos.x + finalDelta.dx,
+                  y: basePos.y + finalDelta.dy,
+                },
+              });
             }
-            
-            elementUpdates.push({
-              id: elementId,
-              patch: {
-                x: basePos.x + finalDelta.dx,
-                y: basePos.y + finalDelta.dy,
-              },
-            });
           }
         });
 
+        // Update regular elements first
         if (elementUpdates.length > 0 && store.updateElements) {
           store.updateElements(elementUpdates, { pushHistory: true });
+        }
+
+        // Handle directly selected connectors using ConnectorSelectionManager
+        if (selectedConnectorIds.size > 0) {
+          console.log("[MarqueeSelectionTool] Moving selected connectors:", {
+            connectorCount: selectedConnectorIds.size,
+            delta: finalDelta,
+            connectorIds: Array.from(selectedConnectorIds)
+          });
+          
+          // Use ConnectorSelectionManager for proper connector movement
+          (window as any).connectorSelectionManager?.moveSelectedConnectors(selectedConnectorIds, finalDelta);
+          
+          // CRITICAL FIX: Also sync connectors through ElementSynchronizer
+          // The transform system filters out connectors, so we need to sync them manually
+          const connectorNodes = marqueeRef.current.selectedNodes.filter(node => {
+            const elementId = node.getAttr("elementId") || node.id();
+            return selectedConnectorIds.has(elementId);
+          });
+          
+          if (connectorNodes.length > 0) {
+            console.log("[MarqueeSelectionTool] Manually syncing connector nodes:", connectorNodes.length);
+            // Get ElementSynchronizer from window registry
+            const elementSynchronizer = (window as any).elementSynchronizer;
+            if (elementSynchronizer?.updateElementsFromNodes) {
+              elementSynchronizer.updateElementsFromNodes(connectorNodes, "drag", { pushHistory: true });
+            }
+          }
         }
 
         // End transform
         endTransform?.();
         
+        // Restore original draggable states
+        marqueeRef.current.selectedNodes.forEach((node) => {
+          const elementId = node.getAttr("elementId") || node.id();
+          const originalDraggable = marqueeRef.current.originalDraggableStates.get(elementId);
+          if (originalDraggable !== undefined) {
+            console.log(`[MarqueeSelectionTool] Restoring draggable state for ${elementId}: ${originalDraggable}`);
+            node.draggable(originalDraggable);
+          }
+        });
+        
         marqueeRef.current.isDragging = false;
         marqueeRef.current.selectedNodes = [];
         marqueeRef.current.basePositions.clear();
+        marqueeRef.current.originalDraggableStates.clear();
       }
 
       // Don't cleanup immediately here - already handled above with delay
@@ -459,6 +595,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       marqueeRef.current.selectionRect = null;
       marqueeRef.current.selectedNodes = [];
       marqueeRef.current.basePositions.clear();
+      marqueeRef.current.originalDraggableStates.clear();
       selectionRef.current = [];
     };
 

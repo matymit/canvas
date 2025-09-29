@@ -2,7 +2,7 @@
 // Extracted from SelectionModule.ts lines 1129-1162, 1206-1261, 1484-1498, 1499-1509, 1510-1554, 1562-1565, 1566-1593, 1594-1617, 1618-1692, 1693-1707, 1723-1730, 1731-1775, 1787-1812
 // Handles all connector selection and manipulation operations
 
-import Konva from "konva";
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
 import type { ConnectorElement, ConnectorEndpoint } from "../../../../types/connector";
 
@@ -17,6 +17,8 @@ export interface ConnectorSelectionManager {
   setLiveRoutingEnabled(enabled: boolean): void;
   updateElement(id: string, changes: any): void;
   handleEndpointDrag(connectorId: string, endpoint: "from" | "to", position: {x: number; y: number}): void;
+  // New method for handling direct connector movements
+  moveSelectedConnectors(connectorIds: Set<string>, delta: { dx: number; dy: number }): void;
 }
 
 export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager {
@@ -36,6 +38,7 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     this.setLiveRoutingEnabled = this.setLiveRoutingEnabled.bind(this);
     this.updateElement = this.updateElement.bind(this);
     this.handleEndpointDrag = this.handleEndpointDrag.bind(this);
+    this.moveSelectedConnectors = this.moveSelectedConnectors.bind(this);
   }
 
   // Extracted from SelectionModule.ts lines 1129-1162
@@ -114,10 +117,10 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       Array.isArray(selected) ? selected : (selected instanceof Set ? Array.from(selected) : [])
     );
 
-    console.log("[ConnectorSelectionManager] Updating connector visuals", {
-      delta,
-      selectedCount: selectedIds.size
-    });
+    // console.debug("[ConnectorSelectionManager] Updating connector visuals", {
+    //   delta,
+    //   selectedCount: selectedIds.size
+    // });
 
     // Find connectors connected to selected elements and request routing update
     if (store.elements) {
@@ -346,6 +349,63 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       this.connectorService = (window as any).connectorService;
     }
     return this.connectorService;
+  }
+
+  // New method for handling direct connector movements in marquee selection
+  moveSelectedConnectors(connectorIds: Set<string>, delta: { dx: number; dy: number }): void {
+    console.log("[ConnectorSelectionManager] Moving selected connectors", {
+      connectorCount: connectorIds.size,
+      delta,
+      connectorIds: Array.from(connectorIds).slice(0, 5)
+    });
+
+    const store = useUnifiedCanvasStore.getState();
+    const elements = store.elements;
+    
+    if (!elements || !store.updateElement) {
+      console.warn("[ConnectorSelectionManager] Store not available for connector movement");
+      return;
+    }
+
+    // Update each selected connector
+    connectorIds.forEach(connectorId => {
+      const element = elements.get(connectorId);
+      if (!element || element.type !== 'connector') {
+        console.warn(`[ConnectorSelectionManager] Element ${connectorId} is not a connector`);
+        return;
+      }
+
+      const connector = element as ConnectorElement;
+      const connectorPatch: Partial<ConnectorElement> = {
+        x: (connector.x || 0) + delta.dx,
+        y: (connector.y || 0) + delta.dy,
+      };
+      
+      // Update point-based endpoints
+      if (connector.from?.kind === 'point') {
+        connectorPatch.from = {
+          ...connector.from,
+          x: connector.from.x + delta.dx,
+          y: connector.from.y + delta.dy,
+        };
+      }
+      if (connector.to?.kind === 'point') {
+        connectorPatch.to = {
+          ...connector.to,
+          x: connector.to.x + delta.dx,
+          y: connector.to.y + delta.dy,
+        };
+      }
+
+      console.log(`[ConnectorSelectionManager] Updating connector ${connectorId}`, connectorPatch);
+      
+      store.updateElement(connectorId, connectorPatch, { pushHistory: false });
+      
+      // Trigger visual update if live routing is enabled
+      if (this.liveRoutingEnabled) {
+        this.updateConnectorRouting(connectorId);
+      }
+    });
   }
 }
 
