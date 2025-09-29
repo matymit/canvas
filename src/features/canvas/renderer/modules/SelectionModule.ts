@@ -352,17 +352,29 @@ export class SelectionModule implements RendererModule {
     const name = typeof node.name === "function" ? node.name() : "";
     if (name.includes("connector")) return "connector";
     if (name.includes("mindmap-edge")) return "mindmap-edge";
+    const className =
+      typeof (node as { getClassName?: () => string }).getClassName === "function"
+        ? (node as { getClassName: () => string }).getClassName()
+        : (node as unknown as { className?: string }).className ?? "";
+    if (className.toLowerCase().includes("connector")) return "connector";
+    if (className.toLowerCase().includes("mindmap")) return "mindmap-node";
     return "element";
   }
 
   private filterTransformableNodes(nodes: Konva.Node[]): Konva.Node[] {
     return nodes.filter((node) => {
+      const className =
+        typeof (node as { getClassName?: () => string }).getClassName ===
+        "function"
+          ? (node as { getClassName: () => string }).getClassName()
+          : // Konva nodes expose className as property; fall back if method missing
+            (node as unknown as { className?: string }).className;
       const type = this.getElementTypeForNode(node);
       const id = node.getAttr("elementId") || node.id();
       this.debugLog("Inspect node for transformer", {
         id,
         name: node.name(),
-        className: node.className,
+        className,
         type,
         nodeType: node.getAttr("nodeType"),
         elementType: node.getAttr("elementType"),
@@ -385,80 +397,82 @@ export class SelectionModule implements RendererModule {
     if (!this.storeCtx) return [];
 
     const nodes: Konva.Node[] = [];
+    const stage =
+      this.storeCtx.stage ||
+      (typeof window !== "undefined"
+        ? ((window as Window & { konvaStage?: Konva.Stage }).konvaStage ?? null)
+        : null);
 
     // Collect all available layers and filter out undefined/null ones
-    const allLayers: Array<{
-      name: string;
-      layer: Konva.Container | null;
-    }> = [
-      { name: "main", layer: this.storeCtx.layers.main },
-      { name: "highlighter", layer: this.storeCtx.layers.highlighter },
-      { name: "overlay", layer: this.storeCtx.layers.overlay },
-      { name: "preview", layer: this.storeCtx.layers.preview },
+    const allLayers: Array<Konva.Container | null> = [
+      this.storeCtx.layers.main,
+      this.storeCtx.layers.highlighter,
+      this.storeCtx.layers.overlay,
+      this.storeCtx.layers.preview,
     ];
 
-    const validLayers = allLayers
-      .filter(({ layer }) => {
-        if (!layer) {
-          return false;
-        }
-        return true;
-      })
-      .map(({ layer }) => layer);
-
-    if (validLayers.length === 0) {
-      return [];
-    }
+    const validLayers = allLayers.filter((layer): layer is Konva.Container => {
+      return Boolean(layer && typeof layer.find === "function");
+    });
 
     for (const elementId of elementIds) {
-      let found = false;
+      let resolvedNode: Konva.Node | null = null;
 
-      // Search in valid layers for nodes with elementId attribute or matching id
-      for (const layer of validLayers) {
-        // Additional safety check before calling find()
-        if (!layer || typeof layer.find !== "function") {
-          continue;
-        }
-
-        const candidatesRaw = layer.find((node: Konva.Node) => {
-          const nodeElementId =
-            node.getAttr<string | undefined>("elementId") || node.id();
-          return nodeElementId === elementId;
-        });
-
-        const candidates = Array.isArray(candidatesRaw)
-          ? (candidatesRaw as Konva.Node[])
-          : typeof (candidatesRaw as { toArray?: () => Konva.Node[] }).toArray ===
-              "function"
-            ? (candidatesRaw as { toArray: () => Konva.Node[] }).toArray()
-            : [];
-
-        if (candidates.length > 0) {
-          // Prefer groups over individual shapes for better transform experience
-          // Check for various group types: Group, table-group, image-group, etc.
-          const group = candidates.find(
-            (n) =>
-              n.className === "Group" ||
-              n.className === "table-group" ||
-              n.className === "image-group" ||
-              n.name() === "table-group" ||
-              n.name() === "image",
-          );
-          const selectedNode = group || candidates[0];
-
-          // FIXED: Ensure only one node per element ID to prevent duplicate frames
-          if (selectedNode) {
-            nodes.push(selectedNode);
-            found = true;
-          } else {
-            // Ignore error
-          }
-          break;
+      if (stage) {
+        try {
+          resolvedNode = stage.findOne<Konva.Node>(`#${elementId}`) ?? null;
+        } catch {
+          resolvedNode = null;
         }
       }
 
-      if (!found) {
-        // Ignore error
+      if (!resolvedNode) {
+        for (const layer of validLayers) {
+          try {
+            const collection = layer.find((node: Konva.Node) => {
+              const nodeElementId =
+                node.getAttr<string | undefined>("elementId") || node.id();
+              return nodeElementId === elementId;
+            });
+
+            const candidates = Array.isArray(collection)
+              ? (collection as Konva.Node[])
+              : typeof (collection as { toArray?: () => Konva.Node[] }).toArray ===
+                  "function"
+                ? (collection as { toArray: () => Konva.Node[] }).toArray()
+                : [];
+
+            if (candidates.length === 0) {
+              continue;
+            }
+
+            const preferred = candidates.find((node) => {
+              const className =
+                typeof (node as { getClassName?: () => string }).getClassName ===
+                "function"
+                  ? (node as { getClassName: () => string }).getClassName()
+                  : node.getAttr<string>("className");
+              const name = node.name();
+              return (
+                className === "Group" ||
+                name === "table-group" ||
+                name === "image" ||
+                name === "mindmap-node"
+              );
+            });
+
+            resolvedNode = preferred ?? candidates[0] ?? null;
+            if (resolvedNode) {
+              break;
+            }
+          } catch {
+            // Ignore lookup errors and continue with other layers
+          }
+        }
+      }
+
+      if (resolvedNode) {
+        nodes.push(resolvedNode);
       }
     }
 
@@ -1366,6 +1380,12 @@ export class SelectionModule implements RendererModule {
         y: snapshot.startTo.y + delta.dy,
       };
 
+      this.debugLog("applyConnectorTranslation", {
+        id,
+        from: nextFrom,
+        to: nextTo,
+      });
+
       this.updateConnectorElement(id, {
         from: nextFrom,
         to: nextTo,
@@ -1453,23 +1473,43 @@ export class SelectionModule implements RendererModule {
     id: string,
     changes: Partial<ConnectorElement>,
   ) {
+    this.debugLog("updateConnectorElement", { id, changes });
     const state = this.storeCtx?.store.getState();
     if (!state) return;
+
+    let performedUpdate = false;
 
     if (state.element?.update) {
       try {
         state.element.update(id, changes);
+        performedUpdate = true;
       } catch {
         // ignore update errors
       }
+    } else if (state.updateElement) {
+      try {
+        state.updateElement(id, changes, { pushHistory: false });
+        performedUpdate = true;
+      } catch {
+        // ignore update errors
+      }
+    }
+
+    if (!performedUpdate) {
       return;
     }
 
-    if (state.updateElement) {
-      try {
-        state.updateElement(id, changes, { pushHistory: false });
-      } catch {
-        // ignore update errors
+    const connectorService = this.getConnectorService();
+    if (connectorService) {
+      const nextState = this.storeCtx?.store.getState();
+      const connector =
+        nextState?.elements.get(id) ?? nextState?.element?.getById?.(id);
+      if (connector && connector.type === "connector") {
+        try {
+          void connectorService.updateConnector(connector as ConnectorElement);
+        } catch {
+          // Ignore renderer sync errors during drag
+        }
       }
     }
   }
