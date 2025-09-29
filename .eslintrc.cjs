@@ -64,6 +64,27 @@ module.exports = {
     // Import rules
     'import/no-default-export': 'off',
     'import/prefer-default-export': 'off',
+    
+    // Canvas project architectural constraints
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['react-konva', 'react-konva/*'],
+            message: 'react-konva is forbidden in this project. Use vanilla Konva.js directly (Konva.Stage, Konva.Layer, Konva.Node) as per architectural requirements.'
+          },
+          {
+            group: ['@konva/react', '@konva/react/*'],
+            message: '@konva/react is forbidden in this project. Use vanilla Konva.js directly (Konva.Stage, Konva.Layer, Konva.Node) as per architectural requirements.'
+          },
+          {
+            group: ['react-canvas-konva', 'react-canvas-konva/*'],
+            message: 'react-canvas-konva is forbidden in this project. Use vanilla Konva.js directly (Konva.Stage, Konva.Layer, Konva.Node) as per architectural requirements.'
+          }
+        ]
+      }
+    ],
   },
   settings: {
     react: {

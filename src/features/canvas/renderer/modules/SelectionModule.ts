@@ -24,6 +24,7 @@ import {
 import { TransformController } from "./selection/controllers/TransformController";
 import { MindmapController } from "./selection/controllers/MindmapController";
 import { TransformLifecycleCoordinator } from "./selection/controllers/TransformLifecycleCoordinator";
+import { MarqueeSelectionController } from "./selection/controllers/MarqueeSelectionController";
 import type { TransformSnapshot, ConnectorSnapshot } from "./selection/types";
 
 // Element update interface
@@ -65,6 +66,7 @@ export class SelectionModule implements RendererModule {
   private unsubscribeVersion?: () => void;
   private transformController?: TransformController;
   private mindmapController?: MindmapController;
+  private marqueeSelectionController?: MarqueeSelectionController;
   private connectorSelectionTimer: number | null = null;
   private transformLifecycle?: TransformLifecycleCoordinator;
   private transformActive = false;
@@ -191,6 +193,24 @@ export class SelectionModule implements RendererModule {
         if (!renderer) return;
         renderer.renderEdge(edge, getPoint);
       },
+    });
+
+    // Initialize MarqueeSelectionController
+    this.marqueeSelectionController = new MarqueeSelectionController({
+      elements: () => {
+        const state = this.storeCtx?.store.getState();
+        return state?.elements || new Map();
+      },
+      setSelection: (ids) => {
+        const state = this.storeCtx?.store.getState();
+        if (state?.setSelection) {
+          state.setSelection(ids);
+        }
+      },
+      onSelectionComplete: (selectedIds) => {
+        this.debugLog("MarqueeSelectionController: selection completed", selectedIds);
+      },
+      debug: (message, data) => this.debugLog(message, data),
     });
 
     this.transformLifecycle = new TransformLifecycleCoordinator(
@@ -734,6 +754,16 @@ export class SelectionModule implements RendererModule {
     if (movedMindmapNodeIds.size > 0) {
       this.scheduleMindmapReroute(movedMindmapNodeIds);
     }
+  }
+
+  // FIXED: Public API for marquee selection to integrate with modular architecture
+  selectElementsInBounds(
+    stage: Konva.Stage,
+    bounds: { x: number; y: number; width: number; height: number },
+    options: { additive?: boolean } = {}
+  ): string[] {
+    if (!this.marqueeSelectionController) return [];
+    return this.marqueeSelectionController.selectElementsInBounds(stage, bounds, options);
   }
 
   // FIXED: Public API for other modules to trigger selection with proper store integration

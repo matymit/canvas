@@ -72,6 +72,10 @@ export function setupRenderer(
       if (moduleInstance instanceof PortHoverModule && typeof window !== "undefined") {
         window.portHoverModule = moduleInstance;
       }
+      // Expose SelectionModule for marquee selection and other tools
+      if (moduleInstance instanceof SelectionModule && typeof window !== "undefined") {
+        (window as any).selectionModule = moduleInstance;
+      }
       return dispose;
     } catch (error) {
       return () => {}; // Return no-op dispose function

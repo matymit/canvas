@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
+    "preinstall": "node scripts/check-forbidden-packages.cjs",
     "dev": "vite --host",
     "build": "vite build",
     "build:analyze": "vite build --analyze",
@@ -95,5 +96,16 @@
   "engines": {
     "node": ">=16.0.0",
     "npm": ">=8.0.0"
+  },
+  "overrides": {
+    "react-konva": {
+      ".": false
+    },
+    "@konva/react": {
+      ".": false
+    },
+    "react-canvas-konva": {
+      ".": false
+    }
   }
 }

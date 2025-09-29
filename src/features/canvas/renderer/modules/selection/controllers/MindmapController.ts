@@ -1,6 +1,6 @@
 import { getNodeConnectionPoint } from "@features/canvas/types/mindmap";
 import type { TransformSnapshot } from "../types";
-import { MindmapNodeProjector, MindmapEdgeRenderer } from "../types";
+import type { MindmapNodeProjector, MindmapEdgeRenderer } from "../types";
 
 interface MindmapControllerDeps {
   projectNode: MindmapNodeProjector;
