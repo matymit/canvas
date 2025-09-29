@@ -193,9 +193,7 @@ export class TransformerManager {
     this.overlay.batchDraw();
 
     if (this.transformer && live.length > 0) {
-      this.applyElementConstraints(live);
-
-      live.forEach(node => {
+      live.forEach((node) => {
         if (!Object.prototype.hasOwnProperty.call(node, '_originalDraggable')) {
           node.setAttr('_originalDraggable', node.draggable());
         }
@@ -204,6 +202,7 @@ export class TransformerManager {
 
       this.transformer.nodes(live);
       this.transformer.visible(true);
+      this.applyElementConstraints(live);
       this.overlay.batchDraw();
     }
   }
@@ -255,6 +254,11 @@ export class TransformerManager {
     if (!this.transformer) return;
     this.transformer.visible(false);
     this.overlay.batchDraw();
+  }
+
+  getTransformer(): Konva.Transformer | null {
+    this.ensureTransformer();
+    return this.transformer;
   }
 
   /**

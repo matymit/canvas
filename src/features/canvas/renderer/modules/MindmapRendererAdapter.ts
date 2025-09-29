@@ -194,6 +194,10 @@ export class MindmapRendererAdapter implements RendererModule {
   mount(ctx: ModuleRendererCtx): () => void {
     // Create MindmapRenderer instance
     this.renderer = new MindmapRenderer(ctx.layers, ctx.store);
+    if (typeof window !== "undefined") {
+      (window as Window & { mindmapRenderer?: MindmapRenderer }).mindmapRenderer =
+        this.renderer;
+    }
 
     // Subscribe to store changes - watch mindmap elements
     this.unsubscribe = ctx.store.subscribe(
@@ -254,6 +258,10 @@ export class MindmapRendererAdapter implements RendererModule {
   private unmount() {
     if (this.unsubscribe) {
       this.unsubscribe();
+    }
+    if (typeof window !== "undefined") {
+      delete (window as Window & { mindmapRenderer?: MindmapRenderer })
+        .mindmapRenderer;
     }
     // Cleanup mindmap elements manually
     const layer = (this.renderer as unknown as { layers: { main: Konva.Layer } }).layers.main;
