@@ -43,7 +43,7 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return;
     }
 
-    console.log("[TransformStateManager] Beginning transform", {
+    // console.debug("[TransformStateManager] Beginning transform", {
       nodeCount: nodes.length,
       source,
       nodeTypes: nodes.map(n => n.getAttr("nodeType") || n.constructor.name)
@@ -68,7 +68,8 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return;
     }
 
-    console.log("[TransformStateManager] Progress transform", {
+    // console.debug can be re-enabled when needed
+    // console.debug("[TransformStateManager] Progress transform", {
       nodeCount: nodes.length,
       source,
       elapsed: Date.now() - this.currentSnapshot.transformStartTime
@@ -85,7 +86,7 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return;
     }
 
-    console.log("[TransformStateManager] Ending transform", {
+    // console.debug("[TransformStateManager] Ending transform", {
       nodeCount: nodes.length,
       source,
       duration: this.currentSnapshot ? Date.now() - this.currentSnapshot.transformStartTime : 0
@@ -166,7 +167,7 @@ export class TransformStateManagerImpl implements TransformStateManager {
       return null;
     }
 
-    console.log("[TransformStateManager] Capturing transform snapshot", {
+    // console.debug("[TransformStateManager] Capturing transform snapshot", {
       nodeCount: initialNodes.length,
       timestamp: Date.now()
     });

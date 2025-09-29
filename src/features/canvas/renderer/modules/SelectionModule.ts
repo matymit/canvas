@@ -486,8 +486,14 @@ export class SelectionModule implements RendererModule {
   private beginSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
     // Delegate to TransformStateManager
     transformStateManager.beginTransform(nodes, source);
-    // Legacy body removed in favor of manager orchestration
-    return;
+
+    // Minimal orchestration to keep snapshot for visual updates
+    const snapshot = this.captureTransformSnapshot(nodes);
+    if (snapshot) {
+      this.transformController?.start(snapshot);
+    } else {
+      this.transformController?.clearSnapshot();
+    }
   }
 
   private progressSelectionTransform(
@@ -496,15 +502,29 @@ export class SelectionModule implements RendererModule {
   ) {
     // Delegate to TransformStateManager
     transformStateManager.progressTransform(nodes, source);
-    // Legacy body removed in favor of manager orchestration
-    return;
+
+    // Live visual updates for connectors and mindmap edges using existing controller
+    const delta = this.transformController?.computeDelta(nodes);
+    if (!delta) return;
+
+    this.updateConnectorVisuals(delta);
+    this.updateMindmapEdgeVisuals(delta);
   }
 
   private endSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
     // Delegate to TransformStateManager
     transformStateManager.endTransform(nodes, source);
-    // Legacy body removed in favor of manager orchestration
-    return;
+
+    // Commit final positions and clean up visuals
+    if (nodes.length > 0) {
+      this.updateElementsFromNodes(nodes, true);
+      const delta = this.transformController?.computeDelta(nodes);
+      if (delta) {
+        connectorSelectionManager.commitTranslation(delta);
+      }
+    }
+
+    this.finalizeTransform();
   }
 
   // Deprecated in favor of ElementSynchronizer
@@ -1211,8 +1231,7 @@ export class SelectionModule implements RendererModule {
   }
 
   private captureTransformSnapshot(initialNodes?: Konva.Node[]): TransformSnapshot | null {
-    // Delegate to TransformStateManager
-    return transformStateManager.captureSnapshot(initialNodes) as any;
+    // Use module-local snapshot structure expected by TransformController
     if (!this.storeCtx) return null;
 
     const state = this.storeCtx.store.getState();

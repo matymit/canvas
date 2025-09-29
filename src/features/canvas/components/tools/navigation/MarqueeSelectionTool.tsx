@@ -311,11 +311,12 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
         // Update element positions in store for connectors/mindmap (without history)
         const store = useUnifiedCanvasStore.getState();
+        const movedElementIds = new Set<string>();
         marqueeRef.current.selectedNodes.forEach((node) => {
           const elementId = node.getAttr("elementId") || node.id();
           const element = store.elements?.get(elementId);
           
-          // Handle connectors differently - update their center position
+          // Skip connectors during live drag
           if (element?.type === 'connector') {
             console.log("[MarqueeSelectionTool] skipping connector store update during drag", {
               elementId,
@@ -331,13 +332,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
               y: basePos.y + dragDelta.dy,
             };
             
-            console.log("[MarqueeSelectionTool] updating element in store", {
-              elementId,
-              basePos,
-              newStorePos,
-              dragDelta,
-              elementType: element?.type
-            });
+            movedElementIds.add(elementId);
             
             store.updateElement(
               elementId,
@@ -346,6 +341,11 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
             );
           }
         });
+
+        // Ask connector manager to refresh connectors attached to moved elements (batched via RAF)
+        if (typeof window !== 'undefined' && movedElementIds.size > 0) {
+          (window as any).connectorSelectionManager?.scheduleRefresh(movedElementIds);
+        }
 
         // Redraw relevant layers
         const layers = stage.getLayers();

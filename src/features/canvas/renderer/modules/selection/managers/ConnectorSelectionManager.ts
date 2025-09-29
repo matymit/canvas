@@ -107,28 +107,35 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
   // Extracted from SelectionModule.ts lines 1484-1498
   updateVisuals(delta: { dx: number; dy: number }): void {
     const store = useUnifiedCanvasStore.getState();
-    const selectedElementIds = store.selectedElementIds;
-    
-    if (!selectedElementIds || (Array.isArray(selectedElementIds) ? selectedElementIds.length === 0 : (selectedElementIds instanceof Set ? selectedElementIds.size === 0 : true))) {
-      return;
-    }
+    const selected = store.selectedElementIds;
 
-    const selectedCount = Array.isArray(selectedElementIds)
-      ? selectedElementIds.length
-      : (selectedElementIds instanceof Set ? selectedElementIds.size : 0);
+    // Normalize selected IDs into a Set<string>
+    const selectedIds = new Set<string>(
+      Array.isArray(selected) ? selected : (selected instanceof Set ? Array.from(selected) : [])
+    );
 
     console.log("[ConnectorSelectionManager] Updating connector visuals", {
       delta,
-      selectedCount
+      selectedCount: selectedIds.size
     });
 
-    // Update visual representation during live transforms
-    selectedElementIds.forEach(elementId => {
-      const element = store.elements?.get(elementId);
-      if (element?.type === 'connector') {
-        this.updateConnectorVisualPosition(elementId, delta);
-      }
-    });
+    // Find connectors connected to selected elements and request routing update
+    if (store.elements) {
+      store.elements.forEach((el, id) => {
+        if (el?.type === 'connector') {
+          const c = el as ConnectorElement;
+          const fromEl = c.from?.kind === 'element' ? c.from.elementId : null;
+          const toEl = c.to?.kind === 'element' ? c.to.elementId : null;
+          if ((fromEl && selectedIds.has(fromEl)) || (toEl && selectedIds.has(toEl))) {
+            try {
+              this.updateConnectorRouting(id);
+            } catch (e) {
+              // ignore routing errors during live drag
+            }
+          }
+        }
+      });
+    }
   }
 
   // Extracted from SelectionModule.ts lines 1499-1509
@@ -286,10 +293,27 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
   // Helper methods
 
   private updateConnectorRouting(connectorId: string): void {
-    // Get connector service and update routing
+    // Try connector service first
     const connectorService = this.getConnectorService();
-    if (connectorService?.updateRouting) {
-      connectorService.updateRouting(connectorId);
+    try {
+      if (connectorService?.updateRouting) {
+        connectorService.updateRouting(connectorId);
+        return;
+      }
+      if (connectorService?.forceRerouteElement) {
+        connectorService.forceRerouteElement(connectorId);
+        return;
+      }
+    } catch {
+      // ignore service errors
+    }
+
+    // Fallback: force a no-op update to trigger re-render
+    const store = useUnifiedCanvasStore.getState();
+    try {
+      store.updateElement?.(connectorId, (existing: any) => ({ ...existing }), { pushHistory: false });
+    } catch {
+      // ignore
     }
   }
 
