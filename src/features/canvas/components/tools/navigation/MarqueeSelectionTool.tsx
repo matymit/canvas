@@ -208,7 +208,10 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
               }
             }
             
-            marqueeRef.current.basePositions.set(elementId, { x: nodePos.x, y: nodePos.y });
+            // Use store position as base, not node position to avoid drift
+            const storeElement = elements.get(elementId);
+            const storePos = storeElement ? { x: storeElement.x, y: storeElement.y } : nodePos;
+            marqueeRef.current.basePositions.set(elementId, storePos);
           });
 
           console.log("[MarqueeSelectionTool] captured base positions for drag:", Array.from(marqueeRef.current.basePositions.entries()));
@@ -312,9 +315,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           const elementId = node.getAttr("elementId") || node.id();
           const element = store.elements?.get(elementId);
           
-          // Skip connectors from store position updates
+          // Handle connectors differently - update their center position
           if (element?.type === 'connector') {
-            console.log("[MarqueeSelectionTool] skipping connector store update", {
+            console.log("[MarqueeSelectionTool] skipping connector store update during drag", {
               elementId,
               reason: "connectors will be updated via endpoint rerouting"
             });
@@ -384,11 +387,14 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
         });
         selectElementsInBounds(selectionBounds);
         
-        // Don't cleanup immediately - let the selection persist for potential dragging
-        console.log("[MarqueeSelectionTool] delaying cleanup to preserve selection");
-        setTimeout(() => {
-          cleanup();
-        }, 100);
+        // Clean up selection rectangle immediately but preserve selection state
+        if (marqueeRef.current.selectionRect) {
+          marqueeRef.current.selectionRect.destroy();
+          overlayLayer.batchDraw();
+          marqueeRef.current.selectionRect = null;
+        }
+        marqueeRef.current.isSelecting = false;
+        marqueeRef.current.startPoint = null;
       } else {
         console.log("[MarqueeSelectionTool] marquee too small, not selecting");
         cleanup();
@@ -407,8 +413,15 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
         const elementUpdates: Array<{ id: string; patch: Partial<CanvasElement> }> = [];
         marqueeRef.current.selectedNodes.forEach((node) => {
           const elementId = node.getAttr("elementId") || node.id();
+          const element = store.elements?.get(elementId);
           const basePos = marqueeRef.current.basePositions.get(elementId);
-          if (basePos) {
+          
+          if (basePos && element) {
+            // Skip connectors - they will be handled by ConnectorSelectionManager
+            if (element.type === 'connector') {
+              return;
+            }
+            
             elementUpdates.push({
               id: elementId,
               patch: {

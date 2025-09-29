@@ -22,6 +22,7 @@ import {
   resolveElementsToNodes,
 } from "./selection/SelectionResolver";
 import { TransformController } from "./selection/controllers/TransformController";
+import { transformStateManager, elementSynchronizer, connectorSelectionManager, mindmapSelectionManager, shapeTextSynchronizer } from "./selection/managers";
 import { MindmapController } from "./selection/controllers/MindmapController";
 import { TransformLifecycleCoordinator } from "./selection/controllers/TransformLifecycleCoordinator";
 import { MarqueeSelectionController } from "./selection/controllers/MarqueeSelectionController";
@@ -483,6 +484,8 @@ export class SelectionModule implements RendererModule {
   }
 
   private beginSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
+    // Delegate to TransformStateManager
+    transformStateManager.beginTransform(nodes, source);
     if (this.transformActive) {
       return;
     }
@@ -510,6 +513,8 @@ export class SelectionModule implements RendererModule {
     nodes: Konva.Node[],
     source: "drag" | "transform",
   ) {
+    // Delegate to TransformStateManager
+    transformStateManager.progressTransform(nodes, source);
     if (!this.transformActive) {
       return;
     }
@@ -528,6 +533,8 @@ export class SelectionModule implements RendererModule {
   }
 
   private endSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
+    // Delegate to TransformStateManager
+    transformStateManager.endTransform(nodes, source);
     if (!this.transformActive) {
       this.finalizeTransform();
       return;
@@ -576,7 +583,9 @@ export class SelectionModule implements RendererModule {
     nodes: Konva.Node[],
     commitWithHistory: boolean,
   ) {
-    if (!this.storeCtx) return;
+    // Delegate to ElementSynchronizer for store updates
+    elementSynchronizer.updateElementsFromNodes(nodes, "transform", { pushHistory: commitWithHistory, batchUpdates: true });
+    return;
 
     const store = this.storeCtx.store.getState();
     const updateElement = store.element?.update;
@@ -1127,6 +1136,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private scheduleConnectorRefresh(elementIds: Set<string>) {
+    // Delegate to ConnectorSelectionManager
+    connectorSelectionManager.scheduleRefresh(elementIds);
+    return;
     if (elementIds.size === 0) return;
 
     if (this.transformController?.isActive()) {
@@ -1161,6 +1173,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private scheduleMindmapReroute(nodeIds: Set<string>) {
+    // Delegate to MindmapSelectionManager
+    mindmapSelectionManager.scheduleReroute(nodeIds);
+    return;
     if (nodeIds.size === 0) return;
 
     if (this.transformController?.isActive()) {
@@ -1194,6 +1209,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private performMindmapReroute(nodeIds: Set<string>) {
+    // Delegate to MindmapSelectionManager
+    mindmapSelectionManager.performReroute(nodeIds);
+    return;
     const renderer = this.getMindmapRenderer();
     if (!renderer || nodeIds.size === 0) return;
     try {
@@ -1204,6 +1222,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private refreshConnectedConnectors(elementIds: Set<string>) {
+    // Delegate to ConnectorSelectionManager
+    connectorSelectionManager.refreshConnectedConnectors(elementIds);
+    return;
     if (!this.storeCtx) return;
     const state = this.storeCtx.store.getState();
     const affectedConnectorIds: string[] = [];
@@ -1260,6 +1281,8 @@ export class SelectionModule implements RendererModule {
   }
 
   private captureTransformSnapshot(initialNodes?: Konva.Node[]): TransformSnapshot | null {
+    // Delegate to TransformStateManager
+    return transformStateManager.captureSnapshot(initialNodes) as any;
     if (!this.storeCtx) return null;
 
     const state = this.storeCtx.store.getState();
@@ -1465,6 +1488,8 @@ export class SelectionModule implements RendererModule {
   }
 
   private finalizeTransform() {
+    // Delegate common finalization to TransformStateManager
+    transformStateManager.finalizeTransform();
     this.transformController?.release();
 
     if (typeof window !== "undefined") {
@@ -1553,6 +1578,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private updateMindmapEdgeVisuals(delta: { dx: number; dy: number }) {
+    // Delegate to MindmapSelectionManager
+    mindmapSelectionManager.updateEdgeVisuals(delta);
+    return;
     const snapshot = this.transformController?.getSnapshot();
     if (!snapshot) return;
 
@@ -1560,6 +1588,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private commitConnectorTranslation(delta: { dx: number; dy: number }) {
+    // Delegate to ConnectorSelectionManager
+    connectorSelectionManager.commitTranslation(delta);
+    return;
     this.transformController?.commitConnectorTranslation(delta);
   }
 
@@ -1691,6 +1722,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private setLiveRoutingEnabled(enabled: boolean) {
+    // Delegate to ConnectorSelectionManager
+    connectorSelectionManager.setLiveRoutingEnabled(enabled);
+    return;
     const service = this.getConnectorService();
     if (!service) return;
 
@@ -1706,6 +1740,9 @@ export class SelectionModule implements RendererModule {
   }
 
   private setMindmapLiveRoutingEnabled(enabled: boolean) {
+    // Delegate to MindmapSelectionManager
+    mindmapSelectionManager.setLiveRoutingEnabled(enabled);
+    return;
     const renderer = this.getMindmapRenderer();
     if (!renderer) return;
 
@@ -1732,6 +1769,9 @@ export class SelectionModule implements RendererModule {
     id: string,
     changes: Partial<ConnectorElement>,
   ) {
+    // Delegate to ConnectorSelectionManager
+    connectorSelectionManager.updateElement(id, changes);
+    return;
     this.debugLog("updateConnectorElement", { id, changes });
     const state = this.storeCtx?.store.getState();
     if (!state) return;
@@ -1774,6 +1814,8 @@ export class SelectionModule implements RendererModule {
   }
 
   private getMindmapRenderer(): MindmapRenderer | null {
+    // Delegate to MindmapSelectionManager
+    return mindmapSelectionManager.getRenderer();
     if (typeof window === "undefined") return null;
     return (
       (window as Window & { mindmapRenderer?: MindmapRenderer }).mindmapRenderer ||
@@ -1811,6 +1853,9 @@ export class SelectionModule implements RendererModule {
    * This method calls the ShapeRenderer to update text positions in real-time during resize
    */
   private syncShapeTextDuringTransform(nodes: Konva.Node[]) {
+    // Delegate to ShapeTextSynchronizer
+    shapeTextSynchronizer.syncTextDuringTransform(nodes);
+    return;
     try {
       // Get the global ShapeRenderer instance from the window
       const shapeRenderer = typeof window !== "undefined" ? window.shapeRenderer : undefined;

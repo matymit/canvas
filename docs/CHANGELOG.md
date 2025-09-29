@@ -5,6 +5,28 @@ All notable changes to the Canvas application will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.12] - 2025-01-25
+
+### 🔄 Selection System Modularization
+
+- **Marquee Selection**: Enhanced marquee selection tool with improved connector handling and better positioning logic. Fixed issues with connector selection and position tracking during drag operations.
+- **SelectionModule Refactoring**: Began systematic modularization of the large SelectionModule.ts file (1,853 lines). Created MarqueeSelectionController as the first extracted component following established controller patterns.
+- **Selection Improvements**: Better coordinate handling for mixed element types (sticky notes, mindmap nodes, connectors). Added delay mechanisms to preserve selection state during complex drag operations.
+- **Technical Planning**: Added comprehensive modularization plans (SELECTION_MODULE_MODULARIZATION_PLAN.md) with line-by-line analysis for breaking down the monolithic selection system.
+- **Architecture Integrity**: Maintained four-layer pipeline and store-driven patterns during refactoring work.
+
+### 🐛 Bug Fixes
+
+- Fixed connector center position calculations for more accurate selection behavior
+- Improved marquee selection bounds calculation with better area handling
+- Enhanced element filtering during marquee selection operations
+
+### 📋 Known Issues
+
+- Connector selection still has positioning inconsistencies in some scenarios
+- Marquee frame size calculations need refinement for connector elements
+- SelectionModule.ts remains large (1,853 lines) - ongoing modularization work
+
 ## [3.1.11] - 2025-09-28
 
 ### 🧭 Marquee Selection & Connector Routing

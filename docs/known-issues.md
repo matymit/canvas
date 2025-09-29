@@ -2,11 +2,30 @@
 
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
 
-## 🚨 STATUS (September 27, 2025)
+## 🚨 STATUS (January 25, 2025)
+
+### 🔄 ONGOING: Selection System Modularization
+
+**Repository State:** `main` branch  
+**Status:** In progress - Marquee selection improvements with modularization work
+
+#### Current Work (January 25, 2025)
+
+0. **🖱️ Marquee Selection Connector Handling (IMPROVED - January 25, 2025)**
+   - **Issue**: Connectors were not properly handled during marquee selection operations, leading to positioning inconsistencies
+   - **Improvements**: Enhanced connector center position calculations, better coordinate handling for mixed element types
+   - **Current Status**: Significantly improved but still has some edge cases with positioning consistency
+   - **Remaining Issues**: Marquee frame size calculations need refinement for connector elements; some connectors still experience minor positioning drift
+
+0. **🏗️ SelectionModule Modularization (IN PROGRESS - January 25, 2025)**  
+   - **Issue**: SelectionModule.ts is 1,853 lines - too large for maintainability and testing
+   - **Progress**: Created MarqueeSelectionController as first extracted component; established controller pattern
+   - **Status**: Phase 1 complete, comprehensive implementation plan documented
+   - **Target**: Reduce SelectionModule.ts to <500 lines through systematic modularization
 
 ### ❌ BROKEN: Phase 18 MVP Features Status
 
-**Repository State:** `eslint-phase17-store-typing` branch
+**Repository State:** Previous work status maintained  
 **Status:** Multiple critical features broken with recent regressions
 
 #### Recently Addressed

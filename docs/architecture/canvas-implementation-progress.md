@@ -4,7 +4,32 @@
 
 This document tracks the implementation progress of the FigJam-style modular canvas application, ensuring all tools and systems follow the four-layer pipeline architecture with store-driven rendering.
 
-## 🚨 STATUS UPDATE (September 27, 2025)
+## 🚨 STATUS UPDATE (January 25, 2025)
+
+### 🔄 Selection Module Modularization & Marquee Improvements (January 25, 2025)
+
+**Repository:** `main`
+**Status:** In progress - Marquee selection improvements and beginning of SelectionModule modularization
+
+- **🖱️ Marquee Selection Enhancements**
+  - Improved connector handling during marquee selection operations
+  - Enhanced marquee selection bounds calculation and positioning logic
+  - Better coordinate handling for mixed element types (sticky notes, mindmap nodes, connectors)
+  - Added connector center position calculations for more accurate selection behavior
+  - Implemented delay mechanisms to preserve selection state during drag operations
+- **🏗️ Selection System Modularization (Phase 1)**
+  - Started systematic modularization of the large SelectionModule.ts (1,853 lines)
+  - Created MarqueeSelectionController as first extracted component
+  - Established controller pattern for future modularization phases
+  - Added comprehensive implementation plans for complete SelectionModule refactoring
+- **📝 Technical Planning**
+  - Created SELECTION_MODULE_MODULARIZATION_PLAN.md with line-by-line analysis
+  - Documented approach for breaking down monolithic selection system
+  - Established patterns for maintaining architectural integrity during refactoring
+- **⚠️ Outstanding Issues**
+  - Connector selection still has some positioning inconsistencies
+  - Marquee frame size calculations need refinement for connector elements
+  - SelectionModule.ts remains 1,853 lines (target: reduce to <500 lines)
 
 ### ✅ Interaction Stabilization & Editor Polish (September 27, 2025)
 

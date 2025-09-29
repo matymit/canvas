@@ -1,7 +1,53 @@
 # SelectionModule.ts Complete Implementation Plan
 **Target**: Systematically account for and refactor all 1,852 lines in SelectionModule.ts  
 **Status**: Ready for implementation following architectural principles  
-**Validation**: Expert-verified approach with Perplexity and Exa analysis  
+**Validation**: Expert-verified approach with Perplexity and Exa analysis
+
+## Architecture Compliance ✅
+
+This plan follows the CANVAS _MASTER_BLUEPRINT.md requirements:
+- ✅ Maintains 4-layer rendering pipeline (Background, Main, Preview, Overlay)
+- ✅ Uses vanilla Konva.js directly (no react-konva)
+- ✅ Preserves store-driven pattern with Zustand + Immer
+- ✅ Maintains RAF batching for performance
+- ✅ Uses withUndo for user-initiated state changes
+- ✅ Follows single responsibility principle per expert validation
+
+## Expert Validation ✅
+
+**Perplexity Analysis**: Confirmed approach is architecturally sound
+- ✅ Single Responsibility Principle for each module
+- ✅ Store-driven coordination via Zustand state  
+- ✅ Minimal API surface with explicit interfaces
+- ✅ Dependency injection pattern
+- ✅ No cyclic dependencies
+
+**Exa Code Research**: Found similar modularization patterns in other canvas systems
+- ✅ SelectionVisuals class patterns in BPMN designers
+- ✅ Modular selection management approaches
+- ✅ Event-driven coordination patterns
+
+## Current State Analysis
+
+### Already Extracted (1,062 lines)
+- `MarqueeSelectionController.ts` (218 lines) - Marquee selection logic
+- `TransformController.ts` (209 lines) - Transform operations
+- `SelectionResolver.ts` (204 lines) - Element resolution utilities
+- `TransformLifecycleCoordinator.ts` (137 lines) - Transform lifecycle management
+- `MindmapController.ts` (28 lines) - Basic mindmap operations
+- `types.ts` (49 lines) - Type definitions
+- Tests (217 lines) - Unit tests
+
+### Immediate Priority: Marquee Selection Bug Fixes
+**Critical Issue**: Based on DEVELOPER_HANDOVER.md, there are urgent bugs in MarqueeSelectionTool.tsx lines 393-448:
+- Selected elements don't maintain relative positions during drag operations
+- Selection bounding box expands unexpectedly after drag operations
+- Connectors sometimes "jump" outside the selection frame
+- Empty space appears in the middle of selections
+- Base position calculation issues
+- Connector center position calculation problems
+
+**Root Cause**: The monolithic SelectionModule.ts (1,852 lines) is too complex to debug effectively  
 
 ## 📊 Complete Line-by-Line Analysis
 
@@ -322,6 +368,66 @@ selection/
 2. Validate 60fps performance maintained
 3. Verify undo/redo functionality
 4. Check RAF batching preserved
+
+---
+
+## 🧪 Risk Mitigation & Testing Strategy
+
+### High-Risk Areas (Extreme Caution Required)
+- Transform logic coordination (lines 485-574, 1262-1483)
+- Connector management integration (lines 1129-1692) 
+- Element-node synchronization (lines 575-909)
+- Core module mounting and dependencies (lines 78-265)
+
+### Validation Strategy
+- Run `npm run type-check && npm run lint` after each phase
+- Test canvas selection functionality after each extraction
+- Verify 60fps performance maintained throughout
+- Check RAF batching patterns preserved
+- Validate undo/redo operations work correctly
+- Monitor for memory leaks in Konva event handlers
+
+### Integration Testing Requirements
+- Marquee selection with multiple element types
+- Transform operations on mixed selections  
+- Connector endpoint dragging
+- Mindmap node rerouting
+- Shape text synchronization during resize
+
+### Rollback Strategy
+- Git commits after each successful module extraction
+- Feature flag toggles for new modules
+- Emergency recovery commands documented in DEVELOPER_HANDOVER.md
+
+## ⏱️ Implementation Timeline
+
+### Phase 0: Immediate Bug Fixes (4-6 hours)
+**Priority**: Fix marquee selection bugs in MarqueeSelectionTool.tsx lines 393-448
+- Debug base position calculation
+- Fix connector center position calculation
+- Ensure selection state persistence during drag operations
+- Resolve bounding box expansion issues
+
+### Phase 1: Create Manager Infrastructure (6-8 hours)
+1. Create `selection/managers/` directory
+2. Set up base interfaces and dependencies
+3. Create stub implementations
+4. Extract TransformStateManager.ts (366 lines)
+5. Extract ElementSynchronizer.ts (335 lines)
+
+### Phase 2: Connector & Mindmap Management (8-10 hours)
+1. Extract ConnectorSelectionManager.ts (386 lines)
+2. Extract MindmapSelectionManager.ts (76 lines)
+3. Extract ShapeTextSynchronizer.ts (40 lines)
+4. Update SelectionModule to use managers
+
+### Phase 3: Final Integration & Validation (6-8 hours)
+1. Update SelectionModule to orchestrator pattern
+2. Run comprehensive test suite
+3. Performance validation
+4. Documentation updates
+
+**Total Estimated Time**: 24-32 hours of focused development
 
 ---
 
