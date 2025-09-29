@@ -486,27 +486,8 @@ export class SelectionModule implements RendererModule {
   private beginSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
     // Delegate to TransformStateManager
     transformStateManager.beginTransform(nodes, source);
-    if (this.transformActive) {
-      return;
-    }
-
-    const store = this.storeCtx?.store.getState();
-    if (store?.beginTransform) {
-      store.beginTransform();
-    }
-
-    this.transformActive = true;
-    const snapshot = this.captureTransformSnapshot(nodes);
-    if (snapshot) {
-      this.transformController?.start(snapshot);
-    } else {
-      this.transformController?.clearSnapshot();
-    }
-
-    this.debugLog("Transform started", {
-      source,
-      nodeCount: nodes.length,
-    });
+    // Legacy body removed in favor of manager orchestration
+    return;
   }
 
   private progressSelectionTransform(
@@ -515,70 +496,19 @@ export class SelectionModule implements RendererModule {
   ) {
     // Delegate to TransformStateManager
     transformStateManager.progressTransform(nodes, source);
-    if (!this.transformActive) {
-      return;
-    }
-
-    if (source === "transform") {
-      this.syncShapeTextDuringTransform(nodes);
-    }
-
-    const delta = this.transformController?.computeDelta(nodes);
-    if (!delta) {
-      return;
-    }
-
-    this.updateConnectorVisuals(delta);
-    this.updateMindmapEdgeVisuals(delta);
+    // Legacy body removed in favor of manager orchestration
+    return;
   }
 
   private endSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
     // Delegate to TransformStateManager
     transformStateManager.endTransform(nodes, source);
-    if (!this.transformActive) {
-      this.finalizeTransform();
-      return;
-    }
-
-    if (nodes.length > 0) {
-      this.updateElementsFromNodes(nodes, true);
-
-      const delta = this.transformController?.computeDelta(nodes);
-      if (delta) {
-        this.commitConnectorTranslation(delta);
-      }
-    }
-
-    this.finalizeTransform();
-
-    const store = this.storeCtx?.store.getState();
-    if (store?.endTransform) {
-      store.endTransform();
-    }
-
-    this.transformActive = false;
-
-    if (this.storeCtx) {
-      const currentState = this.storeCtx.store.getState();
-      const selectedSet = this.toStringSet(currentState.selectedElementIds);
-
-      if (selectedSet.size > 0) {
-        this.refreshTransformerForSelection(selectedSet);
-      } else {
-        this.transformLifecycle?.detach();
-        this.transformLifecycle?.setKeepRatio(false);
-      }
-    } else {
-      this.transformLifecycle?.detach();
-      this.transformLifecycle?.setKeepRatio(false);
-    }
-
-    this.debugLog("Transform ended", {
-      source,
-      nodeCount: nodes.length,
-    });
+    // Legacy body removed in favor of manager orchestration
+    return;
   }
 
+  // Deprecated in favor of ElementSynchronizer
+  // Kept as a shim for compatibility; will be removed in Phase 3 cleanup
   private updateElementsFromNodes(
     nodes: Konva.Node[],
     commitWithHistory: boolean,
