@@ -7,6 +7,8 @@ import type {
   ConnectorEndpointPoint,
 } from "../../types/connector";
 import type { MindmapRenderer } from "./MindmapRenderer";
+import type { MindmapNodeElement, MindmapEdgeElement } from "../../types/mindmap";
+import { getNodeConnectionPoint } from "../../types/mindmap";
 import { batchMindmapReroute } from "./mindmapWire";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
@@ -63,8 +65,10 @@ export class SelectionModule implements RendererModule {
         startFrom: ConnectorEndpointPoint;
         startTo: ConnectorEndpointPoint;
         wasAnchored: boolean;
+        shape?: Konva.Line | Konva.Arrow | null;
       }
     >;
+    mindmapEdges: Map<string, MindmapEdgeElement>;
     transformerBox?: { x: number; y: number };
     movedMindmapNodes: Set<string>;
   };
@@ -133,15 +137,13 @@ export class SelectionModule implements RendererModule {
         this.captureTransformSnapshot();
       },
       onTransform: (nodes) => {
-        // Real-time updates during transform for smoother UX (all elements including tables)
-        this.updateElementsFromNodes(nodes, false);
-
         // CRITICAL FIX: Synchronize shape text positioning during transform
         this.syncShapeTextDuringTransform(nodes);
 
         const delta = this.computeTransformDelta(nodes);
         if (delta) {
-          this.applyConnectorTranslation(delta);
+          this.updateConnectorVisuals(delta);
+          this.updateMindmapEdgeVisuals(delta);
         }
       },
       onTransformEnd: (nodes) => {
@@ -149,7 +151,7 @@ export class SelectionModule implements RendererModule {
 
         const delta = this.computeTransformDelta(nodes);
         if (delta) {
-          this.applyConnectorTranslation(delta);
+          this.commitConnectorTranslation(delta);
         }
 
         this.releaseTransformSnapshot();
@@ -1012,6 +1014,10 @@ export class SelectionModule implements RendererModule {
   private scheduleConnectorRefresh(elementIds: Set<string>) {
     if (elementIds.size === 0) return;
 
+    if (this.transformSnapshot) {
+      return;
+    }
+
     // If we are not in an active transform snapshot, refresh immediately
     if (!this.transformSnapshot || typeof window === "undefined") {
       this.refreshConnectedConnectors(elementIds);
@@ -1042,6 +1048,10 @@ export class SelectionModule implements RendererModule {
 
   private scheduleMindmapReroute(nodeIds: Set<string>) {
     if (nodeIds.size === 0) return;
+
+    if (this.transformSnapshot) {
+      return;
+    }
 
     if (typeof window === "undefined") {
       this.performMindmapReroute(nodeIds);
@@ -1154,8 +1164,10 @@ export class SelectionModule implements RendererModule {
         startFrom: ConnectorEndpointPoint;
         startTo: ConnectorEndpointPoint;
         wasAnchored: boolean;
+        shape?: Konva.Line | Konva.Arrow | null;
       }
     >();
+    const mindmapEdges = new Map<string, MindmapEdgeElement>();
     const movedMindmapNodes = new Set<string>();
 
     const stage =
@@ -1201,6 +1213,10 @@ export class SelectionModule implements RendererModule {
 
       const [fromPoint, toPoint] = points;
 
+      const shape = stage
+        ?.findOne<Konva.Group>(`#${id}`)
+        ?.findOne<Konva.Line | Konva.Arrow>(".connector-shape") ?? null;
+
       connectors.set(id, {
         originalFrom: connector.from,
         originalTo: connector.to,
@@ -1208,6 +1224,7 @@ export class SelectionModule implements RendererModule {
         startTo: toPoint,
         wasAnchored:
           connector.from.kind !== "point" || connector.to.kind !== "point",
+        shape,
       });
 
       this.debugLog("Snapshot connector", {
@@ -1218,11 +1235,21 @@ export class SelectionModule implements RendererModule {
     };
 
     for (const [id, element] of state.elements.entries()) {
-      if (element.type !== "connector") continue;
-      includeConnector(element as ConnectorElement, id);
+      if (element.type === "connector") {
+        includeConnector(element as ConnectorElement, id);
+      } else if (element.type === "mindmap-edge") {
+        const edge = element as MindmapEdgeElement;
+        if (
+          selectedIds.has(id) ||
+          movingElementIds.has(edge.fromId) ||
+          movingElementIds.has(edge.toId)
+        ) {
+          mindmapEdges.set(id, edge);
+        }
+      }
     }
 
-    if (basePositions.size === 0 && connectors.size === 0) {
+    if (basePositions.size === 0 && connectors.size === 0 && mindmapEdges.size === 0) {
       this.transformSnapshot = undefined;
       return;
     }
@@ -1234,6 +1261,7 @@ export class SelectionModule implements RendererModule {
     this.transformSnapshot = {
       basePositions,
       connectors,
+      mindmapEdges,
       movedMindmapNodes,
       transformerBox: transformerRect
         ? { x: transformerRect.x, y: transformerRect.y }
@@ -1243,6 +1271,7 @@ export class SelectionModule implements RendererModule {
     this.debugLog("Transform snapshot initialized", {
       movingElements: basePositions.size,
       connectors: connectors.size,
+      mindmapEdges: mindmapEdges.size,
       movedMindmapNodes: movedMindmapNodes.size,
       hasTransformerBox: Boolean(transformerRect),
     });
@@ -1362,7 +1391,7 @@ export class SelectionModule implements RendererModule {
     return null;
   }
 
-  private applyConnectorTranslation(delta: { dx: number; dy: number }) {
+  private updateConnectorVisuals(delta: { dx: number; dy: number }) {
     if (!this.transformSnapshot || !this.storeCtx) return;
 
     const { connectors } = this.transformSnapshot;
@@ -1380,16 +1409,12 @@ export class SelectionModule implements RendererModule {
         y: snapshot.startTo.y + delta.dy,
       };
 
-      this.debugLog("applyConnectorTranslation", {
+      this.debugLog("updateConnectorVisuals", {
         id,
         from: nextFrom,
         to: nextTo,
       });
-
-      this.updateConnectorElement(id, {
-        from: nextFrom,
-        to: nextTo,
-      });
+      this.updateConnectorShapeGeometry(id, snapshot.shape, nextFrom, nextTo);
     });
   }
 
@@ -1401,6 +1426,130 @@ export class SelectionModule implements RendererModule {
     this.updateConnectorElement(id, {
       from: fromPoint,
       to: toPoint,
+    });
+  }
+
+  private updateConnectorShapeGeometry(
+    id: string,
+    cachedShape: Konva.Line | Konva.Arrow | null | undefined,
+    fromPoint: ConnectorEndpointPoint,
+    toPoint: ConnectorEndpointPoint,
+  ) {
+    const stage =
+      this.storeCtx?.stage ||
+      (typeof window !== "undefined"
+        ? ((window as Window & { konvaStage?: Konva.Stage }).konvaStage ?? null)
+        : null);
+
+    const shape = cachedShape
+      ? cachedShape
+      : stage
+          ?.findOne<Konva.Group>(`#${id}`)
+          ?.findOne<Konva.Line | Konva.Arrow>(".connector-shape") ?? null;
+
+    if (!shape) {
+      return;
+    }
+
+    const parent = shape.getParent();
+    const inverse = parent
+      ?.getAbsoluteTransform()
+      .copy()
+      .invert();
+
+    const toLocal = (point: ConnectorEndpointPoint) => {
+      if (inverse) {
+        return inverse.point({ x: point.x, y: point.y });
+      }
+      return { x: point.x, y: point.y };
+    };
+
+    const localFrom = toLocal(fromPoint);
+    const localTo = toLocal(toPoint);
+
+    const line = shape as Konva.Line;
+    if (typeof line.points === "function") {
+      line.points([localFrom.x, localFrom.y, localTo.x, localTo.y]);
+    }
+    line.getLayer()?.batchDraw();
+  }
+
+  private updateMindmapEdgeVisuals(delta: { dx: number; dy: number }) {
+    if (!this.transformSnapshot || !this.storeCtx) return;
+
+    const { mindmapEdges, basePositions } = this.transformSnapshot;
+    if (mindmapEdges.size === 0) return;
+
+    const renderer = this.getMindmapRenderer();
+    if (!renderer) return;
+
+    const state = this.storeCtx.store.getState();
+
+    const getProjectedNode = (nodeId: string): MindmapNodeElement | null => {
+      const element =
+        (state.elements.get(nodeId) || state.element?.getById?.(nodeId)) as
+          | MindmapNodeElement
+          | undefined;
+      if (!element || element.type !== "mindmap-node") {
+        return null;
+      }
+
+      const baseline = basePositions.get(nodeId);
+      if (!baseline) return element;
+
+      return {
+        ...element,
+        x: baseline.x + delta.dx,
+        y: baseline.y + delta.dy,
+      };
+    };
+
+    const getNodePoint = (
+      nodeId: string,
+      side: "left" | "right",
+    ): { x: number; y: number } | null => {
+      const projected = getProjectedNode(nodeId);
+      if (!projected) return null;
+      return getNodeConnectionPoint(projected, side);
+    };
+
+    mindmapEdges.forEach((edgeSnapshot, id) => {
+      const edgeElement =
+        ((state.elements.get(id) || state.element?.getById?.(id)) as
+          | MindmapEdgeElement
+          | undefined) ?? edgeSnapshot;
+
+      renderer.renderEdge(edgeElement, getNodePoint);
+    });
+  }
+
+  private commitConnectorTranslation(delta: { dx: number; dy: number }) {
+    if (!this.transformSnapshot || !this.storeCtx) return;
+
+    const { connectors } = this.transformSnapshot;
+    if (connectors.size === 0) return;
+
+    connectors.forEach((snapshot, id) => {
+      if (snapshot.wasAnchored) {
+        // Anchored connectors reroute based on element positions; original endpoints restored in releaseTransformSnapshot.
+        return;
+      }
+
+      const nextFrom: ConnectorEndpoint = {
+        kind: "point",
+        x: snapshot.startFrom.x + delta.dx,
+        y: snapshot.startFrom.y + delta.dy,
+      };
+      const nextTo: ConnectorEndpoint = {
+        kind: "point",
+        x: snapshot.startTo.x + delta.dx,
+        y: snapshot.startTo.y + delta.dy,
+      };
+
+      this.updateConnectorElement(id, {
+        from: nextFrom,
+        to: nextTo,
+      });
     });
   }
 
