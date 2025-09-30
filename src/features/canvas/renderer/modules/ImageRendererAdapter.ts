@@ -14,6 +14,9 @@ export class ImageRendererAdapter implements RendererModule {
   mount(ctx: ModuleRendererCtx): () => void {
     // Create ImageRenderer instance
     this.renderer = new ImageRenderer(ctx.layers);
+    
+    // Pass store context to renderer for pan tool detection
+    this.renderer.setStoreContext({ store: ctx.store.getState() });
 
     // Subscribe to store changes - watch image elements
     this.unsubscribe = ctx.store.subscribe(

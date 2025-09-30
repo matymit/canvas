@@ -23,8 +23,7 @@ import { MindmapContextMenuManager } from "./menus/MindmapContextMenuManager";
 // Import general canvas context menu manager
 import { CanvasContextMenuManager } from "./CanvasContextMenuManager";
 
-// Import ImageDragHandler for image drag functionality
-import ImageDragHandler from "./tools/selection/ImageDragHandler";
+// ImageDragHandler removed - images now use standard SelectionModule transformer system
 import { useShallow } from "zustand/react/shallow";
 
 // Tool imports - all major tools
@@ -78,7 +77,7 @@ const FigJamCanvas: React.FC = () => {
   const rendererDisposeRef = useRef<(() => void) | null>(null);
   const toolManagerRef = useRef<ToolManager | null>(null);
   const gridRendererRef = useRef<GridRenderer | null>(null);
-  const imageDragHandlerRef = useRef<ImageDragHandler | null>(null);
+  // imageDragHandlerRef removed - images now use standard SelectionModule transformer system
 
   // Store subscriptions - subscribe to viewport with custom comparison to detect nested changes
   const viewport = useUnifiedCanvasStore((state) => state.viewport);
@@ -257,9 +256,7 @@ const FigJamCanvas: React.FC = () => {
     const textCanvasTool = new TextCanvasTool();
     toolManager.registerCanvasTool("text", textCanvasTool);
 
-    // Setup ImageDragHandler for image drag functionality
-    const imageDragHandler = new ImageDragHandler(stage);
-    imageDragHandlerRef.current = imageDragHandler;
+    // ImageDragHandler removed - images now use standard SelectionModule transformer system
 
     // Window resize handler: resize stage only, preserve user's zoom level
     const handleResize = () => {
@@ -323,11 +320,7 @@ const FigJamCanvas: React.FC = () => {
         toolManagerRef.current = null;
       }
 
-      // Clean up image drag handler
-      if (imageDragHandlerRef.current) {
-        imageDragHandlerRef.current.cleanup();
-        imageDragHandlerRef.current = null;
-      }
+      // ImageDragHandler cleanup removed - images now use standard SelectionModule transformer system
 
       // Dispose renderer modules
       if (rendererDisposeRef.current) {

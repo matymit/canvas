@@ -159,20 +159,17 @@ export const ImageTool: React.FC<ImageToolProps> = ({
 
         // Element added to store
 
-        // Wait for rendering with improved timing
+        // Wait for multiple animation frames to ensure rendering completes
+        await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
-        // Delayed selection with better timing
-        setTimeout(() => {
-          // Attempting selection
-          setElementSelection(id);
+        // Select the image immediately after rendering
+        setElementSelection(id);
 
-          // Switch to select tool for immediate manipulation
-          setTimeout(() => {
-            setSelectedTool?.("select");
-          }, 100);
-        }, 200);
+        // Small delay before switching to select tool to allow selection to take effect
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        setSelectedTool?.("select");
       } catch (error) {
         // Error creating element
       }

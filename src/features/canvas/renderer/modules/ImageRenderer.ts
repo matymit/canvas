@@ -15,9 +15,14 @@ export class ImageRenderer {
   private readonly groupById = new Map<string, Konva.Group>();
   private readonly imageNodeById = new Map<string, Konva.Image>();
   private pendingDraw: number | null = null;
+  private storeCtx?: { store: ReturnType<typeof useUnifiedCanvasStore.getState> };
 
   constructor(layers: RendererLayers) {
     this.layers = layers;
+  }
+
+  setStoreContext(ctx: { store: ReturnType<typeof useUnifiedCanvasStore.getState> }) {
+    this.storeCtx = ctx;
   }
 
   /**
@@ -68,11 +73,15 @@ export class ImageRenderer {
   async render(el: ImageElement): Promise<void> {
     let g = this.groupById.get(el.id);
     if (!g || !g.getLayer()) {
+      // Check if pan tool is active - if so, disable dragging on elements
+      const storeState = this.storeCtx?.store;
+      const isPanToolActive = storeState?.ui?.selectedTool === 'pan';
+
       g = new Konva.Group({
         id: el.id,
         name: 'image',
         listening: true,
-        // REMOVED: draggable: true - this was causing conflicts with selection system
+        draggable: !isPanToolActive, // Enable dragging when not in pan mode
         x: el.x,
         y: el.y,
       });
@@ -94,14 +103,25 @@ export class ImageRenderer {
         }
       });
 
+      // Note: Drag and transform are handled by SelectionModule's transformer
+      // No need for duplicate event handlers here
+
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
     }
 
-    // FIXED: Always sync position from store (prevents snap-back)
-    g.position({ x: el.x, y: el.y });
+    // Only sync position from store when NOT actively dragging/transforming
+    // This prevents snap-back during user interactions
+    if (!g.isDragging()) {
+      g.position({ x: el.x, y: el.y });
+    }
     g.rotation(el.rotation ?? 0);
     g.opacity(el.opacity ?? 1);
+
+    // Update draggable state based on current tool
+    const storeState = this.storeCtx?.store;
+    const isPanToolActive = storeState?.ui?.selectedTool === 'pan';
+    g.draggable(!isPanToolActive);
 
     // Ensure elementId is maintained
     g.setAttr('elementId', el.id);

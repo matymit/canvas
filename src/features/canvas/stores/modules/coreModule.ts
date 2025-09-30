@@ -356,7 +356,9 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
         history.record?.({ type: "add", elements: [element] });
       }
       if (opts?.select) {
-        get().selection.selectOne(element.id as ElementId, true);
+        // Select ONLY this element (replace selection, not additive)
+        // This prevents accidentally selecting multiple elements when adding a new one
+        get().selection.selectOne(element.id as ElementId, false);
       }
     },
 
