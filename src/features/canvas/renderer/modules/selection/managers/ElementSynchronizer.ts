@@ -112,15 +112,16 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
 
         // Handle type-specific properties
         switch (element.type) {
-          case "circle":
+          case "circle": {
             // For circles, maintain radius consistency
             const radius = Math.min(effectiveWidth, effectiveHeight) / 2;
             patch.width = radius * 2;
             patch.height = radius * 2;
             (patch as any).radius = radius;
             break;
+          }
 
-          case "image":
+          case "image": {
             // Preserve aspect ratio for images if needed
             const imageElement = element as any;
             if (imageElement.preserveAspectRatio) {
@@ -134,19 +135,22 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
               }
             }
             break;
+          }
 
-          case "connector":
+          case "connector": {
             // Special handling for connectors
             connectorIds.add(elementId);
             this.syncConnectorFromNode(node, element, patch);
             break;
+          }
 
-          case "mindmap-node":
+          case "mindmap-node": {
             // Track mindmap nodes for rerouting
             mindmapNodeIds.add(elementId);
             break;
+          }
 
-          case "text":
+          case "text": {
             // Handle text-specific properties
             const textNode = node as any;
             if (textNode.fontSize) {
@@ -159,9 +163,10 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
               (patch as any).fill = textNode.fill();
             }
             break;
+          }
 
           case "rectangle":
-          case "ellipse":
+          case "ellipse": {
             // Handle shape-specific properties for basic shapes
             const shapeNode = node as any;
             if (shapeNode.fill) {
@@ -174,6 +179,7 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
               (patch as any).strokeWidth = shapeNode.strokeWidth();
             }
             break;
+          }
 
           default:
             // Generic element handling

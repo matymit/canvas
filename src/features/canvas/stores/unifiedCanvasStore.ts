@@ -1,6 +1,7 @@
 // features/canvas/stores/unifiedCanvasStore.ts
 import { create } from "zustand";
-import { persist, subscribeWithSelector, StateStorage, createJSONStorage } from "zustand/middleware";
+import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
+import type { StateStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
 import { saveImageToIndexedDB, loadImageFromIndexedDB } from "../../../utils/imageStorage";
@@ -181,7 +182,8 @@ function partializeForPersist(state: UnifiedCanvasStore) {
         
         // Return element WITHOUT src to save localStorage space
         // Create a shallow copy and omit src
-        const { src, ...elementWithoutSrc } = imageEl;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { src: _src, ...elementWithoutSrc } = imageEl;
         return [id, { ...elementWithoutSrc, idbKey }];
       }
     }

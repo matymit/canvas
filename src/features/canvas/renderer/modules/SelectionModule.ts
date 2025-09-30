@@ -1,5 +1,5 @@
 // features/canvas/renderer/modules/SelectionModule.ts
-import Konva from "konva";
+import type Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import type {
   ConnectorElement,
