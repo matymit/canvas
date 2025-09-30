@@ -1,35 +1,15 @@
-// Table renderer module for main layer rendering with Konva groups
-// CORRECTED to properly handle scale→reset pattern and prevent child updates during transform
+// Table renderer module - coordinates table rendering subsystems
+// Refactored to use extracted subsystems for better maintainability
 // Follows existing four-layer architecture and performance patterns
 
 import Konva from "konva";
 import type { TableElement } from "../../types/table";
-import { DEFAULT_TABLE_CONFIG } from "../../types/table";
 import KonvaNodePool from "../../utils/KonvaNodePool";
-import { openCellEditorWithTracking } from "../../utils/editors/openCellEditorWithTracking";
 import type { ModuleRendererCtx } from "../index";
-
-// Extended window interface for type safety
-interface TableContextMenuBridge {
-  show?: (
-    screenX: number,
-    screenY: number,
-    tableId: string,
-    row: number,
-    col: number,
-  ) => void;
-  close?: () => void;
-}
-
-interface ExtendedWindow extends Window {
-  selectionModule?: {
-    selectElement?: (elementId: string, options?: Record<string, unknown>) => void;
-    toggleSelection?: (elementId: string, additive?: boolean) => void;
-    clearSelection?: () => void;
-    [key: string]: unknown;
-  };
-  tableContextMenu?: TableContextMenuBridge;
-}
+import { TableCellResolver } from "./table/TableCellResolver";
+import { TableEditorManager } from "./table/TableEditorManager";
+import { TableEventHandlers } from "./table/TableEventHandlers";
+import { TableRenderingEngine } from "./table/TableRenderingEngine";
 
 // Re-use existing RendererLayers interface from the codebase
 export interface RendererLayers {
@@ -45,13 +25,22 @@ export interface TableRendererOptions {
   usePooling?: boolean;
 }
 
+/**
+ * TableRenderer coordinates all table rendering subsystems
+ * Delegates to specialized modules for cell resolution, event handling,
+ * editor management, and rendering
+ */
 export class TableRenderer {
   private readonly layers: RendererLayers;
-  private readonly groupById = new Map<string, Konva.Group>();
   private readonly pool?: KonvaNodePool;
   private readonly opts: TableRendererOptions;
-  private readonly storeCtx?: ModuleRendererCtx; // Store context for proper store access
-  private isUpdatingTransformer = false; // Flag to prevent transformer loops
+  private readonly storeCtx?: ModuleRendererCtx;
+
+  // Subsystems
+  private readonly cellResolver: TableCellResolver;
+  private readonly editorManager: TableEditorManager;
+  private readonly eventHandlers: TableEventHandlers;
+  private readonly renderingEngine: TableRenderingEngine;
 
   constructor(
     layers: RendererLayers,
@@ -62,61 +51,97 @@ export class TableRenderer {
     this.opts = opts ?? {};
     this.storeCtx = storeCtx;
 
+    // Initialize node pool if enabled
     if (this.opts.usePooling) {
       this.pool = new KonvaNodePool();
-
-      // Register pooled node types for table rendering
-      this.pool.register("table-cell-rect", {
-        create: () =>
-          new Konva.Rect({ listening: false, perfectDrawEnabled: false }),
-        reset: (node: Konva.Rect) => {
-          node.setAttrs({
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            fill: "",
-            stroke: "",
-            strokeWidth: 0,
-            cornerRadius: 0,
-          });
-        },
-      });
-
-      this.pool.register("table-cell-text", {
-        create: () =>
-          new Konva.Text({ listening: false, perfectDrawEnabled: false }),
-        reset: (node: Konva.Text) => {
-          node.setAttrs({
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            text: "",
-            fontFamily: "",
-            fontSize: 16,
-            fill: "",
-            align: "center",
-            verticalAlign: "top",
-            lineHeight: 1.4,
-          });
-        },
-      });
-
-      this.pool.register("table-grid", {
-        create: () =>
-          new Konva.Shape({ listening: false, perfectDrawEnabled: false }),
-        reset: (node: Konva.Shape) => {
-          node.clearCache();
-        },
-      });
+      this.initializeNodePool(this.pool);
     }
+
+    // Create shared callbacks for subsystems
+    const callbacks = {
+      getTableFromStore: (elementId: string) => this.getTableFromStore(elementId),
+      getStoreHook: () => this.getStoreHook(),
+    };
+
+    // Initialize subsystems
+    this.cellResolver = new TableCellResolver();
+    this.editorManager = new TableEditorManager(callbacks);
+    this.eventHandlers = new TableEventHandlers(
+      this.cellResolver,
+      this.editorManager,
+      callbacks,
+    );
+    this.renderingEngine = new TableRenderingEngine(
+      this.layers,
+      this.pool,
+      this.cellResolver,
+      this.eventHandlers,
+      callbacks,
+      this.opts,
+    );
   }
 
+  /**
+   * Initialize node pool with table-specific node types
+   */
+  private initializeNodePool(pool: KonvaNodePool): void {
+    // Register pooled node types for table rendering
+    pool.register("table-cell-rect", {
+      create: () =>
+        new Konva.Rect({ listening: false, perfectDrawEnabled: false }),
+      reset: (node: Konva.Rect) => {
+        node.setAttrs({
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          fill: "",
+          stroke: "",
+          strokeWidth: 0,
+          cornerRadius: 0,
+        });
+      },
+    });
+
+    pool.register("table-cell-text", {
+      create: () =>
+        new Konva.Text({ listening: false, perfectDrawEnabled: false }),
+      reset: (node: Konva.Text) => {
+        node.setAttrs({
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          text: "",
+          fontFamily: "",
+          fontSize: 16,
+          fill: "",
+          align: "center",
+          verticalAlign: "top",
+          lineHeight: 1.4,
+        });
+      },
+    });
+
+    pool.register("table-grid", {
+      create: () =>
+        new Konva.Shape({ listening: false, perfectDrawEnabled: false }),
+      reset: (node: Konva.Shape) => {
+        node.clearCache();
+      },
+    });
+  }
+
+  /**
+   * Get store hook for accessing Zustand state
+   */
   private getStoreHook() {
     return this.storeCtx?.store;
   }
 
+  /**
+   * Get table element from store by ID
+   */
   private getTableFromStore(elementId: string): TableElement | undefined {
     const storeHook = this.getStoreHook();
     const state = storeHook?.getState();
@@ -127,870 +152,52 @@ export class TableRenderer {
     return undefined;
   }
 
-  private resolveCellFromLocal(
-    table: TableElement,
-    localX: number,
-    localY: number,
-  ): { row: number; col: number } {
-    let cumulativeX = 0;
-    let col = 0;
-    for (let c = 0; c < table.cols; c++) {
-      const width = table.colWidths[c] ?? 0;
-      const next = cumulativeX + width;
-      if (localX >= cumulativeX && localX <= next) {
-        col = c;
-        break;
-      }
-      col = c;
-      cumulativeX = next;
-    }
-
-    if (localX < 0) {
-      col = 0;
-    } else if (localX > cumulativeX) {
-      col = table.cols - 1;
-    }
-
-    let cumulativeY = 0;
-    let row = 0;
-    for (let r = 0; r < table.rows; r++) {
-      const height = table.rowHeights[r] ?? 0;
-      const next = cumulativeY + height;
-      if (localY >= cumulativeY && localY <= next) {
-        row = r;
-        break;
-      }
-      row = r;
-      cumulativeY = next;
-    }
-
-    if (localY < 0) {
-      row = 0;
-    } else if (localY > cumulativeY) {
-      row = table.rows - 1;
-    }
-
-    return {
-      row: Math.max(0, Math.min(table.rows - 1, row)),
-      col: Math.max(0, Math.min(table.cols - 1, col)),
-    };
+  /**
+   * Public API: Render a table element
+   */
+  render(el: TableElement): void {
+    this.renderingEngine.render(el);
   }
 
-  private tryShowContextMenu(
-    tableId: string,
-    row: number,
-    col: number,
-    event: MouseEvent,
-  ): boolean {
-    const bridge = (window as ExtendedWindow).tableContextMenu;
-    if (!bridge?.show) return false;
-    bridge.show(event.clientX, event.clientY, tableId, row, col);
-    return true;
+  /**
+   * Public API: Remove a table from rendering
+   */
+  remove(id: string): void {
+    this.renderingEngine.remove(id);
   }
 
-  private commitCellText(
-    elementId: string,
-    row: number,
-    col: number,
-    value: string,
-  ) {
-    const storeHook = this.getStoreHook();
-    if (!storeHook) return;
-
-    const runUpdate = () => {
-      const state = storeHook.getState();
-      const current = state.element.getById?.(elementId) as
-        | TableElement
-        | undefined;
-      if (!current || current.type !== "table") return;
-
-      const idx = row * current.cols + col;
-      const cells = current.cells.slice();
-      const existing = cells[idx] ?? { text: "" };
-      if (existing.text === value) return;
-
-      cells[idx] = { ...existing, text: value };
-
-      // CRITICAL FIX: Preserve position during cell text updates to prevent jumping
-      state.element.update(elementId, {
-        cells,
-        // Explicitly preserve position to prevent jumping
-        x: current.x,
-        y: current.y,
-      } as Partial<TableElement>);
-    };
-
-    const state = storeHook.getState();
-    const history = state.history;
-
-    if (history?.withUndo) {
-      history.withUndo("Edit table cell", () => {
-        runUpdate();
-      });
-    } else {
-      runUpdate();
-    }
+  /**
+   * Public API: Update specific cell without full rebuild (optimization)
+   */
+  updateCell(elementId: string, row: number, col: number, newText: string): void {
+    this.renderingEngine.updateCell(elementId, row, col, newText);
   }
 
-  private handleCellAutoResize(payload: {
-    elementId: string;
-    row: number;
-    col: number;
-    requiredWidth: number;
-    requiredHeight: number;
-  }) {
-    const storeHook = this.getStoreHook();
-    if (!storeHook) return;
-
-    const { elementId, row, col, requiredWidth, requiredHeight } = payload;
-    if (!Number.isFinite(requiredWidth) || !Number.isFinite(requiredHeight))
-      return;
-
-    const state = storeHook.getState();
-    const table = state.element.getById?.(elementId) as
-      | TableElement
-      | undefined;
-    if (!table || table.type !== "table") return;
-
-    const currentColWidths = table.colWidths.slice();
-    const currentRowHeights = table.rowHeights.slice();
-
-    const minWidth = DEFAULT_TABLE_CONFIG.minCellWidth;
-    const minHeight = DEFAULT_TABLE_CONFIG.minCellHeight;
-
-    const targetWidth = Math.max(
-      currentColWidths[col] || 0,
-      requiredWidth,
-      minWidth,
-    );
-    const targetHeight = Math.max(
-      currentRowHeights[row] || 0,
-      requiredHeight,
-      minHeight,
-    );
-
-    const widthChanged = targetWidth - (currentColWidths[col] || 0) > 0.5;
-    const heightChanged = targetHeight - (currentRowHeights[row] || 0) > 0.5;
-
-    if (!widthChanged && !heightChanged) return;
-
-    // CRITICAL FIX: Store exact current position BEFORE making any updates
-    const preservedPosition = { x: table.x, y: table.y };
-
-    const patch: Partial<TableElement> = {
-      // ALWAYS preserve exact position during auto-resize
-      x: preservedPosition.x,
-      y: preservedPosition.y,
-    };
-
-    if (widthChanged) {
-      currentColWidths[col] = targetWidth;
-      patch.colWidths = currentColWidths;
-      patch.width = currentColWidths.reduce((sum, w) => sum + w, 0);
-    }
-
-    if (heightChanged) {
-      currentRowHeights[row] = targetHeight;
-      patch.rowHeights = currentRowHeights;
-      patch.height = currentRowHeights.reduce((sum, h) => sum + h, 0);
-    }
-
-    // Update with position preservation and no immediate transformer refresh
-    state.element.update(elementId, patch as Partial<TableElement>);
-
-    // Only refresh transformer if selected, with debouncing to prevent loops
-    const selectedIds = state.selectedElementIds || new Set<string>();
-    if (
-      selectedIds.has &&
-      selectedIds.has(elementId) &&
-      !this.isUpdatingTransformer
-    ) {
-      this.isUpdatingTransformer = true;
-      const bumpVersion = state.bumpSelectionVersion;
-      if (typeof bumpVersion === "function") {
-        // Debounced transformer refresh to prevent update loops
-        setTimeout(() => {
-          try {
-            bumpVersion();
-          } finally {
-            this.isUpdatingTransformer = false;
-          }
-        }, 100);
-      } else {
-        this.isUpdatingTransformer = false;
-      }
-    }
-  }
-
-  // Ensure a root group for this table exists on main layer
-  private ensureGroup(el: TableElement): Konva.Group {
-    let g = this.groupById.get(el.id);
-    if (g && g.getLayer() !== this.layers.main) {
-      g.remove();
-      this.groupById.delete(el.id);
-      g = undefined;
-    }
-    if (!g) {
-      // Check if pan tool is active - if so, disable dragging on elements
-      const storeState = this.storeCtx?.store?.getState();
-      const isPanToolActive = storeState?.ui?.selectedTool === "pan";
-
-      g = new Konva.Group({
-        id: el.id,
-        name: "table-group", // Clear name for SelectionModule recognition
-        draggable: !isPanToolActive, // disable dragging when pan tool is active
-        listening: true, // element-level selection
-        x: el.x,
-        y: el.y,
-        width: el.width, // Set explicit dimensions for transformer
-        height: el.height,
-        // CRITICAL: Ensure scale is always 1 for proper transformer handling
-        scaleX: 1,
-        scaleY: 1,
-      });
-
-      // Add transparent hitbox for better interaction
-      const hitbox = new Konva.Rect({
-        x: 0,
-        y: 0,
-        width: el.width,
-        height: el.height,
-        fill: "transparent",
-        listening: true,
-        name: "table-hitbox",
-        perfectDrawEnabled: false,
-      });
-      g.add(hitbox);
-      hitbox.moveToBottom();
-
-      // Set required attributes for SelectionModule integration
-      g.setAttr("elementId", el.id);
-      g.setAttr("elementType", "table");
-      g.setAttr("keepAspectRatio", true);
-      g.setAttr("rows", el.rows);
-      g.setAttr("cols", el.cols);
-
-      // Add interaction handlers
-      this.setupTableInteractions(g, el.id);
-      this.layers.main.add(g);
-      this.groupById.set(el.id, g);
-    }
-    return g;
-  }
-
-  // Create a cell background rectangle
-  private createCellRect(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    style: TableElement["style"],
-  ): Konva.Rect {
-    if (this.pool) {
-      const rect = this.pool.acquire<Konva.Rect>("table-cell-rect");
-      rect.setAttrs({
-        x,
-        y,
-        width,
-        height,
-        fill: style.cellFill,
-        cornerRadius: style.cornerRadius ?? 0,
-      });
-      return rect;
-    }
-
-    return new Konva.Rect({
-      x,
-      y,
-      width,
-      height,
-      fill: style.cellFill,
-      cornerRadius: style.cornerRadius ?? 0,
-      listening: false,
-      perfectDrawEnabled: false,
-      name: "cell-bg",
-    });
-  }
-
-  // Create cell text node
-  private createCellText(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    text: string,
-    style: TableElement["style"],
-  ): Konva.Text {
-    const attrs = {
-      x,
-      y,
-      width,
-      height,
-      text,
-      fontFamily: style.fontFamily,
-      fontSize: style.fontSize,
-      fill: style.textColor,
-      align: "center" as const,
-      verticalAlign: "top" as const,
-      lineHeight: 1.4,
-      listening: false,
-      perfectDrawEnabled: false,
-      name: "cell-text",
-    };
-
-    if (this.pool) {
-      const textNode = this.pool.acquire<Konva.Text>("table-cell-text");
-      textNode.setAttrs(attrs);
-      return textNode;
-    }
-
-    return new Konva.Text(attrs);
-  }
-
-  // Create grid lines using custom shape
-  private createGrid(el: TableElement): Konva.Shape {
-    const { rows, cols, colWidths, rowHeights, style, width, height } = el;
-
-    if (this.pool) {
-      const grid = this.pool.acquire<Konva.Shape>("table-grid");
-      grid.sceneFunc((ctx, shape) => {
-        this.drawGridLines(ctx, shape, {
-          rows,
-          cols,
-          colWidths,
-          rowHeights,
-          style,
-          width,
-          height,
-        });
-      });
-      return grid;
-    }
-
-    return new Konva.Shape({
-      sceneFunc: (ctx, shape) => {
-        this.drawGridLines(ctx, shape, {
-          rows,
-          cols,
-          colWidths,
-          rowHeights,
-          style,
-          width,
-          height,
-        });
-      },
-      listening: false,
-      perfectDrawEnabled: false,
-      name: "table-grid",
-    });
-  }
-
-  // Draw grid lines implementation
-  private drawGridLines(
-    ctx: Konva.Context,
-    shape: Konva.Shape,
-    params: {
-      rows: number;
-      cols: number;
-      colWidths: number[];
-      rowHeights: number[];
-      style: TableElement["style"];
-      width: number;
-      height: number;
-    },
-  ) {
-    const { rows, cols, colWidths, rowHeights, style, width, height } = params;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.strokeStyle = style.borderColor;
-    ctx.lineWidth = style.borderWidth;
-
-    // Outer border
-    ctx.rect(0, 0, width, height);
-
-    // Vertical lines
-    let x = 0;
-    for (let c = 1; c < cols; c++) {
-      x += colWidths[c - 1];
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-    }
-
-    // Horizontal lines
-    let y = 0;
-    for (let r = 1; r < rows; r++) {
-      y += rowHeights[r - 1];
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-    }
-
-    ctx.stroke();
-    ctx.restore();
-
-    // Required by Konva custom shape
-    ctx.fillStrokeShape(shape);
-  }
-
-  // Rebuild children when geometry or content changes
-  // CRITICAL FIX: Only update children when NOT being transformed
-  render(el: TableElement) {
-    const g = this.ensureGroup(el);
-
-    // CRITICAL FIX: Always ensure proper scale and dimensions from the store
-    // But don't modify if currently being transformed (scale might be temporarily != 1)
-    const currentScale = { x: g.scaleX(), y: g.scaleY() };
-    const isBeingTransformed =
-      Math.abs(currentScale.x - 1) > 0.01 ||
-      Math.abs(currentScale.y - 1) > 0.01;
-
-    if (!isBeingTransformed) {
-      g.setAttrs({
-        x: el.x,
-        y: el.y,
-        width: el.width,
-        height: el.height,
-        // CRITICAL: Only reset scale if not currently transforming
-        scaleX: 1,
-        scaleY: 1,
-      });
-    } else {
-      // During transform, only update position but leave scale/size alone
-      g.setAttrs({
-        x: el.x,
-        y: el.y,
-      });
-      // CRITICAL FIX: Update width and height during transform to maintain proper sizing
-      g.width(el.width);
-      g.height(el.height);
-      // Debug: [TableModule] Skipping child update during transform, scale: ${currentScale}
-      return; // Don't rebuild children during transform
-    }
-
-    // Release pooled nodes if using pooling
-    if (this.pool) {
-      const children = g.getChildren();
-      children.forEach((child) => {
-        if (
-          child instanceof Konva.Shape ||
-          child instanceof Konva.Rect ||
-          child instanceof Konva.Text
-        ) {
-          this.pool?.release(child);
-        }
-      });
-    }
-
-    // Clear and rebuild (optimize later with keyed reuse)
-    g.destroyChildren();
-
-    const { rows, cols, colWidths, rowHeights, style } = el;
-
-    // Create cell backgrounds and text
-    let yAccum = 0;
-    for (let r = 0; r < rows; r++) {
-      let xAccum = 0;
-      for (let c = 0; c < cols; c++) {
-        const w = colWidths[c];
-        const h = rowHeights[r];
-
-        // Cell background
-        const cellRect = this.createCellRect(xAccum, yAccum, w, h, style);
-        g.add(cellRect);
-
-        // Cell text (if any)
-        const cellIndex = r * cols + c;
-        const text = el.cells[cellIndex]?.text ?? "";
-        if (text.length > 0) {
-          const textNode = this.createCellText(
-            xAccum + style.paddingX,
-            yAccum + style.paddingY,
-            Math.max(0, w - 2 * style.paddingX),
-            Math.max(0, h - 2 * style.paddingY),
-            text,
-            style,
-          );
-          g.add(textNode);
-        }
-
-        xAccum += w;
-      }
-      yAccum += rowHeights[r];
-    }
-
-    // Grid lines (stroke on top)
-    const grid = this.createGrid(el);
-    g.add(grid);
-
-    // Add invisible cell click areas for double-click editing
-    this.addCellClickAreas(g, el);
-
-    // Ensure attributes are maintained during updates
-    g.setAttr("elementId", el.id);
-    g.setAttr("elementType", "table");
-    g.setAttr("keepAspectRatio", true);
-    g.setAttr("rows", rows);
-    g.setAttr("cols", cols);
-    g.className = "table-group";
-
-    // Add or update transparent hitbox for better interaction
-    let hitbox = g.findOne(".table-hitbox") as Konva.Rect;
-    if (!hitbox) {
-      hitbox = new Konva.Rect({
-        x: 0,
-        y: 0,
-        width: el.width,
-        height: el.height,
-        fill: "transparent",
-        listening: true,
-        name: "table-hitbox",
-        perfectDrawEnabled: false,
-      });
-      hitbox.on("contextmenu", (evt) => {
-        evt.evt.preventDefault();
-        const mouseEvt = evt.evt as MouseEvent;
-
-        const stage = hitbox.getStage();
-        const table = this.getTableFromStore(el.id) ?? el;
-        if (stage) {
-          stage.setPointersPositions(mouseEvt);
-          const pointer = stage.getPointerPosition();
-          if (pointer) {
-            const local = hitbox
-              .getAbsoluteTransform()
-              .copy()
-              .invert()
-              .point(pointer);
-            const coords = this.resolveCellFromLocal(
-              table,
-              local.x,
-              local.y,
-            );
-            const handled = this.tryShowContextMenu(
-              el.id,
-              coords.row,
-              coords.col,
-              mouseEvt,
-            );
-            if (handled) {
-              evt.cancelBubble = true;
-              return;
-            }
-          }
-        }
-
-        evt.cancelBubble = false;
-      });
-      g.add(hitbox);
-    } else {
-      hitbox.setAttrs({
-        width: el.width,
-        height: el.height,
-      });
-    }
-
-    // Always keep the hitbox underneath interactive cell overlays so double-click and resize work
-    hitbox.moveToBottom();
-
-    // Performance optimization: Apply HiDPI-aware caching for large tables
-    const shouldCache = rows * cols > 50 || this.opts.cacheAfterCommit;
-    if (shouldCache) {
-      const pixelRatio =
-        typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-      g.cache({
-        pixelRatio: pixelRatio,
-        imageSmoothingEnabled: true,
-        width: el.width,
-        height: el.height,
-      });
-    }
-
-    // Batch draw
-    this.layers.main.batchDraw();
-  }
-
-  remove(id: string) {
-    const g = this.groupById.get(id);
-    if (!g) return;
-
-    // Release pooled nodes if using pooling
-    if (this.pool) {
-      const children = g.getChildren();
-      children.forEach((child) => {
-        if (
-          child instanceof Konva.Shape ||
-          child instanceof Konva.Rect ||
-          child instanceof Konva.Text
-        ) {
-          this.pool?.release(child);
-        }
-      });
-    }
-
-    g.destroy();
-    this.layers.main.batchDraw();
-    this.groupById.delete(id);
-  }
-
-  // Update specific cell without full rebuild (optimization)
-  updateCell(elementId: string, row: number, col: number, newText: string) {
-    const g = this.groupById.get(elementId);
-    if (!g) return;
-
-    // Find and update the text node for this cell
-    const children = g.getChildren();
-    const textNodes = children.filter(
-      (child) => child.name() === "cell-text",
-    ) as Konva.Text[];
-
-    // Calculate which text node corresponds to this cell
-    const targetIndex = row * (g.getAttr("cols") || 1) + col;
-    if (textNodes[targetIndex]) {
-      textNodes[targetIndex].text(newText);
-      this.layers.main.batchDraw();
-    }
-  }
-
-  // Get table group by ID (useful for selection/transformer)
+  /**
+   * Public API: Get table group by ID (useful for selection/transformer)
+   */
   getTableGroup(id: string): Konva.Group | undefined {
-    return this.groupById.get(id);
+    return this.renderingEngine.getTableGroup(id);
   }
 
-  // CRITICAL: Method to handle transform updates from TableTransformerController
+  /**
+   * Public API: Handle transform updates from TableTransformerController
+   */
   handleTransformUpdate(
     elementId: string,
     newElement: TableElement,
     resetAttrs?: Record<string, unknown>,
-  ) {
-    // Debug: [TableRenderer] Handling transform update: elementId=${elementId}, newElement=${JSON.stringify({ width: newElement.width, height: newElement.height })}, resetAttrs=${JSON.stringify(resetAttrs)}
-
-    // Get the group and apply reset attributes if provided
-    const group = this.groupById.get(elementId);
-    if (group && resetAttrs) {
-      group.setAttrs(resetAttrs);
-      // Debug: [TableRenderer] Applied reset attrs to group: ${JSON.stringify(resetAttrs)}
-    }
-
-    // Update the store with the new element
-    const storeHook = this.getStoreHook();
-    if (storeHook) {
-      const state = storeHook.getState();
-      state.element.update(elementId, newElement);
-      // Debug: [TableRenderer] Updated store with new element
-    }
+  ): void {
+    this.renderingEngine.handleTransformUpdate(elementId, newElement, resetAttrs);
   }
 
-  // Add invisible click areas for cell editing with precise detection
-  private addCellClickAreas(group: Konva.Group, el: TableElement) {
-    // Remove existing cell interaction areas
-    group.find(".cell-clickable").forEach((node) => node.destroy());
-
-    const { rows, cols, colWidths, rowHeights } = el;
-
-    let yPos = 0;
-    for (let row = 0; row < rows; row++) {
-      let xPos = 0;
-      for (let col = 0; col < cols; col++) {
-        const cellWidth = colWidths[col];
-        const cellHeight = rowHeights[row];
-
-        // Create invisible clickable area for each cell
-        const clickArea = new Konva.Rect({
-          x: xPos,
-          y: yPos,
-          width: cellWidth,
-          height: cellHeight,
-          fill: "transparent",
-          listening: true,
-          name: "cell-clickable",
-          perfectDrawEnabled: false,
-        });
-
-        // Context menu handling - attempt direct table menu invocation first
-        clickArea.on("contextmenu", (evt) => {
-          evt.evt.preventDefault();
-
-          const mouseEvt = evt.evt as MouseEvent;
-          const handled = this.tryShowContextMenu(el.id, row, col, mouseEvt);
-          if (handled) {
-            evt.cancelBubble = true;
-            return;
-          }
-
-          // Fallback to stage-level handling if global bridge unavailable
-          evt.cancelBubble = false;
-        });
-
-        // Double-click to edit using the tracked editor for live resize support
-        clickArea.on("dblclick", (e) => {
-          // Debug: [TableModule] Cell [${row}, ${col}] double-clicked
-          e.cancelBubble = true; // Prevent stage events for editing
-
-          const stage = group.getStage();
-          if (stage) {
-            openCellEditorWithTracking({
-              stage,
-              elementId: el.id,
-              element: el,
-              getElement: () =>
-                this.getStoreHook()
-                  ?.getState()
-                  .element.getById(el.id) as TableElement,
-              row,
-              col,
-              onCommit: (value, tableId, commitRow, commitCol) =>
-                this.commitCellText(tableId, commitRow, commitCol, value),
-              onSizeChange: (payload) => this.handleCellAutoResize(payload),
-            });
-          }
-        });
-
-        // Visual feedback for cell interaction
-        clickArea.on("mouseenter", () => {
-          const stage = group.getStage();
-          if (stage?.container()) {
-            stage.container().style.cursor = "text";
-          }
-        });
-
-        clickArea.on("mouseleave", () => {
-          const stage = group.getStage();
-          if (stage?.container()) {
-            stage.container().style.cursor = "default";
-          }
-        });
-
-        group.add(clickArea);
-        xPos += cellWidth;
-      }
-      yPos += rowHeights[row];
-    }
-  }
-
-  // Setup table interaction handlers
-  private setupTableInteractions(group: Konva.Group, elementId: string) {
-    // Get reference to SelectionModule for proper selection integration
-    const getSelectionModule = () => (window as ExtendedWindow).selectionModule;
-
-    // Context menu handler for the table group
-    group.on("contextmenu", (e) => {
-      // Debug: [TableModule] Table group contextmenu event: elementId=${elementId}, target=${e.target}, currentTarget=${e.currentTarget}, targetName=${e.target?.name?.()}, groupName=${group.name()}, groupId=${group.id()}
-
-      // Prevent position jumping during context menu
-      e.evt.preventDefault();
-
-      const mouseEvt = e.evt as MouseEvent;
-      const stage = group.getStage();
-      const table = this.getTableFromStore(elementId);
-
-      if (stage && table) {
-        stage.setPointersPositions(mouseEvt);
-        const pointer = stage.getPointerPosition();
-        if (pointer) {
-          const local = group
-            .getAbsoluteTransform()
-            .copy()
-            .invert()
-            .point(pointer);
-          const coords = this.resolveCellFromLocal(
-            table,
-            local.x,
-            local.y,
-          );
-          const handled = this.tryShowContextMenu(
-            elementId,
-            coords.row,
-            coords.col,
-            mouseEvt,
-          );
-          if (handled) {
-            e.cancelBubble = true;
-            return;
-          }
-        }
-      }
-
-      e.cancelBubble = false; // Allow bubbling to stage for context menu handling
-
-      // Store the current position to prevent any updates during context menu
-      const currentPos = group.position();
-      group.setAttr("_contextMenuPosition", currentPos);
-    });
-
-    // Enhanced click handler for selection
-    group.on("click tap", (e) => {
-      // Don't interfere with transformer handle clicks
-      const isTransformerClick =
-        e.target?.getParent()?.className === "Transformer" ||
-        e.target?.className === "Transformer";
-      if (!isTransformerClick) {
-        e.cancelBubble = true; // Prevent stage click
-      }
-
-      const selectionModule = getSelectionModule();
-      if (selectionModule) {
-        const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
-        if (isAdditive) {
-          selectionModule.toggleSelection?.(elementId) ??
-            selectionModule.selectElement?.(elementId);
-        } else {
-          selectionModule.selectElement?.(elementId);
-        }
-      } else {
-        // Fallback to direct store integration
-        if (!this.storeCtx) return;
-
-        const store = this.storeCtx.store.getState();
-        const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
-
-        if (store.setSelection) {
-          if (isAdditive) {
-            const current = store.selectedElementIds || new Set();
-            const newSelection = new Set(current);
-            if (newSelection.has(elementId)) {
-              newSelection.delete(elementId);
-            } else {
-              newSelection.add(elementId);
-            }
-            store.setSelection(Array.from(newSelection));
-          } else {
-            store.setSelection([elementId]);
-          }
-        } else if (store.selection) {
-          if (isAdditive) {
-            store.selection.toggle?.(elementId);
-          } else {
-            store.selection.set?.([elementId]);
-          }
-        }
-      }
-    });
-
-    // Enhanced drag handling to prevent position drift
-    group.on("dragend", () => {
-      const newPos = group.position();
-      const storeHook = this.getStoreHook();
-      if (storeHook) {
-        const state = storeHook.getState();
-        // Update store with exact final position
-        state.element.update(elementId, {
-          x: newPos.x,
-          y: newPos.y,
-        } as Partial<TableElement>);
-      }
-    });
-  }
-
-  // Cleanup method
-  destroy() {
+  /**
+   * Cleanup all resources
+   */
+  destroy(): void {
     if (this.pool) {
       this.pool.clear(true);
     }
-
-    for (const group of this.groupById.values()) {
-      group.destroy();
-    }
-
-    this.groupById.clear();
+    this.renderingEngine.destroy();
   }
 }
