@@ -285,11 +285,6 @@ export class MindmapRenderer {
     if (group.getAttr(MindmapRenderer.HANDLER_FLAG)) return;
     group.setAttr(MindmapRenderer.HANDLER_FLAG, true);
 
-    // Check if pan tool is active - if so, disable dragging on elements
-    const storeState = this.store.getState();
-    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
-    group.draggable(!isPanToolActive);
-
     // Track click timing for double-click vs drag detection
     let lastClickTime = 0;
     let clickTimer: NodeJS.Timeout | null = null;

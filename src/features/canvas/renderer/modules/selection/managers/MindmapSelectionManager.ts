@@ -8,6 +8,11 @@ export interface MindmapSelectionManager {
   scheduleReroute(nodeIds: Set<string>): void;
   performReroute(nodeIds: Set<string>): void;
   updateEdgeVisuals(delta: { dx: number; dy: number }): void;
+  moveMindmapDescendants(
+    nodeIds: string[],
+    delta: { dx: number; dy: number },
+    initialPositions: Map<string, { x: number; y: number }>
+  ): void;
   setLiveRoutingEnabled(enabled: boolean): void;
   getRenderer(): any | null;
 }
@@ -101,6 +106,50 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
         this.updateMindmapEdgePosition(elementId, delta);
       }
     });
+  }
+
+  // Move mindmap node descendants during drag/transform operations
+  moveMindmapDescendants(
+    nodeIds: string[],
+    delta: { dx: number; dy: number },
+    initialPositions: Map<string, { x: number; y: number }>
+  ): void {
+    const renderer = this.getRenderer();
+    if (!renderer) return;
+
+    // For each mindmap node being dragged, move its descendants
+    nodeIds.forEach(nodeId => {
+      const store = useUnifiedCanvasStore.getState();
+      const element = store.elements?.get(nodeId);
+      
+      if (element?.type !== 'mindmap-node') return;
+
+      // Get all descendants of this node
+      const descendants = renderer.getAllDescendants?.(nodeId);
+      if (!descendants || descendants.size === 0) return;
+
+      // Move each descendant by the same delta, relative to initial position
+      descendants.forEach((descendantId: string) => {
+        const descendantGroup = renderer.nodeGroups?.get(descendantId);
+        const initialPos = initialPositions.get(descendantId);
+        
+        if (descendantGroup && initialPos) {
+          // Set position relative to initial position, not incrementally
+          descendantGroup.position({
+            x: initialPos.x + delta.dx,
+            y: initialPos.y + delta.dy,
+          });
+        }
+
+        // Update edges for this descendant
+        this.updateMindmapEdgePosition(descendantId, delta);
+      });
+    });
+
+    // Batch draw to update the canvas
+    if (renderer.layers?.main) {
+      renderer.layers.main.batchDraw();
+    }
   }
 
   // Extracted from SelectionModule.ts lines 1708-1722

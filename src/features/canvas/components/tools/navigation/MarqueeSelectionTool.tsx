@@ -418,6 +418,34 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           }
         });
 
+        // Capture base positions for mindmap descendants
+        const mindmapRenderer = typeof window !== "undefined" ? (window as any).mindmapRenderer : null;
+        if (mindmapRenderer) {
+          selectedNodes.forEach((node) => {
+            const elementId = node.getAttr("elementId") || node.id();
+            const element = elements.get(elementId);
+            
+            if (element?.type === "mindmap-node") {
+              const descendants = mindmapRenderer.getAllDescendants?.(elementId);
+              if (descendants && descendants.size > 0) {
+                descendants.forEach((descendantId: string) => {
+                  const descendantGroup = mindmapRenderer.nodeGroups?.get(descendantId);
+                  const descendantElement = elements.get(descendantId);
+                  
+                  if (descendantGroup && descendantElement) {
+                    const descendantPos = { x: descendantElement.x, y: descendantElement.y };
+                    marqueeRef.current.basePositions.set(descendantId, descendantPos);
+                    console.log("[MarqueeSelectionTool] captured mindmap descendant base position", {
+                      descendantId,
+                      position: descendantPos
+                    });
+                  }
+                });
+              }
+            }
+          });
+        }
+
         // Store the original draggable states for cleanup
         marqueeRef.current.originalDraggableStates = originalDraggableStates;
 
@@ -441,11 +469,14 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           },
         );
 
-        marqueeRef.current.persistentSelection = [];
-
         // Trigger SelectionModule to select the clicked element
         // This will show the blue transformer borders
         setSelection([targetElementId]);
+        
+        // Update persistent selection to match the new selection
+        // This allows the next click to prepare for drag instead of re-selecting
+        marqueeRef.current.persistentSelection = [targetElementId];
+        
         return; // Exit after handling selection
       } else {
         // No elementId found at all (shouldn't happen) - clear any selection
@@ -600,6 +631,56 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
             return;
           }
 
+          // Handle mindmap nodes - move descendants along with parent
+          if (element?.type === "mindmap-node") {
+            console.log("[MarqueeSelectionTool] Dragging mindmap node, checking for descendants", { elementId });
+            const mindmapRenderer = typeof window !== "undefined" ? (window as any).mindmapRenderer : null;
+            if (mindmapRenderer) {
+              const descendants = mindmapRenderer.getAllDescendants?.(elementId);
+              console.log("[MarqueeSelectionTool] Found descendants", { elementId, descendantCount: descendants?.size || 0 });
+              if (descendants && descendants.size > 0) {
+                console.log("[MarqueeSelectionTool] Moving descendants", { 
+                  elementId, 
+                  descendantIds: Array.from(descendants),
+                  dragDelta 
+                });
+                // Move all descendants
+                descendants.forEach((descendantId: string) => {
+                  const descendantGroup = mindmapRenderer.nodeGroups?.get(descendantId);
+                  const descendantBasePos = marqueeRef.current.basePositions.get(descendantId);
+                  
+                  if (descendantGroup && descendantBasePos) {
+                    descendantGroup.position({
+                      x: descendantBasePos.x + dragDelta.dx,
+                      y: descendantBasePos.y + dragDelta.dy,
+                    });
+                  }
+
+                  // Update store for descendant
+                  const descendantElement = store.elements?.get(descendantId);
+                  if (descendantElement && store.updateElement) {
+                    const descendantStoreBasePos = marqueeRef.current.basePositions.get(descendantId);
+                    if (descendantStoreBasePos) {
+                      store.updateElement(descendantId, {
+                        x: descendantStoreBasePos.x + dragDelta.dx,
+                        y: descendantStoreBasePos.y + dragDelta.dy,
+                      }, { pushHistory: false });
+                      movedElementIds.add(descendantId);
+                    }
+                  }
+                });
+
+                // Update edges
+                if (mindmapRenderer.updateConnectedEdgesForNode) {
+                  const allNodes = new Set([elementId, ...Array.from(descendants)]);
+                  allNodes.forEach((nodeId: string) => {
+                    mindmapRenderer.updateConnectedEdgesForNode(nodeId);
+                  });
+                }
+              }
+            }
+          }
+
           const basePos = marqueeRef.current.basePositions.get(elementId);
           if (!basePos) {
             return;
@@ -746,6 +827,43 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
                   "[MarqueeSelectionTool] Skipping anchored connector during commit",
                   { elementId },
                 );
+              }
+            } else if (element.type === "mindmap-node") {
+              // Handle mindmap nodes - commit parent and all descendants
+              if (basePos) {
+                elementUpdates.push({
+                  id: elementId,
+                  patch: {
+                    x: basePos.x + finalDelta.dx,
+                    y: basePos.y + finalDelta.dy,
+                  },
+                });
+
+                // Add all descendants to the update batch
+                const mindmapRenderer = typeof window !== "undefined" ? (window as any).mindmapRenderer : null;
+                if (mindmapRenderer) {
+                  const descendants = mindmapRenderer.getAllDescendants?.(elementId);
+                  if (descendants && descendants.size > 0) {
+                    console.log("[MarqueeSelectionTool] Committing mindmap descendants", {
+                      parentId: elementId,
+                      descendantCount: descendants.size,
+                      descendantIds: Array.from(descendants)
+                    });
+                    
+                    descendants.forEach((descendantId: string) => {
+                      const descendantBasePos = marqueeRef.current.basePositions.get(descendantId);
+                      if (descendantBasePos) {
+                        elementUpdates.push({
+                          id: descendantId,
+                          patch: {
+                            x: descendantBasePos.x + finalDelta.dx,
+                            y: descendantBasePos.y + finalDelta.dy,
+                          },
+                        });
+                      }
+                    });
+                  }
+                }
               }
             } else if (basePos) {
               // Handle regular elements

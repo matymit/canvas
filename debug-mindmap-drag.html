@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Mindmap Drag</title>
+    <script>
+        // Open console and run this after loading the canvas
+        function debugMindmapDrag() {
+            // Get the mindmap renderer from window
+            const renderer = window.mindmapRenderer;
+            if (!renderer) {
+                console.error('❌ No mindmapRenderer found on window');
+                return;
+            }
+            
+            console.log('✅ MindmapRenderer found:', renderer);
+            
+            // Check if there are any node groups
+            const nodeGroups = renderer.nodeGroups || new Map();
+            console.log(`📊 Node groups: ${nodeGroups.size}`);
+            
+            if (nodeGroups.size === 0) {
+                console.warn('⚠️ No mindmap nodes rendered yet');
+                return;
+            }
+            
+            // Check each node group
+            nodeGroups.forEach((group, id) => {
+                console.log(`\n🔍 Inspecting node: ${id}`);
+                console.log(`  - draggable: ${group.draggable()}`);
+                console.log(`  - listening: ${group.listening()}`);
+                console.log(`  - visible: ${group.visible()}`);
+                console.log(`  - x: ${group.x()}, y: ${group.y()}`);
+                console.log(`  - layer: ${group.getLayer() ? 'attached' : 'NOT ATTACHED'}`);
+                console.log(`  - stage: ${group.getStage() ? 'attached' : 'NOT ATTACHED'}`);
+                console.log(`  - cursor: ${group.getAttr('cursor')}`);
+                console.log(`  - handlers bound: ${group.getAttr('__mindmapHandlers')}`);
+                
+                // Check if drag events are attached
+                const hasEvents = group.eventListeners;
+                if (hasEvents) {
+                    console.log(`  - dragstart listeners: ${hasEvents.dragstart?.length || 0}`);
+                    console.log(`  - dragmove listeners: ${hasEvents.dragmove?.length || 0}`);
+                    console.log(`  - dragend listeners: ${hasEvents.dragend?.length || 0}`);
+                }
+            });
+            
+            // Check the main layer
+            const stage = window.mindmapRenderer.layers?.main?.getStage();
+            if (stage) {
+                const layers = stage.getLayers();
+                console.log(`\n📚 Stage has ${layers.length} layers`);
+                const mainLayer = layers[1]; // Main layer is index 1
+                if (mainLayer) {
+                    console.log(`  Main layer listening: ${mainLayer.listening()}`);
+                    console.log(`  Main layer visible: ${mainLayer.visible()}`);
+                }
+            }
+            
+            // Check current tool
+            const store = window.useUnifiedCanvasStore?.getState?.();
+            if (store) {
+                console.log(`\n🛠️ Current tool: ${store.ui?.selectedTool || 'unknown'}`);
+            }
+        }
+        
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            console.log('🚀 Debug script loaded. Run debugMindmapDrag() in console after adding a mindmap node.');
+            window.debugMindmapDrag = debugMindmapDrag;
+        });
+    </script>
+</head>
+<body>
+    <h1>Mindmap Drag Debug Helper</h1>
+    <p>Open console and run: <code>debugMindmapDrag()</code></p>
+    <p>Do this after adding a mindmap node to the canvas</p>
+    
+    <h2>Quick checks:</h2>
+    <ul>
+        <li>Is mindmapRenderer available? <code>window.mindmapRenderer</code></li>
+        <li>Current tool: <code>window.useUnifiedCanvasStore?.getState().ui?.selectedTool</code></li>
+        <li>Node count: <code>window.mindmapRenderer?.nodeGroups?.size</code></li>
+    </ul>
+</body>
+</html>

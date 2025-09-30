@@ -32,6 +32,7 @@ export class SelectionModule implements RendererModule {
   private readonly selectionDebouncer = new SelectionDebouncer();
   private transformLifecycle?: TransformLifecycleCoordinator;
   private connectorTransformFinalizer?: ConnectorTransformFinalizer;
+  private mindmapDescendantInitialPositions = new Map<string, { x: number; y: number }>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
@@ -359,17 +360,50 @@ export class SelectionModule implements RendererModule {
     nodes: Konva.Node[],
     source: "drag" | "transform",
   ) {
+    console.log("[SelectionModule] beginSelectionTransform", { source, nodeCount: nodes.length, nodeIds: nodes.map(n => n.id()) });
+    
     // Delegate to TransformStateManager
     transformStateManager.beginTransform(nodes, source);
 
     // TransformStateManager handles snapshots internally
     this.transformController?.clearSnapshot();
+
+    // Store initial positions of mindmap descendants when dragging
+    if (source === "drag" && this.storeCtx) {
+      this.mindmapDescendantInitialPositions.clear();
+      const state = this.storeCtx.store.getState();
+      const renderer = mindmapSelectionManager.getRenderer();
+
+      if (renderer) {
+        nodes.forEach(node => {
+          const id = node.id();
+          const element = state.elements?.get(id);
+          
+          if (element?.type === 'mindmap-node') {
+            const descendants = renderer.getAllDescendants?.(id);
+            if (descendants) {
+              descendants.forEach((descendantId: string) => {
+                const descendantGroup = renderer.nodeGroups?.get(descendantId);
+                if (descendantGroup) {
+                  this.mindmapDescendantInitialPositions.set(descendantId, {
+                    x: descendantGroup.x(),
+                    y: descendantGroup.y(),
+                  });
+                }
+              });
+            }
+          }
+        });
+      }
+    }
   }
 
   private progressSelectionTransform(
     nodes: Konva.Node[],
     source: "drag" | "transform",
   ) {
+    console.log("[SelectionModule] progressSelectionTransform", { source, nodeCount: nodes.length });
+    
     // Delegate to TransformStateManager
     transformStateManager.progressTransform(nodes, source);
 
@@ -390,6 +424,26 @@ export class SelectionModule implements RendererModule {
       );
     }
     mindmapSelectionManager.updateEdgeVisuals(delta);
+
+    // Move mindmap descendants when dragging mindmap nodes
+    if (source === "drag" && this.storeCtx) {
+      const state = this.storeCtx.store.getState();
+      const mindmapNodeIds = nodes
+        .filter(node => {
+          const id = node.id();
+          const element = state.elements?.get(id);
+          return element?.type === 'mindmap-node';
+        })
+        .map(node => node.id());
+      
+      if (mindmapNodeIds.length > 0) {
+        mindmapSelectionManager.moveMindmapDescendants(
+          mindmapNodeIds,
+          delta,
+          this.mindmapDescendantInitialPositions
+        );
+      }
+    }
   }
 
   private endSelectionTransform(
@@ -404,11 +458,57 @@ export class SelectionModule implements RendererModule {
 
     // Commit final positions and clean up visuals
     if (nodes.length > 0) {
-      // Direct call to ElementSynchronizer (Phase 3: shim removal)
-      elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
-        pushHistory: true,
-        batchUpdates: true,
-      });
+      // Handle mindmap descendants when dragging mindmap nodes
+      if (source === "drag" && this.storeCtx) {
+        const state = this.storeCtx.store.getState();
+        const mindmapNodes = nodes.filter(node => {
+          const id = node.id();
+          const element = state.elements?.get(id);
+          return element?.type === 'mindmap-node';
+        });
+
+        if (mindmapNodes.length > 0) {
+          // Gather all nodes that need position updates (dragged nodes + descendants)
+          const allNodesToUpdate = new Set<Konva.Node>(nodes);
+          const renderer = mindmapSelectionManager.getRenderer();
+          
+          if (renderer) {
+            mindmapNodes.forEach(node => {
+              const descendants = renderer.getAllDescendants?.(node.id());
+              if (descendants) {
+                descendants.forEach((descendantId: string) => {
+                  const descendantGroup = renderer.nodeGroups?.get(descendantId);
+                  if (descendantGroup) {
+                    allNodesToUpdate.add(descendantGroup);
+                  }
+                });
+              }
+            });
+          }
+
+          // Update all nodes (dragged + descendants) in one transaction
+          elementSynchronizer.updateElementsFromNodes(
+            Array.from(allNodesToUpdate),
+            "transform",
+            {
+              pushHistory: true,
+              batchUpdates: true,
+            }
+          );
+        } else {
+          // No mindmap nodes, use normal update
+          elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
+            pushHistory: true,
+            batchUpdates: true,
+          });
+        }
+      } else {
+        // Not a drag operation or no store context, use normal update
+        elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
+          pushHistory: true,
+          batchUpdates: true,
+        });
+      }
     }
 
     // Direct call to TransformStateManager (Phase 3: shim removal)

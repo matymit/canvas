@@ -65,7 +65,7 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
     ) => void) => s.addElement,
   );
   const replaceSelection = useUnifiedCanvasStore(
-    (s): ((ids: string[]) => void) => s.selection?.set,
+    (s): ((ids: string[]) => void) => s.setSelection,
   );
   const getSelectedIds = useUnifiedCanvasStore(
     (s): (() => string[]) => s.getSelectedIds,
@@ -290,11 +290,12 @@ export const MindmapTool: React.FC<MindmapToolProps> = ({
       } as MindmapEdgeElement;
 
       beginBatch?.("create-mindmap-child", "mindmap:create");
-      addElement?.(child, { pushHistory: true, select: true });
+      addElement?.(child, { pushHistory: true, select: false });
       addElement?.(edge, { pushHistory: true });
       endBatch?.(true);
 
-      replaceSelection?.([childId]);
+      // Select the parent node (not the new child)
+      replaceSelection?.([parentId]);
       // Removed automatic editor opening to prevent duplicate editors
     };
 
