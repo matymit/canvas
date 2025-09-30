@@ -3,15 +3,10 @@ import type Konva from "konva";
 import type { ModuleRendererCtx, RendererModule } from "../index";
 import type {
   ConnectorElement,
-  ConnectorEndpoint,
-  ConnectorEndpointPoint,
 } from "../../types/connector";
-import type { MindmapRenderer } from "./MindmapRenderer";
-import type { MindmapEdgeElement } from "../../types/mindmap";
 import { batchMindmapReroute } from "./mindmapWire";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
-import type { ConnectorService } from "../../services/ConnectorService";
 import {
   categorizeSelection,
   filterTransformableNodes,
@@ -26,7 +21,7 @@ import {
 } from "./selection/managers";
 import { TransformLifecycleCoordinator } from "./selection/controllers/TransformLifecycleCoordinator";
 import { MarqueeSelectionController } from "./selection/controllers/MarqueeSelectionController";
-import type { TransformSnapshot, ConnectorSnapshot } from "./selection/types";
+import type { TransformSnapshot } from "./selection/types";
 
 
 export class SelectionModule implements RendererModule {
@@ -104,16 +99,19 @@ export class SelectionModule implements RendererModule {
 
     this.transformController = new TransformController({
       getTransformer: () => this.transformLifecycle?.getTransformer() ?? null,
-      applyAnchoredOverride: (id, from, to) =>
-        this.applyConnectorEndpointOverride(id, from, to),
+      applyAnchoredOverride: (id, from, to) => {
+        connectorSelectionManager.updateElement(id, { from, to });
+      },
       setConnectorRoutingEnabled: (enabled) =>
-        this.setLiveRoutingEnabled(enabled),
+        connectorSelectionManager.setLiveRoutingEnabled(enabled),
       setMindmapRoutingEnabled: (enabled) =>
-        this.setMindmapLiveRoutingEnabled(enabled),
+        mindmapSelectionManager.setLiveRoutingEnabled(enabled),
       updateConnectorElement: (id, changes) =>
-        this.updateConnectorElement(id, changes),
+        connectorSelectionManager.updateElement(id, changes),
       rerouteAllConnectors: () => {
-        const connectorService = this.getConnectorService();
+        const connectorService = typeof window !== "undefined" 
+          ? (window as any).connectorService ?? null 
+          : null;
         try {
           connectorService?.forceRerouteAll();
         } catch {
@@ -121,7 +119,7 @@ export class SelectionModule implements RendererModule {
         }
       },
       rerouteMindmapNodes: (ids) => {
-        const renderer = this.getMindmapRenderer();
+        const renderer = mindmapSelectionManager.getRenderer();
         if (!renderer) return;
         try {
           this.debugLog("Triggering mindmap reroute after transform", {
@@ -433,8 +431,8 @@ export class SelectionModule implements RendererModule {
     // Delegate to TransformStateManager
     transformStateManager.beginTransform(nodes, source);
 
-    // Minimal orchestration to keep snapshot for visual updates
-    const snapshot = normalize(this.captureTransformSnapshot(nodes));
+    // Capture snapshot for visual updates using manager
+    const snapshot = normalize(transformStateManager.captureSnapshot(nodes));
     if (snapshot) {
       this.transformController?.start(snapshot);
     } else {
@@ -453,8 +451,19 @@ export class SelectionModule implements RendererModule {
     const delta = this.transformController?.computeDelta(nodes);
     if (!delta) return;
 
-    this.updateConnectorVisuals(delta);
-    this.updateMindmapEdgeVisuals(delta);
+    // Update visuals directly through transform controller
+    const snapshot = this.transformController?.getSnapshot();
+    if (snapshot) {
+      this.transformController?.updateConnectorShapes(
+        delta,
+        (connectorId, shape) => {
+          if (shape) {
+            connectorSelectionManager.updateShapeGeometry(connectorId, shape);
+          }
+        }
+      );
+    }
+    mindmapSelectionManager.updateEdgeVisuals(delta);
   }
 
   // Helper method to get current selected element IDs
@@ -535,7 +544,11 @@ export class SelectionModule implements RendererModule {
 
     // Commit final positions and clean up visuals
     if (nodes.length > 0) {
-      this.updateElementsFromNodes(nodes, true);
+      // Direct call to ElementSynchronizer (Phase 3: shim removal)
+      elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
+        pushHistory: true,
+        batchUpdates: true,
+      });
       const delta = this.transformController?.computeDelta(nodes);
       if (delta) {
         // Only commit translation for connected connectors when NO connectors are directly selected
@@ -549,21 +562,11 @@ export class SelectionModule implements RendererModule {
       }
     }
 
-    this.finalizeTransform();
+    // Direct call to TransformStateManager (Phase 3: shim removal)
+    transformStateManager.finalizeTransform();
+    this.transformController?.release();
   }
 
-  // Deprecated in favor of ElementSynchronizer
-  // Kept as a shim for compatibility; will be removed in Phase 3 cleanup
-  private updateElementsFromNodes(
-    nodes: Konva.Node[],
-    commitWithHistory: boolean,
-  ) {
-    // Delegate to ElementSynchronizer for store updates
-    elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
-      pushHistory: commitWithHistory,
-      batchUpdates: true,
-    });
-  }
 
   // FIXED: Enhanced auto-select element with better timing and error recovery
   autoSelectElement(elementId: string) {
@@ -892,452 +895,19 @@ export class SelectionModule implements RendererModule {
     }
   }
 
-  private captureTransformSnapshot(initialNodes?: Konva.Node[]): TransformSnapshot | null {
-    // Use module-local snapshot structure expected by TransformController
-    if (!this.storeCtx) return null;
 
-    const state = this.storeCtx.store.getState();
-    const selectedIds = this.toStringSet(state.selectedElementIds);
 
-    const snapshotNodes =
-      initialNodes && initialNodes.length > 0
-        ? initialNodes
-        : filterTransformableNodes(
-            resolveElementsToNodes({
-              stage: this.getStage(),
-              layers: this.getRelevantLayers(),
-              elementIds: selectedIds,
-            }),
-            (message, data) => this.debugLog(message, data),
-          );
 
-    const basePositions = new Map<string, { x: number; y: number }>();
-    const connectors = new Map<string, ConnectorSnapshot>();
-    const mindmapEdges = new Map<string, MindmapEdgeElement>();
-    const movedMindmapNodes = new Set<string>();
 
-    const stage = this.getStage();
-    const movingElementIds = new Set<string>();
 
-    snapshotNodes.forEach((node) => {
-      const elementId = node.getAttr("elementId") || node.id();
-      if (!elementId) {
-        return;
-      }
 
-      movingElementIds.add(elementId);
 
-      const element = state.elements.get(elementId) || state.element?.getById?.(elementId);
-      if (element && typeof element.x === "number" && typeof element.y === "number") {
-        basePositions.set(elementId, {
-          x: element.x,
-          y: element.y,
-        });
-      } else {
-        const pos = node.position();
-        basePositions.set(elementId, { x: pos.x, y: pos.y });
-      }
 
-      if (element?.type === "mindmap-node") {
-        movedMindmapNodes.add(elementId);
-      }
-    });
 
-    const includeConnector = (connector: ConnectorElement, id: string) => {
-      const shouldInclude =
-        selectedIds.has(id) ||
-        (connector.from.kind === "element" && movingElementIds.has(connector.from.elementId)) ||
-        (connector.to.kind === "element" && movingElementIds.has(connector.to.elementId));
 
-      if (!shouldInclude) {
-        return;
-      }
 
-      let points = this.getConnectorAbsolutePoints(stage, id);
-      let computedFromStore = false;
-      if (!points) {
-        const fallback = this.computeConnectorPointsFromStore(
-          connector,
-          basePositions,
-        );
-        if (!fallback) {
-          this.debugLog("Snapshot connector missing points", { id });
-          return;
-        }
-        points = fallback;
-        computedFromStore = true;
-      }
 
-      const [fromPoint, toPoint] = points;
 
-      const group = computedFromStore ? null : this.findConnectorGroup(stage, id);
-      const shape = group?.findOne<Konva.Line | Konva.Arrow>(
-        ".connector-shape",
-      ) ?? null;
-      const groupPosition = group
-        ? (() => {
-            try {
-              const abs = group.getAbsolutePosition();
-              return { x: abs.x, y: abs.y };
-            } catch (error) {
-              this.debugLog("Snapshot connector position error", { id, error });
-              return undefined;
-            }
-          })()
-        : undefined;
-
-      connectors.set(id, {
-        originalFrom: connector.from,
-        originalTo: connector.to,
-        startFrom: fromPoint,
-        startTo: toPoint,
-        wasAnchored:
-          connector.from.kind !== "point" || connector.to.kind !== "point",
-        shape,
-        group,
-        groupPosition,
-      });
-
-      this.debugLog("Snapshot connector", {
-        id,
-        wasAnchored:
-          connector.from.kind !== "point" || connector.to.kind !== "point",
-      });
-    };
-
-    const enumerateElements = (): Array<[string, unknown]> => {
-      const result: Array<[string, unknown]> = [];
-      const elements = state.elements;
-      if (elements instanceof Map) {
-        elements.forEach((value, key) => {
-          result.push([key, value]);
-        });
-      } else if (elements && typeof elements === "object") {
-        Object.entries(elements).forEach(([key, value]) => {
-          result.push([key, value]);
-        });
-      }
-
-      const allFromApi = state.element?.getAll?.();
-      if (Array.isArray(allFromApi)) {
-        for (const el of allFromApi) {
-          if (el && typeof el === "object" && "id" in el) {
-            const eid = (el as { id: string }).id;
-            if (!result.some(([existingId]) => existingId === eid)) {
-              result.push([eid, el]);
-            }
-          }
-        }
-      }
-
-      return result;
-    };
-
-    const getElementById = (id: string): unknown => {
-      return (
-        state.elements.get?.(id) ??
-        (state.elements instanceof Map ? undefined : (state.elements as Record<string, unknown> | undefined)?.[id]) ??
-        state.element?.getById?.(id)
-      );
-    };
-
-    for (const [id, element] of enumerateElements()) {
-      if (typeof element !== "object" || !element) continue;
-      const typed = element as { type?: string };
-      if (typed.type === "connector") {
-        includeConnector(element as ConnectorElement, id);
-      } else if (typed.type === "mindmap-edge") {
-        const edge = element as MindmapEdgeElement;
-        if (
-          selectedIds.has(id) ||
-          movingElementIds.has(edge.fromId) ||
-          movingElementIds.has(edge.toId)
-        ) {
-          mindmapEdges.set(id, edge);
-        }
-      }
-    }
-
-    // Ensure connectors explicitly selected are captured even if enumerateElements missed them
-    selectedIds.forEach((id) => {
-      if (connectors.has(id)) return;
-      const element = getElementById(id);
-      if (element && typeof element === "object" && (element as { type?: string }).type === "connector") {
-        includeConnector(element as ConnectorElement, id);
-      }
-    });
-
-    if (
-      basePositions.size === 0 &&
-      connectors.size === 0 &&
-      mindmapEdges.size === 0
-    ) {
-      return null;
-    }
-
-    const transformerRect = this.transformLifecycle?.getTransformerRect();
-
-    const snapshot: TransformSnapshot = {
-      basePositions,
-      connectors,
-      mindmapEdges,
-      movedMindmapNodes,
-      transformerBox: transformerRect
-        ? { x: transformerRect.x, y: transformerRect.y }
-        : undefined,
-    };
-
-    this.debugLog("Transform snapshot initialized", {
-      movingElements: basePositions.size,
-      connectors: connectors.size,
-      mindmapEdges: mindmapEdges.size,
-      movedMindmapNodes: movedMindmapNodes.size,
-      hasTransformerBox: Boolean(transformerRect),
-    });
-
-    return snapshot;
-  }
-
-  private finalizeTransform() {
-    // Delegate common finalization to TransformStateManager
-    transformStateManager.finalizeTransform();
-    this.transformController?.release();
-  }
-
-  private updateConnectorVisuals(delta: { dx: number; dy: number }) {
-    const snapshot = this.transformController?.getSnapshot();
-    if (!snapshot) return;
-
-    this.transformController?.updateConnectorShapes(
-      delta,
-      (
-        connectorId,
-        shape,
-        from: ConnectorEndpointPoint,
-        to: ConnectorEndpointPoint,
-      ) => this.updateConnectorShapeGeometry(connectorId, shape, from, to),
-    );
-  }
-
-  private applyConnectorEndpointOverride(
-    id: string,
-    fromPoint: ConnectorEndpointPoint,
-    toPoint: ConnectorEndpointPoint,
-  ) {
-    this.updateConnectorElement(id, {
-      from: fromPoint,
-      to: toPoint,
-    });
-  }
-
-  private updateConnectorShapeGeometry(
-    id: string,
-    cachedShape: Konva.Line | Konva.Arrow | null | undefined,
-    fromPoint: ConnectorEndpointPoint,
-    toPoint: ConnectorEndpointPoint,
-  ) {
-    const stage =
-      this.storeCtx?.stage ||
-      (typeof window !== "undefined"
-        ? ((window as Window & { konvaStage?: Konva.Stage }).konvaStage ?? null)
-        : null);
-
-    const shape = cachedShape
-      ? cachedShape
-      : stage
-          ?.findOne<Konva.Group>(`#${id}`)
-          ?.findOne<Konva.Line | Konva.Arrow>(".connector-shape") ?? null;
-
-    if (!shape) {
-      return;
-    }
-
-    const parent = shape.getParent();
-    const inverse = parent
-      ?.getAbsoluteTransform()
-      .copy()
-      .invert();
-
-    const toLocal = (point: ConnectorEndpointPoint) => {
-      if (inverse) {
-        return inverse.point({ x: point.x, y: point.y });
-      }
-      return { x: point.x, y: point.y };
-    };
-
-    const localFrom = toLocal(fromPoint);
-    const localTo = toLocal(toPoint);
-
-    const line = shape as Konva.Line;
-    if (typeof line.points === "function") {
-      line.points([localFrom.x, localFrom.y, localTo.x, localTo.y]);
-    }
-    line.getLayer()?.batchDraw();
-  }
-
-  private updateMindmapEdgeVisuals(delta: { dx: number; dy: number }) {
-    mindmapSelectionManager.updateEdgeVisuals(delta);
-  }
-
-  private getConnectorAbsolutePoints(
-    stage: Konva.Stage | null | undefined,
-    connectorId: string,
-  ): [ConnectorEndpointPoint, ConnectorEndpointPoint] | null {
-    if (!stage) return null;
-
-    const group = this.findConnectorGroup(stage, connectorId);
-    if (!group) return null;
-
-    const shape = group.findOne<Konva.Line | Konva.Arrow>(".connector-shape");
-    if (!shape || typeof (shape as Konva.Line).points !== "function") {
-      this.debugLog("Connector shape missing", { connectorId });
-      return null;
-    }
-
-    const points = (shape as Konva.Line).points();
-    if (!points || points.length < 4) return null;
-
-    const transform = shape.getAbsoluteTransform().copy();
-    const from = transform.point({ x: points[0], y: points[1] });
-    const to = transform.point({ x: points[2], y: points[3] });
-
-    return [
-      { kind: "point", x: from.x, y: from.y },
-      { kind: "point", x: to.x, y: to.y },
-    ];
-  }
-
-  private findConnectorGroup(
-    stage: Konva.Stage | null | undefined,
-    connectorId: string,
-  ): Konva.Group | null {
-    if (!stage) return null;
-
-    const direct = stage.findOne(`#${connectorId}`) as Konva.Group | null;
-    if (direct && direct.getClassName?.() === "Group") {
-      return direct;
-    }
-
-    const attrSelector = `[elementId="${connectorId}"]`;
-    const attrMatch = stage.findOne(attrSelector);
-    if (attrMatch) {
-      const group = attrMatch.findAncestor("Group") as Konva.Group | null;
-      if (group) {
-        return group;
-      }
-    }
-
-    this.debugLog("Connector group not found", { connectorId });
-    return null;
-  }
-
-  private computeConnectorPointsFromStore(
-    connector: ConnectorElement,
-    basePositions: Map<string, { x: number; y: number }>,
-  ): [ConnectorEndpointPoint, ConnectorEndpointPoint] | null {
-    const state = this.storeCtx?.store.getState();
-    if (!state) return null;
-
-    const resolve = (
-      endpoint: ConnectorEndpoint,
-    ): ConnectorEndpointPoint | null => {
-      if (endpoint.kind === "point") {
-        return {
-          kind: "point",
-          x: endpoint.x,
-          y: endpoint.y,
-        };
-      }
-
-      const elementId = endpoint.elementId;
-      const element =
-        state.elements.get(elementId) || state.element?.getById?.(elementId);
-      if (!element) {
-        return null;
-      }
-
-      const baseline = basePositions.get(elementId);
-      const ex = baseline?.x ?? element.x ?? 0;
-      const ey = baseline?.y ?? element.y ?? 0;
-      const width = element.width ?? 0;
-      const height = element.height ?? 0;
-      const cx = ex + width / 2;
-      const cy = ey + height / 2;
-
-      let px = cx;
-      let py = cy;
-
-      switch (endpoint.anchor) {
-        case "left":
-          px = ex;
-          py = cy;
-          break;
-        case "right":
-          px = ex + width;
-          py = cy;
-          break;
-        case "top":
-          px = cx;
-          py = ey;
-          break;
-        case "bottom":
-          px = cx;
-          py = ey + height;
-          break;
-        default:
-          break;
-      }
-
-      if (endpoint.offset) {
-        px += endpoint.offset.dx;
-        py += endpoint.offset.dy;
-      }
-
-      return { kind: "point", x: px, y: py };
-    };
-
-    const fromPoint = resolve(connector.from);
-    const toPoint = resolve(connector.to);
-
-    if (!fromPoint || !toPoint) {
-      return null;
-    }
-
-    return [fromPoint, toPoint];
-  }
-
-  private setLiveRoutingEnabled(enabled: boolean) {
-    connectorSelectionManager.setLiveRoutingEnabled(enabled);
-  }
-
-  private setMindmapLiveRoutingEnabled(enabled: boolean) {
-    mindmapSelectionManager.setLiveRoutingEnabled(enabled);
-  }
-
-  private getConnectorService(): ConnectorService | null {
-    if (typeof window === "undefined") return null;
-    return (
-      (window as Window & { connectorService?: ConnectorService }).connectorService ||
-      null
-    );
-  }
-
-  private updateConnectorElement(
-    id: string,
-    changes: Partial<ConnectorElement>,
-  ) {
-    connectorSelectionManager.updateElement(id, changes);
-  }
-
-  private getMindmapRenderer(): MindmapRenderer | null {
-    // Delegate to MindmapSelectionManager
-    return mindmapSelectionManager.getRenderer();
-    if (typeof window === "undefined") return null;
-    return (
-      (window as Window & { mindmapRenderer?: MindmapRenderer }).mindmapRenderer ||
-      null
-    );
-  }
 
   /**
    * Handle real-time connector endpoint drag updates
