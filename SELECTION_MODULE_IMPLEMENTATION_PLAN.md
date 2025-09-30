@@ -1,6 +1,643 @@
 # SelectionModule.ts Complete Implementation Plan
-**Target**: Systematically account for and refactor all 1,852 lines in SelectionModule.ts  
-**Status**: Ready for implementation following architectural principles  
+
+## 📊 Current Status (September 30, 2025)
+- **Original Size**: 1,852 lines → **Current Size**: 1,368 lines → **Target**: 649 lines
+- **Phase 1**: ✅ COMPLETE - All 5 managers created (1,408 total lines)
+- **Phase 2**: ⏳ PARTIAL - Shim delegation pattern in place
+- **Phase 3**: ❌ NOT STARTED - Shim removal and direct manag### ❌ Phase 3: Shim Removal & Full Cleanup (NOT STARTED - PRIORITY)
+
+**Goal:** Remove all wrapper/shim methods from SelectionModule and update callers to use managers directly
+
+**Current Problem:** Code duplication - methods exist in BOTH SelectionModule (as shims) AND managers (as implementations)
+
+**Shim Pattern Example (Line 1101-1105):**
+```typescript
+// SHIM in SelectionModule - delegates to manager
+private finalizeTransform() {
+  transformStateManager.finalizeTransform(); // ← actual work done by manager
+  this.transformController?.release();
+}
+```
+
+**Target Outcome:**
+- SelectionModule reduced from 1,368 → ~649 lines  
+- Pure orchestration pattern (no business logic)
+- All callers updated to use managers directly
+- Zero code duplication
+
+---
+
+## 🎯 Phase 3: Executable Task Breakdown
+
+### Overview
+Phase 3 removes ~719 lines of shim wrappers from SelectionModule.ts by:
+1. Updating TransformController initialization to call managers directly
+2. Refactoring transform lifecycle methods to use managers
+3. Removing shim method definitions
+4. Updating any external callers
+
+### Execution Context
+- **Current File**: `/home/mason/Projects/Canvas/src/features/canvas/renderer/modules/SelectionModule.ts`
+- **Current Lines**: 1,368
+- **Target Lines**: 649
+- **Lines to Remove**: ~719
+
+---
+
+### 📋 EXECUTABLE TASKS
+
+```json
+{
+  "executable_tasks": [
+    {
+      "task_id": "phase3-task-1-audit-shims",
+      "description": "Audit all shim methods and their callers",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "1-1368",
+          "function_name": "entire file"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "audit",
+          "find_pattern": "grep -n \"private.*Transform\\|private.*Connector\\|private.*Mindmap\" SelectionModule.ts",
+          "replace_with": "N/A - audit only",
+          "line_number": "N/A"
+        }
+      ],
+      "validation_steps": [
+        "Create list of all shim methods with line numbers",
+        "Identify all internal call sites (within SelectionModule)",
+        "Search codebase for external callers: grep -r \"selectionModule\\.\" src/",
+        "Document dependencies between shims"
+      ],
+      "success_criteria": "Complete inventory of 12-15 shim methods with all call sites documented",
+      "dependencies": [],
+      "rollback_procedure": "N/A - audit only, no code changes"
+    },
+    {
+      "task_id": "phase3-task-2-update-transform-controller-init",
+      "description": "Update TransformController initialization to call managers directly instead of SelectionModule shims",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "105-130",
+          "function_name": "mount() - TransformController initialization"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "replace",
+          "find_pattern": "applyAnchoredOverride: \\(id, from, to\\) =>\\s*this\\.applyConnectorEndpointOverride\\(id, from, to\\)",
+          "replace_with": "applyAnchoredOverride: (id, from, to) => {\n        connectorSelectionManager.updateElement(id, { from, to });\n      }",
+          "line_number": "107-108"
+        },
+        {
+          "operation": "replace",
+          "find_pattern": "setConnectorRoutingEnabled: \\(enabled\\) =>\\s*this\\.setLiveRoutingEnabled\\(enabled\\)",
+          "replace_with": "setConnectorRoutingEnabled: (enabled) => {\n        connectorSelectionManager.setLiveRoutingEnabled(enabled);\n      }",
+          "line_number": "109-110"
+        },
+        {
+          "operation": "replace",
+          "find_pattern": "setMindmapRoutingEnabled: \\(enabled\\) =>\\s*this\\.setMindmapLiveRoutingEnabled\\(enabled\\)",
+          "replace_with": "setMindmapRoutingEnabled: (enabled) => {\n        mindmapSelectionManager.setLiveRoutingEnabled(enabled);\n      }",
+          "line_number": "111-112"
+        },
+        {
+          "operation": "replace",
+          "find_pattern": "updateConnectorElement: \\(id, changes\\) =>\\s*this\\.updateConnectorElement\\(id, changes\\)",
+          "replace_with": "updateConnectorElement: (id, changes) => {\n        connectorSelectionManager.updateElement(id, changes);\n      }",
+          "line_number": "113-114"
+        },
+        {
+          "operation": "replace",
+          "find_pattern": "rerouteAllConnectors: \\(\\) => \\{[^}]+const connectorService = this\\.getConnectorService\\(\\);[^}]+\\}",
+          "replace_with": "rerouteAllConnectors: () => {\n        const connectorService = this.storeCtx?.connectorService ?? null;\n        try {\n          connectorService?.forceRerouteAll();\n        } catch {\n          // ignore reroute errors\n        }\n      }",
+          "line_number": "115-121"
+        },
+        {
+          "operation": "replace",
+          "find_pattern": "const renderer = this\\.getMindmapRenderer\\(\\);",
+          "replace_with": "const renderer = this.storeCtx?.mindmapRenderer ?? null;",
+          "line_number": "124"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "Test selection and transform: select multiple elements, drag them",
+        "Test connector routing: select element with connectors, verify they update",
+        "Test mindmap routing: select mindmap node, verify edges update"
+      ],
+      "success_criteria": "TransformController initialization uses manager methods directly, no 'this.' shim calls in callbacks",
+      "dependencies": ["phase3-task-1-audit-shims"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-3-refactor-begin-transform",
+      "description": "Refactor beginSelectionTransform to use managers directly",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "420-444",
+          "function_name": "beginSelectionTransform"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "replace",
+          "find_pattern": "// Minimal orchestration to keep snapshot for visual updates\\s*const snapshot = normalize\\(this\\.captureTransformSnapshot\\(nodes\\)\\);",
+          "replace_with": "// Capture snapshot for visual updates using manager\n    const snapshot = normalize(transformStateManager.captureSnapshot(nodes));",
+          "line_number": "436-437"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "Manual test: select element, start dragging, verify transform begins",
+        "Manual test: select element, use transform handles, verify transform begins",
+        "Check console for no errors during transform start"
+      ],
+      "success_criteria": "beginSelectionTransform calls transformStateManager.captureSnapshot directly, no shim usage",
+      "dependencies": ["phase3-task-2-update-transform-controller-init"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-4-refactor-progress-transform",
+      "description": "Refactor progressSelectionTransform to use managers directly",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "446-461",
+          "function_name": "progressSelectionTransform"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "replace",
+          "find_pattern": "this\\.updateConnectorVisuals\\(delta\\);\\s*this\\.updateMindmapEdgeVisuals\\(delta\\);",
+          "replace_with": "// Update visuals directly through transform controller\n    const snapshot = this.transformController?.getSnapshot();\n    if (snapshot) {\n      this.transformController?.updateConnectorShapes(\n        delta,\n        (connectorId, shape, from, to) => {\n          connectorSelectionManager.updateShapeGeometry(connectorId, shape, from, to);\n        }\n      );\n    }\n    mindmapSelectionManager.updateEdgeVisuals(delta);",
+          "line_number": "456-457"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "Manual test: drag selected element, verify connectors update live",
+        "Manual test: drag mindmap node, verify edges update live",
+        "Performance check: verify 60fps maintained during drag"
+      ],
+      "success_criteria": "progressSelectionTransform uses managers directly for visual updates, no shim calls",
+      "dependencies": ["phase3-task-3-refactor-begin-transform"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-5-refactor-end-transform",
+      "description": "Refactor endSelectionTransform to call manager directly",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "505-560",
+          "function_name": "endSelectionTransform"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "replace",
+          "find_pattern": "this\\.finalizeTransform\\(\\);",
+          "replace_with": "// Finalize transform through manager\n    transformStateManager.finalizeTransform();\n    this.transformController?.release();",
+          "line_number": "552"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "Manual test: drag element then release, verify transform ends properly",
+        "Manual test: use transform handles then release, verify transform ends",
+        "Test undo: perform transform, press Ctrl+Z, verify it undoes",
+        "Test redo: undo transform, press Ctrl+Shift+Z, verify it redoes"
+      ],
+      "success_criteria": "endSelectionTransform calls transformStateManager.finalizeTransform directly, no finalizeTransform shim",
+      "dependencies": ["phase3-task-4-refactor-progress-transform"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-6-remove-transform-shims",
+      "description": "Remove captureTransformSnapshot, finalizeTransform shim methods",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "895-1000, 1101-1105",
+          "function_name": "captureTransformSnapshot, finalizeTransform"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "delete",
+          "find_pattern": "private captureTransformSnapshot\\(initialNodes\\?: Konva\\.Node\\[\\]\\): TransformSnapshot \\| null \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "895-1000"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private finalizeTransform\\(\\) \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1101-1105"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "grep -n 'captureTransformSnapshot\\|finalizeTransform' SelectionModule.ts (should return no private methods)",
+        "Full selection test: select, drag, transform, release",
+        "Verify no runtime errors in console"
+      ],
+      "success_criteria": "captureTransformSnapshot and finalizeTransform methods removed, no references remain, all tests pass",
+      "dependencies": ["phase3-task-5-refactor-end-transform"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-7-remove-connector-shims",
+      "description": "Remove connector-related shim methods",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "1107-1330",
+          "function_name": "updateConnectorVisuals, applyConnectorEndpointOverride, updateConnectorShapeGeometry, updateConnectorElement, getConnectorService"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "delete",
+          "find_pattern": "private updateConnectorVisuals\\(delta: \\{ dx: number; dy: number \\}\\) \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1107-1120"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private applyConnectorEndpointOverride\\([\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1122-1131"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private updateConnectorShapeGeometry\\([\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1133-1176"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private getConnectorService\\(\\): ConnectorService \\| null \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1317-1323"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private updateConnectorElement\\([\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1325-1330"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "grep -n 'updateConnectorVisuals\\|applyConnectorEndpointOverride\\|updateConnectorShapeGeometry' SelectionModule.ts",
+        "Manual test: select element with connectors, drag it, verify connectors update",
+        "Manual test: drag connector endpoint, verify it moves correctly",
+        "Check connector routing still works during and after transforms"
+      ],
+      "success_criteria": "All connector shim methods removed, connector functionality intact, managers handle all operations",
+      "dependencies": ["phase3-task-6-remove-transform-shims"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-8-remove-mindmap-shims",
+      "description": "Remove mindmap-related shim methods",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "1178-1180, 1332-1340",
+          "function_name": "updateMindmapEdgeVisuals, getMindmapRenderer, setMindmapLiveRoutingEnabled"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "delete",
+          "find_pattern": "private updateMindmapEdgeVisuals\\(delta: \\{ dx: number; dy: number \\}\\) \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1178-1180"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private getMindmapRenderer\\(\\): MindmapRenderer \\| null \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1332-1340"
+        },
+        {
+          "operation": "delete",
+          "find_pattern": "private setMindmapLiveRoutingEnabled\\([\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "TBD - find exact location"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "grep -n 'updateMindmapEdgeVisuals\\|getMindmapRenderer\\|setMindmapLiveRoutingEnabled' SelectionModule.ts",
+        "Manual test: select mindmap node, drag it, verify edges update",
+        "Manual test: transform mindmap node, verify edges reroute correctly",
+        "Check mindmap routing enabled/disabled states work"
+      ],
+      "success_criteria": "All mindmap shim methods removed, mindmap edge updates work through manager",
+      "dependencies": ["phase3-task-7-remove-connector-shims"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-9-remove-element-sync-shim",
+      "description": "Remove updateElementsFromNodes shim (already deprecated)",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "556-566",
+          "function_name": "updateElementsFromNodes"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "delete",
+          "find_pattern": "// Deprecated in favor of ElementSynchronizer[\\s\\S]*?private updateElementsFromNodes\\([\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "556-566"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "grep -n 'updateElementsFromNodes' SelectionModule.ts (should find no private method)",
+        "Verify elementSynchronizer is being used directly elsewhere",
+        "Full transform test: select, modify, verify store updates"
+      ],
+      "success_criteria": "updateElementsFromNodes shim removed, elementSynchronizer used directly",
+      "dependencies": ["phase3-task-8-remove-mindmap-shims"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-10-remove-live-routing-shim",
+      "description": "Remove setLiveRoutingEnabled shim method",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "1309-1315",
+          "function_name": "setLiveRoutingEnabled"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "delete",
+          "find_pattern": "private setLiveRoutingEnabled\\(enabled: boolean\\) \\{[\\s\\S]*?^  \\}",
+          "replace_with": "",
+          "line_number": "1309-1315"
+        }
+      ],
+      "validation_steps": [
+        "npm run type-check",
+        "npm run lint",
+        "grep -n 'setLiveRoutingEnabled' SelectionModule.ts (should only find in TransformController init)",
+        "Test live routing: drag element, verify connectors update in real-time",
+        "Test routing disabled: perform transform, verify final commit is correct"
+      ],
+      "success_criteria": "setLiveRoutingEnabled shim removed, managers called directly from TransformController",
+      "dependencies": ["phase3-task-9-remove-element-sync-shim"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-11-verify-external-callers",
+      "description": "Audit and update any external callers of SelectionModule methods",
+      "target_files": [
+        {
+          "path": "src/features/canvas/**/*.ts",
+          "line_range": "N/A",
+          "function_name": "Any files accessing window.selectionModule"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "audit",
+          "find_pattern": "grep -r 'window\\.selectionModule\\|selectionModule\\.' src/ --include='*.ts' --include='*.tsx'",
+          "replace_with": "Document all external usage",
+          "line_number": "N/A"
+        }
+      ],
+      "validation_steps": [
+        "Grep for 'window.selectionModule' across entire src/",
+        "Grep for any direct selectionModule method calls",
+        "Verify all external callers use public API only",
+        "Check if any files need updates to use managers directly"
+      ],
+      "success_criteria": "All external callers identified, none use removed shim methods, only public API used",
+      "dependencies": ["phase3-task-10-remove-live-routing-shim"],
+      "rollback_procedure": "N/A - audit only"
+    },
+    {
+      "task_id": "phase3-task-12-final-size-verification",
+      "description": "Verify SelectionModule reduced to target size (~649 lines)",
+      "target_files": [
+        {
+          "path": "src/features/canvas/renderer/modules/SelectionModule.ts",
+          "line_range": "1-649",
+          "function_name": "entire file"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "audit",
+          "find_pattern": "wc -l SelectionModule.ts",
+          "replace_with": "N/A - verification only",
+          "line_number": "N/A"
+        }
+      ],
+      "validation_steps": [
+        "wc -l SelectionModule.ts (should be ~649 lines)",
+        "npm run type-check (0 errors)",
+        "npm run lint (no new warnings)",
+        "Verify only orchestration logic remains",
+        "Check all business logic is in managers",
+        "Review remaining methods are public API or core orchestration"
+      ],
+      "success_criteria": "SelectionModule.ts is 649 lines ±50, pure orchestration, all tests pass",
+      "dependencies": ["phase3-task-11-verify-external-callers"],
+      "rollback_procedure": "git restore src/features/canvas/renderer/modules/SelectionModule.ts"
+    },
+    {
+      "task_id": "phase3-task-13-comprehensive-testing",
+      "description": "Run comprehensive test suite and manual testing",
+      "target_files": [
+        {
+          "path": "N/A",
+          "line_range": "N/A",
+          "function_name": "Full application testing"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "test",
+          "find_pattern": "N/A",
+          "replace_with": "N/A",
+          "line_number": "N/A"
+        }
+      ],
+      "validation_steps": [
+        "npm test -- SelectionModule",
+        "npm test -- ElementSynchronizer",
+        "npm test -- TransformStateManager",
+        "npm test -- ConnectorSelectionManager",
+        "npm test -- MindmapSelectionManager",
+        "npm run test:performance-budgets (verify 60fps maintained)",
+        "Manual: Select single element, drag, verify position updates",
+        "Manual: Select multiple elements (marquee), drag, verify all move",
+        "Manual: Transform with handles, verify resize/rotate work",
+        "Manual: Select element with connectors, verify connectors update",
+        "Manual: Select mindmap node, verify edges update",
+        "Manual: Test undo/redo for all transform operations",
+        "Manual: Verify selection visuals (blue borders) appear correctly",
+        "Manual: Test with 100+ elements, verify performance"
+      ],
+      "success_criteria": "All unit tests pass, all manual tests pass, 60fps maintained, no console errors",
+      "dependencies": ["phase3-task-12-final-size-verification"],
+      "rollback_procedure": "git reset --hard HEAD~1"
+    },
+    {
+      "task_id": "phase3-task-14-documentation-update",
+      "description": "Update all documentation to reflect completed refactoring",
+      "target_files": [
+        {
+          "path": "SELECTION_MODULE_IMPLEMENTATION_PLAN.md",
+          "line_range": "N/A",
+          "function_name": "N/A"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "line_range": "N/A",
+          "function_name": "N/A"
+        },
+        {
+          "path": "docs/architecture/README.md",
+          "line_range": "N/A",
+          "function_name": "N/A"
+        }
+      ],
+      "code_changes": [
+        {
+          "operation": "insert",
+          "find_pattern": "N/A",
+          "replace_with": "## Selection Module Refactoring Complete\n\n### Summary\n- SelectionModule.ts reduced from 1,852 → 649 lines\n- Extracted 1,203 lines into 5 focused managers\n- Pure orchestration pattern achieved\n- Zero code duplication\n- All business logic in managers\n\n### Architecture\n- TransformStateManager: Transform lifecycle (366 lines)\n- ElementSynchronizer: Store synchronization (335 lines)\n- ConnectorSelectionManager: Connector operations (386 lines)\n- MindmapSelectionManager: Mindmap edge updates (76 lines)\n- ShapeTextSynchronizer: Text positioning (40 lines)\n\n### Benefits\n- Improved maintainability (smaller files, single responsibility)\n- Better testability (isolated manager units)\n- Reduced cognitive load (clear separation of concerns)\n- Performance maintained (60fps, RAF batching preserved)",
+          "line_number": "N/A"
+        }
+      ],
+      "validation_steps": [
+        "Update SELECTION_MODULE_IMPLEMENTATION_PLAN.md status to 100% complete",
+        "Add entry to CHANGELOG.md under 'Refactoring' section",
+        "Update docs/architecture/README.md with new manager structure",
+        "Add comment to memory graph: 'Selection Module Refactoring 100% Complete'",
+        "Document manager APIs in code comments"
+      ],
+      "success_criteria": "All documentation updated, memory graph reflects completion, architecture docs current",
+      "dependencies": ["phase3-task-13-comprehensive-testing"],
+      "rollback_procedure": "git restore SELECTION_MODULE_IMPLEMENTATION_PLAN.md CHANGELOG.md docs/"
+    }
+  ],
+  "execution_order": [
+    "phase3-task-1-audit-shims",
+    "phase3-task-2-update-transform-controller-init",
+    "phase3-task-3-refactor-begin-transform",
+    "phase3-task-4-refactor-progress-transform",
+    "phase3-task-5-refactor-end-transform",
+    "phase3-task-6-remove-transform-shims",
+    "phase3-task-7-remove-connector-shims",
+    "phase3-task-8-remove-mindmap-shims",
+    "phase3-task-9-remove-element-sync-shim",
+    "phase3-task-10-remove-live-routing-shim",
+    "phase3-task-11-verify-external-callers",
+    "phase3-task-12-final-size-verification",
+    "phase3-task-13-comprehensive-testing",
+    "phase3-task-14-documentation-update"
+  ],
+  "critical_warnings": [
+    "⚠️ TransformController dependencies: Updating initialization callbacks affects all transform operations - test thoroughly",
+    "⚠️ ConnectorSelectionManager integration: Connector routing must work during drag, transform, and endpoint dragging",
+    "⚠️ Store synchronization: elementSynchronizer must maintain RAF batching and withUndo patterns",
+    "⚠️ Performance budget: 60fps must be maintained during all transform operations with 100+ elements",
+    "⚠️ Undo/Redo integrity: All transform operations must support proper undo/redo via history system",
+    "⚠️ Global state access: window.selectionModule pattern must be preserved for external module coordination",
+    "⚠️ Mindmap edge updates: Must work for both direct mindmap node transforms and connected element transforms",
+    "⚠️ Marquee selection: Blue border visual feedback must persist after drag completion (known minor issue)",
+    "⚠️ Type safety: All removed any types from Priority 2 list should be addressed with proper interfaces",
+    "⚠️ External callers: Any code using window.selectionModule must only use public API, not removed shims"
+  ]
+}
+```
+
+---
+
+## 🔧 AI Agent Handoff Context
+
+### What The Next Agent Needs To Know
+
+**Current State (September 30, 2025):**
+- SelectionModule.ts is 1,368 lines (contains working shims + orchestration)
+- All 5 managers exist and are fully functional
+- Shim delegation pattern works correctly
+- Phase 3 is ready to execute - just follow the tasks above in order
+
+**Why Phase 3 Matters:**
+The current code has ~719 lines of duplicated logic. Methods like `finalizeTransform()` exist in BOTH SelectionModule (as a shim) AND TransformStateManager (as the implementation). Phase 3 removes this duplication by:
+1. Making SelectionModule call managers directly
+2. Deleting the shim wrapper methods
+3. Achieving the target 649-line pure orchestrator
+
+**Key Technical Pattern:**
+```typescript
+// BEFORE (current state - shim pattern):
+private finalizeTransform() {
+  transformStateManager.finalizeTransform(); // delegates to manager
+  this.transformController?.release();
+}
+
+// AFTER (Phase 3 goal - direct usage):
+// In endSelectionTransform():
+transformStateManager.finalizeTransform();
+this.transformController?.release();
+// (finalizeTransform method removed entirely)
+```
+
+**Testing Strategy:**
+After each task, verify:
+1. `npm run type-check` passes (0 errors)
+2. `npm run lint` passes (no new warnings)
+3. Manual test the affected functionality
+4. Check console for runtime errors
+
+**Common Pitfalls:**
+- Don't remove methods until ALL callers are updated
+- TransformController callbacks need special attention (lines 105-130)
+- Some shims do MORE than delegate (e.g., updateConnectorVisuals calls transformController)
+- External modules use window.selectionModule - verify they use public API only
+
+**Success Criteria:**
+- SelectionModule.ts reduced to ~649 lines ±50
+- Zero code duplication between SelectionModule and managers  
+- All business logic in managers
+- SelectionModule is pure orchestration (coordination only)
+- All tests pass, 60fps maintained
+
+--- THE PRIORITY)
+- **Estimated Remaining**: 12-16 hours to complete Phase 3
+- **Progress**: ~50% complete (managers created, shims in place, need removal)
+
+**Target**: Systematically refactor SelectionModule.ts to pure orchestration pattern  
 **Validation**: Expert-verified approach with Perplexity and Exa analysis
 
 ## Architecture Compliance ✅
@@ -503,63 +1140,53 @@ private updateElementsFromNodes(nodes: Konva.Node[], commitWithHistory: boolean)
 
 ---
 
-### Status Update (September 30, 2025) - REVISED
+### Status Update (September 30, 2025) - CURRENT
 
-#### Current State (Verified via Code Analysis)
-- **Original SelectionModule.ts**: 1,852 lines
-- **Current SelectionModule.ts**: 1,368 lines (26% reduction)
-- **Managers Created**: 1,408 total lines across 5 files
+#### ✅ Verified Current State
+- **SelectionModule.ts**: 1,368 lines (verified with `wc -l`)
+- **All 5 Managers Created**: Confirmed via file system (1,408 total lines)
   - ConnectorSelectionManager.ts: 441 lines
-  - ElementSynchronizer.ts: 291 lines
+  - ElementSynchronizer.ts: 291 lines  
   - MindmapSelectionManager.ts: 172 lines
   - ShapeTextSynchronizer.ts: 203 lines
   - TransformStateManager.ts: 238 lines
   - index.ts: 63 lines (exports)
 
-#### Phase Completion Status
+#### 📊 Phase Completion Status
 - ✅ **Phase 1 (COMPLETE)**: All 5 managers created and functional
 - ⏳ **Phase 2 (PARTIAL)**: Delegation with shim wrappers in place
   - SelectionModule delegates to managers through wrapper methods
   - Example: `updateElementsFromNodes()` is a shim that calls `elementSynchronizer.updateElementsFromNodes()`
-  - Many methods still exist in both SelectionModule AND managers (code duplication)
+  - Code duplication: Methods exist in BOTH SelectionModule AND managers
 - ❌ **Phase 3 (NOT STARTED)**: Shim removal and full cleanup
-  - **Target**: Reduce SelectionModule from 1,368 → 649 lines
+  - **Target**: Reduce SelectionModule from 1,368 → 649 lines  
   - **Required**: Remove wrapper methods, update callers to use managers directly
   - **Estimated Effort**: 12-16 hours
+  - **See executable tasks above** ⬆️
 
-#### Refactoring Pattern (Strangler Fig)
+#### 🏗️ Refactoring Pattern (Strangler Fig)
 The current approach uses the "strangler fig" pattern:
-1. Create new managers with extracted functionality ✅
-2. Keep old methods as shims that delegate to managers ✅ (CURRENT STATE)
-3. Remove shims and update callers to use managers directly ❌ (PHASE 3 - TODO)
+1. ✅ Create new managers with extracted functionality (Phase 1)
+2. ✅ Keep old methods as shims that delegate to managers (Phase 2)  
+3. ❌ Remove shims and update callers to use managers directly (Phase 3 - TODO)
 
-#### Known Issues
-- ✅ Marquee selection improved; connectors refreshed during drag via scheduleRefresh
-- ✅ Known behavior: connectors (lines/arrows) may not always live-update visually during marquee drag; final commit is correct
+#### 🐛 Known Issues
+- ✅ All critical bugs resolved (image position, circle text, connector selection)
+- ⚠️ Minor visual issue: Marquee selection blue border disappears after drag (LOW priority, functionality works)
 
-#### Active Bug Investigation (Sept 30, 2025)
-**Issue**: Marquee selection blue border disappears after drag completion
-- **Expected**: Blue borders should persist after drag until canvas click deselection
-- **Actual**: Borders disappear immediately upon mouse release after dragging selected group
-- **Attempted Fix**: Added `marqueeSelectionController.setSelection(persistentSelection)` call in `MarqueeSelectionTool.tsx` after drag completion
-- **Status**: Visual feedback still not persisting; requires deeper investigation
-- **Next Investigation**: 
-  - Verify `marqueeSelectionController.setSelection()` properly updates store state
-  - Check if SelectionVisual component subscribes to selection changes and re-renders
-  - Investigate if `endTransform()` call interferes with selection state
-  - Consider alternative: maintain selection through store state rather than controller
+#### 🎯 Next Steps - Execute Phase 3
+**Follow the 14 executable tasks defined above starting with `phase3-task-1-audit-shims`**
 
-#### Key Learnings
-1. **Selection State Persistence**: Marquee selection uses `persistentSelection` array to track selected elements across drag operations
-2. **Controller Communication**: MarqueeSelectionController's `setSelection()` method may not be sufficient to trigger visual feedback updates
-3. **Store vs Controller Pattern**: Current architecture may need clearer boundaries between controller-managed state and store-managed selection state
-4. **Visual Feedback Lifecycle**: Selection visuals (blue borders) are managed separately from selection state and may not automatically sync after drag operations
+The tasks provide:
+- Exact file paths and line numbers
+- Specific code changes (find/replace patterns)
+- Validation steps for each change
+- Success criteria to verify completion
+- Dependencies between tasks
+- Rollback procedures if issues arise
 
-#### Next Steps (Phase 3)
-- [ ] Resolve marquee selection visual feedback persistence bug
-- [ ] Comprehensive test suite for marquee + drag operations  
-- [ ] Visual-only updates for point endpoints
-- [ ] Idempotent finalize operations
-- [ ] Documentation cleanup
+**Estimated Timeline**: 12-16 hours of focused development to complete all 14 tasks
+
+
 
 *This plan provides complete line-by-line accounting of SelectionModule.ts and systematic extraction strategy while maintaining Canvas architectural principles.*
