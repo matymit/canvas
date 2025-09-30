@@ -16,83 +16,14 @@ import {
   type ElementDraft,
   type RecordInput
 } from './history/utils';
+import {
+  pruneHistoryEntries,
+  calculateMemoryUsage,
+  shouldPruneHistory
+} from './history/memoryManager';
 
 // Re-export types for backward compatibility
 export type { StoreHistoryOp, HistoryEntry, HistoryBatch, HistoryModuleSlice };
-
-// Prune history entries intelligently
-function pruneHistoryEntries(
-  entries: HistoryEntry[],
-  currentIndex: number,
-  maxEntries: number,
-  maxMemoryBytes: number
-): { entries: HistoryEntry[]; newIndex: number; pruned: number } {
-  if (entries.length <= maxEntries) {
-    // Check memory usage
-    const totalMemory = entries.reduce((sum, entry) => sum + (entry.estimatedSize || 0), 0);
-    if (totalMemory <= maxMemoryBytes) {
-      return { entries, newIndex: currentIndex, pruned: 0 };
-    }
-  }
-
-  // Split entries into undo (past) and redo (future)
-  const pastEntries = entries.slice(0, currentIndex + 1);
-  const futureEntries = entries.slice(currentIndex + 1);
-  
-  // Prioritize keeping recent entries and current position context
-  const keepRecentCount = Math.min(maxEntries * 0.7, pastEntries.length); // Keep 70% for past
-  const keepFutureCount = Math.min(maxEntries * 0.3, futureEntries.length); // Keep 30% for future
-  
-  let prunedPast = pastEntries;
-  let prunedFuture = futureEntries;
-  let pruned = 0;
-  
-  // Prune oldest past entries first
-  if (pastEntries.length > keepRecentCount) {
-    const removeCount = pastEntries.length - keepRecentCount;
-    prunedPast = pastEntries.slice(removeCount);
-    pruned += removeCount;
-  }
-  
-  // Prune future entries if needed
-  if (futureEntries.length > keepFutureCount) {
-    const removeCount = futureEntries.length - keepFutureCount;
-    prunedFuture = futureEntries.slice(0, keepFutureCount);
-    pruned += removeCount;
-  }
-  
-  // If still over memory limit, prune more aggressively by size
-  const newEntries = [...prunedPast, ...prunedFuture];
-  let totalMemory = newEntries.reduce((sum, entry) => sum + (entry.estimatedSize || 0), 0);
-  
-  if (totalMemory > maxMemoryBytes && newEntries.length > 10) {
-    // Find largest entries and remove them (except very recent ones)
-    const sortedBySize = newEntries
-      .map((entry, index) => ({ entry, index, size: entry.estimatedSize || 0 }))
-      .sort((a, b) => b.size - a.size);
-    
-    // Don't remove the last 5 entries to preserve recent context
-    const removableEntries = sortedBySize.filter(item => 
-      item.index < newEntries.length - 5
-    );
-    
-    for (const item of removableEntries) {
-      if (totalMemory <= maxMemoryBytes) break;
-      
-      const entryIndex = newEntries.indexOf(item.entry);
-      if (entryIndex >= 0) {
-        newEntries.splice(entryIndex, 1);
-        totalMemory -= item.size;
-        pruned++;
-      }
-    }
-  }
-  
-  // Recalculate index after pruning
-  const newIndex = Math.max(-1, Math.min(newEntries.length - 1, prunedPast.length - 1));
-  
-  return { entries: newEntries, newIndex, pruned };
-}
 
 export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) => ({
   entries: [],
@@ -179,14 +110,11 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
       // Check if pruning is needed
       const currentMemory = h.entries.reduce((sum: number, e: HistoryEntry) => sum + (e.estimatedSize || 0), 0);
       const memoryLimitBytes = h.maxMemoryMB * 1024 * 1024;
-      const shouldPrune = h.entries.length > h.maxEntries * h.pruneThreshold || 
-                          currentMemory > memoryLimitBytes * h.pruneThreshold;
       
-      if (shouldPrune) {
+      if (shouldPruneHistory(h.entries.length, currentMemory, h.maxEntries, memoryLimitBytes, h.pruneThreshold)) {
         const pruneResult = pruneHistoryEntries(h.entries, h.index, h.maxEntries, memoryLimitBytes);
         h.entries = pruneResult.entries;
         h.index = pruneResult.newIndex;
-        
       }
     }),
 
@@ -230,14 +158,11 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
       // Check if pruning is needed
       const currentMemory = h.entries.reduce((sum: number, e: HistoryEntry) => sum + (e.estimatedSize || 0), 0);
       const memoryLimitBytes = h.maxMemoryMB * 1024 * 1024;
-      const shouldPrune = h.entries.length > h.maxEntries * h.pruneThreshold || 
-                          currentMemory > memoryLimitBytes * h.pruneThreshold;
       
-      if (shouldPrune) {
+      if (shouldPruneHistory(h.entries.length, currentMemory, h.maxEntries, memoryLimitBytes, h.pruneThreshold)) {
         const pruneResult = pruneHistoryEntries(h.entries, h.index, h.maxEntries, memoryLimitBytes);
         h.entries = pruneResult.entries;
         h.index = pruneResult.newIndex;
-        
       }
     }),
 
@@ -258,11 +183,7 @@ export const createHistoryModule: StoreSlice<HistoryModuleSlice> = (set, get) =>
 
   getMemoryUsage: () => {
     const h = pickHistoryState(get() as unknown as HistoryRootDraft);
-    const totalBytes = h.entries.reduce((sum: number, entry: HistoryEntry) => sum + (entry.estimatedSize || 0), 0);
-    return {
-      entriesCount: h.entries.length,
-      estimatedMB: totalBytes / (1024 * 1024)
-    };
+    return calculateMemoryUsage(h.entries);
   },
 
   setMemoryLimits: (maxEntries: number, maxMemoryMB: number) =>
