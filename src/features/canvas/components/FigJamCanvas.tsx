@@ -537,7 +537,7 @@ const FigJamCanvas: React.FC = () => {
   // Custom keyboard handler for mindmap-specific shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle Enter key for mindmap child creation
+      // Handle Enter key for mindmap child creation OR deselection
       if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
         // Check if exactly one mindmap node is selected
         if (selectedElementIds.size === 1) {
@@ -552,6 +552,16 @@ const FigJamCanvas: React.FC = () => {
             mindmapOps.createChildNode(nodeId);
             return;
           }
+        }
+        
+        // If Enter pressed with any selection (not mindmap), deselect
+        if (selectedElementIds.size > 0) {
+          event.preventDefault();
+          const store = useUnifiedCanvasStore.getState();
+          if (store.setSelection) {
+            store.setSelection([]);
+          }
+          return;
         }
       }
 

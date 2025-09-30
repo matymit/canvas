@@ -2,6 +2,8 @@
 import Konva from 'konva';
 import type ImageElement from '../../types/image';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import { loadImageFromIndexedDB } from '../../../../utils/imageStorage';
+import { transformStateManager } from './selection/managers';
 
 export interface RendererLayers {
   background: Konva.Layer;
@@ -29,20 +31,55 @@ export class ImageRenderer {
    * Ensures the bitmap is loaded and cached on the Konva.Image node
    */
   private async ensureBitmap(el: ImageElement, node: Konva.Image): Promise<void> {
-    if (node.getAttr('src') === el.src && node.image()) return;
+    console.log(`[ImageRenderer] ensureBitmap called for ${el.id}`, { 
+      hasSrc: !!el.src, 
+      srcLength: el.src?.length || 0,
+      hasIdbKey: !!(el as any).idbKey,
+      idbKey: (el as any).idbKey 
+    });
+    
+    // If src is missing but we have idbKey, load from IndexedDB
+    let src = el.src;
+    if ((!src || src === '') && (el as any).idbKey) {
+      console.log(`[ImageRenderer] Loading image from IndexedDB: ${(el as any).idbKey}`);
+      const loadedSrc = await loadImageFromIndexedDB((el as any).idbKey);
+      if (loadedSrc) {
+        src = loadedSrc;
+        // Update the element in the store with the loaded src
+        const store = useUnifiedCanvasStore.getState();
+        if (store.updateElement) {
+          store.updateElement(el.id, { src: loadedSrc } as any, { pushHistory: false });
+        }
+      } else {
+        console.error(`[ImageRenderer] Failed to load image from IndexedDB: ${(el as any).idbKey}`);
+        return;
+      }
+    }
+    
+    if (!src) {
+      console.error('[ImageRenderer] No src available for image:', el.id);
+      return;
+    }
+    
+    if (node.getAttr('src') === src && node.image()) {
+      console.log(`[ImageRenderer] Image already loaded, skipping: ${el.id}`);
+      return;
+    }
 
+    console.log(`[ImageRenderer] Loading new image for ${el.id}, srcLength: ${src.length}`);
     try {
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
         const tag = new Image();
         tag.onload = () => resolve(tag);
         tag.onerror = (e) => reject(e);
-        tag.src = el.src;
+        tag.src = src;
       });
 
-      node.setAttr('src', el.src);
+      node.setAttr('src', src);
       node.image(img);
+      console.log(`[ImageRenderer] Successfully loaded image for ${el.id}`);
     } catch (error) {
-      // Error: Failed to load image
+      console.error('[ImageRenderer] Failed to load image:', error);
       // Set a placeholder or handle error gracefully
     }
   }
@@ -71,12 +108,20 @@ export class ImageRenderer {
    * Render or update an image element on the main layer
    */
   async render(el: ImageElement): Promise<void> {
+    console.log(`[ImageRenderer] render() called for ${el.id}`, {
+      hasSrc: !!el.src,
+      srcLength: el.src?.length || 0,
+      hasIdbKey: !!(el as any).idbKey,
+      x: el.x,
+      y: el.y
+    });
+    
+    // Check if pan tool is active - if so, disable dragging on elements
+    const storeState = this.storeCtx?.store;
+    const isPanToolActive = storeState?.ui?.selectedTool === 'pan';
+    
     let g = this.groupById.get(el.id);
     if (!g || !g.getLayer()) {
-      // Check if pan tool is active - if so, disable dragging on elements
-      const storeState = this.storeCtx?.store;
-      const isPanToolActive = storeState?.ui?.selectedTool === 'pan';
-
       g = new Konva.Group({
         id: el.id,
         name: 'image',
@@ -103,24 +148,72 @@ export class ImageRenderer {
         }
       });
 
+      // CRITICAL FIX: Add dragend handler to persist position changes
+      // Without this, dragging changes the Konva node position but never saves to store
+      // This is why images snap back - the store position is never updated!
+      g.on('dragend', (e) => {
+        const group = e.target as Konva.Group;
+        const newX = group.x();
+        const newY = group.y();
+        
+        console.log(`[ImageRenderer] Drag ended for ${el.id}`, {
+          oldPos: { x: el.x, y: el.y },
+          newPos: { x: newX, y: newY }
+        });
+        
+        const store = useUnifiedCanvasStore.getState();
+        if (store.updateElement) {
+          store.updateElement(el.id, { x: newX, y: newY }, { pushHistory: true });
+        }
+      });
+
       // Note: Drag and transform are handled by SelectionModule's transformer
       // No need for duplicate event handlers here
 
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
+    } else {
+      // CRITICAL FIX: Update draggable state on every render based on current tool
+      // This ensures images become draggable when switching from pan to select tool
+      g.draggable(!isPanToolActive);
     }
 
     // Only sync position from store when NOT actively dragging/transforming
     // This prevents snap-back during user interactions
-    if (!g.isDragging()) {
-      g.position({ x: el.x, y: el.y });
+    // CRITICAL FIX: Check both isDragging() AND transform state to prevent position jumps
+    // When user drags with Transformer attached, it's "transforming" not "dragging"
+    const isUserInteracting = g.isDragging() || transformStateManager.isTransformInProgress;
+    
+    if (!isUserInteracting) {
+      const currentPos = g.position();
+      const positionDiff = Math.abs(currentPos.x - el.x) + Math.abs(currentPos.y - el.y);
+      // Increased threshold to 5 pixels to tolerate small floating-point differences
+      // and prevent micro-adjustments after transforms complete
+      const isSignificantDiff = positionDiff > 5;
+      
+      if (isSignificantDiff) {
+        console.log(`[ImageRenderer] Position sync needed for ${el.id}`, {
+          currentPos,
+          storePos: { x: el.x, y: el.y },
+          diff: positionDiff
+        });
+        g.position({ x: el.x, y: el.y });
+      }
+    } else {
+      console.log(`[ImageRenderer] Skipping position sync - user interacting (${el.id})`, {
+        isDragging: g.isDragging(),
+        isTransforming: transformStateManager.isTransformInProgress
+      });
     }
     g.rotation(el.rotation ?? 0);
     g.opacity(el.opacity ?? 1);
+    
+    // CRITICAL FIX: Reset scale to 1 after transform
+    // ElementSynchronizer already applied scale to width/height, so scale should be reset
+    // This prevents scale accumulation on subsequent transforms
+    g.scale({ x: 1, y: 1 });
 
-    // Update draggable state based on current tool
-    const storeState = this.storeCtx?.store;
-    const isPanToolActive = storeState?.ui?.selectedTool === 'pan';
+    // Update draggable state based on current tool (variables declared at line 120-121)
     g.draggable(!isPanToolActive);
 
     // Ensure elementId is maintained
@@ -176,14 +269,24 @@ export class ImageRenderer {
     const safeWidth = Math.max(1, el.width);
     const safeHeight = Math.max(1, el.height);
     bitmap.size({ width: safeWidth, height: safeHeight });
+    
+    // CRITICAL FIX: Set Group size to match image dimensions
+    // This allows Transformer to properly calculate bounds during active transforms
+    // Must be updated on every render to reflect size changes from transforms
+    g.size({ width: safeWidth, height: safeHeight });
 
     this.requestLayerRedraw();
   }
 
   setVisibility(id: string, visible: boolean): void {
+    console.log(`[ImageRenderer] setVisibility(${id}, ${visible})`);
     const group = this.groupById.get(id);
-    if (!group) return;
+    if (!group) {
+      console.log(`[ImageRenderer] setVisibility: group not found for ${id}`);
+      return;
+    }
     if (group.visible() !== visible) {
+      console.log(`[ImageRenderer] Changing visibility for ${id}: ${group.visible()} → ${visible}`);
       group.visible(visible);
       const bitmap = this.imageNodeById.get(id);
       bitmap?.visible(visible);

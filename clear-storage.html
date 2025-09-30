@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Canvas Storage</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #4F46E5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #4338CA;
+        }
+        .info {
+            background: #EEF2FF;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+        .warning {
+            background: #FEF3C7;
+            color: #92400E;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Canvas Storage Manager</h1>
+        
+        <div id="info" class="info">
+            <strong>Current Storage Usage:</strong><br>
+            <span id="usage">Calculating...</span>
+        </div>
+
+        <button onclick="clearAll()">Clear All localStorage</button>
+        <button onclick="clearCanvas()">Clear Canvas Data Only</button>
+        <button onclick="checkUsage()">Refresh Usage</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function checkUsage() {
+            let total = 0;
+            const items = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key) {
+                    const value = localStorage.getItem(key);
+                    const size = value ? value.length * 2 : 0; // UTF-16
+                    total += size;
+                    items.push({ key, size });
+                }
+            }
+
+            items.sort((a, b) => b.size - a.size);
+            
+            let html = `<strong>Total:</strong> ${formatBytes(total)}<br>`;
+            html += `<strong>Items:</strong> ${items.length}<br><br>`;
+            html += '<strong>Largest items:</strong><br>';
+            
+            items.slice(0, 5).forEach(item => {
+                html += `• ${item.key}: ${formatBytes(item.size)}<br>`;
+            });
+
+            document.getElementById('usage').innerHTML = html;
+        }
+
+        function clearAll() {
+            if (confirm('This will clear ALL localStorage data. Continue?')) {
+                localStorage.clear();
+                document.getElementById('result').innerHTML = 
+                    '<div class="info success" style="margin-top: 20px;"><strong>✅ Success!</strong><br>All localStorage data has been cleared.<br>Please refresh your canvas app.</div>';
+                checkUsage();
+            }
+        }
+
+        function clearCanvas() {
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('canvas') || key.includes('libreollama'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            
+            document.getElementById('result').innerHTML = 
+                `<div class="info success" style="margin-top: 20px;"><strong>✅ Success!</strong><br>Removed ${keysToRemove.length} canvas-related items.<br>Please refresh your canvas app.</div>`;
+            checkUsage();
+        }
+
+        // Check usage on load
+        checkUsage();
+    </script>
+</body>
+</html>

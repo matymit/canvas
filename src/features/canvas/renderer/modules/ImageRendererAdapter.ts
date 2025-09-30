@@ -82,7 +82,19 @@ export class ImageRendererAdapter implements RendererModule {
           (image.x ?? 0) > bounds.maxX ||
           (image.y ?? 0) > bounds.maxY;
 
+        console.log(`[ImageRendererAdapter] Checking bounds for ${id}:`, {
+          imageX: image.x,
+          imageY: image.y,
+          imageW: image.width,
+          imageH: image.height,
+          right,
+          bottom,
+          bounds,
+          isOffscreen
+        });
+
         if (isOffscreen) {
+          console.log(`[ImageRendererAdapter] Image ${id} is offscreen, hiding`);
           this.renderer.setVisibility(id, false);
           continue;
         }

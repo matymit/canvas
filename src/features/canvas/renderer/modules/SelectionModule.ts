@@ -538,8 +538,12 @@ export class SelectionModule implements RendererModule {
       this.updateElementsFromNodes(nodes, true);
       const delta = this.transformController?.computeDelta(nodes);
       if (delta) {
-        // Only commit translation for connected connectors, not directly selected ones
-        if (connectorNodes.length === 0) {
+        // Only commit translation for connected connectors when NO connectors are directly selected
+        // FIXED: Was backwards - should commit when connectors exist and we want to update connected ones
+        // But actually this should NOT run for image transforms at all
+        // Skip if we're transforming images or other non-connector elements
+        const hasConnectors = connectorNodes.length > 0;
+        if (hasConnectors) {
           connectorSelectionManager.commitTranslation(delta);
         }
       }

@@ -119,6 +119,15 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
       // If clicking on stage (empty canvas), start marquee selection
       if (e.target === stage) {
+        // If there's a current selection, clear it immediately on first click
+        if (selectionRef.current.length > 0) {
+          console.log("[MarqueeSelectionTool] clearing selection on stage click");
+          setSelection([]);
+          marqueeRef.current.persistentSelection = [];
+          return;
+        }
+        
+        // Otherwise start marquee for multi-select
         console.log("[MarqueeSelectionTool] starting marquee selection");
 
         // Clear any persistent selection from previous operations

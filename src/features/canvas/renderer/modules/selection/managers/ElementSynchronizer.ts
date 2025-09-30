@@ -65,10 +65,28 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
 
         // Get current node properties
         const position = node.position();
-        const size = node.size();
+        let size = node.size();
         const scale = node.scale();
         const rotation = node.rotation();
         const skew = node.skew();
+
+        // Special handling for image groups - use Group size if set, fallback to element dimensions
+        if (element.type === 'image') {
+          // If Group size is zero (shouldn't happen after our fix, but safety check)
+          if (size.width === 0 || size.height === 0) {
+            console.log(`[ElementSynchronizer] Image node has zero size, using element dimensions as fallback`, {
+              nodeSize: size,
+              elementWidth: element.width,
+              elementHeight: element.height
+            });
+            size = { width: element.width || 0, height: element.height || 0 };
+          } else {
+            console.log(`[ElementSynchronizer] Image node using Group size`, {
+              nodeSize: size,
+              scale
+            });
+          }
+        }
 
         // Calculate effective dimensions
         const effectiveWidth = size.width * Math.abs(scale.x);

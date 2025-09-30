@@ -124,6 +124,10 @@ export class TransformerManager {
         });
 
         this.opts.onTransform?.(nodes);
+        
+        // Force transformer to update its bounds to match the transformed nodes
+        tr.forceUpdate();
+        
         this.overlay.batchDraw();
       };
 

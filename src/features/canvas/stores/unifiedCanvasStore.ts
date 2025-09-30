@@ -1,8 +1,9 @@
 // features/canvas/stores/unifiedCanvasStore.ts
 import { create } from "zustand";
-import { persist, subscribeWithSelector } from "zustand/middleware";
+import { persist, subscribeWithSelector, StateStorage, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
+import { saveImageToIndexedDB, loadImageFromIndexedDB } from "../../../utils/imageStorage";
 
 // Module creators
 import { createCoreModule } from "./modules/coreModule";
@@ -160,8 +161,35 @@ export type UnifiedCanvasStore = CoreModuleSlice &
 
 // Helper for persistence: serialize Map/Set into arrays
 function partializeForPersist(state: UnifiedCanvasStore) {
+  // Create a version of elements without image base64 data to save localStorage space
+  const elementsArray = Array.from(state.elements.entries());
+  const filteredElements = elementsArray.map(([id, element]): [string, any] => {
+    // If element is an image with base64 data, create a copy without src for storage
+    if (element.type === 'image') {
+      const imageEl = element as any;
+      if (imageEl.src && typeof imageEl.src === 'string' && imageEl.src.startsWith('data:')) {
+        const idbKey = imageEl.idbKey || `img_${id}`;
+        
+        // Save to IndexedDB with cache check (will skip if already saved)
+        saveImageToIndexedDB(imageEl.src, idbKey)
+          .then(() => {
+            // Already logged in saveImageToIndexedDB
+          })
+          .catch(err => {
+            console.error(`[Persist] Failed to save image ${id} to IndexedDB:`, err);
+          });
+        
+        // Return element WITHOUT src to save localStorage space
+        // Create a shallow copy and omit src
+        const { src, ...elementWithoutSrc } = imageEl;
+        return [id, { ...elementWithoutSrc, idbKey }];
+      }
+    }
+    return [id, element];
+  });
+
   return {
-    elements: Array.from(state.elements.entries()),
+    elements: filteredElements,
     elementOrder: state.elementOrder,
     selectedElementIds: Array.from(state.selectedElementIds.values()),
     viewport: {
@@ -181,7 +209,37 @@ function mergeAfterHydration(
   current: UnifiedCanvasStore,
 ): UnifiedCanvasStore {
   const restored = { ...current } as UnifiedCanvasStore;
-  if (persisted?.elements) restored.elements = new Map(persisted.elements);
+  
+  if (persisted?.elements) {
+    const elementsMap = new Map(persisted.elements);
+    
+    // Load images from IndexedDB asynchronously
+    elementsMap.forEach((element, id) => {
+      if (element.type === 'image') {
+        const imageEl = element as any;
+        // If has idbKey, load from IndexedDB
+        if (imageEl.idbKey) {
+          loadImageFromIndexedDB(imageEl.idbKey)
+            .then(base64 => {
+              if (base64) {
+                // Update the element with loaded image data
+                const currentElement = restored.elements.get(id);
+                if (currentElement) {
+                  restored.elements.set(id, { ...currentElement, src: base64 } as any);
+                  console.log(`[Hydration] Loaded image ${id} from IndexedDB`);
+                }
+              }
+            })
+            .catch(err => {
+              console.error(`[Hydration] Failed to load image ${id}:`, err);
+            });
+        }
+      }
+    });
+    
+    restored.elements = elementsMap;
+  }
+  
   if (persisted?.selectedElementIds) {
     restored.selectedElementIds = new Set(persisted.selectedElementIds);
   }
@@ -205,6 +263,69 @@ const DEFAULT_UI = {
   strokeColor: "#000000",
   fillColor: "#ffffff",
   strokeWidth: 2,
+};
+
+// Custom storage wrapper with quota error handling
+const createSafeStorage = (): StateStorage => {
+  const storage: StateStorage = {
+    getItem: (name: string) => {
+      try {
+        return localStorage.getItem(name);
+      } catch (error) {
+        console.error('[SafeStorage] Error reading from localStorage:', error);
+        return null;
+      }
+    },
+    setItem: (name: string, value: string) => {
+      try {
+        localStorage.setItem(name, value);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'QuotaExceededError') {
+          const sizeKB = (value.length / 1024).toFixed(2);
+          console.warn(`[SafeStorage] localStorage quota exceeded. Attempted to save ${sizeKB} KB.`);
+          console.warn('[SafeStorage] Clearing all canvas data and retrying...');
+          
+          // Try to clear ALL canvas-related data and retry once
+          try {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              // Clear ALL keys except the current one being saved
+              if (key && key !== name) {
+                keysToRemove.push(key);
+              }
+            }
+            keysToRemove.forEach(key => {
+              try {
+                localStorage.removeItem(key);
+              } catch (e) {
+                // Ignore errors during cleanup
+              }
+            });
+            
+            // Retry the save
+            localStorage.setItem(name, value);
+            console.log(`[SafeStorage] ✅ Successfully saved ${sizeKB} KB after clearing old data`);
+          } catch (retryError) {
+            console.error(`[SafeStorage] ❌ Failed to save ${sizeKB} KB even after clearing all data`);
+            console.error('[SafeStorage] This likely means the data itself is too large for localStorage.');
+            console.error('[SafeStorage] Consider using IndexedDB for large data storage.');
+            // Silently fail - don't block the app
+          }
+        } else {
+          console.error('[SafeStorage] Error writing to localStorage:', error);
+        }
+      }
+    },
+    removeItem: (name: string) => {
+      try {
+        localStorage.removeItem(name);
+      } catch (error) {
+        console.error('[SafeStorage] Error removing from localStorage:', error);
+      }
+    },
+  };
+  return storage;
 };
 
 // Enable Map/Set support for Immer-based store slices
@@ -306,6 +427,7 @@ export const useUnifiedCanvasStore = create<UnifiedCanvasStore>()(
       partialize: partializeForPersist,
       merge: (persisted, current) =>
         mergeAfterHydration(persisted as PersistedState, current as UnifiedCanvasStore),
+      storage: createJSONStorage(() => createSafeStorage()),
     },
   ),
 );

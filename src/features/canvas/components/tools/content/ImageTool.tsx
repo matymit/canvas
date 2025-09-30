@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { loadImageFromFile } from "../../../utils/image/ImageLoader";
+import { compressBase64, saveImageToIndexedDB } from "../../../../../utils/imageStorage";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -74,14 +75,21 @@ export const ImageTool: React.FC<ImageToolProps> = ({
             return;
           }
 
+          // Load the image
           const { dataUrl, naturalWidth, naturalHeight } =
             await loadImageFromFile(files[0]);
-          stateRef.current.dataUrl = dataUrl;
+          
+          // Compress the image before storing
+          console.log('[ImageTool] Compressing image...');
+          const compressedDataUrl = await compressBase64(dataUrl);
+          
+          stateRef.current.dataUrl = compressedDataUrl;
           stateRef.current.natural = { w: naturalWidth, h: naturalHeight };
 
           // Image loaded successfully, ready for auto-placement
           resolve();
         } catch (error) {
+          console.error('[ImageTool] Failed to load/compress image:', error);
           // Failed to load image
           setSelectedTool?.("select");
           reject(error);
@@ -126,6 +134,16 @@ export const ImageTool: React.FC<ImageToolProps> = ({
         crypto?.randomUUID?.() ||
         `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+      // Save compressed image to IndexedDB
+      const idbKey = `img_${id}`;
+      try {
+        await saveImageToIndexedDB(src, idbKey);
+        console.log(`[ImageTool] Image saved to IndexedDB: ${idbKey}`);
+      } catch (error) {
+        console.error('[ImageTool] Failed to save to IndexedDB:', error);
+        // Continue anyway - image will work in current session
+      }
+
       const element = {
         id,
         type: "image" as const,
@@ -133,7 +151,8 @@ export const ImageTool: React.FC<ImageToolProps> = ({
         y,
         width: w,
         height: h,
-        src,
+        src, // Keep in memory for current session
+        idbKey, // Reference for persistence
         naturalWidth: nat.w,
         naturalHeight: nat.h,
         keepAspectRatio: true,
@@ -171,7 +190,7 @@ export const ImageTool: React.FC<ImageToolProps> = ({
         await new Promise((resolve) => setTimeout(resolve, 50));
         setSelectedTool?.("select");
       } catch (error) {
-        // Error creating element
+        console.error('[ImageTool] Error creating element:', error);
       }
 
       // Reset image data for next use
