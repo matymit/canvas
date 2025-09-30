@@ -1,9 +1,9 @@
 # Large File Refactoring - Master Plan
 
 **Date**: September 30, 2025  
-**Status**: 🔄 Phase 1 In Progress (2 of 12 files complete)  
+**Status**: 🔄 Phase 1 In Progress (4 of 12 files complete)  
 **Goal**: Reduce 12,077 lines across 13 files to ~3,400 lines (72% reduction)  
-**Progress**: 2,527 lines removed so far (21% complete)
+**Progress**: 4,344 lines removed so far (36% complete)
 
 ---
 
@@ -50,15 +50,17 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
    - **Status**: Zero TypeScript errors, all functionality preserved, history tracking intact
    - **Commit**: 2908d3a - September 30, 2025
 
-2. **[TableModule.ts Refactoring Plan](./refactoring-plans/TABLE_MODULE_REFACTORING.md)**
-   - Current: 996 lines → Target: 250 lines (75% reduction)
-   - Extract: TableCellResolver, TableEventHandlers, TableEditorManager, TableRenderingEngine
-   - Estimated: 4-5 days
+2. **✅ [TableModule.ts Refactoring Plan](./refactoring-plans/TABLE_MODULE_REFACTORING.md)** - COMPLETE
+   - **Result: 996 lines → 203 lines (80% reduction)**
+   - **Extracted**: TableCellResolver (137 lines), TableEditorManager (196 lines), TableEventHandlers (262 lines), TableRenderingEngine (538 lines)
+   - **Status**: Zero TypeScript errors, all functionality preserved, 5% above target
+   - **Commit**: d59005e - September 30, 2025
 
-3. **[MarqueeSelectionTool.tsx Refactoring Plan](./refactoring-plans/MARQUEE_SELECTION_TOOL_REFACTORING.md)**
-   - Current: 953 lines → Target: 200 lines (79% reduction)
-   - Extract: useMarqueeSelection, useMarqueeDrag, useConnectorDrag hooks
-   - Estimated: 3-4 days
+3. **✅ [MarqueeSelectionTool.tsx Refactoring Plan](./refactoring-plans/MARQUEE_SELECTION_TOOL_REFACTORING.md)** - COMPLETE
+   - **Result: 1,276 lines → 252 lines (80% reduction)**
+   - **Extracted**: useMarqueeState (75 lines), useMarqueeSelection (350 lines), useMarqueeDrag (564 lines)
+   - **Status**: Zero TypeScript errors, all functionality preserved, connector/mindmap fixes preserved
+   - **Commit**: dcec433 - September 30, 2025
 
 ### High Priority (Week 3-4)
 
