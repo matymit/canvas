@@ -1,5 +1,26 @@
 # Changelog
 
+### Marquee Selection Drag Bug Fixes (September 30, 2025)
+- **Critical Bug Fixed**: Marquee selection losing selection on next click instead of starting drag operation
+  - Root cause: Fallback implementation was not setting `persistentSelection` array after successful selection
+  - Drag detection was failing because `persistentSelection.length === 0`, causing next click to clear selection
+  - Added missing `marqueeRef.current.persistentSelection = selectedIds` in fallback code path
+- **Critical Bug Fixed**: Elements moving on click without actual drag movement  
+  - Root cause: Setting `draggable(true)` on nodes combined with `beginTransform()` call caused Konva to fire immediate dragend events
+  - Solution: Removed premature `node.draggable(true)` calls for connectors
+  - Delayed `beginTransform()` call until actual pointer movement detected (>1px threshold)
+  - Added `transformInitiated` flag to track transform lifecycle properly
+  - Only call `endTransform()` if transform was actually initiated
+- **Files Modified**: `MarqueeSelectionTool.tsx` - persistent selection tracking, transform lifecycle management
+- **Validation**: `npm run type-check` passes
+
+### Selection Module Phase 2 Cleanup (September 30, 2025)
+- Retired legacy mindmap/connector scheduling paths from `SelectionModule.ts` and wired all runtime hooks through the extracted managers.
+- Added `setSingleSelection` helper so auto-select flows no longer depend on the removed `selectElement` shim and selection updates stay store-driven.
+- Exposed `marqueeSelectionController` for diagnostics, ensured it is torn down on unmount, and normalized connector endpoint delegates to the manager APIs.
+- Deleted inactive shape text syncing stub and obsolete refresh queues, cutting SelectionModule debt while keeping type-check green.
+- Validation: `npm run type-check`
+
 ### Selection Module Phase 2 Integration (September 29, 2025)
 - Completed Phase 2 integration of SelectionModule modularization.
 - Integrated managers: TransformStateManager, ElementSynchronizer, ConnectorSelectionManager, MindmapSelectionManager, ShapeTextSynchronizer.

@@ -18,7 +18,11 @@ export interface ConnectorSelectionManager {
   updateElement(id: string, changes: any): void;
   handleEndpointDrag(connectorId: string, endpoint: "from" | "to", position: {x: number; y: number}): void;
   // New method for handling direct connector movements
-  moveSelectedConnectors(connectorIds: Set<string>, delta: { dx: number; dy: number }): void;
+  moveSelectedConnectors(
+    connectorIds: Set<string>,
+    delta: { dx: number; dy: number },
+    baselines?: Map<string, { position: { x: number; y: number }; from?: ConnectorEndpoint; to?: ConnectorEndpoint }>,
+  ): void;
 }
 
 export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager {
@@ -110,6 +114,7 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
 
   // Extracted from SelectionModule.ts lines 1484-1498
   updateVisuals(delta: { dx: number; dy: number }): void {
+    void delta;
     const store = useUnifiedCanvasStore.getState();
     const selected = store.selectedElementIds;
 
@@ -331,28 +336,6 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     }
   }
 
-  private updateConnectorVisualPosition(connectorId: string, delta: { dx: number; dy: number }): void {
-    // Mark parameter as used for TS
-    void delta;
-    const store = useUnifiedCanvasStore.getState();
-    const connector = store.elements?.get(connectorId);
-    
-    if (!connector || connector.type !== 'connector') {
-      return;
-    }
-
-    const connectorElement = connector as ConnectorElement;
-    
-    // Update visual position without committing to store
-    if (connectorElement.from && connectorElement.to) {
-      // Only applicable for point-based endpoints; element-anchored endpoints are resolved by renderer
-      if (connectorElement.from.kind === 'point' && connectorElement.to.kind === 'point') {
-        // Visual-only update would occur in renderer; no store mutation here
-        return;
-      }
-    }
-  }
-
   // Extracted from SelectionModule.ts lines 1723-1730
   private getConnectorService(): any {
     if (!this.connectorService) {
@@ -363,7 +346,11 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
   }
 
   // New method for handling direct connector movements in marquee selection
-  moveSelectedConnectors(connectorIds: Set<string>, delta: { dx: number; dy: number }): void {
+  moveSelectedConnectors(
+    connectorIds: Set<string>,
+    delta: { dx: number; dy: number },
+    baselines?: Map<string, { position: { x: number; y: number }; from?: ConnectorEndpoint; to?: ConnectorEndpoint }>,
+  ): void {
     console.log("[ConnectorSelectionManager] Moving selected connectors", {
       connectorCount: connectorIds.size,
       delta,
@@ -390,30 +377,53 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       }
 
       const connector = element as ConnectorElement;
-      const connectorPatch: Partial<ConnectorElement> = {
-        x: (connector.x || 0) + delta.dx,
-        y: (connector.y || 0) + delta.dy,
+      const baseline = baselines?.get(connectorId);
+      const basePosition = baseline?.position ?? {
+        x: typeof connector.x === "number" ? connector.x : 0,
+        y: typeof connector.y === "number" ? connector.y : 0,
       };
-      
-      // Update point-based endpoints
-      if (connector.from?.kind === 'point') {
+
+      const baselineFrom = baseline?.from ?? connector.from;
+      const baselineTo = baseline?.to ?? connector.to;
+      const fromIsPoint = baselineFrom?.kind === "point";
+      const toIsPoint = baselineTo?.kind === "point";
+
+      if (!fromIsPoint && !toIsPoint) {
+        console.log(`[ConnectorSelectionManager] Skipping anchored connector ${connectorId} — no movable endpoints`);
+        return;
+      }
+
+      const connectorPatch: Partial<ConnectorElement> = {};
+
+      if (!Number.isNaN(basePosition.x) && !Number.isNaN(basePosition.y)) {
+        connectorPatch.x = basePosition.x + delta.dx;
+        connectorPatch.y = basePosition.y + delta.dy;
+      }
+
+      if (fromIsPoint && baselineFrom?.kind === "point") {
         connectorPatch.from = {
-          ...connector.from,
-          x: connector.from.x + delta.dx,
-          y: connector.from.y + delta.dy,
+          ...baselineFrom,
+          x: baselineFrom.x + delta.dx,
+          y: baselineFrom.y + delta.dy,
         };
       }
-      if (connector.to?.kind === 'point') {
+
+      if (toIsPoint && baselineTo?.kind === "point") {
         connectorPatch.to = {
-          ...connector.to,
-          x: connector.to.x + delta.dx,
-          y: connector.to.y + delta.dy,
+          ...baselineTo,
+          x: baselineTo.x + delta.dx,
+          y: baselineTo.y + delta.dy,
         };
+      }
+
+      if (Object.keys(connectorPatch).length === 0) {
+        console.log(`[ConnectorSelectionManager] Skipping connector ${connectorId} — no changes computed`);
+        return;
       }
 
       console.log(`[ConnectorSelectionManager] Updating connector ${connectorId}`, connectorPatch);
       
-      store.updateElement(connectorId, connectorPatch, { pushHistory: false });
+      store.updateElement(connectorId, connectorPatch, { pushHistory: true });
       
       // Trigger visual update if live routing is enabled
       if (this.liveRoutingEnabled) {

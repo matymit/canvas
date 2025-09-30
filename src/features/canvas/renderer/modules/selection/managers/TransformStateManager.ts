@@ -37,7 +37,7 @@ export class TransformStateManagerImpl implements TransformStateManager {
   }
 
   // Extracted from SelectionModule.ts lines 485-508
-  beginTransform(nodes: Konva.Node[], source: "drag" | "transform"): void {
+  beginTransform(nodes: Konva.Node[], _source: "drag" | "transform"): void {
     if (this.transformInProgress) {
       console.warn("[TransformStateManager] Transform already in progress");
       return;
@@ -63,7 +63,7 @@ export class TransformStateManagerImpl implements TransformStateManager {
   }
 
   // Extracted from SelectionModule.ts lines 509-529
-  progressTransform(nodes: Konva.Node[], source: "drag" | "transform"): void {
+  progressTransform(_nodes: Konva.Node[], _source: "drag" | "transform"): void {
     if (!this.transformInProgress || !this.currentSnapshot) {
       return;
     }
@@ -80,7 +80,7 @@ export class TransformStateManagerImpl implements TransformStateManager {
   }
 
   // Extracted from SelectionModule.ts lines 530-574
-  endTransform(nodes: Konva.Node[], source: "drag" | "transform"): void {
+  endTransform(_nodes: Konva.Node[], _source: "drag" | "transform"): void {
     if (!this.transformInProgress) {
       console.warn("[TransformStateManager] No transform in progress");
       return;

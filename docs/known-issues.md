@@ -1,5 +1,32 @@
 # Known Issues and Limitations
 
+## Active Issues (September 30, 2025)
+
+### Marquee Selection Visual Feedback Persistence 🔴 ACTIVE BUG
+- **Issue**: Blue selection borders disappear immediately after dragging a marquee-selected group instead of persisting until canvas deselection
+- **Expected Behavior**: 
+  1. User creates marquee selection → blue borders appear ✅
+  2. User drags selected group → elements move together ✅
+  3. User releases mouse → blue borders should remain visible ❌ (currently disappears)
+  4. User clicks canvas → borders disappear and selection clears ✅
+- **Root Cause**: After drag completion, `marqueeSelectionController.setSelection(persistentSelection)` is called but visual feedback (SelectionVisual component) is not persisting
+- **Investigation Areas**:
+  - Verify `marqueeSelectionController.setSelection()` properly updates store's selection state
+  - Check if SelectionVisual component subscribes to selection changes and re-renders
+  - Investigate if `endTransform()` call interferes with selection state
+  - Consider alternative: maintain selection through store state rather than controller
+- **Files**: `MarqueeSelectionTool.tsx` (onPointerUp handler)
+- **Status**: Under investigation - attempted fix did not resolve issue
+
+## Recently Fixed (September 30, 2025)
+
+### Marquee Selection Drag Bugs ✅ RESOLVED
+- **Issue**: Selection would clear on next click instead of starting drag operation
+- **Issue**: Elements would move on click without actual pointer movement  
+- **Root Cause**: Fallback implementation missing `persistentSelection` tracking; premature `beginTransform()` + `draggable(true)` causing immediate drag cycles
+- **Fix**: Added persistent selection tracking in fallback, delayed transform initialization until movement, removed premature draggable flags
+- **Status**: Resolved in `MarqueeSelectionTool.tsx`
+
 ## Selection & Connectors (September 29, 2025)
 - Marquee selection with connectors: lines/arrows may not always live-update while dragging a marquee-selected group.
   - Status: Partially mitigated by batched scheduleRefresh during drag; final routing commits on release.

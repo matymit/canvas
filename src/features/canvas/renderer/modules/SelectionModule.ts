@@ -7,57 +7,27 @@ import type {
   ConnectorEndpointPoint,
 } from "../../types/connector";
 import type { MindmapRenderer } from "./MindmapRenderer";
-import type { MindmapNodeElement, MindmapEdgeElement } from "../../types/mindmap";
+import type { MindmapEdgeElement } from "../../types/mindmap";
 import { batchMindmapReroute } from "./mindmapWire";
 import { TransformerManager } from "../../managers/TransformerManager";
 import { ConnectorSelectionManager } from "../../managers/ConnectorSelectionManager";
-import { DEFAULT_TABLE_CONFIG } from "../../types/table";
-import type { TableElement } from "../../types/table";
 import type { ConnectorService } from "../../services/ConnectorService";
-import { applyTableScaleResize } from "./tableTransform";
-import { debug } from "@/utils/debug";
 import {
   categorizeSelection,
   filterTransformableNodes,
   resolveElementsToNodes,
 } from "./selection/SelectionResolver";
 import { TransformController } from "./selection/controllers/TransformController";
-import { transformStateManager, elementSynchronizer, connectorSelectionManager, mindmapSelectionManager, shapeTextSynchronizer } from "./selection/managers";
-import { MindmapController } from "./selection/controllers/MindmapController";
+import {
+  transformStateManager,
+  elementSynchronizer,
+  connectorSelectionManager,
+  mindmapSelectionManager,
+} from "./selection/managers";
 import { TransformLifecycleCoordinator } from "./selection/controllers/TransformLifecycleCoordinator";
 import { MarqueeSelectionController } from "./selection/controllers/MarqueeSelectionController";
 import type { TransformSnapshot, ConnectorSnapshot } from "./selection/types";
 
-// Element update interface
-interface ElementUpdate {
-  id: string;
-  changes: {
-    x?: number;
-    y?: number;
-    width?: number;
-    height?: number;
-    rotation?: number;
-    colWidths?: number[];
-    rowHeights?: number[];
-    from?: ConnectorEndpoint;
-    to?: ConnectorEndpoint;
-    points?: number[];
-  };
-}
-
-// Element changes interface
-interface ElementChanges {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  rotation?: number;
-  colWidths?: number[];
-  rowHeights?: number[];
-  from?: ConnectorEndpoint;
-  to?: ConnectorEndpoint;
-  points?: number[];
-}
 
 export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
@@ -66,15 +36,9 @@ export class SelectionModule implements RendererModule {
   private unsubscribe?: () => void;
   private unsubscribeVersion?: () => void;
   private transformController?: TransformController;
-  private mindmapController?: MindmapController;
   private marqueeSelectionController?: MarqueeSelectionController;
   private connectorSelectionTimer: number | null = null;
   private transformLifecycle?: TransformLifecycleCoordinator;
-  private readonly transformActive = false;
-  private pendingConnectorRefresh: Set<string> | null = null;
-  private connectorRefreshHandle: number | null = null;
-  private pendingMindmapReroute: Set<string> | null = null;
-  private mindmapRerouteHandle: number | null = null;
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
@@ -142,8 +106,10 @@ export class SelectionModule implements RendererModule {
       getTransformer: () => this.transformLifecycle?.getTransformer() ?? null,
       applyAnchoredOverride: (id, from, to) =>
         this.applyConnectorEndpointOverride(id, from, to),
-      setConnectorRoutingEnabled: (enabled) => this.setLiveRoutingEnabled(enabled),
-      setMindmapRoutingEnabled: (enabled) => this.setMindmapLiveRoutingEnabled(enabled),
+      setConnectorRoutingEnabled: (enabled) =>
+        this.setLiveRoutingEnabled(enabled),
+      setMindmapRoutingEnabled: (enabled) =>
+        this.setMindmapLiveRoutingEnabled(enabled),
       updateConnectorElement: (id, changes) =>
         this.updateConnectorElement(id, changes),
       rerouteAllConnectors: () => {
@@ -158,7 +124,7 @@ export class SelectionModule implements RendererModule {
         const renderer = this.getMindmapRenderer();
         if (!renderer) return;
         try {
-          debug("Triggering mindmap reroute after transform", {
+          this.debugLog("Triggering mindmap reroute after transform", {
             category: "selection/transform",
             data: { nodes: ids },
           });
@@ -168,32 +134,6 @@ export class SelectionModule implements RendererModule {
         }
       },
       debug: (message, data) => this.debugLog(message, data),
-    });
-
-    this.mindmapController = new MindmapController({
-      projectNode: (nodeId, baseline, delta) => {
-        const state = this.storeCtx?.store.getState();
-        if (!state) return null;
-        const element =
-          (state.elements.get(nodeId) || state.element?.getById?.(nodeId)) as
-            | MindmapNodeElement
-            | undefined;
-        if (!element || element.type !== "mindmap-node") {
-          return null;
-        }
-        const baseX = baseline?.x ?? element.x ?? 0;
-        const baseY = baseline?.y ?? element.y ?? 0;
-        return {
-          ...element,
-          x: baseX + delta.dx,
-          y: baseY + delta.dy,
-        };
-      },
-      renderEdge: (edge, getPoint) => {
-        const renderer = this.getMindmapRenderer();
-        if (!renderer) return;
-        renderer.renderEdge(edge, getPoint);
-      },
     });
 
     // Initialize MarqueeSelectionController
@@ -213,6 +153,10 @@ export class SelectionModule implements RendererModule {
       },
       debug: (message, data) => this.debugLog(message, data),
     });
+
+    if (typeof window !== "undefined") {
+      (window as any).marqueeSelectionController = this.marqueeSelectionController;
+    }
 
     this.transformLifecycle = new TransformLifecycleCoordinator(
       this.transformerManager,
@@ -286,19 +230,10 @@ export class SelectionModule implements RendererModule {
     }
     this.transformLifecycle = undefined;
     this.transformController = undefined;
-    this.mindmapController = undefined;
+    this.marqueeSelectionController = undefined;
     if (typeof window !== "undefined") {
-      if (this.connectorRefreshHandle !== null) {
-        window.cancelAnimationFrame(this.connectorRefreshHandle);
-        this.connectorRefreshHandle = null;
-      }
-      if (this.mindmapRerouteHandle !== null) {
-        window.cancelAnimationFrame(this.mindmapRerouteHandle);
-        this.mindmapRerouteHandle = null;
-      }
+      delete (window as any).marqueeSelectionController;
     }
-    this.pendingConnectorRefresh = null;
-    this.pendingMindmapReroute = null;
   }
 
   private updateSelection(selectedIds: Set<string>) {
@@ -533,7 +468,7 @@ export class SelectionModule implements RendererModule {
 
   // Helper method to get all selected nodes including connectors
   private getAllSelectedNodes(): Konva.Node[] {
-    const stage = this.stageCtx?.getStage();
+    const stage = this.getStage();
     if (!stage) return [];
     
     const selectedElementIds = this.getSelectedElementIds();
@@ -545,6 +480,11 @@ export class SelectionModule implements RendererModule {
     });
   }
 
+  private connectorHasFreeEndpoint(connector?: ConnectorElement): boolean {
+    if (!connector) return false;
+    return connector.from?.kind === "point" || connector.to?.kind === "point";
+  }
+
   private endSelectionTransform(nodes: Konva.Node[], source: "drag" | "transform") {
     // Delegate to TransformStateManager
     transformStateManager.endTransform(nodes, source);
@@ -552,9 +492,8 @@ export class SelectionModule implements RendererModule {
     // CRITICAL FIX: Handle directly selected connectors before standard commit
     const allSelectedNodes = this.getAllSelectedNodes(); // Get all 7 nodes including connectors
     const connectorNodes = allSelectedNodes.filter(node => {
-      const elementId = node.getAttr("elementId") || node.id();
       const elementType = node.getAttr("elementType");
-      return elementType === 'connector';
+      return elementType === "connector";
     });
     
     if (connectorNodes.length > 0) {
@@ -563,19 +502,35 @@ export class SelectionModule implements RendererModule {
         totalSelectedNodes: allSelectedNodes.length,
         standardNodes: nodes.length
       });
-      
-      const connectorIds = new Set(connectorNodes.map(node => 
-        node.getAttr("elementId") || node.id()
-      ));
-      
-      const delta = this.transformController?.computeDelta(allSelectedNodes) || { dx: 0, dy: 0 };
-      
-      console.log("[SelectionModule] Moving directly selected connectors:", {
-        connectorIds: Array.from(connectorIds),
-        delta
+
+      const state = this.storeCtx?.store.getState();
+      const elements = state?.elements;
+      const connectorIds = new Set<string>();
+
+      connectorNodes.forEach((node) => {
+        const elementId = node.getAttr("elementId") || node.id();
+        if (!elementId) {
+          return;
+        }
+
+        const connector = elements?.get(elementId);
+        if (connector?.type === "connector" && this.connectorHasFreeEndpoint(connector as ConnectorElement)) {
+          connectorIds.add(elementId);
+        } else {
+          console.log("[SelectionModule] Skipping anchored connector during transform commit", { elementId });
+        }
       });
-      
-      connectorSelectionManager.moveSelectedConnectors(connectorIds, delta);
+
+      if (connectorIds.size > 0) {
+        const delta = this.transformController?.computeDelta(allSelectedNodes) || { dx: 0, dy: 0 };
+
+        console.log("[SelectionModule] Moving directly selected connectors:", {
+          connectorIds: Array.from(connectorIds),
+          delta
+        });
+
+        connectorSelectionManager.moveSelectedConnectors(connectorIds, delta);
+      }
     }
 
     // Commit final positions and clean up visuals
@@ -584,14 +539,8 @@ export class SelectionModule implements RendererModule {
       const delta = this.transformController?.computeDelta(nodes);
       if (delta) {
         // Only commit translation for connected connectors, not directly selected ones
-        const hasDirectlySelectedConnectors = connectorNodes.length > 0;
-        if (!hasDirectlySelectedConnectors) {
-          // Skip calling commitTranslation if connectors were already moved by MarqueeSelectionTool
-          // The MarqueeSelectionTool calls moveSelectedConnectors() directly with correct deltas
-          const wasMarqueeSelection = this.transformController?.snapshot?.source === 'marquee';
-          if (!wasMarqueeSelection) {
-            connectorSelectionManager.commitTranslation(delta);
-          }
+        if (connectorNodes.length === 0) {
+          connectorSelectionManager.commitTranslation(delta);
         }
       }
     }
@@ -606,268 +555,16 @@ export class SelectionModule implements RendererModule {
     commitWithHistory: boolean,
   ) {
     // Delegate to ElementSynchronizer for store updates
-    elementSynchronizer.updateElementsFromNodes(nodes, "transform", { pushHistory: commitWithHistory, batchUpdates: true });
-    return;
-
-    const store = this.storeCtx.store.getState();
-    const updateElement = store.element?.update;
-    const withUndo = store.withUndo;
-
-    const applyUpdate = (
-      id: string,
-      changes: ElementChanges,
-      options?: { pushHistory?: boolean },
-    ) => {
-      try {
-        if (updateElement) {
-          updateElement(id, changes);
-        } else {
-          this.storeCtx?.store
-            ?.getState()
-            ?.updateElement?.(id, changes, options);
-        }
-      } catch (error) {
-        // Ignore error
-      }
-    };
-
-    const updates: ElementUpdate[] = [];
-    const movedElementIds = new Set<string>();
-    const movedMindmapNodeIds = new Set<string>();
-
-    for (const node of nodes) {
-      const elementId = node.getAttr("elementId") || node.id();
-      if (!elementId) continue;
-      movedElementIds.add(elementId);
-
-      const pos = node.position();
-      let size = node.size();
-      const rotation = node.rotation();
-      const scale = node.scale();
-      const rawScaleX = scale?.x ?? 1;
-      const rawScaleY = scale?.y ?? 1;
-
-      // CRITICAL FIX: Check if this is a table element by looking at the actual element data
-      const element =
-        store.elements.get(elementId) ??
-        store.element?.getById?.(elementId);
-      const isTable = element?.type === "table";
-      const isImage = element?.type === "image";
-      if (element?.type === "mindmap-node") {
-        movedMindmapNodeIds.add(elementId);
-      }
-
-      if (isImage && node instanceof Konva.Group) {
-        const imageNode = node.findOne("Image");
-        if (imageNode) {
-          size = imageNode.size();
-        }
-      }
-
-      // CRITICAL FIX: Ensure dimensions never become 0 or negative
-      // Use absolute values of scale to handle negative scaling (flipping)
-      // and enforce minimum dimensions to prevent disappearing elements
-      const MIN_WIDTH = 10; // Minimum width in pixels for generic elements
-      const MIN_HEIGHT = 10; // Minimum height in pixels for generic elements
-
-      const scaleX = Math.abs(rawScaleX);
-      const scaleY = Math.abs(rawScaleY);
-
-      const scaledWidth = size.width * scaleX;
-      const scaledHeight = size.height * scaleY;
-
-      const changes: ElementChanges = {
-        x: Math.round(pos.x * 100) / 100, // Round to avoid precision issues
-        y: Math.round(pos.y * 100) / 100,
-        rotation: Math.round(rotation * 100) / 100,
-      };
-
-      let tableResizeResult: TableElement | null = null;
-      let nextWidth = Math.max(MIN_WIDTH, Math.round(scaledWidth * 100) / 100);
-      let nextHeight = Math.max(
-        MIN_HEIGHT,
-        Math.round(scaledHeight * 100) / 100,
-      );
-      const shouldCommitSizeNow = isTable || commitWithHistory;
-
-      // CRITICAL FIX: Special handling for table elements - delegate to table transform helper
-      if (isTable) {
-        if (element && element.colWidths && element.rowHeights) {
-          const tableElement = element as TableElement;
-          const keyboardEvent = (
-            typeof window !== "undefined" ? window.event : undefined
-          ) as KeyboardEvent | undefined;
-          const keepAspectRatio = keyboardEvent?.shiftKey ?? false;
-
-          tableResizeResult = applyTableScaleResize(
-            tableElement,
-            rawScaleX,
-            rawScaleY,
-            { keepAspectRatio },
-          );
-
-          nextWidth = tableResizeResult.width;
-          nextHeight = tableResizeResult.height;
-          changes.width = Math.round(tableResizeResult.width * 100) / 100;
-          changes.height = Math.round(tableResizeResult.height * 100) / 100;
-          changes.colWidths = tableResizeResult.colWidths;
-          changes.rowHeights = tableResizeResult.rowHeights;
-        } else {
-          // Ignore error
-        }
-      }
-
-      if (shouldCommitSizeNow) {
-        changes.width = Math.round(nextWidth * 100) / 100;
-        changes.height = Math.round(nextHeight * 100) / 100;
-      }
-
-      // Always enqueue an update so connected visuals (connectors, mindmap branches) can respond
-      updates.push({
-        id: elementId,
-        changes: { ...changes },
-      });
-
-      // Reset scale after applying to dimensions when width/height have been normalized
-      if (
-        shouldCommitSizeNow &&
-        scale &&
-        (rawScaleX !== 1 || rawScaleY !== 1)
-      ) {
-        if (isImage && node instanceof Konva.Group) {
-          const imageChild = node.findOne<Konva.Image>('Image');
-          if (imageChild) {
-            imageChild.size({ width: nextWidth, height: nextHeight });
-          }
-        }
-        node.setAttrs({
-          scaleX: 1,
-          scaleY: 1,
-          width: nextWidth,
-          height: nextHeight,
-        });
-        if (tableResizeResult) {
-          const minTableWidth =
-            tableResizeResult.cols * DEFAULT_TABLE_CONFIG.minCellWidth;
-          const minTableHeight =
-            tableResizeResult.rows * DEFAULT_TABLE_CONFIG.minCellHeight;
-          if (nextWidth < minTableWidth || nextHeight < minTableHeight) {
-            // Ignore error
-          }
-        }
-      }
-    }
-
-    // CRITICAL FIX: Apply updates correctly for history tracking
-    if (commitWithHistory && withUndo && updates.length > 0) {
-      const actionName =
-        updates.length === 1
-          ? "Transform element"
-          : `Transform ${updates.length} elements`;
-
-      // Use withUndo to wrap all updates in a single history entry
-      withUndo(actionName, () => {
-        for (const { id, changes } of updates) {
-          applyUpdate(id, changes, { pushHistory: false });
-        }
-      });
-    } else if (updates.length > 0) {
-      // For non-history updates (during transform), use updateElement directly
-      for (const { id, changes } of updates) {
-        applyUpdate(id, changes, { pushHistory: false });
-      }
-    }
-
-    if (movedElementIds.size > 0) {
-      this.scheduleConnectorRefresh(movedElementIds);
-    }
-
-    if (movedMindmapNodeIds.size > 0) {
-      this.scheduleMindmapReroute(movedMindmapNodeIds);
-    }
-  }
-
-  // FIXED: Public API for marquee selection to integrate with modular architecture
-  selectElementsInBounds(
-    stage: Konva.Stage,
-    bounds: { x: number; y: number; width: number; height: number },
-    options: { additive?: boolean } = {}
-  ): string[] {
-    if (!this.marqueeSelectionController) return [];
-    return this.marqueeSelectionController.selectElementsInBounds(stage, bounds, options);
-  }
-
-  // FIXED: Public API for other modules to trigger selection with proper store integration
-  selectElement(elementId: string, options?: { additive?: boolean }) {
-    if (!this.storeCtx) {
-      return;
-    }
-
-    const store = this.storeCtx.store.getState();
-
-    // Try different store selection methods with proper error handling
-    try {
-      if (store.setSelection) {
-        if (options?.additive) {
-          const cur = (
-            store.selectedElementIds instanceof Set
-              ? store.selectedElementIds
-              : new Set<string>(store.selectedElementIds || [])
-          ) as Set<string>;
-          const next = new Set(cur);
-          if (next.has(elementId)) next.delete(elementId);
-          else next.add(elementId);
-          store.setSelection(Array.from(next));
-        } else {
-          store.setSelection([elementId]);
-        }
-      } else if (store.selection?.set) {
-        if (options?.additive && store.selectedElementIds instanceof Set) {
-          const next = new Set(store.selectedElementIds);
-          if (next.has(elementId)) next.delete(elementId);
-          else next.add(elementId);
-          store.selection.set(Array.from(next));
-        } else {
-          store.selection.set([elementId]);
-        }
-      } else if (store.selectedElementIds) {
-        // Handle Set-based selection
-        if (store.selectedElementIds instanceof Set) {
-          if (options?.additive) {
-            if (store.selectedElementIds.has(elementId))
-              store.selectedElementIds.delete(elementId);
-            else store.selectedElementIds.add(elementId);
-          } else {
-            store.selectedElementIds.clear();
-            store.selectedElementIds.add(elementId);
-          }
-        } else if (Array.isArray(store.selectedElementIds)) {
-          if (options?.additive) {
-            const arr = store.selectedElementIds as string[];
-            const idx = arr.indexOf(elementId);
-            if (idx >= 0) arr.splice(idx, 1);
-            else arr.push(elementId);
-          } else {
-            (store.selectedElementIds as string[]).length = 0;
-            (store.selectedElementIds as string[]).push(elementId);
-          }
-        }
-        // Trigger state update if using Zustand
-        this.storeCtx.store.setState?.({
-          selectedElementIds: store.selectedElementIds,
-        });
-      } else {
-        // Ignore error
-      }
-    } catch (error) {
-      // Ignore error
-    }
+    elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
+      pushHistory: commitWithHistory,
+      batchUpdates: true,
+    });
   }
 
   // FIXED: Enhanced auto-select element with better timing and error recovery
   autoSelectElement(elementId: string) {
     // Immediate selection attempt
-    this.selectElement(elementId);
+    this.setSingleSelection(elementId);
 
     // Enhanced retry mechanism with exponential backoff for better reliability
     let attempts = 0;
@@ -875,19 +572,19 @@ export class SelectionModule implements RendererModule {
     const baseDelay = 25; // Start with shorter delay
 
     const attemptSelection = () => {
-      attempts++;
+      attempts += 1;
       const delay = baseDelay * Math.pow(1.5, attempts - 1); // Exponential backoff
 
       setTimeout(() => {
-        // Check if element is now available
-      const rawNodes = resolveElementsToNodes({
-        stage: this.getStage(),
-        layers: this.getRelevantLayers(),
-        elementIds: new Set([elementId]),
-      });
-      const nodes = filterTransformableNodes(rawNodes, (message, data) =>
-        this.debugLog(message, data),
-      );
+        const rawNodes = resolveElementsToNodes({
+          stage: this.getStage(),
+          layers: this.getRelevantLayers(),
+          elementIds: new Set([elementId]),
+        });
+
+        const nodes = filterTransformableNodes(rawNodes, (message, data) =>
+          this.debugLog(message, data),
+        );
 
         if (nodes.length > 0) {
           this.transformLifecycle?.detach();
@@ -899,17 +596,51 @@ export class SelectionModule implements RendererModule {
         }
 
         if (attempts < maxAttempts) {
-          // Retry selection in store as element might not be rendered yet
-          this.selectElement(elementId);
+          this.setSingleSelection(elementId);
           attemptSelection(); // Recursive retry
-        } else {
-          // Ignore error
         }
       }, delay);
     };
 
-    // Start the retry mechanism
     attemptSelection();
+  }
+
+  private setSingleSelection(elementId: string) {
+    const storeCtx = this.storeCtx;
+    if (!storeCtx) return;
+
+    const store = storeCtx.store;
+    const state = store.getState();
+
+    if (typeof state.setSelection === "function") {
+      state.setSelection([elementId]);
+      return;
+    }
+
+    // Some store variants expose a selection controller object
+    const selectionController = state.selection as
+      | { set?: (ids: string[]) => void; replace?: (ids: string[]) => void }
+      | undefined;
+
+    if (selectionController?.set) {
+      selectionController.set([elementId]);
+      return;
+    }
+
+    if (selectionController?.replace) {
+      selectionController.replace([elementId]);
+      return;
+    }
+
+    const selected = state.selectedElementIds;
+
+    if (selected instanceof Set || Array.isArray(selected)) {
+      const next = new Set<string>([elementId]);
+      store.setState?.({ selectedElementIds: next });
+      return;
+    }
+
+    store.setState?.({ selectedElementIds: new Set([elementId]) });
   }
 
   // Public method to clear selection
@@ -1157,151 +888,6 @@ export class SelectionModule implements RendererModule {
     }
   }
 
-  private scheduleConnectorRefresh(elementIds: Set<string>) {
-    // Delegate to ConnectorSelectionManager
-    connectorSelectionManager.scheduleRefresh(elementIds);
-    return;
-    if (elementIds.size === 0) return;
-
-    if (this.transformController?.isActive()) {
-      return;
-    }
-
-    if (typeof window === "undefined") {
-      this.refreshConnectedConnectors(elementIds);
-      return;
-    }
-
-    if (!this.pendingConnectorRefresh) {
-      this.pendingConnectorRefresh = new Set();
-    }
-
-    elementIds.forEach((id) => this.pendingConnectorRefresh?.add(id));
-
-    if (this.connectorRefreshHandle !== null) {
-      return;
-    }
-
-    this.connectorRefreshHandle = window.requestAnimationFrame(() => {
-      const ids = this.pendingConnectorRefresh;
-      this.pendingConnectorRefresh = null;
-      this.connectorRefreshHandle = null;
-      if (!ids || ids.size === 0) {
-        return;
-      }
-      this.debugLog("RAF connector refresh", { ids: Array.from(ids) });
-      this.refreshConnectedConnectors(ids);
-    });
-  }
-
-  private scheduleMindmapReroute(nodeIds: Set<string>) {
-    // Delegate to MindmapSelectionManager
-    mindmapSelectionManager.scheduleReroute(nodeIds);
-    return;
-    if (nodeIds.size === 0) return;
-
-    if (this.transformController?.isActive()) {
-      return;
-    }
-
-    if (typeof window === "undefined") {
-      this.performMindmapReroute(nodeIds);
-      return;
-    }
-
-    if (!this.pendingMindmapReroute) {
-      this.pendingMindmapReroute = new Set();
-    }
-    nodeIds.forEach((id) => this.pendingMindmapReroute?.add(id));
-
-    if (this.mindmapRerouteHandle !== null) {
-      return;
-    }
-
-    this.mindmapRerouteHandle = window.requestAnimationFrame(() => {
-      const ids = this.pendingMindmapReroute;
-      this.pendingMindmapReroute = null;
-      this.mindmapRerouteHandle = null;
-      if (!ids || ids.size === 0) {
-        return;
-      }
-      this.debugLog("RAF mindmap reroute", { ids: Array.from(ids) });
-      this.performMindmapReroute(ids);
-    });
-  }
-
-  private performMindmapReroute(nodeIds: Set<string>) {
-    // Delegate to MindmapSelectionManager
-    mindmapSelectionManager.performReroute(nodeIds);
-    return;
-    const renderer = this.getMindmapRenderer();
-    if (!renderer || nodeIds.size === 0) return;
-    try {
-      batchMindmapReroute(renderer, Array.from(nodeIds));
-    } catch {
-      // Ignore reroute errors during live drag
-    }
-  }
-
-  private refreshConnectedConnectors(elementIds: Set<string>) {
-    // Delegate to ConnectorSelectionManager
-    connectorSelectionManager.refreshConnectedConnectors(elementIds);
-    return;
-    if (!this.storeCtx) return;
-    const state = this.storeCtx.store.getState();
-    const affectedConnectorIds: string[] = [];
-
-    for (const [id, element] of state.elements.entries()) {
-      if (element.type !== "connector") continue;
-      const connector = element as ConnectorElement;
-      const fromElement =
-        connector.from.kind === "element" ? connector.from.elementId : null;
-      const toElement =
-        connector.to.kind === "element" ? connector.to.elementId : null;
-      if (
-        (fromElement && elementIds.has(fromElement)) ||
-        (toElement && elementIds.has(toElement))
-      ) {
-        affectedConnectorIds.push(id);
-      }
-    }
-
-    affectedConnectorIds.forEach((connectorId) => {
-      try {
-        state.updateElement?.(
-          connectorId,
-          (existing) => ({ ...existing }),
-          { pushHistory: false },
-        );
-      } catch {
-        // ignore connector refresh errors
-      }
-    });
-
-    if (affectedConnectorIds.length > 0) {
-      this.connectorSelectionManager?.refreshSelection();
-    }
-
-    const connectorService =
-      typeof window !== "undefined"
-        ? (window as Window & {
-            connectorService?: {
-              forceRerouteElement: (id: string) => void;
-            };
-          }).connectorService
-        : undefined;
-
-    if (connectorService) {
-      elementIds.forEach((elementId) => {
-        try {
-          connectorService.forceRerouteElement(elementId);
-        } catch {
-          // Ignore routing errors during live drag
-        }
-      });
-    }
-  }
-
   private captureTransformSnapshot(initialNodes?: Konva.Node[]): TransformSnapshot | null {
     // Use module-local snapshot structure expected by TransformController
     if (!this.storeCtx) return null;
@@ -1512,19 +1098,6 @@ export class SelectionModule implements RendererModule {
     // Delegate common finalization to TransformStateManager
     transformStateManager.finalizeTransform();
     this.transformController?.release();
-
-    if (typeof window !== "undefined") {
-      if (this.connectorRefreshHandle !== null) {
-        window.cancelAnimationFrame(this.connectorRefreshHandle);
-        this.connectorRefreshHandle = null;
-      }
-      if (this.mindmapRerouteHandle !== null) {
-        window.cancelAnimationFrame(this.mindmapRerouteHandle);
-        this.mindmapRerouteHandle = null;
-      }
-    }
-    this.pendingConnectorRefresh = null;
-    this.pendingMindmapReroute = null;
   }
 
   private updateConnectorVisuals(delta: { dx: number; dy: number }) {
@@ -1599,20 +1172,7 @@ export class SelectionModule implements RendererModule {
   }
 
   private updateMindmapEdgeVisuals(delta: { dx: number; dy: number }) {
-    // Delegate to MindmapSelectionManager
     mindmapSelectionManager.updateEdgeVisuals(delta);
-    return;
-    const snapshot = this.transformController?.getSnapshot();
-    if (!snapshot) return;
-
-    this.mindmapController?.update(snapshot, delta);
-  }
-
-  private commitConnectorTranslation(delta: { dx: number; dy: number }) {
-    // Delegate to ConnectorSelectionManager
-    connectorSelectionManager.commitTranslation(delta);
-    return;
-    this.transformController?.commitConnectorTranslation(delta);
   }
 
   private getConnectorAbsolutePoints(
@@ -1743,39 +1303,11 @@ export class SelectionModule implements RendererModule {
   }
 
   private setLiveRoutingEnabled(enabled: boolean) {
-    // Delegate to ConnectorSelectionManager
     connectorSelectionManager.setLiveRoutingEnabled(enabled);
-    return;
-    const service = this.getConnectorService();
-    if (!service) return;
-
-    try {
-      if (enabled) {
-        service.enableLiveRouting();
-      } else {
-        service.disableLiveRouting();
-      }
-    } catch {
-      // Ignore enable/disable errors
-    }
   }
 
   private setMindmapLiveRoutingEnabled(enabled: boolean) {
-    // Delegate to MindmapSelectionManager
     mindmapSelectionManager.setLiveRoutingEnabled(enabled);
-    return;
-    const renderer = this.getMindmapRenderer();
-    if (!renderer) return;
-
-    try {
-      if (enabled) {
-        renderer.resumeLiveRouting();
-      } else {
-        renderer.pauseLiveRouting();
-      }
-    } catch {
-      // Ignore enable/disable errors
-    }
   }
 
   private getConnectorService(): ConnectorService | null {
@@ -1790,48 +1322,7 @@ export class SelectionModule implements RendererModule {
     id: string,
     changes: Partial<ConnectorElement>,
   ) {
-    // Delegate to ConnectorSelectionManager
     connectorSelectionManager.updateElement(id, changes);
-    return;
-    this.debugLog("updateConnectorElement", { id, changes });
-    const state = this.storeCtx?.store.getState();
-    if (!state) return;
-
-    let performedUpdate = false;
-
-    if (state.element?.update) {
-      try {
-        state.element.update(id, changes);
-        performedUpdate = true;
-      } catch {
-        // ignore update errors
-      }
-    } else if (state.updateElement) {
-      try {
-        state.updateElement(id, changes, { pushHistory: false });
-        performedUpdate = true;
-      } catch {
-        // ignore update errors
-      }
-    }
-
-    if (!performedUpdate) {
-      return;
-    }
-
-    const connectorService = this.getConnectorService();
-    if (connectorService) {
-      const nextState = this.storeCtx?.store.getState();
-      const connector =
-        nextState?.elements.get(id) ?? nextState?.element?.getById?.(id);
-      if (connector && connector.type === "connector") {
-        try {
-          void connectorService.updateConnector(connector as ConnectorElement);
-        } catch {
-          // Ignore renderer sync errors during drag
-        }
-      }
-    }
   }
 
   private getMindmapRenderer(): MindmapRenderer | null {
@@ -1869,50 +1360,5 @@ export class SelectionModule implements RendererModule {
     }
   }
 
-  /**
-   * CRITICAL FIX: Synchronize shape text positioning during transform operations
-   * This method calls the ShapeRenderer to update text positions in real-time during resize
-   */
-  private syncShapeTextDuringTransform(nodes: Konva.Node[]) {
-    // Delegate to ShapeTextSynchronizer
-    shapeTextSynchronizer.syncTextDuringTransform(nodes);
-    return;
-    try {
-      // Get the global ShapeRenderer instance from the window
-      const shapeRenderer = typeof window !== "undefined" ? window.shapeRenderer : undefined;
-      if (
-        !shapeRenderer ||
-        typeof shapeRenderer.syncTextDuringTransform !== "function"
-      ) {
-        return; // ShapeRenderer not available or method not implemented
-      }
-
-      // For each node being transformed, sync its text if it's a shape
-      for (const node of nodes) {
-        const elementId = node.getAttr("elementId") || node.id();
-        if (!elementId) continue;
-
-        // Get the element type to check if it's a shape with text
-        const store = this.storeCtx?.store.getState();
-        if (!store) continue;
-
-        const element =
-          store.elements.get(elementId) ??
-          store.element?.getById?.(elementId);
-        if (!element) continue;
-
-        // Only sync text for shapes that can have text
-        if (
-          element.type === "rectangle" ||
-          element.type === "circle" ||
-          element.type === "triangle" ||
-          element.type === "ellipse"
-        ) {
-          shapeRenderer.syncTextDuringTransform(elementId);
-        }
-      }
-    } catch (error) {
-      // Ignore error
-    }
-  }
 }
+

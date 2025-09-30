@@ -4,6 +4,43 @@
 
 This document tracks the implementation progress of the FigJam-style modular canvas application, ensuring all tools and systems follow the four-layer pipeline architecture with store-driven rendering.
 
+## 🚨 STATUS UPDATE (September 30, 2025)
+
+### ✅ Marquee Selection Drag Bug Fixes (September 30, 2025)
+
+**Repository:** `main`
+**Status:** Critical marquee selection bugs resolved - selection persistence and premature drag completion fixed.
+
+- **🐛 Selection Loss Bug**
+  - Fixed fallback implementation missing `persistentSelection` assignment, causing drag detection to fail and selection to clear on next click.
+  - Added `marqueeRef.current.persistentSelection = selectedIds` to match SelectionModule behavior.
+- **🐛 Premature Drag Completion Bug**  
+  - Removed `node.draggable(true)` calls that were causing Konva to fire immediate dragend events.
+  - Delayed `beginTransform()` call until actual pointer movement detected (>1px threshold).
+  - Added `transformInitiated` flag to properly track transform lifecycle.
+  - Only call `endTransform()` if transform was actually initiated during movement.
+- **✅ Validation**
+  - `npm run type-check` passes
+  - Manual testing: marquee selection now persists correctly and drag operations require actual movement.
+
+### ✅ Selection Module TypeScript Debt Cleanup (September 30, 2025)
+
+**Repository:** `main`
+**Status:** Follow-up pass on Phase 2 integration is complete; SelectionModule now delegates exclusively through the extracted managers with no legacy fallback paths.
+
+- **🧹 Legacy path removal**
+  - Removed unused mindmap/connector scheduling queues and the dormant `MindmapController` shim that no longer received reliable snapshots.
+  - Deleted the inactive shape text sync stub—`ShapeTextSynchronizer` remains the only integration point.
+- **🧭 Selection flow hardening**
+  - Added `setSingleSelection` so auto-select flows update the store through supported APIs instead of the removed `selectElement` helper.
+  - Exposed `marqueeSelectionController` on `window` for diagnostics and ensured it is cleared during `unmount` to avoid stale globals.
+- **🔌 Manager delegation**
+  - Connector routing toggles (`setLiveRoutingEnabled`, `updateConnectorElement`) now just call the ConnectorSelectionManager singleton; no more local store mutations or redundant commits.
+  - Mindmap edge visuals route entirely through `mindmapSelectionManager.updateEdgeVisuals`, keeping delta handling in one place.
+- **✅ Validation**
+  - `npm run type-check`
+  - Lint baseline unchanged; manual marquee regression sweep still pending.
+
 ## 🚨 STATUS UPDATE (January 25, 2025)
 
 ### 🔄 Selection Module Modularization & Marquee Improvements (January 25, 2025)

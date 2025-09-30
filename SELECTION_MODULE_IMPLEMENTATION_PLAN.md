@@ -444,10 +444,36 @@ selection/
 
 ---
 
-### Status Update (September 29, 2025)
-- Phase 2 COMPLETE: Managers integrated; SelectionModule delegates to Transform/Element/Connector/Mindmap/Text managers.
-- Marquee selection improved; connectors refreshed during drag via scheduleRefresh.
-- Known behavior: connectors (lines/arrows) may not always live-update visually during marquee drag; final commit is correct.
-- Next steps (Phase 3): tests + cleanup, visual-only updates for point endpoints, idempotent finalize.
+### Status Update (September 30, 2025)
+
+#### Phase 2 Progress
+- ✅ Managers integrated; SelectionModule delegates to Transform/Element/Connector/Mindmap/Text managers
+- ✅ Marquee selection improved; connectors refreshed during drag via scheduleRefresh
+- ✅ Known behavior: connectors (lines/arrows) may not always live-update visually during marquee drag; final commit is correct
+
+#### Active Bug Investigation (Sept 30, 2025)
+**Issue**: Marquee selection blue border disappears after drag completion
+- **Expected**: Blue borders should persist after drag until canvas click deselection
+- **Actual**: Borders disappear immediately upon mouse release after dragging selected group
+- **Attempted Fix**: Added `marqueeSelectionController.setSelection(persistentSelection)` call in `MarqueeSelectionTool.tsx` after drag completion
+- **Status**: Visual feedback still not persisting; requires deeper investigation
+- **Next Investigation**: 
+  - Verify `marqueeSelectionController.setSelection()` properly updates store state
+  - Check if SelectionVisual component subscribes to selection changes and re-renders
+  - Investigate if `endTransform()` call interferes with selection state
+  - Consider alternative: maintain selection through store state rather than controller
+
+#### Key Learnings
+1. **Selection State Persistence**: Marquee selection uses `persistentSelection` array to track selected elements across drag operations
+2. **Controller Communication**: MarqueeSelectionController's `setSelection()` method may not be sufficient to trigger visual feedback updates
+3. **Store vs Controller Pattern**: Current architecture may need clearer boundaries between controller-managed state and store-managed selection state
+4. **Visual Feedback Lifecycle**: Selection visuals (blue borders) are managed separately from selection state and may not automatically sync after drag operations
+
+#### Next Steps (Phase 3)
+- [ ] Resolve marquee selection visual feedback persistence bug
+- [ ] Comprehensive test suite for marquee + drag operations  
+- [ ] Visual-only updates for point endpoints
+- [ ] Idempotent finalize operations
+- [ ] Documentation cleanup
 
 *This plan provides complete line-by-line accounting of SelectionModule.ts and systematic extraction strategy while maintaining Canvas architectural principles.*
