@@ -20,6 +20,13 @@
 
 ## Recently Fixed (September 30, 2025)
 
+### Image Position Jumping After Drag ✅ RESOLVED
+- **Issue**: Images would snap back to original position after dragging then clicking canvas to deselect
+- **Root Cause**: Image Groups were draggable but had no `dragend` event handler to save position to store
+- **Fix**: Added `dragend` handler that calls `updateElement` with new position, following pattern from ShapeRenderer
+- **Additional**: Fixed draggable state updates when switching between pan and select tools
+- **Status**: Resolved in `ImageRenderer.ts` - images now persist position after drag operations
+
 ### Marquee Selection Drag Bugs ✅ RESOLVED
 - **Issue**: Selection would clear on next click instead of starting drag operation
 - **Issue**: Elements would move on click without actual pointer movement  

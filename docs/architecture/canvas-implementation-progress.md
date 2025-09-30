@@ -6,6 +6,30 @@ This document tracks the implementation progress of the FigJam-style modular can
 
 ## 🚨 STATUS UPDATE (September 30, 2025)
 
+### ✅ Image Position Persistence Fix (September 30, 2025)
+
+**Repository:** `main`
+**Status:** Critical image dragging bug resolved - position now persists after drag operations.
+
+- **🐛 Image Position Snap-Back Bug**
+  - **Problem**: Images would visually move during drag but snap back to original position when clicking canvas
+  - **Root Cause**: Image Groups had `draggable: true` but no `dragend` event handler to persist position changes
+  - Konva allowed dragging (visual node position changed) but store retained old position
+  - ImageRenderer's position sync on re-render would "correct" to store value, causing snap-back
+- **🔧 Solution Implemented**
+  - Added `dragend` event handler to Image Group (lines 148-166 ImageRenderer.ts)
+  - Handler reads new position from dragged node and calls `store.updateElement(id, { x, y })`
+  - Includes `pushHistory: true` for undo/redo support
+  - Follows same pattern as ShapeRenderer, TableModule, StickyNoteModule, MindmapRenderer
+- **🔧 Draggable State Updates**
+  - Added `g.draggable(!isPanToolActive)` in else block to update state on every render
+  - Ensures images become draggable when switching from pan to select tool
+  - Fixed variable scope: moved `storeState`/`isPanToolActive` declarations outside if/else
+- **✅ Validation**
+  - `npm run type-check` passes with 0 TypeScript errors
+  - Manual testing: images now persist position after drag → canvas click
+  - Consistent behavior with all other draggable elements
+
 ### ✅ Marquee Selection Drag Bug Fixes (September 30, 2025)
 
 **Repository:** `main`

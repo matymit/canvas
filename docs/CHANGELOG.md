@@ -1,5 +1,19 @@
 # Changelog
 
+### Image Position Persistence Fix (September 30, 2025)
+- **Critical Bug Fixed**: Images jumping back to original position after drag → click canvas to deselect
+  - Root cause: Image Groups were draggable but lacked `dragend` event handler to persist position changes to store
+  - User could drag images (Konva node position changed) but store retained old position
+  - When ImageRenderer re-rendered after canvas click, it synced from store causing snap-back
+  - Solution: Added `dragend` handler to ImageRenderer following same pattern as ShapeRenderer, TableModule, StickyNoteModule
+  - Handler calls `store.updateElement(id, { x, y })` with `pushHistory: true` for undo/redo support
+- **Additional Fix**: Image Groups' `draggable` property now updates on every render based on current tool
+  - Ensures images become draggable when switching from pan tool to select tool
+  - Moved `storeState`/`isPanToolActive` variable declarations outside if/else to fix scope issues
+- **Files Modified**: `ImageRenderer.ts` - dragend handler, draggable state updates, variable scope refactoring
+- **Impact**: Images now persist position after drag operations, consistent with all other draggable elements
+- **Validation**: `npm run type-check` passes with 0 TypeScript errors
+
 ### Marquee Selection Drag Bug Fixes (September 30, 2025)
 - **Critical Bug Fixed**: Marquee selection losing selection on next click instead of starting drag operation
   - Root cause: Fallback implementation was not setting `persistentSelection` array after successful selection
