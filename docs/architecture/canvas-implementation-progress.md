@@ -38,7 +38,7 @@ This document tracks the implementation progress of the FigJam-style modular can
 - **🐛 Selection Loss Bug**
   - Fixed fallback implementation missing `persistentSelection` assignment, causing drag detection to fail and selection to clear on next click.
   - Added `marqueeRef.current.persistentSelection = selectedIds` to match SelectionModule behavior.
-- **🐛 Premature Drag Completion Bug**  
+- **🐛 Premature Drag Completion Bug**
   - Removed `node.draggable(true)` calls that were causing Konva to fire immediate dragend events.
   - Delayed `beginTransform()` call until actual pointer movement detected (>1px threshold).
   - Added `transformInitiated` flag to properly track transform lifecycle.
@@ -65,11 +65,35 @@ This document tracks the implementation progress of the FigJam-style modular can
   - `npm run type-check`
   - Lint baseline unchanged; manual marquee regression sweep still pending.
 
+### ✅ SelectionDebouncer Refactoring (September 30, 2025)
+
+**Repository:** `main`
+**Status:** Successfully extracted connector selection debouncing logic into dedicated SelectionDebouncer class, eliminating code duplication and improving maintainability.
+
+- **🔄 Logic extraction**
+  - Created `SelectionDebouncer.ts` class to handle connector selection timing and categorization
+  - Extracted 87 lines of complex connector selection logic from `updateSelection` method
+  - Reduced `updateSelection` method from ~149 lines to ~70 lines (53% reduction)
+- **🔄 Code consolidation**
+  - Extended SelectionDebouncer to handle both main selection flow AND refresh flow
+  - Added `handleImmediateConnectorSelection` method for refresh operations
+  - Eliminated duplicate logic in `handleConnectorOnlySelection` method
+- **🔄 Architecture improvements**
+  - Centralized all connector selection logic in single class
+  - Improved separation of concerns between selection logic and debouncing
+  - Enhanced type safety with proper method signatures
+- **✅ Validation**
+  - `npm run type-check` passes with 0 TypeScript errors
+  - All existing tests pass
+  - No functionality regressions
+  - Code is more maintainable and testable
+
 ## 🚨 STATUS UPDATE (January 25, 2025)
 
 ### 🔄 Selection Module Modularization & Marquee Improvements (January 25, 2025)
 
 Update (September 29, 2025):
+
 - Phase 2 integration COMPLETE: SelectionModule now delegates to focused managers (transform, element sync, connectors, mindmap, text).
 - Marquee selection: improved base position capture and cleanup; connectors are refreshed during drag via scheduleRefresh.
 - Remaining glitches: connector lines/arrows may not always move visually with marquee drag; they do commit on release.

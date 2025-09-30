@@ -4,7 +4,11 @@ import { useEffect, useRef, useCallback } from "react";
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { loadImageFromFile } from "../../../utils/image/ImageLoader";
-import { compressBase64, saveImageToIndexedDB } from "../../../../../utils/imageStorage";
+import {
+  compressBase64,
+  saveImageToIndexedDB,
+} from "../../../../../utils/imageStorage";
+import { debug } from "../../../../../utils/debug";
 
 type StageRef = React.RefObject<Konva.Stage | null>;
 
@@ -78,18 +82,21 @@ export const ImageTool: React.FC<ImageToolProps> = ({
           // Load the image
           const { dataUrl, naturalWidth, naturalHeight } =
             await loadImageFromFile(files[0]);
-          
+
           // Compress the image before storing
-          console.log('[ImageTool] Compressing image...');
+          debug("[ImageTool] Compressing image...", { category: "ImageTool" });
           const compressedDataUrl = await compressBase64(dataUrl);
-          
+
           stateRef.current.dataUrl = compressedDataUrl;
           stateRef.current.natural = { w: naturalWidth, h: naturalHeight };
 
           // Image loaded successfully, ready for auto-placement
           resolve();
         } catch (error) {
-          console.error('[ImageTool] Failed to load/compress image:', error);
+          debug("[ImageTool] Failed to load/compress image:", {
+            category: "ImageTool",
+            data: error,
+          });
           // Failed to load image
           setSelectedTool?.("select");
           reject(error);
@@ -138,9 +145,14 @@ export const ImageTool: React.FC<ImageToolProps> = ({
       const idbKey = `img_${id}`;
       try {
         await saveImageToIndexedDB(src, idbKey);
-        console.log(`[ImageTool] Image saved to IndexedDB: ${idbKey}`);
+        debug(`[ImageTool] Image saved to IndexedDB: ${idbKey}`, {
+          category: "ImageTool",
+        });
       } catch (error) {
-        console.error('[ImageTool] Failed to save to IndexedDB:', error);
+        debug("[ImageTool] Failed to save to IndexedDB:", {
+          category: "ImageTool",
+          data: error,
+        });
         // Continue anyway - image will work in current session
       }
 
@@ -190,7 +202,10 @@ export const ImageTool: React.FC<ImageToolProps> = ({
         await new Promise((resolve) => setTimeout(resolve, 50));
         setSelectedTool?.("select");
       } catch (error) {
-        console.error('[ImageTool] Error creating element:', error);
+        debug("[ImageTool] Error creating element:", {
+          category: "ImageTool",
+          data: error,
+        });
       }
 
       // Reset image data for next use
