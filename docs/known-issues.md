@@ -1,6 +1,6 @@
 # Known Issues and Limitations
 
-## Active Issues (September 30, 2025)
+## Active Issues (October 1, 2025)
 
 ### Marquee Selection Visual Feedback Persistence 🔴 ACTIVE BUG
 - **Issue**: Blue selection borders disappear immediately after dragging a marquee-selected group instead of persisting until canvas deselection
@@ -17,6 +17,32 @@
   - Consider alternative: maintain selection through store state rather than controller
 - **Files**: `MarqueeSelectionTool.tsx` (onPointerUp handler)
 - **Status**: Under investigation - attempted fix did not resolve issue
+
+## Recently Fixed (October 1, 2025)
+
+### Mindmap Node Double-Click Text Editing ✅ RESOLVED (October 1, 2025)
+- **Issue**: Double-clicking mindmap nodes wouldn't open the text editor for editing
+- **User Impact**: Could select and drag mindmap nodes but couldn't edit text inline
+- **Root Cause**: `MarqueeSelectionTool` was intercepting click events at stage level (line 144) before they could bubble to `MindmapRenderer`'s double-click handler
+  - When clicking a selected element, `MarqueeSelectionTool` immediately set `isDragging=true` (line 246)
+  - This prevented event bubbling to `MindmapRenderer`'s `dblclick` handler (line 328-340)
+  - Stage-level event handlers have priority over node-level handlers in Konva
+- **Technical Details**:
+  - `MindmapRenderer` uses 275ms threshold for rapid click detection (double-click) at line 314
+  - `MindmapRenderer` uses 250ms delay for single-click selection to avoid conflicts at line 322
+  - The timing logic works correctly but was never reached due to event interception
+- **Solution**: Added mindmap-node type check in `MarqueeSelectionTool` (lines 244-253)
+  - Check if clicked element is `type === "mindmap-node"` before starting drag
+  - Early `return` allows `MindmapRenderer` to handle its own click/dblclick/drag events
+  - Preserves drag functionality for all other element types (sticky notes, shapes, connectors)
+- **Impact**: 
+  - ✅ Double-click mindmap nodes now opens text editor
+  - ✅ Single-click mindmap nodes still selects them (after 250ms delay)
+  - ✅ Drag mindmap nodes still works (handled by MindmapRenderer's drag handlers)
+  - ✅ Marquee selection and drag still works for other elements
+  - ✅ Connector selection and drag still works
+- **Commit**: `62ee08e` - fix(marquee): allow mindmap nodes to handle their own double-click events
+- **Prevention**: This pattern should be applied to any future special-case element types that need custom interaction handling
 
 ## Recently Fixed (September 30, 2025)
 

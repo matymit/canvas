@@ -221,6 +221,71 @@ stage?.children.forEach((layer, index) => {
 });
 ```
 
+#### Problem: Double-click events not firing on specific element types
+
+**Symptoms**: Double-clicking elements doesn't trigger expected behavior (e.g., can't edit text in mindmap nodes)
+**Root Cause**: Stage-level event handlers intercepting events before they reach node-level handlers
+
+**Understanding Konva Event Flow**:
+```
+Stage (highest priority)
+  ↓
+Layer
+  ↓
+Group
+  ↓
+Node (lowest priority)
+```
+
+**Common Scenario**: `MarqueeSelectionTool` or other stage-level tools capturing clicks on selected elements
+
+**Debugging Steps**:
+
+1. Check if stage-level handlers are preventing event bubbling
+2. Verify `evt.cancelBubble` is not being set prematurely
+3. Look for early `return` statements that bypass node handlers
+4. Check if `isDragging` or similar flags are set too early
+
+**Solution Pattern**:
+
+```typescript
+// In stage-level pointer handler (e.g., MarqueeSelectionTool)
+const onPointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
+  const target = e.target;
+  const elementId = target.getAttr("elementId") || target.id();
+  const element = elements.get(elementId);
+  
+  // CRITICAL: Check for special element types that need custom interaction
+  if (
+    element?.type === "mindmap-node" || 
+    target.getAttr("nodeType") === "mindmap-node"
+  ) {
+    // Don't intercept - let the element's renderer handle clicks/double-clicks
+    return;
+  }
+  
+  // Continue with stage-level handling for other elements
+  startDragOrSelection();
+};
+```
+
+**Example Fix (Mindmap Double-Click)**:
+- **Issue**: Couldn't double-click mindmap nodes to edit text
+- **Cause**: `MarqueeSelectionTool` set `isDragging=true` immediately on click
+- **Fix**: Added type check to skip mindmap nodes (commit `62ee08e`)
+- **Location**: `MarqueeSelectionTool.tsx` lines 244-253
+
+**Prevention Checklist**:
+- ✅ Identify elements that need custom interaction handling
+- ✅ Add type checks in stage-level handlers before capturing events
+- ✅ Document timing requirements (e.g., 250ms delays for double-click detection)
+- ✅ Test both single-click and double-click behavior after changes
+- ✅ Verify drag operations still work for other element types
+
+**Related Documentation**:
+- Konva Event Handling: https://konvajs.org/docs/events/Binding_Events.html
+- Event Bubbling: https://konvajs.org/docs/events/Event_Bubbling.html
+
 #### Problem: Tools not responding
 
 **Symptoms**: Click events not working, no drawing/selection
