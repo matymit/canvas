@@ -14,13 +14,10 @@ export class ImageRendererAdapter implements RendererModule {
   mount(ctx: ModuleRendererCtx): () => void {
     // Create ImageRenderer instance
     this.renderer = new ImageRenderer(ctx.layers);
-    
-    // Pass store context to renderer for pan tool detection
-    this.renderer.setStoreContext({ store: ctx.store.getState() });
 
     // Subscribe to store changes - watch image elements
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract image elements
+      // Selector: extract image elements AND selectedTool (for draggable state)
       (state) => {
         const images = new Map<Id, ImageElement>();
         for (const [id, element] of state.elements.entries()) {
@@ -28,10 +25,11 @@ export class ImageRendererAdapter implements RendererModule {
             images.set(id, element as ImageElement);
           }
         }
-        return images;
+        // CRITICAL FIX: Include selectedTool so draggable state updates when tool changes
+        return { images, selectedTool: state.ui?.selectedTool };
       },
-      // Callback: reconcile changes
-      (images) => {
+      // Callback: reconcile changes (extract images from returned object)
+      ({ images }) => {
         this.reconcile(images);
       },
     );

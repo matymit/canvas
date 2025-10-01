@@ -1,0 +1,91 @@
+#!/usr/bin/env node
+/**
+ * Verify subscription behavior
+ * This explains why draggable state might not update correctly
+ */
+
+console.log("=== SUBSCRIPTION BEHAVIOR ANALYSIS ===\n");
+
+console.log("Current implementation in StickyNoteModule.ts:");
+console.log("```");
+console.log("this.unsubscribe = ctx.store.subscribe(");
+console.log("  // Selector: extract sticky-note elements");
+console.log("  (state) => {");
+console.log("    const stickyNotes = new Map();");
+console.log("    for (const [id, element] of state.elements.entries()) {");
+console.log("      if (element.type === 'sticky-note') {");
+console.log("        stickyNotes.set(id, { ...element });");
+console.log("      }");
+console.log("    }");
+console.log("    return stickyNotes; // ONLY returns sticky notes");
+console.log("  },");
+console.log("  (stickyNotes) => this.renderingEngine?.reconcile(stickyNotes),");
+console.log("  { fireImmediately: true, equalityFn: ... }");
+console.log(");");
+console.log("```\n");
+
+console.log("🔍 THE BUG:");
+console.log("The selector ONLY extracts sticky-note elements.");
+console.log("It does NOT extract state.ui.selectedTool.");
+console.log("");
+console.log("This means:");
+console.log("1. When you switch tools (pan ↔ select), the subscription does NOT fire");
+console.log("2. draggable state is only checked:");
+console.log("   a) At initial mount (fireImmediately: true)");
+console.log("   b) When a sticky note is created/updated");
+console.log("");
+console.log("3. Once a sticky is created, its draggable state is FROZEN");
+console.log("   unless the sticky itself changes (position, text, etc.)");
+console.log("");
+console.log("❌ PROBLEM SCENARIO:");
+console.log("1. User has sticky-note tool active (tool=sticky-note)");
+console.log("2. User clicks to create sticky");
+console.log("3. Sticky is created with draggable=!isPanToolActive() = !(false) = true ✅");
+console.log("4. Tool switches to 'select' automatically");
+console.log("5. Subscription does NOT fire (tool change doesn't affect sticky notes selector)");
+console.log("6. Sticky remains draggable=true ✅");
+console.log("");
+console.log("✅ This should work! So why doesn't it?");
+console.log("");
+console.log("🤔 ALTERNATIVE HYPOTHESIS:");
+console.log("Maybe the bug is in the initial isPanToolActive() check?");
+console.log("Let's check what happens at CREATION time:");
+console.log("");
+console.log("StickyRenderingEngine.createStickyGroup() line 120:");
+console.log("```");
+console.log("draggable: !this.options.isPanToolActive()");
+console.log("```");
+console.log("");
+console.log("StickyNoteModule.ts line 128-131:");
+console.log("```");
+console.log("isPanToolActive: () => {");
+console.log("  const state = this.storeCtx?.store.getState();");
+console.log("  return state?.ui?.selectedTool === 'pan';");
+console.log("}");
+console.log("```");
+console.log("");
+console.log("🚨 WAIT! What if storeCtx is undefined at creation time?");
+console.log("If this.storeCtx is undefined:");
+console.log("  → store.getState() throws or returns undefined");
+console.log("  → state?.ui?.selectedTool is undefined");
+console.log("  → undefined === 'pan' is false");
+console.log("  → isPanToolActive() returns false");
+console.log("  → draggable: !false = true");
+console.log("");
+console.log("So even if storeCtx is broken, it should still work!");
+console.log("");
+console.log("🎯 REAL HYPOTHESIS:");
+console.log("The bug must be in how the INITIAL store state is captured.");
+console.log("When StickyNoteModule mounts, maybe the store isn't fully initialized?");
+console.log("Or maybe the subscription's fireImmediately happens BEFORE elements exist?");
+console.log("");
+console.log("💡 SOLUTION:");
+console.log("Add selectedTool to the subscription selector:");
+console.log("```");
+console.log("(state) => ({");
+console.log("  stickyNotes: ...,  // existing logic");
+console.log("  selectedTool: state.ui?.selectedTool  // NEW: watch tool changes");
+console.log("})");
+console.log("```");
+console.log("");
+console.log("This way, when the tool changes, reconcile() fires and updates draggable.");

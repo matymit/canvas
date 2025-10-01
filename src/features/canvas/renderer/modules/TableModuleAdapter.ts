@@ -16,9 +16,9 @@ export class TableModuleAdapter implements RendererModule {
     // Create TableRenderer instance with store context
     this.renderer = new TableRenderer(ctx.layers, {}, ctx);
 
-    // Subscribe to store changes - watch table elements
+    // Subscribe to store changes - watch table elements AND selectedTool
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract table elements
+      // Selector: extract table elements AND selectedTool (for draggable state)
       (state) => {
         const tables = new Map<Id, TableElement>();
         for (const [id, element] of state.elements.entries()) {
@@ -26,19 +26,22 @@ export class TableModuleAdapter implements RendererModule {
             tables.set(id, element as TableElement);
           }
         }
-        return tables;
+        // CRITICAL FIX: Include selectedTool so draggable state updates when tool changes
+        return { tables, selectedTool: state.ui?.selectedTool };
       },
-      // Callback: reconcile changes
-      (tables) => {
+      // Callback: reconcile changes (extract tables from returned object)
+      ({ tables }) => {
         this.reconcile(tables);
       },
       // Options: prevent unnecessary reconciliation with equality check
       {
         fireImmediately: true,
         equalityFn: (a, b) => {
-          if (a.size !== b.size) return false;
-          for (const [id, element] of a) {
-            const other = b.get(id);
+          // CRITICAL: Compare both tables AND selectedTool
+          if (a.selectedTool !== b.selectedTool) return false;
+          if (a.tables.size !== b.tables.size) return false;
+          for (const [id, element] of a.tables) {
+            const other = b.tables.get(id);
             if (!other ||
                 other.x !== element.x ||
                 other.y !== element.y ||

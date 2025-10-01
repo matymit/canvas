@@ -199,9 +199,9 @@ export class MindmapRendererAdapter implements RendererModule {
         this.renderer;
     }
 
-    // Subscribe to store changes - watch mindmap elements
+    // Subscribe to store changes - watch mindmap elements AND selectedTool
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract mindmap nodes and edges
+      // Selector: extract mindmap nodes, edges, AND selectedTool (for draggable state)
       (state) => {
         const nodes = new Map<Id, MindmapNodeElement>();
         const edges = new Map<Id, MindmapEdgeElement>();
@@ -220,11 +220,46 @@ export class MindmapRendererAdapter implements RendererModule {
           }
         }
 
-        return { nodes, edges };
+        // CRITICAL FIX: Include selectedTool so draggable state updates when tool changes
+        return { nodes, edges, selectedTool: state.ui?.selectedTool };
       },
-      // Callback: reconcile changes
-      (mindmapElements: MindmapElements) => {
-        this.reconcile(mindmapElements);
+      // Callback: reconcile changes (ignore selectedTool in callback, it's just for triggering updates)
+      ({ nodes, edges }: { nodes: Map<Id, MindmapNodeElement>; edges: Map<Id, MindmapEdgeElement>; selectedTool?: string }) => {
+        this.reconcile({ nodes, edges });
+      },
+      // Options: prevent unnecessary reconciliation with equality check
+      {
+        fireImmediately: true,
+        equalityFn: (a, b) => {
+          // CRITICAL: Compare selectedTool, nodes, and edges
+          if (a.selectedTool !== b.selectedTool) return false;
+          if (a.nodes.size !== b.nodes.size || a.edges.size !== b.edges.size) return false;
+          
+          // Check if any node changed (position, text, style, dimensions)
+          for (const [id, aNode] of a.nodes) {
+            const bNode = b.nodes.get(id);
+            if (!bNode) return false;
+            if (aNode.x !== bNode.x || aNode.y !== bNode.y ||
+                aNode.text !== bNode.text ||
+                aNode.width !== bNode.width || aNode.height !== bNode.height ||
+                aNode.textWidth !== bNode.textWidth || aNode.textHeight !== bNode.textHeight ||
+                JSON.stringify(aNode.style) !== JSON.stringify(bNode.style)) {
+              return false;
+            }
+          }
+
+          // Check if any edge changed
+          for (const [id, aEdge] of a.edges) {
+            const bEdge = b.edges.get(id);
+            if (!bEdge) return false;
+            if (aEdge.fromId !== bEdge.fromId || aEdge.toId !== bEdge.toId ||
+                JSON.stringify(aEdge.style) !== JSON.stringify(bEdge.style)) {
+              return false;
+            }
+          }
+
+          return true;
+        },
       },
     );
 

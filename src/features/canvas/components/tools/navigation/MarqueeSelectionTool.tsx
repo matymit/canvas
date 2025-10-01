@@ -149,6 +149,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
       // Handle element dragging
       if (marqueeRef.current.isDragging) {
+        console.log("[MarqueeSelectionTool] onPointerMove calling handleDragMove");
         handleDragMove(stage);
       }
     };

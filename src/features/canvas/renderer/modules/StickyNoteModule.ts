@@ -115,6 +115,7 @@ export class StickyNoteModule implements RendererModule {
       getActiveEditor: () => this.textEditor?.getEditorElementId() ? document.querySelector(`[data-sticky-editor="${this.textEditor.getEditorElementId()}"]`) as HTMLTextAreaElement : null,
     });
 
+    // CRITICAL FIX: Pass store directly instead of callback to avoid closure issues
     this.renderingEngine = new StickyRenderingEngine({
       layer: this.layers,
       setupStickyInteractions: (group, elementId) => {
@@ -127,11 +128,15 @@ export class StickyNoteModule implements RendererModule {
       maybeStartPendingEdit: (elementId, group) => {
         this.textEditor?.maybeStartPendingEdit(elementId, group);
       },
+            isPanToolActive: () => {
+        const state = ctx.store.getState();
+        return state?.ui?.selectedTool === "pan";
+      },
     });
 
-    // Subscribe to store changes - watch only sticky-note elements
+    // Subscribe to store changes - watch sticky-note elements AND selectedTool
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract sticky-note elements
+      // Selector: extract sticky-note elements AND selectedTool (for draggable state)
       (state) => {
         const stickyNotes = new Map<Id, StickySnapshot>();
         for (const [id, element] of state.elements.entries()) {
@@ -152,20 +157,23 @@ export class StickyNoteModule implements RendererModule {
             });
           }
         }
-        return stickyNotes;
+        // CRITICAL FIX: Include selectedTool so draggable state updates when tool changes
+        return { stickyNotes, selectedTool: state.ui?.selectedTool };
       },
-      // Callback: reconcile changes
-      (stickyNotes) => this.renderingEngine?.reconcile(stickyNotes),
+      // Callback: reconcile changes (extract stickyNotes from returned object)
+      ({ stickyNotes }) => this.renderingEngine?.reconcile(stickyNotes),
       // Options: shallow compare and fire immediately
       {
         fireImmediately: true,
         equalityFn: (
-          a: Map<Id, StickySnapshot>,
-          b: Map<Id, StickySnapshot>,
+          a: { stickyNotes: Map<Id, StickySnapshot>; selectedTool?: string },
+          b: { stickyNotes: Map<Id, StickySnapshot>; selectedTool?: string },
         ) => {
-          if (a.size !== b.size) return false;
-          for (const [id, aSticky] of a) {
-            const bSticky = b.get(id);
+          // CRITICAL: Compare both stickyNotes AND selectedTool
+          if (a.selectedTool !== b.selectedTool) return false;
+          if (a.stickyNotes.size !== b.stickyNotes.size) return false;
+          for (const [id, aSticky] of a.stickyNotes) {
+            const bSticky = b.stickyNotes.get(id);
             if (!bSticky) return false;
             if (JSON.stringify(aSticky) !== JSON.stringify(bSticky))
               return false;

@@ -48,9 +48,9 @@ export class TextRenderer implements RendererModule {
     this.stage = ctx.stage;
     this.store = ctx.store;
 
-    // Subscribe to store changes - watch text elements with shallow equality
+    // Subscribe to store changes - watch text elements AND selectedTool with shallow equality
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract text elements
+      // Selector: extract text elements AND selectedTool (for draggable state)
       (state) => {
         // Store subscription triggered
         const texts = new Map<Id, TextElement>();
@@ -60,19 +60,22 @@ export class TextRenderer implements RendererModule {
             texts.set(id, element as TextElement);
           }
         }
-        // Returning text elements
-        return texts;
+        // CRITICAL FIX: Include selectedTool so draggable state updates when tool changes
+        // Returning text elements with selectedTool
+        return { texts, selectedTool: state.ui?.selectedTool };
       },
-      // Callback: reconcile changes
-      (texts) => this.reconcile(texts),
+      // Callback: reconcile changes (extract texts from returned object)
+      ({ texts }) => this.reconcile(texts),
       // Options: ensure immediate fire but use simpler equality
       {
         fireImmediately: true,
         // Custom equality to prevent unnecessary reconciliation
         equalityFn: (a, b) => {
-          if (a.size !== b.size) return false;
-          for (const [id, element] of a) {
-            const other = b.get(id);
+          // CRITICAL: Compare both texts AND selectedTool
+          if (a.selectedTool !== b.selectedTool) return false;
+          if (a.texts.size !== b.texts.size) return false;
+          for (const [id, element] of a.texts) {
+            const other = b.texts.get(id);
             if (
               !other ||
               other.text !== element.text ||

@@ -23,6 +23,7 @@ export interface StickyRenderingEngineOptions {
   getEditorElementId: () => string | null;
   repositionActiveEditor: (group: Konva.Group) => void;
   maybeStartPendingEdit: (elementId: string, group?: Konva.Group) => void;
+  isPanToolActive: () => boolean;
 }
 
 /**
@@ -116,7 +117,7 @@ export class StickyRenderingEngine {
       y: sticky.y,
       width: sticky.width,
       height: sticky.height,
-      draggable: true,
+      draggable: !this.options.isPanToolActive(),
     });
 
     // CRITICAL: Set attributes for proper integration
@@ -165,17 +166,14 @@ export class StickyRenderingEngine {
     return group;
   }
 
-  /**
-   * Update existing sticky note group
+    /**
+   * Update an existing sticky note group
    */
-  private updateStickyGroup(group: Konva.Group, sticky: StickySnapshot): void {
+  private updateStickyGroup(group: Konva.Group, sticky: StickySnapshot) {
     // Update position and size
-    group.setAttrs({
-      x: sticky.x,
-      y: sticky.y,
-      width: sticky.width,
-      height: sticky.height,
-    });
+    group.position({ x: sticky.x, y: sticky.y });
+    group.size({ width: sticky.width, height: sticky.height });
+    group.draggable(!this.options.isPanToolActive());
 
     // Ensure attributes are maintained
     group.setAttr("elementId", sticky.id);

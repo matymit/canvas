@@ -17,14 +17,9 @@ export class ImageRenderer {
   private readonly groupById = new Map<string, Konva.Group>();
   private readonly imageNodeById = new Map<string, Konva.Image>();
   private pendingDraw: number | null = null;
-  private storeCtx?: { store: ReturnType<typeof useUnifiedCanvasStore.getState> };
 
   constructor(layers: RendererLayers) {
     this.layers = layers;
-  }
-
-  setStoreContext(ctx: { store: ReturnType<typeof useUnifiedCanvasStore.getState> }) {
-    this.storeCtx = ctx;
   }
 
   /**
@@ -116,17 +111,13 @@ export class ImageRenderer {
       y: el.y
     });
     
-    // Check if pan tool is active - if so, disable dragging on elements
-    const storeState = this.storeCtx?.store;
-    const isPanToolActive = storeState?.ui?.selectedTool === 'pan';
-    
     let g = this.groupById.get(el.id);
     if (!g || !g.getLayer()) {
       g = new Konva.Group({
         id: el.id,
         name: 'image',
         listening: true,
-        draggable: !isPanToolActive, // Enable dragging when not in pan mode
+        draggable: false, // MarqueeDrag handles all dragging - native drag disabled
         x: el.x,
         y: el.y,
       });
@@ -148,35 +139,14 @@ export class ImageRenderer {
         }
       });
 
-      // CRITICAL FIX: Add dragend handler to persist position changes
-      // Without this, dragging changes the Konva node position but never saves to store
-      // This is why images snap back - the store position is never updated!
-      g.on('dragend', (e) => {
-        const group = e.target as Konva.Group;
-        const newX = group.x();
-        const newY = group.y();
-        
-        console.log(`[ImageRenderer] Drag ended for ${el.id}`, {
-          oldPos: { x: el.x, y: el.y },
-          newPos: { x: newX, y: newY }
-        });
-        
-        const store = useUnifiedCanvasStore.getState();
-        if (store.updateElement) {
-          store.updateElement(el.id, { x: newX, y: newY }, { pushHistory: true });
-        }
-      });
-
-      // Note: Drag and transform are handled by SelectionModule's transformer
-      // No need for duplicate event handlers here
+      // Note: Drag and transform are handled by MarqueeDrag and SelectionModule
+      // ElementSynchronizer syncs positions back to store after drag completes
+      // DO NOT add dragend handler here - it conflicts with MarqueeDrag and causes position jumps
 
       this.layers.main.add(g);
       this.groupById.set(el.id, g);
-    } else {
-      // CRITICAL FIX: Update draggable state on every render based on current tool
-      // This ensures images become draggable when switching from pan to select tool
-      g.draggable(!isPanToolActive);
     }
+    // Note: draggable is always false - MarqueeDrag handles all element dragging
 
     // Only sync position from store when NOT actively dragging/transforming
     // This prevents snap-back during user interactions
@@ -213,9 +183,6 @@ export class ImageRenderer {
     // This prevents scale accumulation on subsequent transforms
     g.scale({ x: 1, y: 1 });
 
-    // Update draggable state based on current tool (variables declared at line 120-121)
-    g.draggable(!isPanToolActive);
-
     // Ensure elementId is maintained
     g.setAttr('elementId', el.id);
     g.setAttr('elementType', 'image');
@@ -240,8 +207,9 @@ export class ImageRenderer {
         image: undefined, // will be set by ensureBitmap
       });
 
-      // Set elementId on bitmap for click detection
-      bitmap.setAttr('elementId', el.id);
+      // FIXED: Do NOT set elementId on child bitmap - only parent Group should have it
+      // This prevents stage.find() from returning duplicate nodes (Group + child Image)
+      // Click events will bubble up to the parent Group which has the click handler
       bitmap.on('click', (e) => {
         e.cancelBubble = true;
         const store = useUnifiedCanvasStore.getState();
@@ -254,7 +222,8 @@ export class ImageRenderer {
       this.imageNodeById.set(el.id, bitmap);
     }
 
-    bitmap.setAttr('elementId', el.id);
+    // FIXED: Do NOT set elementId on child bitmap - only parent Group has elementId
+    // Child attributes for metadata only (not used for selection)
     bitmap.setAttr('elementType', 'image');
     bitmap.setAttr('nodeType', 'image');
     bitmap.setAttr(

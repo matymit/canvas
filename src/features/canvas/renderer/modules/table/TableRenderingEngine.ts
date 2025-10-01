@@ -279,6 +279,11 @@ export class TableRenderingEngine {
   render(el: TableElement): void {
     const g = this.ensureGroup(el);
 
+    // Check if pan tool is active and update draggable state
+    const storeState = this.callbacks.getStoreHook()?.getState();
+    const isPanToolActive = storeState?.ui?.selectedTool === "pan";
+    g.draggable(!isPanToolActive);
+
     // CRITICAL FIX: Always ensure proper scale and dimensions from the store
     // But don't modify if currently being transformed (scale might be temporarily != 1)
     const currentScale = { x: g.scaleX(), y: g.scaleY() };

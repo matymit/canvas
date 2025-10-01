@@ -66,9 +66,9 @@ export class ShapeRenderer implements RendererModule {
     this.layer = ctx.layers.main;
     this.store = ctx.store;
 
-    // Subscribe to store changes - watch shape elements
+    // Subscribe to store changes - watch shape elements AND selectedTool
     this.unsubscribe = ctx.store.subscribe(
-      // Selector: extract shape elements
+      // Selector: extract shape elements AND selectedTool (for draggable state)
       (state) => {
         const shapes = new Map<Id, ShapeElement>();
         for (const [id, element] of state.elements.entries()) {
@@ -81,10 +81,11 @@ export class ShapeRenderer implements RendererModule {
             shapes.set(id, element as ShapeElement);
           }
         }
-        return shapes;
+        // CRITICAL FIX: Include selectedTool so draggable state updates when tool changes
+        return { shapes, selectedTool: state.ui?.selectedTool };
       },
-      // Callback: reconcile changes
-      (shapes) => this.reconcile(shapes),
+      // Callback: reconcile changes (extract shapes from returned object)
+      ({ shapes }) => this.reconcile(shapes),
     );
 
     // Initial render
