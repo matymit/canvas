@@ -4,6 +4,31 @@
 
 This document tracks the implementation progress of the FigJam-style modular canvas application, ensuring all tools and systems follow the four-layer pipeline architecture with store-driven rendering.
 
+## 🚨 STATUS UPDATE (October 1, 2025)
+
+### ✅ Marquee Drag Live Synchronization (October 1, 2025)
+
+**Repository:** `main`
+**Status:** Real-time connector and mindmap visuals restored during marquee drag operations.
+
+- **🐛 Visual Lag During Marquee Drag**
+  - **Problem**: Connectors with free endpoints and mindmap descendant branches stayed motionless until pointer-up, creating a “snap” effect once the drag committed.
+  - **Root Cause**: `useMarqueeDrag` only recorded top-level node positions. Connector Konva groups/paths and mindmap descendant coordinates were never updated in the pointer-move path, so renderers waited for the final store commit before redrawing.
+
+- **🔧 Solution Implemented**
+  - **Connector Baselines**: On drag start, the hook now grabs Konva group + `.connector-shape` references and clones endpoint data (including raw point coordinates). Live pointer moves use those baselines to reposition the group or redefine point endpoints every frame.
+  - **Mindmap Subtree Capture**: Active mindmap parents push their IDs into `activeMindmapNodeIds`, while descendant coordinates populate `mindmapDescendantBaselines`. Pointer moves delegate to `mindmapSelectionManager.moveMindmapDescendants()` so parents, children, and edge visuals all shift together.
+  - **Commit Path**: Drag completion batches element updates for parents + descendants, hands connector deltas back to `connectorSelectionManager.moveSelectedConnectors()`, and schedules mindmap reroutes for accurate layout once the store settles.
+  - **State Hygiene**: Connector/mindmap caches clear before reselection, preventing stale Konva node references when the renderer rebuilds after store reconciliation.
+
+- **📈 Impact**
+  - Mixed selections (shapes + connectors + mindmaps) now exhibit smooth, in-sync motion with no end-of-drag teleporting.
+  - Keeps undo batching intact by committing one history transaction per marquee drag while preserving live 60fps feedback.
+
+- **🧪 Validation**
+  - `npm run type-check`
+  - Manual cross-check: drag mixed selection (sticky + connector with free endpoint + mindmap subtree) and observe continuous motion with accurate reroute on release.
+
 ## 🚨 STATUS UPDATE (September 30, 2025)
 
 ### ✅ Image Position Persistence Fix (September 30, 2025)

@@ -456,12 +456,19 @@ export class SelectionModule implements RendererModule {
     // Delegate connector-specific transform finalization to dedicated class
     this.connectorTransformFinalizer?.finalizeConnectorTransform(nodes);
 
-    // Commit final positions and clean up visuals
-    if (nodes.length > 0) {
+    // Filter out connector nodes to prevent double-processing with pushHistory: true
+    // ConnectorTransformFinalizer already handled connectors with pushHistory: false
+    const nonConnectorNodes = nodes.filter(node => {
+      const elementType = node.getAttr("elementType");
+      return elementType !== "connector";
+    });
+
+    // Commit final positions and clean up visuals (excluding connectors)
+    if (nonConnectorNodes.length > 0) {
       // Handle mindmap descendants when dragging mindmap nodes
       if (source === "drag" && this.storeCtx) {
         const state = this.storeCtx.store.getState();
-        const mindmapNodes = nodes.filter(node => {
+        const mindmapNodes = nonConnectorNodes.filter(node => {
           const id = node.id();
           const element = state.elements?.get(id);
           return element?.type === 'mindmap-node';
@@ -497,14 +504,14 @@ export class SelectionModule implements RendererModule {
           );
         } else {
           // No mindmap nodes, use normal update
-          elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
+          elementSynchronizer.updateElementsFromNodes(nonConnectorNodes, "transform", {
             pushHistory: true,
             batchUpdates: true,
           });
         }
       } else {
         // Not a drag operation or no store context, use normal update
-        elementSynchronizer.updateElementsFromNodes(nodes, "transform", {
+        elementSynchronizer.updateElementsFromNodes(nonConnectorNodes, "transform", {
           pushHistory: true,
           batchUpdates: true,
         });

@@ -3,12 +3,20 @@
 
 import { useRef } from "react";
 import type Konva from "konva";
-import type { ConnectorElement, ConnectorEndpoint } from "../../../../types/connector";
+import type {
+  ConnectorElement,
+  ConnectorEndpoint,
+  ConnectorEndpointPoint,
+} from "../../../../types/connector";
 
 export type ConnectorDragBaseline = {
   position: { x: number; y: number };
   from?: ConnectorEndpoint;
   to?: ConnectorEndpoint;
+  shape?: Konva.Line | Konva.Arrow | null;
+  group?: Konva.Group | null;
+  startFrom?: ConnectorEndpointPoint | null;
+  startTo?: ConnectorEndpointPoint | null;
 };
 
 export type MarqueeState = {
@@ -17,11 +25,14 @@ export type MarqueeState = {
   startPoint: { x: number; y: number } | null;
   selectionRect: Konva.Rect | null;
   selectedNodes: Konva.Node[];
+  selectedConnectorIds: Set<string>;
   basePositions: Map<string, { x: number; y: number }>;
   persistentSelection: string[];
   originalDraggableStates: Map<string, boolean>;
   connectorBaselines: Map<string, ConnectorDragBaseline>;
   transformInitiated: boolean;
+  mindmapDescendantBaselines: Map<string, { x: number; y: number }>;
+  activeMindmapNodeIds: string[];
 };
 
 /**
@@ -59,11 +70,14 @@ export const useMarqueeState = () => {
     startPoint: null,
     selectionRect: null,
     selectedNodes: [],
+    selectedConnectorIds: new Set(),
     basePositions: new Map(),
     persistentSelection: [],
     originalDraggableStates: new Map(),
     connectorBaselines: new Map(),
     transformInitiated: false,
+    mindmapDescendantBaselines: new Map(),
+    activeMindmapNodeIds: [],
   });
 
   return {

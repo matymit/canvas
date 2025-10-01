@@ -32,69 +32,142 @@ Lines 701-929: Utility methods and cleanup - 228 lines
 
 ## 🎯 Refactoring Strategy
 
-### 🛡️ Safeguards & Constraints
-- Document current sticky note schema (position, size, rotation, color, text, z-index) and assert invariants while subsystems shadow the legacy module.
-- Capture reference fixtures for resize geometry, text editor overlay positions, and color changes to compare post-refactor behavior.
-- Maintain undo/redo event ordering across drag, resize, color, and text edits by reusing existing history actions.
-- Keep overlay positioning logic aligned with Konva guidance: recompute using `absolutePosition` + stage bounds, applying rotation/scale transforms.
-- Feature-flag the new module and log discrepancies between legacy and refactored outputs during rollout.
+### Extract Four Modules
 
-### 🧭 Phased Plan
-1. **Phase 0 – Baseline capture**
-   - Record Playwright sessions covering create, drag, resize, edit, color change, delete, undo/redo.
-   - Save DOM overlay snapshots (text editor bounding boxes) and sticky geometry data for regression comparison.
-2. **Phase 1 – Utility extraction**
-   - Extract pure geometry/util helpers backing resize + editor positioning; add unit tests validating min/max constraints and matrix transforms.
-3. **Phase 2 – `StickyResizeHandler`**
-   - Move resize lifecycle logic; ensure snap/constraint math remains accurate under rotation/scale.
-   - Tests simulate corner/edge drags and check undo integration + frame budget.
-4. **Phase 3 – `StickyEventHandlers`**
-   - Extract event wiring for click/double-click/drag/color/delete; inject store actions + selection context explicitly.
-   - Integration tests cover keyboard shortcuts, multi-select drags, color palette updates, and delete flows.
-5. **Phase 4 – `StickyTextEditor`**
-   - Manage DOM overlay lifecycle; recalc position on drag, zoom, resize, scroll; ensure keyboard events scoped correctly.
-   - Tests assert pixel alignment with sticky bounds (<1px tolerance) and overlay cleanup to avoid leaks.
-6. **Phase 5 – Module composition**
-   - Assemble subsystems inside lean `StickyNoteModule`; run in shadow mode, comparing geometry, overlay placement, and undo timelines.
-7. **Phase 6 – Hardening**
-   - Add optional debug UI (dev flag) showing sticky bounds, resize handles, overlay rectangle, and action logs.
-   - Update docs + diagrams; remove legacy path post sign-off.
+1. **StickyResizeHandler** (`sticky-note/StickyResizeHandler.ts`) - ~180 lines
+2. **StickyEventHandlers** (`sticky-note/StickyEventHandlers.ts`) - ~220 lines
+3. **StickyTextEditor** (`sticky-note/StickyTextEditor.ts`) - ~220 lines
+4. **StickyNoteModule** (refactored) - ~250 lines
 
-### 🧪 Validation Strategy
-- **Unit tests**: geometry math, resize constraints, editor positioning, event handler routing.
-- **Integration tests**: drag, resize, text edit, color change, delete, keyboard shortcuts, multi-select interactions, undo/redo sequences.
-- **E2E (Playwright)**: compound operations (drag → resize → edit → color → undo/redo) and stress tests with 50+ notes.
-- **Performance**: ensure ≥60fps during drag/resize, editor open latency <50 ms, memory stable after repeated edits.
-- **Manual QA**: rapid gesture combos, touch input, zoom extremes, clipboard workflows if supported.
+---
 
-### ✅ Exit Criteria
-- Shadow comparison reveals zero deltas in geometry, overlay alignment, color state, or undo history.
-- Automated suites (type, lint, Vitest, Playwright) pass with ≥80% coverage for new subsystems.
-- Performance metrics meet targets (60fps interactions, overlay latency, memory stability).
-- Debug overlay verifies consistent state transitions; remove or gate behind dev flag post-approval.
+## ✅ Executable Tasks
+
+```json
+{
+  "executable_tasks": [
+    {
+      "task_id": "sticky-1-extract-resize",
+      "description": "Extract resize handling to StickyResizeHandler.ts",
+      "target_files": [{"path": "src/features/canvas/modules/sticky-note/StickyNoteModule.ts", "line_range": "151-300"}],
+      "code_changes": [
+        {
+          "operation": "create",
+          "file": "src/features/canvas/modules/sticky-note/StickyResizeHandler.ts",
+          "content": "Extract resize methods:\n- handleResizeStart()\n- handleResize()\n- handleResizeEnd()\n- calculateNewSize()\n- applyMinMaxConstraints()\n- updateStickyDimensions()"
+        }
+      ],
+      "validation_steps": ["npm run type-check", "npm test -- StickyResizeHandler.test.ts", "Verify sticky resize works"],
+      "success_criteria": "Resize works identically, constraints applied, type-safe",
+      "dependencies": [],
+      "rollback_procedure": "git checkout src/features/canvas/modules/sticky-note/StickyNoteModule.ts && rm src/features/canvas/modules/sticky-note/StickyResizeHandler.ts"
+    },
+    {
+      "task_id": "sticky-2-extract-events",
+      "description": "Extract event handlers to StickyEventHandlers.ts",
+      "target_files": [{"path": "src/features/canvas/modules/sticky-note/StickyNoteModule.ts", "line_range": "301-500"}],
+      "code_changes": [
+        {
+          "operation": "create",
+          "file": "src/features/canvas/modules/sticky-note/StickyEventHandlers.ts",
+          "content": "Extract event handlers:\n- handleClick()\n- handleDoubleClick()\n- handleDragStart()\n- handleDrag()\n- handleDragEnd()\n- handleColorChange()\n- handleDelete()"
+        }
+      ],
+      "validation_steps": ["npm run type-check", "npm test -- StickyEventHandlers.test.ts", "Verify all interactions work"],
+      "success_criteria": "All events work identically, no handler loss",
+      "dependencies": [],
+      "rollback_procedure": "git checkout src/features/canvas/modules/sticky-note/StickyNoteModule.ts && rm src/features/canvas/modules/sticky-note/StickyEventHandlers.ts"
+    },
+    {
+      "task_id": "sticky-3-extract-editor",
+      "description": "Extract text editor to StickyTextEditor.ts",
+      "target_files": [{"path": "src/features/canvas/modules/sticky-note/StickyNoteModule.ts", "line_range": "501-700"}],
+      "code_changes": [
+        {
+          "operation": "create",
+          "file": "src/features/canvas/modules/sticky-note/StickyTextEditor.ts",
+          "content": "Extract text editor:\n- openEditor()\n- closeEditor()\n- updateEditorPosition()\n- handleEditorInput()\n- syncEditorToSticky()\n- cleanupEditor()"
+        }
+      ],
+      "validation_steps": ["npm run type-check", "npm test -- StickyTextEditor.test.ts", "Verify editor works"],
+      "success_criteria": "Editor works identically, positioning correct",
+      "dependencies": [],
+      "rollback_procedure": "git checkout src/features/canvas/modules/sticky-note/StickyNoteModule.ts && rm src/features/canvas/modules/sticky-note/StickyTextEditor.ts"
+    },
+    {
+      "task_id": "sticky-4-refactor-module",
+      "description": "Refactor StickyNoteModule to compose subsystems",
+      "target_files": [{"path": "src/features/canvas/modules/sticky-note/StickyNoteModule.ts", "line_range": "1-929"}],
+      "code_changes": [
+        {
+          "operation": "replace",
+          "find_pattern": "All implementation (lines 151-929)",
+          "replace_with": "Compose: StickyResizeHandler, StickyEventHandlers, StickyTextEditor"
+        }
+      ],
+      "validation_steps": ["npm run type-check", "npm test", "npm run build"],
+      "success_criteria": "Module coordinates subsystems, all features work",
+      "dependencies": ["sticky-1-extract-resize", "sticky-2-extract-events", "sticky-3-extract-editor"],
+      "rollback_procedure": "git checkout src/features/canvas/modules/sticky-note/"
+    },
+    {
+      "task_id": "sticky-5-add-tests",
+      "description": "Create test suites for subsystems",
+      "target_files": [
+        {"path": "src/features/canvas/modules/sticky-note/__tests__/StickyResizeHandler.test.ts", "status": "create"},
+        {"path": "src/features/canvas/modules/sticky-note/__tests__/StickyEventHandlers.test.ts", "status": "create"},
+        {"path": "src/features/canvas/modules/sticky-note/__tests__/StickyTextEditor.test.ts", "status": "create"}
+      ],
+      "code_changes": [
+        {"operation": "create", "file": "src/features/canvas/modules/sticky-note/__tests__/StickyResizeHandler.test.ts", "content": "Test resize operations"},
+        {"operation": "create", "file": "src/features/canvas/modules/sticky-note/__tests__/StickyEventHandlers.test.ts", "content": "Test event handlers"},
+        {"operation": "create", "file": "src/features/canvas/modules/sticky-note/__tests__/StickyTextEditor.test.ts", "content": "Test text editor"}
+      ],
+      "validation_steps": ["npm test", "Check coverage >80%"],
+      "success_criteria": "All tests pass, >80% coverage",
+      "dependencies": ["sticky-1-extract-resize", "sticky-2-extract-events", "sticky-3-extract-editor"],
+      "rollback_procedure": "rm src/features/canvas/modules/sticky-note/__tests__/*.test.ts"
+    },
+    {
+      "task_id": "sticky-6-performance-validation",
+      "description": "Validate sticky note performance",
+      "target_files": [{"path": "src/features/canvas/modules/sticky-note/StickyNoteModule.ts", "validation": "performance"}],
+      "code_changes": [
+        {"operation": "validate", "metrics": ["60fps during resize", "Editor open <50ms", "No memory leaks"]}
+      ],
+      "validation_steps": ["Performance profiling", "Test with 50+ sticky notes"],
+      "success_criteria": "60fps maintained, fast operations",
+      "dependencies": ["sticky-4-refactor-module"],
+      "rollback_procedure": "N/A"
+    }
+  ],
+  "execution_order": ["sticky-1-extract-resize", "sticky-2-extract-events", "sticky-3-extract-editor", "sticky-4-refactor-module", "sticky-5-add-tests", "sticky-6-performance-validation"],
+  "critical_warnings": ["⚠️ Text editor positioning with viewport", "⚠️ Resize constraints must be preserved", "⚠️ Color picker integration", "⚠️ Undo/redo for all operations"]
+}
+```
+
+---
 
 ## 📋 Validation Checklist
 
-- [ ] Sticky creation works with correct defaults
-- [ ] Corner and edge resize behave within min/max constraints
-- [ ] Dragging single/multi sticky notes preserves alignment and history
-- [ ] Double-click enters text editing with overlay aligned (zoom/rotation aware)
-- [ ] Text edits commit/cancel correctly (Enter/Esc) and propagate to store
-- [ ] Overlay repositions after drag, resize, zoom, and viewport scroll
-- [ ] Color picker updates visuals + history entries
-- [ ] Delete + undo/redo flows restore prior state
-- [ ] Keyboard shortcuts scoped correctly between canvas and editor
-- [ ] ≥60fps during drag/resize (profiling evidence)
-- [ ] Editor open latency <50 ms
-- [ ] Memory steady after 200 edit cycles
-- [ ] `npm run type-check`
-- [ ] `npm run lint`
-- [ ] Vitest suites (resize, events, editor)
-- [ ] Playwright sticky note scenarios
-- [ ] Docs + debug tooling updated
+- [ ] Sticky note creation
+- [ ] Resize operations (all corners/edges)
+- [ ] Text editing (double-click)
+- [ ] Color changes
+- [ ] Drag and drop
+- [ ] Delete operations
+- [ ] 60fps during resize
+- [ ] Editor positioning correct
+- [ ] Undo/redo works
+
+---
 
 ## 🎯 Success Metrics
 
-- Sticky module reduced to orchestration (~250 lines) with dedicated resize, events, and editor subsystems.
-- Zero regressions in positioning, keyboard shortcuts, undo history, or overlay accuracy.
-- Performance and memory characteristics match or improve upon baseline, even with 50+ concurrent sticky notes.
+**Before**: 929 lines, all in one module  
+**After**: ~250 line core + 4 focused modules (~680 total)  
+**Impact**: 73% core reduction, better testability
+
+---
+
+**Establishes pattern for note-based element refactoring.**

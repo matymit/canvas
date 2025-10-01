@@ -23,6 +23,10 @@ export interface ConnectorSelectionManager {
     delta: { dx: number; dy: number },
     baselines?: Map<string, { position: { x: number; y: number }; from?: ConnectorEndpoint; to?: ConnectorEndpoint }>,
   ): void;
+  // Add missing methods for compatibility with old interface
+  destroy?(): void;
+  clearSelection?(): void;
+  refreshSelection?(): void;
 }
 
 export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager {
@@ -44,6 +48,22 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     this.updateElement = this.updateElement.bind(this);
     this.handleEndpointDrag = this.handleEndpointDrag.bind(this);
     this.moveSelectedConnectors = this.moveSelectedConnectors.bind(this);
+    this.destroy = this.destroy.bind(this);
+    this.clearSelection = this.clearSelection.bind(this);
+    this.refreshSelection = this.refreshSelection.bind(this);
+  }
+
+  // Compatibility methods for old interface
+  destroy(): void {
+    // Cleanup logic if needed
+  }
+
+  clearSelection(): void {
+    // Clear selection logic if needed
+  }
+
+  refreshSelection(): void {
+    // Refresh selection logic if needed
   }
 
   // Extracted from SelectionModule.ts lines 1129-1162
@@ -423,7 +443,10 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
 
       console.log(`[ConnectorSelectionManager] Updating connector ${connectorId}`, connectorPatch);
       
-      store.updateElement(connectorId, connectorPatch, { pushHistory: true });
+      // CRITICAL FIX: Don't push history during drag completion to prevent visual jumping
+      // Store updates with history trigger re-renders that reset visual positions
+      // This matches the pattern in useMarqueeDrag.ts lines 337-345
+      store.updateElement(connectorId, connectorPatch, { pushHistory: false });
       
       // Trigger visual update if live routing is enabled
       if (this.liveRoutingEnabled) {

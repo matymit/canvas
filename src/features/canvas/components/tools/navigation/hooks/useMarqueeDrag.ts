@@ -5,8 +5,16 @@ import type React from "react";
 import type Konva from "konva";
 import type { MarqueeState } from "./useMarqueeState";
 import type { CanvasElement } from "../../../../../../../types";
-import type { ConnectorElement } from "../../../../types/connector";
+import type {
+  ConnectorElement,
+  ConnectorEndpoint,
+  ConnectorEndpointPoint,
+} from "../../../../types/connector";
 import { cloneEndpoint, connectorHasFreeEndpoint } from "./useMarqueeState";
+
+const isPointEndpoint = (
+  endpoint?: ConnectorEndpoint | null,
+): endpoint is ConnectorEndpointPoint => endpoint?.kind === "point";
 
 export interface MarqueeDragOptions {
   marqueeRef: React.MutableRefObject<MarqueeState>;
@@ -45,7 +53,8 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
   ): boolean => {
     // Resolve element ID from target
     let targetElementId = target.getAttr?.("elementId") || target.id();
-    let currentNode: Konva.Node = target;
+    let currentNode: Konva.Node | null = target;
+    let resolvedNode: Konva.Node | null = targetElementId ? target : null;
 
     console.log("[MarqueeDrag] Click on element - resolving elementId", {
       targetType: target.constructor.name,
@@ -57,35 +66,54 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     const traversalSteps: Array<{
       nodeName: string;
       elementId?: string;
-      id: string;
+      id: string | undefined;
     }> = [];
-    while (
-      !targetElementId &&
-      currentNode.getParent &&
-      currentNode.getParent() !== stage
-    ) {
-      const parent = currentNode.getParent();
-      if (!parent) break;
-      currentNode = parent as Konva.Node;
-      targetElementId = currentNode.getAttr?.("elementId") || currentNode.id?.();
+
+    while (currentNode && currentNode !== stage) {
+      const elementIdAttr = currentNode.getAttr?.("elementId");
+      const nodeId = elementIdAttr || currentNode.id?.();
 
       traversalSteps.push({
         nodeName: currentNode.constructor.name,
-        elementId: currentNode.getAttr?.("elementId"),
+        elementId: elementIdAttr,
         id: currentNode.id?.(),
       });
+
+      if (elementIdAttr) {
+        targetElementId = elementIdAttr;
+        resolvedNode = currentNode;
+        break;
+      }
+
+      if (!targetElementId && nodeId) {
+        targetElementId = nodeId;
+        resolvedNode = currentNode;
+      }
+
+      const parent = currentNode.getParent?.();
+      if (!parent) break;
+      currentNode = parent as Konva.Node;
+    }
+
+    if (!resolvedNode && targetElementId) {
+      const candidate = stage.findOne<Konva.Node>(`[elementId="${targetElementId}"]`) ??
+        stage.findOne<Konva.Node>(`#${targetElementId}`) ??
+        null;
+      resolvedNode = candidate;
     }
 
     console.log("[MarqueeDrag] Element ID resolved", {
       targetElementId,
       traversalSteps,
+      resolvedNodeType: resolvedNode?.constructor.name,
+      nodeTypeAttr: resolvedNode?.getAttr?.("nodeType"),
       hasPersistentSelection:
         marqueeRef.current.persistentSelection.length > 0,
     });
 
     // CRITICAL: Mindmap nodes use native Konva dragging, not MarqueeDrag
     // Check if this is a mindmap node and skip MarqueeDrag handling
-    const nodeType = currentNode.getAttr?.("nodeType");
+    const nodeType = resolvedNode?.getAttr?.("nodeType");
     if (nodeType === "mindmap-node") {
       console.log("[MarqueeDrag] Skipping mindmap node - uses native Konva drag");
       // Let Konva's native drag system handle this
@@ -137,103 +165,145 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       persistentSelectionCount: marqueeRef.current.persistentSelection.length,
     });
 
-    // Find all selected nodes
-    const selectedNodes = stage.find<Konva.Node>((node: Konva.Node) => {
-      const elementId = node.getAttr("elementId") || node.id();
-      return (
-        elementId &&
-        marqueeRef.current.persistentSelection.includes(elementId)
-      );
-    });
-
-    console.log("[MarqueeDrag] found selected nodes:", selectedNodes.length);
-
-    marqueeRef.current.selectedNodes = selectedNodes;
+    const originalDraggableStates = new Map<string, boolean>();
+    const movableNodes: Konva.Node[] = [];
     marqueeRef.current.basePositions.clear();
     marqueeRef.current.connectorBaselines.clear();
+    marqueeRef.current.selectedConnectorIds.clear();
+  marqueeRef.current.mindmapDescendantBaselines.clear();
+  marqueeRef.current.activeMindmapNodeIds = [];
 
-    const originalDraggableStates = new Map<string, boolean>();
+    const findNodeForElement = (elementId: string): Konva.Node | null => {
+      return (
+        stage.findOne<Konva.Node>(`[elementId="${elementId}"]`) ??
+        stage.findOne<Konva.Node>(`#${elementId}`) ??
+        null
+      );
+    };
 
-    // Capture base positions and setup dragging
-    selectedNodes.forEach((node) => {
-      const elementId = node.getAttr("elementId") || node.id();
+    marqueeRef.current.persistentSelection.forEach((elementId) => {
       const element = elements.get(elementId);
+      if (!element) {
+        return;
+      }
 
-      // Store original draggable state and disable Konva's drag system
+      const node = findNodeForElement(elementId);
+
+      if ((element as any).type === "connector") {
+        const connectorElement = element as unknown as ConnectorElement;
+        const connectorIsMovable = connectorHasFreeEndpoint(connectorElement);
+
+        if (!connectorIsMovable) {
+          marqueeRef.current.connectorBaselines.delete(elementId);
+          marqueeRef.current.basePositions.delete(elementId);
+          return;
+        }
+
+        let nodePos = node?.position() ?? { x: 0, y: 0 };
+
+        if (nodePos.x === 0 && nodePos.y === 0) {
+          let fromX = 0,
+            fromY = 0,
+            toX = 0,
+            toY = 0;
+
+          if (connectorElement.from.kind === "point") {
+            fromX = connectorElement.from.x;
+            fromY = connectorElement.from.y;
+          }
+          if (connectorElement.to.kind === "point") {
+            toX = connectorElement.to.x;
+            toY = connectorElement.to.y;
+          }
+
+          nodePos = {
+            x: (fromX + toX) / 2,
+            y: (fromY + toY) / 2,
+          };
+        }
+
+        const storePos = nodePos || { x: 0, y: 0 };
+        const connectorGroup = (() => {
+          if (!node) return null;
+          const className = typeof node.getClassName === "function"
+            ? node.getClassName()
+            : undefined;
+          if (className === "Group") {
+            return node as Konva.Group;
+          }
+          const parent = node.getParent?.();
+          return parent && typeof parent.getClassName === "function" && parent.getClassName() === "Group"
+            ? (parent as Konva.Group)
+            : null;
+        })();
+
+        const connectorShape = connectorGroup?.findOne<Konva.Line | Konva.Arrow>(
+          ".connector-shape",
+        ) ?? null;
+
+        const baselineFrom = cloneEndpoint(connectorElement.from);
+        const baselineTo = cloneEndpoint(connectorElement.to);
+
+        marqueeRef.current.connectorBaselines.set(elementId, {
+          position: {
+            x: storePos.x ?? 0,
+            y: storePos.y ?? 0,
+          },
+          from: baselineFrom,
+          to: baselineTo,
+          shape: connectorShape,
+          group: connectorGroup,
+          startFrom: isPointEndpoint(baselineFrom)
+            ? { ...baselineFrom }
+            : null,
+          startTo: isPointEndpoint(baselineTo)
+            ? { ...baselineTo }
+            : null,
+        });
+        marqueeRef.current.basePositions.set(elementId, storePos);
+        marqueeRef.current.selectedConnectorIds.add(elementId);
+        return;
+      }
+
+      if (!node) {
+        console.warn(
+          "[MarqueeDrag] Unable to resolve Konva node for element",
+          elementId,
+        );
+        return;
+      }
+
       originalDraggableStates.set(elementId, node.draggable());
       node.draggable(false);
 
       let nodePos = node.position();
 
-      // Get position from store if Konva position is (0,0)
       if (nodePos.x === 0 && nodePos.y === 0) {
-        const element = elements.get(elementId);
-        if (element) {
-          if ((element as any).type === "connector") {
-            const connectorElement = element as unknown as ConnectorElement;
-            if (connectorElement.from && connectorElement.to) {
-              let fromX = 0,
-                fromY = 0,
-                toX = 0,
-                toY = 0;
-
-              if (connectorElement.from.kind === "point") {
-                fromX = connectorElement.from.x;
-                fromY = connectorElement.from.y;
-              }
-              if (connectorElement.to.kind === "point") {
-                toX = connectorElement.to.x;
-                toY = connectorElement.to.y;
-              }
-
-              nodePos = {
-                x: (fromX + toX) / 2,
-                y: (fromY + toY) / 2,
-              };
-            }
-          } else if (
-            typeof element.x === "number" &&
-            typeof element.y === "number"
-          ) {
-            nodePos = { x: element.x, y: element.y };
-          }
+        if (
+          typeof (element as any).x === "number" &&
+          typeof (element as any).y === "number"
+        ) {
+          nodePos = { x: (element as any).x, y: (element as any).y };
         }
       }
 
-      const connectorElement =
-        (element as any)?.type === "connector"
-          ? (element as unknown as ConnectorElement)
-          : undefined;
-      const connectorIsMovable = connectorHasFreeEndpoint(connectorElement);
-
-      if (connectorElement && connectorIsMovable) {
-        const storePos = nodePos || { x: 0, y: 0 };
-        marqueeRef.current.connectorBaselines.set(elementId, {
-          position: {
-            x: storePos?.x ?? 0,
-            y: storePos?.y ?? 0,
-          },
-          from: cloneEndpoint(connectorElement.from),
-          to: cloneEndpoint(connectorElement.to),
-        });
-        marqueeRef.current.basePositions.set(elementId, storePos);
-      } else if (connectorElement) {
-        // Fully anchored connector - skip
-        marqueeRef.current.connectorBaselines.delete(elementId);
-        marqueeRef.current.basePositions.delete(elementId);
-      } else {
-        // CRITICAL FIX: Use the Konva node position as the base, not the store position
-        // The node position is what the user sees visually on the canvas
-        // Using store position here causes visual jumps when store and node are out of sync
-        marqueeRef.current.basePositions.set(elementId, nodePos);
+      marqueeRef.current.basePositions.set(elementId, nodePos);
+      if (
+        element.type === "mindmap-node" &&
+        !marqueeRef.current.activeMindmapNodeIds.includes(elementId)
+      ) {
+        marqueeRef.current.activeMindmapNodeIds.push(elementId);
       }
+      movableNodes.push(node);
     });
+
+    marqueeRef.current.selectedNodes = movableNodes;
 
     // Capture base positions for mindmap descendants
     const mindmapRenderer =
       typeof window !== "undefined" ? (window as any).mindmapRenderer : null;
     if (mindmapRenderer) {
-      selectedNodes.forEach((node) => {
+      movableNodes.forEach((node) => {
         const elementId = node.getAttr("elementId") || node.id();
         const element = elements.get(elementId);
 
@@ -248,6 +318,10 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
                   y: descendantElement.y,
                 };
                 marqueeRef.current.basePositions.set(descendantId, descendantPos);
+                marqueeRef.current.mindmapDescendantBaselines.set(
+                  descendantId,
+                  descendantPos,
+                );
               }
             });
           }
@@ -269,13 +343,15 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
   const handleDragMove = (stage: Konva.Stage) => {
     if (
       !marqueeRef.current.isDragging ||
-      marqueeRef.current.selectedNodes.length === 0 ||
-      !marqueeRef.current.startPoint
+      !marqueeRef.current.startPoint ||
+      (marqueeRef.current.selectedNodes.length === 0 &&
+        marqueeRef.current.selectedConnectorIds.size === 0)
     ) {
       console.log("[MarqueeDrag] handleDragMove blocked:", {
         isDragging: marqueeRef.current.isDragging,
         selectedNodesLength: marqueeRef.current.selectedNodes.length,
-        hasStartPoint: !!marqueeRef.current.startPoint
+        connectorCount: marqueeRef.current.selectedConnectorIds.size,
+        hasStartPoint: !!marqueeRef.current.startPoint,
       });
       return;
     }
@@ -320,6 +396,80 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       }
     });
 
+    if (marqueeRef.current.selectedConnectorIds.size > 0) {
+      marqueeRef.current.selectedConnectorIds.forEach((connectorId) => {
+        const baseline = marqueeRef.current.connectorBaselines.get(connectorId);
+        if (!baseline) {
+          return;
+        }
+
+        if ((!baseline.group || !baseline.shape) && stage) {
+          const resolvedNode =
+            stage.findOne<Konva.Node>(`[elementId="${connectorId}"]`) ??
+            stage.findOne<Konva.Node>(`#${connectorId}`) ??
+            null;
+          if (resolvedNode) {
+            if (!baseline.group) {
+              const className = resolvedNode.getClassName?.();
+              if (className === "Group") {
+                baseline.group = resolvedNode as Konva.Group;
+              } else {
+                const parent = resolvedNode.getParent?.();
+                if (parent && parent.getClassName?.() === "Group") {
+                  baseline.group = parent as Konva.Group;
+                }
+              }
+            }
+            if (!baseline.shape) {
+              const container =
+                (baseline.group as unknown as Konva.Container | undefined) ??
+                (resolvedNode as unknown as Konva.Container | undefined);
+              baseline.shape = container?.findOne<Konva.Line | Konva.Arrow>(
+                ".connector-shape",
+              ) ?? null;
+            }
+          }
+        }
+
+        if (
+          baseline.shape &&
+          baseline.startFrom &&
+          baseline.startTo &&
+          isPointEndpoint(baseline.startFrom) &&
+          isPointEndpoint(baseline.startTo)
+        ) {
+          baseline.shape.points([
+            baseline.startFrom.x + dragDelta.dx,
+            baseline.startFrom.y + dragDelta.dy,
+            baseline.startTo.x + dragDelta.dx,
+            baseline.startTo.y + dragDelta.dy,
+          ]);
+          baseline.shape.getLayer()?.batchDraw();
+        } else if (baseline.group) {
+          baseline.group.position({
+            x: baseline.position.x + dragDelta.dx,
+            y: baseline.position.y + dragDelta.dy,
+          });
+          baseline.group.getLayer()?.batchDraw();
+        }
+      });
+    }
+
+    if (marqueeRef.current.activeMindmapNodeIds.length > 0) {
+      const manager =
+        typeof window !== "undefined"
+          ? (window as any).mindmapSelectionManager
+          : null;
+      if (manager?.moveMindmapDescendants) {
+        manager.moveMindmapDescendants(
+          marqueeRef.current.activeMindmapNodeIds,
+          dragDelta,
+          marqueeRef.current.mindmapDescendantBaselines,
+        );
+      }
+      manager?.updateEdgeVisuals?.(dragDelta);
+    }
+
     // CRITICAL FIX: DON'T update store during drag!
     // Store updates trigger re-renders that destroy/recreate components
     // which removes event listeners, breaking pointer move events
@@ -337,8 +487,9 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
   const handleDragComplete = (pos: { x: number; y: number }) => {
     if (
       !marqueeRef.current.isDragging ||
-      marqueeRef.current.selectedNodes.length === 0 ||
-      !marqueeRef.current.startPoint
+      !marqueeRef.current.startPoint ||
+      (marqueeRef.current.selectedNodes.length === 0 &&
+        marqueeRef.current.selectedConnectorIds.size === 0)
     ) {
       return;
     }
@@ -355,7 +506,6 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     };
 
     // Separate connectors from regular elements
-    const connectorIds = new Set<string>();
     const elementUpdates: Array<{
       id: string;
       patch: Partial<CanvasElement>;
@@ -367,13 +517,7 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       const basePos = marqueeRef.current.basePositions.get(elementId);
 
       if (element) {
-        if ((element as any).type === "connector") {
-          const connectorBaseline =
-            marqueeRef.current.connectorBaselines.get(elementId);
-          if (connectorBaseline) {
-            connectorIds.add(elementId);
-          }
-        } else if (element.type === "mindmap-node") {
+        if (element.type === "mindmap-node") {
           // Commit parent and descendants
           if (basePos) {
             elementUpdates.push({
@@ -420,6 +564,10 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       }
     });
 
+    const connectorIds = new Set<string>(
+      marqueeRef.current.selectedConnectorIds,
+    );
+
     // Commit non-connector moves with history
     if (elementUpdates.length > 0 && store.updateElements) {
       store.updateElements(elementUpdates, { pushHistory: true });
@@ -437,6 +585,16 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       }
     }
 
+    if (marqueeRef.current.activeMindmapNodeIds.length > 0) {
+      const mindmapManager =
+        typeof window !== "undefined"
+          ? (window as any).mindmapSelectionManager
+          : null;
+      mindmapManager?.scheduleReroute?.(
+        new Set(marqueeRef.current.activeMindmapNodeIds),
+      );
+    }
+
     // End transform if initiated
     if (marqueeRef.current.transformInitiated) {
       endTransform?.();
@@ -446,9 +604,12 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     // This ensures selectedNodes array is cleared before reconcile creates new nodes
     marqueeRef.current.isDragging = false;
     marqueeRef.current.selectedNodes = []; // Clear stale node references
+  marqueeRef.current.selectedConnectorIds.clear();
     marqueeRef.current.basePositions.clear();
     marqueeRef.current.originalDraggableStates.clear();
     marqueeRef.current.connectorBaselines.clear();
+  marqueeRef.current.mindmapDescendantBaselines.clear();
+  marqueeRef.current.activeMindmapNodeIds = [];
 
     // Re-select elements to maintain visual feedback
     // This will repopulate selectedNodes with fresh nodes after reconcile

@@ -11,6 +11,36 @@ import { useMarqueeState } from "./hooks/useMarqueeState";
 import { useMarqueeSelection } from "./hooks/useMarqueeSelection";
 import { useMarqueeDrag } from "./hooks/useMarqueeDrag";
 
+const OVERLAY_INTERACTIVE_NAMES = new Set([
+  "selection-transformer",
+  "connector-endpoints",
+  "connector-hit-line",
+  "from-endpoint",
+  "to-endpoint",
+  "port-hover-group",
+  "rotater",
+  "top-left",
+  "top-center",
+  "top-right",
+  "middle-left",
+  "middle-right",
+  "bottom-left",
+  "bottom-center",
+  "bottom-right",
+]);
+
+const OVERLAY_INTERACTIVE_NAME_PREFIXES = ["port-hit-", "transformer-anchor"] as const;
+
+const overlayNameMatches = (name?: string | null) => {
+  if (!name) return false;
+  if (OVERLAY_INTERACTIVE_NAMES.has(name)) {
+    return true;
+  }
+  return OVERLAY_INTERACTIVE_NAME_PREFIXES.some((prefix) =>
+    name.startsWith(prefix),
+  );
+};
+
 export interface MarqueeSelectionToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
   isActive: boolean;
@@ -74,6 +104,60 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     return layers[layers.length - 1] as Konva.Layer;
   };
 
+  const resolveElementTarget = (
+    stage: Konva.Stage,
+    target: Konva.Node,
+  ): {
+    elementId: string | null;
+    resolvedNode: Konva.Node | null;
+    traversal: Array<{ nodeName: string; elementId?: string; id?: string }>;
+  } => {
+    if (!stage) {
+      return { elementId: null, resolvedNode: null, traversal: [] };
+    }
+
+    let currentNode: Konva.Node | null = target;
+    const initialAttr = target.getAttr?.("elementId");
+    let elementId: string | null =
+      initialAttr && elements.has(initialAttr) ? initialAttr : null;
+    let resolvedNode: Konva.Node | null = elementId ? target : null;
+
+    const traversal: Array<{
+      nodeName: string;
+      elementId?: string;
+      id?: string;
+    }> = [];
+
+    while (currentNode && currentNode !== stage) {
+      traversal.push({
+        nodeName: currentNode.constructor.name,
+        elementId: currentNode.getAttr?.("elementId"),
+        id: currentNode.id?.(),
+      });
+
+      if (!elementId) {
+        const attrId = currentNode.getAttr?.("elementId");
+        if (attrId && elements.has(attrId)) {
+          elementId = attrId;
+          resolvedNode = currentNode;
+          break;
+        }
+
+        const nodeId = currentNode.id?.();
+        if (nodeId && elements.has(nodeId)) {
+          elementId = nodeId;
+          resolvedNode = currentNode;
+        }
+      }
+
+      const parent = currentNode.getParent?.();
+      if (!parent) break;
+      currentNode = parent as Konva.Node;
+    }
+
+    return { elementId, resolvedNode, traversal };
+  };
+
   // Initialize selection hook
   const { handleStageClick, handleSelectionMove, handleSelectionComplete } =
     useMarqueeSelection({
@@ -111,15 +195,60 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       const pos = getWorldPointerPosition();
       if (!pos) return;
 
+      const stageTarget = stageRef.current;
+      if (!stageTarget) return;
+
+      let overlayLayer: Konva.Layer | null = null;
+      try {
+        overlayLayer = getOverlayLayer();
+      } catch (error) {
+        overlayLayer = null;
+      }
+
+      const targetLayer = e.target.getLayer?.() ?? null;
+      const targetName = e.target.name?.() ?? null;
+      const parentName = e.target.getParent?.()?.name?.() ?? null;
+
+      const overlayBehavior: "default" | "allow" | "block" = (() => {
+        if (!overlayLayer || targetLayer !== overlayLayer) {
+          return "default";
+        }
+
+        if (overlayNameMatches(targetName) || overlayNameMatches(parentName)) {
+          return "block";
+        }
+
+        return "allow";
+      })();
+
+      if (overlayBehavior === "block") {
+        console.log(
+          "[MarqueeSelectionTool] overlay target is interactive - deferring",
+          {
+            targetName,
+            parentName,
+          },
+        );
+        return;
+      }
+
+      const resolved = resolveElementTarget(stageTarget, e.target);
+
       console.log("[MarqueeSelectionTool] onPointerDown", {
         target: e.target.constructor.name,
         targetId: e.target.id(),
         selectionCount: selectionRef.current.length,
         pos,
+        resolvedElementId: resolved.elementId,
       });
 
-      // Stage click - start marquee selection
-      if (e.target === stage) {
+      const isStageClick =
+        overlayBehavior === "allow" ||
+        e.target === stageTarget ||
+        resolved.elementId === null;
+
+      // Stage click or element-less target - start marquee selection
+      if (isStageClick) {
         // If there's a current selection, clear it on first click
         if (selectionRef.current.length > 0) {
           console.log(
@@ -127,16 +256,16 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
           );
           setSelection([]);
           marqueeRef.current.persistentSelection = [];
-          return;
+          selectionRef.current = [];
         }
 
         // Start marquee selection
-        handleStageClick(stage, pos);
+        handleStageClick(stageTarget, pos);
         return;
       }
 
       // Element click - handle selection or drag
-      handleElementClick(e.target, stage, pos);
+      handleElementClick(e.target, stageTarget, pos);
     };
 
     /**
@@ -198,9 +327,12 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       marqueeRef.current.startPoint = null;
       marqueeRef.current.selectionRect = null;
       marqueeRef.current.selectedNodes = [];
+      marqueeRef.current.selectedConnectorIds.clear();
       marqueeRef.current.basePositions.clear();
       marqueeRef.current.originalDraggableStates.clear();
       marqueeRef.current.connectorBaselines.clear();
+      marqueeRef.current.mindmapDescendantBaselines.clear();
+      marqueeRef.current.activeMindmapNodeIds = [];
       selectionRef.current = [];
     };
 

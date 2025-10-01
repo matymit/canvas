@@ -2,7 +2,7 @@
 // Marquee selection rectangle and element intersection logic
 
 import type React from "react";
-import type Konva from "konva";
+import Konva from "konva";
 import type { MarqueeState } from "./useMarqueeState";
 import type { CanvasElement } from "../../../../../../../types";
 import type { ConnectorElement } from "../../../../types/connector";
@@ -63,8 +63,8 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     marqueeRef.current.connectorBaselines.clear();
 
     // Create selection rectangle
-    const overlayLayer = getOverlayLayer();
-    const selectionRect = new (require("konva").Rect)({
+  const overlayLayer = getOverlayLayer();
+  const selectionRect = new Konva.Rect({
       x: pos.x,
       y: pos.y,
       width: 0,

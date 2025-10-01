@@ -1,10 +1,14 @@
 # Changelog
 
-### Refactoring Plan Safeguard Refresh (October 1, 2025)
-- **Documentation Updated**: Rewrote the marquee selection, FigJam canvas, table module, mindmap renderer, and sticky note refactoring plans with phased milestones, risk mitigations, and validation gates.
-- **Safeguards Added**: Each plan now outlines rollback paths, undo/redo checkpoints, feature flag strategies, and cross-module QA checklists to prevent regressions during incremental rollouts.
-- **Validation Guidance**: Embedded smoke test matrices and instrumentation hooks to verify Konva frame pacing, Zustand history integrity, and connector redraw behavior before promoting to production.
-- **Files Modified**: `refactoring-plans/MARQUEE_SELECTION_TOOL_REFACTORING.md`, `refactoring-plans/FIGJAM_CANVAS_REFACTORING.md`, `refactoring-plans/TABLE_MODULE_REFACTORING.md`, `refactoring-plans/MINDMAP_RENDERER_REFACTORING.md`, `refactoring-plans/STICKY_NOTE_MODULE_REFACTORING.md`.
+### Marquee Drag Live Sync (October 1, 2025)
+- **Critical UX Fix**: Marquee-dragged connectors and mindmap branches now move in real time instead of lagging until pointer-up.
+  - Root cause: drag logic only captured parent node positions and deferred connector reroutes to drag completion, so Konva nodes for connectors and descendant mindmap nodes never received live deltas.
+  - Solution: `useMarqueeDrag` now records connector baselines (group, shape, free endpoint coordinates) and applies drag deltas directly to Konva shapes every pointer move. Mindmap parent IDs prime a descendant baseline map so the selection manager can shift entire subtrees and refresh branch visuals during the drag.
+  - Added guard to skip immutable connectors (both endpoints anchored) while still committing movable connector groups at release.
+  - Connector and mindmap managers schedule proper reroutes after commit to keep store-backed geometry aligned.
+- **State Cleanup Hardening**: Drag completion clears connector/mindmap baseline caches before reselection to avoid stale node references on the next frame.
+- **Files Modified**: `useMarqueeDrag.ts`, `useMarqueeState.ts`, `MarqueeSelectionTool.tsx` (cleanup sync), plus managers for connector and mindmap visuals.
+- **Validation**: `npm run type-check`
 
 ### Image Position Persistence Fix (September 30, 2025)
 - **Critical Bug Fixed**: Images jumping back to original position after drag → click canvas to deselect

@@ -44,6 +44,16 @@
 - **Commit**: `62ee08e` - fix(marquee): allow mindmap nodes to handle their own double-click events
 - **Prevention**: This pattern should be applied to any future special-case element types that need custom interaction handling
 
+### Marquee Connector & Mindmap Live Drag Lag ✅ RESOLVED (October 1, 2025)
+- **Issue**: Connectors with free endpoints and mindmap branches stayed frozen during marquee drags and only snapped into place after pointer release.
+- **Root Cause**: `useMarqueeDrag` captured base positions for primary nodes but never hydrated connector Konva groups or descendant mindmap nodes during the live drag phase.
+- **Technical Fix**:
+  - Captures connector baselines (group, path shape, point endpoints) on drag start and applies drag deltas directly to Konva groups/lines on every pointer move.
+  - Records active mindmap parent IDs and descendant baselines, delegating live subtree updates to `mindmapSelectionManager.moveMindmapDescendants()` with synchronized edge visual refreshes.
+  - Commits final deltas through connector/mindmap managers while clearing caches before reselection to prevent stale handles.
+- **Impact**: Mixed marquee selections now move in unison with accurate live visuals; connectors no longer “teleport” on release and mindmap branches stay attached while dragging.
+- **Validation**: `npm run type-check`
+
 ## Recently Fixed (September 30, 2025)
 
 ### Image Position Jumping After Drag ✅ RESOLVED
@@ -59,12 +69,6 @@
 - **Root Cause**: Fallback implementation missing `persistentSelection` tracking; premature `beginTransform()` + `draggable(true)` causing immediate drag cycles
 - **Fix**: Added persistent selection tracking in fallback, delayed transform initialization until movement, removed premature draggable flags
 - **Status**: Resolved in `MarqueeSelectionTool.tsx`
-
-## Selection & Connectors (September 29, 2025)
-- Marquee selection with connectors: lines/arrows may not always live-update while dragging a marquee-selected group.
-  - Status: Partially mitigated by batched scheduleRefresh during drag; final routing commits on release.
-  - Impact: Visual lag or anchored appearance during drag on some endpoints.
-  - Next steps: implement visual-only updates for point endpoints during drag and make finalize path idempotent.
 
 
 This document provides an honest assessment of current Canvas limitations, known bugs, and missing features. Use this guide to understand what to expect and plan workarounds.
