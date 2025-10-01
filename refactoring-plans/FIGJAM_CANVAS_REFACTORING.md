@@ -260,6 +260,30 @@ Lines 801-902: Cleanup and utilities - 101 lines
 
 ---
 
+## 📝 Side-Effects Audit (figjam-0)
+
+| Source | Responsibility | Target Owner | Notes/Dependencies |
+| --- | --- | --- | --- |
+| `useEffect` (stage bootstrap, lines 59-226) | Create stage, layers, overlay DOM, grid renderer, ToolManager, expose globals, window resize listener, renderer wiring | `useCanvasStageLifecycle` | Must preserve five-layer order, `window.konvaStage`, `toolManager.destroy`, overlay removal, renderer dispose |
+| `updateOverlayTransform` callback | Align overlay DOM with stage transforms | `useCanvasStageLifecycle` (setup) + `useCanvasViewportSync` (runtime) | Ensure shared ref without recreating listeners; consider returning stable helper |
+| `useEffect` (viewport sync, lines 229-248) | Apply store viewport to stage, update overlay/grid DPR, trigger batchDraw | `useCanvasViewportSync` | Requires `window.devicePixelRatio` access and stage existence guard |
+| `useEffect` (stage events, lines 251-307) | Register click, wheel, contextmenu handlers | `useCanvasEvents` | Keep lazy `getState` lookups; maintain selection toggle semantics |
+| `useEffect` (cursor + ToolManager, lines 310-352) | Update cursor, activate/deactivate canvas tools | `useCanvasTools` | Avoid re-attaching tools unnecessarily; ensure text tool attaches |
+| `useEffect` (elements dep, lines 355-360) | Force React sync with store | `useCanvasServices` | Evaluate necessity; if retained, wrap in debug hook to monitor renderer subscriptions |
+| `useEffect` (mindmap Enter/duplicate, lines 363-412) | Global keydown listener for mindmap flows | `useCanvasShortcuts` | Respect focus states; teardown window listener |
+| `useKeyboardShortcuts` hook (lines 415-511) | Delete/copy/paste/undo/redo/zoom/tool/duplicate shortcuts | `useCanvasShortcuts` | Ensure clipboard offsets and withUndo fallbacks remain |
+| `renderActiveTool` callback (lines 520-613) | Render tool components, wire ConnectorTool layers, pass RafBatcher | `useCanvasTools` | Return memoized JSX, guard stage/layer refs, handle archived tools |
+| `connectorLayersRef` | Shared layer handles for connectors | `useCanvasStageLifecycle` (create) + `useCanvasTools` (consume) | Expose via hook result to avoid module-level ref |
+| `rafBatcherRef` | Shared `RafBatcher` instance for drawing tools | `useCanvasStageLifecycle` (instantiate) + exported for `useCanvasTools` + PanTool | Maintain single instance; expose on window as `canvasRafBatcher` if needed |
+| Context menu managers (bottom JSX) | Provide stageRef to menu systems | `useCanvasServices` | Ensure managers receive ready stageRef + overlay transform helper |
+| `setSelectedTool` callback | Store dispatch for toolbar & shortcuts | `useCanvasTools` | Keep equality guard using `getState` to avoid loops |
+
+All side-effects now mapped; implementation should mark checklist items as hooks are introduced.
+
+**Status**: ✅ Side-effects inventory completed (Oct 1, 2025)
+
+---
+
 ## 🎯 Success Metrics
 
 **Before**: 902 lines, monolithic component  
@@ -269,3 +293,16 @@ Lines 801-902: Cleanup and utilities - 101 lines
 ---
 
 **Establishes pattern for main canvas component refactoring.**
+
+---
+
+## 📈 Progress Log
+
+- **2025-10-01** — ✅ `figjam-0-audit-side-effects` completed and documented in “Side-Effects Audit”.
+- **2025-10-01** — ✅ `figjam-1-stage-lifecycle`: `useCanvasStageLifecycle` hook created and integrated; FigJamCanvas now delegates stage/bootstrap lifecycle to the hook.
+- **2025-10-01** — ✅ `figjam-2-viewport-sync`: `useCanvasViewportSync` handles stage position/scale + overlay/grid DPR updates; background styling now memoized within the hook.
+- **2025-10-01** — ✅ `figjam-3-stage-events`: `useCanvasEvents` extracted, wired into FigJamCanvas, and preserving selection + zoom behavior with grid refresh.
+- **2025-10-01** — ✅ `figjam-4-tools-and-cursor`: `useCanvasTools` now owns cursor styling, ToolManager activation, and active tool rendering; FigJamCanvas consumes the hook and dropped inline logic.
+- **2025-10-01** — ✅ `figjam-5-shortcuts-and-clipboard`: Added `useCanvasShortcuts` to centralize keyboard bindings, mindmap key events, clipboard flows, and undo/redo wiring.
+- **2025-10-01** — ✅ `figjam-6-services-and-context`: Introduced `useCanvasServices` to host context menu managers and preserve renderer sync subscriptions outside the component.
+- **2025-10-01** — ✅ `figjam-7-refactor-component`: `FigJamCanvas` now just composes the hook suite plus toolbar/marquee/pan, trimming legacy comments and inline effects to hit the size goal.

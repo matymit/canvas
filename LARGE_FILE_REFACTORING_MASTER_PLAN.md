@@ -140,14 +140,14 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 
 **Impact**: Resolved the two most complex renderer hotspots and established reusable subsystem patterns.
 
-### Phase 3: High Priority (Week 3-4) - 🔄 IN PROGRESS
+### Phase 3: High Priority (Week 3-4) - ✅ COMPLETE
 **Core Features**
 - ✅ StickyNoteModule.ts refactored into StickyTextEditor, StickyEventHandlers, and StickyRenderingEngine (929 → 249 lines).
 - ✅ MindmapRenderer.ts refactored into dedicated node, edge, event, and drag modules (925 → 312 lines).
 - ✅ SelectionModule.ts Phase 3 cleanup completed; current footprint 782 lines with managers handling connectors, transforms, and mindmap integration.
-- ⏳ FigJamCanvas.tsx refactor outstanding (902 lines → 150 target).
+- ✅ FigJamCanvas.tsx refactored into hook suite (`useCanvasStageLifecycle`, `useCanvasViewportSync`, `useCanvasEvents`, `useCanvasTools`, `useCanvasShortcuts`, `useCanvasServices`) shrinking component to 132 lines.
 
-**Impact**: All marquee-era feature modules are modular; only FigJamCanvas remains before closing Phase 3.
+**Impact**: All marquee-era feature modules are modular; Phase 3 officially closed.
 
 ### Phase 4: Medium Priority (Week 5-6)
 **Supporting Systems**
@@ -254,8 +254,8 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 - [x] **Phase 1: Store modules - 50% COMPLETE** ✅
   - [x] coreModule.ts: 1,023 → 375 lines (648 lines removed)
   - [ ] historyModule.ts: 861 → 400 target (pending)
-- [ ] Phase 2: Critical renderers (Week 2)
-- [ ] Phase 3: High priority (Week 3-4)
+- [x] Phase 2: Critical renderers (Week 2)
+- [x] Phase 3: High priority (Week 3-4)
 - [ ] Phase 4: Medium priority (Week 5-6)
 - [ ] Final validation & documentation
 
@@ -267,14 +267,14 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 - ✅ **MindmapRenderer.ts** — 925 → 312 lines (613 removed, 66% reduction)
 - ✅ **SelectionModule.ts** — 1,852 → 782 lines (1,070 removed, 58% reduction)
 - ✅ **historyModule.ts** — 861 → 314 lines (547 removed, 64% reduction)
-- ⏳ **FigJamCanvas.tsx** — 902 lines (target 150)
+- ✅ **FigJamCanvas.tsx** — 902 → 132 lines (770 removed, 85% reduction)
 - ⏳ **PortHoverModule.ts** — 762 lines (target 150)
 - ⏳ **openShapeTextEditor.ts** — 741 lines (target 150)
 - ⏳ **ShapeRenderer.ts** — 728 → 729 lines (target 200; +1 line drift)
 - ⏳ **CanvasToolbar.tsx** — 696 lines (target 200)
 
 ### Completed Work Summary
-**Lines Removed So Far**: 5,241 lines (from 11,691 → 6,450 across 7 files)
+**Lines Removed So Far**: 6,011 lines (from 11,691 → 5,680 across 8 files)
 - coreModule.ts: 648 lines removed (63% reduction) with Element/Selection/Viewport operation modules extracted
 - TableModule.ts: 793 lines removed (80% reduction) with CellResolver, EventHandlers, EditorManager, and RenderingEngine subsystems
 - MarqueeSelectionTool.tsx: 891 lines removed (70% reduction) with `useMarqueeState`, `useMarqueeSelection`, and `useMarqueeDrag` hooks
@@ -282,6 +282,7 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 - MindmapRenderer.ts: 613 lines removed (66% reduction) with node, edge, event, and drag modules under `renderer/modules/mindmap`
 - SelectionModule.ts: 1,070 lines removed (58% reduction) via manager extraction and ConnectorTransformFinalizer
 - historyModule.ts: 547 lines removed (64% reduction) with types, utils, and memory manager split out
+- FigJamCanvas.tsx: 770 lines removed (85% reduction) with component responsibilities distributed across six dedicated hooks
 
 **Quality Metrics**:
 - ✅ Zero TypeScript errors across all refactored files
@@ -294,14 +295,14 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 ## 🎯 Next Steps
 
 ### Immediate Actions (October Week 1)
-1. Kick off FigJamCanvas.tsx extraction into `useCanvasStage`, `useCanvasEvents`, and `useCanvasRenderers` hooks; draft task list mirroring Table/Marquee patterns.
-2. Refresh PortHoverModule refactoring plan with latest connector requirements and schedule baseline line-count audit.
-3. Evaluate `useMarqueeDrag.ts` (629 lines) for secondary split once FigJam work is underway to keep marquee stack maintainable.
+1. Refresh PortHoverModule refactoring plan with latest connector requirements and schedule baseline line-count audit.
+2. Evaluate `useMarqueeDrag.ts` (629 lines) for secondary split to keep marquee stack maintainable.
+3. Draft FigJam hook test strategy (unit + smoke) aligning with tasks `figjam-8` and `figjam-9` ahead of validation.
 
 ### Upcoming Deliverables
-- FigJamCanvas.tsx reorganized into hook-based architecture with maintained four-layer pipeline.
 - PortHoverModule.ts reduced from 762 lines to ≤200 with renderer/interaction split.
 - Updated regression checklist covering connectors, mindmap, and sticky note flows post-refactor.
+- FigJam hook test/performance validation complete, covering shortcuts, stage lifecycle, and services integration.
 
 ### Completed Milestones
 - ✅ **September 30, 2025**: coreModule.ts refactor (Commit: 2908d3a) and TableModule.ts refactor (Commit: d59005e)
