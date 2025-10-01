@@ -31,12 +31,14 @@ export {
 } from './ConnectorSelectionManager';
 
 export type { 
-  MindmapSelectionManager
+  MindmapSelectionManager,
+  MindmapRendererLike
 } from './MindmapSelectionManager';
 
 export { 
   MindmapSelectionManagerImpl, 
-  mindmapSelectionManager 
+  mindmapSelectionManager,
+  isMindmapRenderer 
 } from './MindmapSelectionManager';
 
 export type { 

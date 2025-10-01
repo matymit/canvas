@@ -2,7 +2,7 @@
 // Follows established renderer patterns with vanilla Konva integration
 // Refactored to coordinate subsystems: NodeRenderer, EdgeRenderer, EventHandlers, DragLogic
 
-import Konva from "konva";
+import type Konva from "konva";
 import type { RendererLayers } from "../layers";
 import type { CanvasElement } from "../../../../../types";
 import {
@@ -14,6 +14,7 @@ import { MindmapNodeRenderer } from "./mindmap/MindmapNodeRenderer";
 import { MindmapEdgeRenderer } from "./mindmap/MindmapEdgeRenderer";
 import { MindmapEventHandlers } from "./mindmap/MindmapEventHandlers";
 import { MindmapDragLogic } from "./mindmap/MindmapDragLogic";
+import { normalizeBranchStyle } from "./mindmap/branchStyle";
 
 // Store state interfaces
 interface StoreState {
@@ -98,7 +99,7 @@ export class MindmapRenderer {
         this.updateConnectedEdges(nodeId, getAllEdges, getNodePoint),
       () => this.getAllEdges(),
       (id, side) => this.getNodePoint(id, side),
-      (style) => this.edgeRenderer.mergeBranchStyle(style as any) as any,
+      (style) => this.edgeRenderer.mergeBranchStyle(style),
     );
   }
 
@@ -280,8 +281,8 @@ export class MindmapRenderer {
           fromId: mindmapElement.fromId ?? edgeData?.fromId ?? "",
           toId: mindmapElement.toId ?? edgeData?.toId ?? "",
           style: this.edgeRenderer.mergeBranchStyle(
-            mindmapElement.style ?? edgeData?.style,
-          ) as any,
+            normalizeBranchStyle(mindmapElement.style ?? edgeData?.style),
+          ),
         };
         edges.push(edge);
       }

@@ -2,11 +2,21 @@
 import type { Stage } from 'konva/types/Stage';
 import type { PortHoverModule } from '../features/canvas/renderer/modules/PortHoverModule';
 import type { ConnectorToolHandle } from '../features/canvas/types/connectorTool';
+import type { MarqueeSelectionController } from '../features/canvas/renderer/modules/selection/controllers/MarqueeSelectionController';
+
+type SelectionBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 interface GlobalSelectionModule {
   selectElement?: (elementId: string, options?: { additive?: boolean }) => void;
   clearSelection?: () => void;
   toggleSelection?: (elementId: string, additive?: boolean) => void;
+  selectElementsInBounds?: (stage: Stage, bounds: SelectionBounds) => string[];
+  marqueeSelectionController?: MarqueeSelectionController;
   [key: string]: unknown;
 }
 

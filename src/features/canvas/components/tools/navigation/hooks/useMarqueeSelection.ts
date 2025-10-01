@@ -5,7 +5,6 @@ import type React from "react";
 import Konva from "konva";
 import type { MarqueeState } from "./useMarqueeState";
 import type { CanvasElement } from "../../../../../../../types";
-import type { ConnectorElement } from "../../../../types/connector";
 
 export interface MarqueeSelectionOptions {
   marqueeRef: React.MutableRefObject<MarqueeState>;
@@ -15,6 +14,13 @@ export interface MarqueeSelectionOptions {
   getWorldPointerPosition: () => { x: number; y: number } | null;
   getOverlayLayer: () => Konva.Layer;
 }
+
+type SelectionBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 /**
  * Hook for marquee selection functionality
@@ -47,9 +53,7 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     // Notify SelectionModule to clear visual feedback
     if (hadSelection) {
       const selectionModule =
-        typeof window !== "undefined"
-          ? (window as any).selectionModule
-          : undefined;
+        typeof window !== "undefined" ? window.selectionModule : undefined;
       if (selectionModule?.clearSelection) {
         console.log(
           "[MarqueeSelection] Clearing selection via SelectionModule",
@@ -178,12 +182,7 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
   /**
    * Select elements within bounds using SelectionModule or fallback
    */
-  const selectElementsInBounds = (bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }): string[] => {
+  const selectElementsInBounds = (bounds: SelectionBounds): string[] => {
     const stage = stageRef.current;
     if (!stage) return [];
 
@@ -191,9 +190,7 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
 
     // Use the modular SelectionModule approach
     const selectionModule =
-      typeof window !== "undefined"
-        ? (window as any).selectionModule
-        : undefined;
+      typeof window !== "undefined" ? window.selectionModule : undefined;
     if (selectionModule?.selectElementsInBounds) {
       console.log(
         "[MarqueeSelection] using SelectionModule for marquee selection",
@@ -209,11 +206,15 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
         marqueeRef.current.persistentSelection = selectedIds;
 
         // Prepare nodes for potential dragging
-        const { nodes, basePositions } =
+        const preparation =
           selectionModule.marqueeSelectionController?.prepareNodesForDrag?.(
             stage,
             selectedIds,
-          ) || { nodes: [], basePositions: new Map() };
+          ) ?? {
+            nodes: [] as Konva.Node[],
+            basePositions: new Map<string, { x: number; y: number }>(),
+          };
+        const { nodes, basePositions } = preparation;
         marqueeRef.current.selectedNodes = nodes;
         marqueeRef.current.basePositions = basePositions;
 
@@ -238,7 +239,7 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
    */
   const fallbackSelectElementsInBounds = (
     stage: Konva.Stage,
-    bounds: { x: number; y: number; width: number; height: number },
+    bounds: SelectionBounds,
   ): string[] => {
     const selectedIdSet = new Set<string>();
     const selectedNodes: Konva.Node[] = [];
@@ -279,7 +280,7 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     const selectedIds = Array.from(selectedIdSet);
     console.log("[MarqueeSelection] selected elements:", selectedIds);
 
-    if (selectedIds.length > 0 && setSelection) {
+    if (selectedIds.length > 0) {
       setTimeout(() => {
         setSelection(selectedIds);
       }, 10);
@@ -294,42 +295,20 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
         const element = elements.get(elementId);
 
         // Skip connectors from position-based dragging
+        let nodePos = node.position();
+
         if (element?.type === "connector") {
           return;
         }
 
-        let nodePos = node.position();
-
-        // If position is (0,0), get from store
-        if (nodePos.x === 0 && nodePos.y === 0 && element) {
-          if ((element as any).type === "connector") {
-            const connectorElement = element as unknown as ConnectorElement;
-            if (connectorElement.from && connectorElement.to) {
-              let fromX = 0,
-                fromY = 0,
-                toX = 0,
-                toY = 0;
-
-              if (connectorElement.from.kind === "point") {
-                fromX = connectorElement.from.x;
-                fromY = connectorElement.from.y;
-              }
-              if (connectorElement.to.kind === "point") {
-                toX = connectorElement.to.x;
-                toY = connectorElement.to.y;
-              }
-
-              nodePos = {
-                x: (fromX + toX) / 2,
-                y: (fromY + toY) / 2,
-              };
-            }
-          } else if (
-            typeof element.x === "number" &&
-            typeof element.y === "number"
-          ) {
-            nodePos = { x: element.x, y: element.y };
-          }
+        if (
+          nodePos.x === 0 &&
+          nodePos.y === 0 &&
+          element &&
+          typeof element.x === "number" &&
+          typeof element.y === "number"
+        ) {
+          nodePos = { x: element.x, y: element.y };
         }
 
         marqueeRef.current.basePositions.set(elementId, {

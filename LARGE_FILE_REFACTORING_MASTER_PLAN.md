@@ -298,11 +298,13 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 1. Refresh PortHoverModule refactoring plan with latest connector requirements and schedule baseline line-count audit.
 2. Evaluate `useMarqueeDrag.ts` (629 lines) for secondary split to keep marquee stack maintainable.
 3. Draft FigJam hook test strategy (unit + smoke) aligning with tasks `figjam-8` and `figjam-9` ahead of validation.
+4. Execute security hardening sweep (dependency audits, static scans, Tauri config review) and capture findings.
 
 ### Upcoming Deliverables
 - PortHoverModule.ts reduced from 762 lines to ≤200 with renderer/interaction split.
 - Updated regression checklist covering connectors, mindmap, and sticky note flows post-refactor.
 - FigJam hook test/performance validation complete, covering shortcuts, stage lifecycle, and services integration.
+- Security review documented with mitigations, dependency statuses, and Tauri hardening checklist.
 
 ### Completed Milestones
 - ✅ **September 30, 2025**: coreModule.ts refactor (Commit: 2908d3a) and TableModule.ts refactor (Commit: d59005e)

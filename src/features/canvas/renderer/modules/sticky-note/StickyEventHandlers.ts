@@ -2,6 +2,8 @@
 // Event handling for sticky note interactions
 
 import type Konva from "konva";
+import type { ModuleRendererCtx } from "../../index";
+import type { CanvasElement, ElementId } from "../../../../../../types";
 import { debug } from "../../../../../utils/debug";
 
 interface SelectionModuleLike {
@@ -11,30 +13,12 @@ interface SelectionModuleLike {
   [key: string]: unknown;
 }
 
-interface StoreWithHistory {
-  history?: {
-    withUndo: (description: string, fn: () => void) => void;
-  };
-  withUndo?: (description: string, fn: () => void) => void;
-  element?: {
-    update: (id: string, updates: Record<string, unknown>) => void;
-  };
-  updateElement?: (id: string, updates: Record<string, unknown>) => void;
-  elements?: Map<string, any>;
-  setSelection?: (ids: string[]) => void;
-  selectedElementIds?: Set<string> | string[];
-  selection?: {
-    toggle?: (id: string) => void;
-    set?: (ids: string[]) => void;
-  };
-}
-
 interface ExtendedWindow extends Window {
   selectionModule?: SelectionModuleLike;
 }
 
 export interface StickyEventHandlersOptions {
-  getStoreContext: () => { store: { getState: () => any } } | undefined;
+  getStoreContext: () => ModuleRendererCtx | undefined;
   startTextEditing: (group: Konva.Group, elementId: string) => void;
   getActiveEditor: () => HTMLTextAreaElement | null;
 }
@@ -125,16 +109,16 @@ export class StickyEventHandlers {
     const storeCtx = this.options.getStoreContext();
     if (!storeCtx) return;
 
-    const store = storeCtx.store.getState();
+  const store = storeCtx.store.getState();
     const isAdditive = evt.ctrlKey || evt.metaKey || evt.shiftKey;
 
-    if ("setSelection" in store && typeof store.setSelection === "function") {
+  if ("setSelection" in store && typeof store.setSelection === "function") {
       if (isAdditive) {
         const current =
           ("selectedElementIds" in store
             ? store.selectedElementIds
-            : new Set()) || new Set();
-        const newSelection = new Set(current as Iterable<string>);
+            : new Set<ElementId>()) || new Set<ElementId>();
+        const newSelection = new Set(current as Iterable<ElementId>);
         if (newSelection.has(elementId)) {
           newSelection.delete(elementId);
         } else {
@@ -172,7 +156,9 @@ export class StickyEventHandlers {
       const groupPos = group.position();
       const storeCtx = this.options.getStoreContext();
       const store = storeCtx?.store.getState();
-      const element = store?.elements?.get?.(elementId);
+      const element = store?.elements?.get?.(elementId as ElementId) as
+        | CanvasElement
+        | undefined;
 
       dragStartData = {
         x: groupPos.x,
@@ -187,23 +173,20 @@ export class StickyEventHandlers {
       if (!storeCtx || !dragStartData) return;
 
       const pos = group.position();
-      const store = storeCtx.store.getState();
+  const store = storeCtx.store.getState();
 
       // Only update if position actually changed
       const deltaX = Math.abs(pos.x - dragStartData.storeX);
       const deltaY = Math.abs(pos.y - dragStartData.storeY);
 
       if (deltaX > 1 || deltaY > 1) {
-        const storeWithHistory = store as StoreWithHistory;
         const withUndo =
-          storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
-          storeWithHistory.withUndo;
-        const updateElement =
-          storeWithHistory.element?.update || storeWithHistory.updateElement;
+          store.history?.withUndo?.bind(store.history) ?? store.withUndo;
+        const updateElement = store.element?.update ?? store.updateElement;
 
         if (updateElement) {
           const updateFn = () => {
-            updateElement(elementId, {
+            updateElement?.(elementId, {
               x: Math.round(pos.x),
               y: Math.round(pos.y),
             });
@@ -238,7 +221,9 @@ export class StickyEventHandlers {
     group.on("transformstart", () => {
       const storeCtx = this.options.getStoreContext();
       const store = storeCtx?.store.getState();
-      const element = store?.elements?.get?.(elementId);
+      const element = store?.elements?.get?.(elementId as ElementId) as
+        | CanvasElement
+        | undefined;
 
       if (element) {
         const width = element.width ?? group.width() ?? 240;
@@ -260,7 +245,7 @@ export class StickyEventHandlers {
       if (!storeCtx || !transformStartData) return;
 
       const startData = transformStartData;
-      const store = storeCtx.store.getState();
+  const store = storeCtx.store.getState();
 
       // Calculate dimensions correctly using group's scale
       const scaleX = group.scaleX() || 1;
@@ -273,12 +258,9 @@ export class StickyEventHandlers {
       const deltaHeight = Math.abs(newHeight - startData.storeHeight);
 
       if (deltaWidth > 0 || deltaHeight > 0) {
-        const storeWithHistory = store as StoreWithHistory;
         const withUndo =
-          storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
-          storeWithHistory.withUndo;
-        const updateElement =
-          storeWithHistory.element?.update || storeWithHistory.updateElement;
+          store.history?.withUndo?.bind(store.history) ?? store.withUndo;
+        const updateElement = store.element?.update ?? store.updateElement;
 
         if (updateElement) {
           const updateFn = () => {
@@ -303,7 +285,7 @@ export class StickyEventHandlers {
             }
 
             // Update width and height, preserve position
-            updateElement(elementId, {
+            updateElement?.(elementId, {
               width: constrainedWidth,
               height: constrainedHeight,
               keepAspectRatio: true,

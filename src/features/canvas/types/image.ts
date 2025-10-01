@@ -8,13 +8,14 @@ export interface ImageElement {
   y: number;
   width: number;
   height: number;
-  src: string; // data URL (recommended for portability) or a trusted file path
+  src?: string; // data URL (recommended for portability) or a trusted file path
   naturalWidth: number;
   naturalHeight: number;
   keepAspectRatio?: boolean; // default true for images
   rotation?: number;
   opacity?: number;
   name?: string;
+  idbKey?: string; // IndexedDB key for locally cached assets
 }
 
 export default ImageElement;

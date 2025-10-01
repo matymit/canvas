@@ -8,6 +8,14 @@ import type { TableElement } from '../../types/table';
 
 const isDev = typeof process !== 'undefined' ? process.env.NODE_ENV !== 'production' : true;
 
+export interface TableCellSizeChangePayload {
+  elementId: string;
+  row: number;
+  col: number;
+  requiredWidth: number;
+  requiredHeight: number;
+}
+
 type CellEditorOpts = {
   stage: Konva.Stage;
   elementId: string;
@@ -15,15 +23,7 @@ type CellEditorOpts = {
   row: number;
   col: number;
   onCommit?: (text: string, elementId: string, row: number, col: number) => void;
-  onSizeChange?: (
-    payload: {
-      elementId: string;
-      row: number;
-      col: number;
-      requiredWidth: number;
-      requiredHeight: number;
-    }
-  ) => void;
+  onSizeChange?: (payload: TableCellSizeChangePayload) => void;
   getElement?: () => TableElement;
 };
 

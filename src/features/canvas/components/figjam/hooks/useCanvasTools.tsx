@@ -1,8 +1,9 @@
-import React, { MutableRefObject, RefObject, useEffect, useMemo } from "react";
-import Konva from "konva";
+import { useEffect, useMemo } from "react";
+import type { MutableRefObject, ReactNode, RefObject } from "react";
+import type Konva from "konva";
 
-import ToolManager from "../../../managers/ToolManager";
-import { RafBatcher } from "../../../utils/performance/RafBatcher";
+import type ToolManager from "../../../managers/ToolManager";
+import type { RafBatcher } from "../../../utils/performance/RafBatcher";
 import StickyNoteTool from "../../tools/creation/StickyNoteTool";
 import ConnectorTool from "../../tools/creation/ConnectorTool";
 import TextTool from "../../tools/content/TextTool";
@@ -32,7 +33,7 @@ type UseCanvasToolsArgs = {
 };
 
 type UseCanvasToolsResult = {
-  activeToolNode: React.ReactNode;
+  activeToolNode: ReactNode;
 };
 
 export const useCanvasTools = ({

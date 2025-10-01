@@ -1,10 +1,12 @@
-import { MutableRefObject, useEffect } from "react";
-import Konva from "konva";
+import { useEffect } from "react";
+import type { MutableRefObject } from "react";
+import type Konva from "konva";
 
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { StoreActions } from "../../../stores/facade";
-import GridRenderer from "../../GridRenderer";
+import type GridRenderer from "../../GridRenderer";
 import { debug } from "../../../../../utils/debug";
+import type { CanvasElement, ElementId } from "@types";
 
 type UseCanvasEventsArgs = {
   stageRef: MutableRefObject<Konva.Stage | null>;
@@ -44,27 +46,27 @@ export const useCanvasEvents = ({
       }
 
       const store = useUnifiedCanvasStore.getState();
-      const elements = store.elements as Map<string, unknown>;
-      if (elementId && elements?.has?.(elementId)) {
-        const selectedIds = store.selectedElementIds as Set<string> | string[] | undefined;
+      const elements = store.elements as Map<ElementId, CanvasElement>;
+      if (elementId && elements?.has?.(elementId as ElementId)) {
+        const selectedIds = store.selectedElementIds as Set<ElementId> | ElementId[] | undefined;
         const isSelected = selectedIds instanceof Set
-          ? selectedIds.has(elementId)
+          ? selectedIds.has(elementId as ElementId)
           : Array.isArray(selectedIds)
-            ? selectedIds.includes(elementId)
+            ? selectedIds.includes(elementId as ElementId)
             : false;
 
         if (e.evt.ctrlKey || e.evt.metaKey) {
           if (isSelected) {
             const next = selectedIds instanceof Set
               ? new Set(selectedIds)
-              : new Set<string>(selectedIds as string[]);
-            next.delete(elementId);
+              : new Set<ElementId>(selectedIds as ElementId[]);
+            next.delete(elementId as ElementId);
             (store.setSelection || store.selection?.set)?.(Array.from(next));
           } else {
-            (store.addToSelection || store.selection?.toggle || store.selection?.set)?.(elementId);
+            (store.addToSelection || store.selection?.toggle || store.selection?.set)?.(elementId as ElementId);
           }
         } else {
-          (store.setSelection || store.selection?.set)?.([elementId]);
+          (store.setSelection || store.selection?.set)?.([elementId as ElementId]);
         }
       }
     };

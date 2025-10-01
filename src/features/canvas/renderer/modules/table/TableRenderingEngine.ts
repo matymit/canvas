@@ -6,6 +6,7 @@ import type { TableElement } from "../../../types/table";
 import type KonvaNodePool from "../../../utils/KonvaNodePool";
 import type { TableCellResolver } from "./TableCellResolver";
 import type { TableEventHandlers } from "./TableEventHandlers";
+import type { TableStoreHook } from "./tableTypes";
 
 export interface RendererLayers {
   background: Konva.Layer;
@@ -16,7 +17,7 @@ export interface RendererLayers {
 
 export interface RenderingCallbacks {
   getTableFromStore: (elementId: string) => TableElement | undefined;
-  getStoreHook: () => any;
+  getStoreHook: () => TableStoreHook | undefined;
 }
 
 export interface RenderingOptions {

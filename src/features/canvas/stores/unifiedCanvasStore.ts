@@ -164,10 +164,10 @@ export type UnifiedCanvasStore = CoreModuleSlice &
 function partializeForPersist(state: UnifiedCanvasStore) {
   // Create a version of elements without image base64 data to save localStorage space
   const elementsArray = Array.from(state.elements.entries());
-  const filteredElements = elementsArray.map(([id, element]): [string, any] => {
+  const filteredElements = elementsArray.map(([id, element]): [ElementId, CanvasElement] => {
     // If element is an image with base64 data, create a copy without src for storage
     if (element.type === 'image') {
-      const imageEl = element as any;
+      const imageEl = element as CanvasElement & { idbKey?: string; src?: string };
       if (imageEl.src && typeof imageEl.src === 'string' && imageEl.src.startsWith('data:')) {
         const idbKey = imageEl.idbKey || `img_${id}`;
         
@@ -184,7 +184,7 @@ function partializeForPersist(state: UnifiedCanvasStore) {
         // Create a shallow copy and omit src
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { src: _src, ...elementWithoutSrc } = imageEl;
-        return [id, { ...elementWithoutSrc, idbKey }];
+        return [id, { ...elementWithoutSrc, idbKey } as CanvasElement];
       }
     }
     return [id, element];
@@ -213,12 +213,12 @@ function mergeAfterHydration(
   const restored = { ...current } as UnifiedCanvasStore;
   
   if (persisted?.elements) {
-    const elementsMap = new Map(persisted.elements);
+    const elementsMap = new Map<ElementId, CanvasElement>(persisted.elements);
     
     // Load images from IndexedDB asynchronously
     elementsMap.forEach((element, id) => {
       if (element.type === 'image') {
-        const imageEl = element as any;
+        const imageEl = element as CanvasElement & { idbKey?: string };
         // If has idbKey, load from IndexedDB
         if (imageEl.idbKey) {
           loadImageFromIndexedDB(imageEl.idbKey)
@@ -227,7 +227,7 @@ function mergeAfterHydration(
                 // Update the element with loaded image data
                 const currentElement = restored.elements.get(id);
                 if (currentElement) {
-                  restored.elements.set(id, { ...currentElement, src: base64 } as any);
+                  restored.elements.set(id, { ...currentElement, src: base64 });
                   console.log(`[Hydration] Loaded image ${id} from IndexedDB`);
                 }
               }

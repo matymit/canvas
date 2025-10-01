@@ -4,10 +4,44 @@
 
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import type { CanvasElement } from "../../../../../../../types";
 
 export interface ShapeTextSynchronizer {
   syncTextDuringTransform(nodes: Konva.Node[]): void;
 }
+
+type ShapeTransform = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+};
+
+type TextAlignment = "left" | "center" | "right";
+type VerticalAlignment = "top" | "middle" | "bottom";
+
+type ElementDataWithText = Record<string, unknown> & {
+  text?: string;
+  textLineHeight?: number;
+  textAlign?: TextAlignment;
+  verticalAlign?: VerticalAlignment;
+};
+
+interface TextBearingElement extends CanvasElement {
+  text?: string;
+  content?: string;
+  label?: string;
+  textX?: number;
+  textY?: number;
+  textWidth?: number;
+  textHeight?: number;
+  textAlign?: TextAlignment;
+  verticalAlign?: VerticalAlignment;
+  data?: ElementDataWithText;
+}
+
+type ShapeTextPatch = Partial<TextBearingElement>;
 
 export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
   constructor() {
@@ -34,7 +68,11 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
 
     nodes.forEach((node, index) => {
       try {
-        const elementId = node.getAttr("elementId") || node.id();
+        const elementIdAttr = node.getAttr("elementId");
+        const elementId =
+          typeof elementIdAttr === "string" && elementIdAttr.length > 0
+            ? elementIdAttr
+            : node.id();
         const element = elements.get(elementId);
         
         if (!element) {
@@ -46,6 +84,8 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
           return;
         }
 
+        const textElement = element;
+
         console.log(`[ShapeTextSynchronizer] Syncing text for element ${index}: ${elementId}`);
 
         // Get current node properties for text positioning
@@ -55,51 +95,32 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
         const rotation = node.rotation();
 
         // Calculate effective dimensions
-        const effectiveWidth = size.width * Math.abs(scale.x);
-        const effectiveHeight = size.height * Math.abs(scale.y);
+        const transform: ShapeTransform = {
+          x: position.x,
+          y: position.y,
+          width: size.width * Math.abs(scale.x),
+          height: size.height * Math.abs(scale.y),
+          rotation,
+        };
 
         // Update text positioning based on shape type
-        switch (element.type) {
+        switch (textElement.type) {
           case "circle":
-            this.syncCircleText(elementId, element, {
-              x: position.x,
-              y: position.y,
-              width: effectiveWidth,
-              height: effectiveHeight,
-              rotation
-            });
+            this.syncCircleText(elementId, textElement, transform);
             break;
 
           case "rectangle":
           case "ellipse":
-            this.syncRectangleText(elementId, element, {
-              x: position.x,
-              y: position.y,
-              width: effectiveWidth,
-              height: effectiveHeight,
-              rotation
-            });
+            this.syncRectangleText(elementId, textElement, transform);
             break;
 
           case "text":
-            this.syncTextElement(elementId, element, {
-              x: position.x,
-              y: position.y,
-              width: effectiveWidth,
-              height: effectiveHeight,
-              rotation
-            });
+            this.syncTextElement(elementId, textElement, transform);
             break;
 
           default:
             // Generic text sync for other element types
-            this.syncGenericText(elementId, element, {
-              x: position.x,
-              y: position.y,
-              width: effectiveWidth,
-              height: effectiveHeight,
-              rotation
-            });
+            this.syncGenericText(elementId, textElement, transform);
             break;
         }
 
@@ -111,27 +132,28 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
     console.log("[ShapeTextSynchronizer] Shape text synchronization completed");
   }
 
-  private hasTextContent(element: any): boolean {
-    return !!(element.text || element.content || element.label);
+  private hasTextContent(element: CanvasElement): element is TextBearingElement {
+    const candidate = element as TextBearingElement;
+    return Boolean(candidate.text || candidate.content || candidate.label);
   }
 
   private syncCircleText(
     elementId: string,
-    _element: any,
-    transform: { x: number; y: number; width: number; height: number; rotation: number }
+    _element: TextBearingElement,
+    transform: ShapeTransform
   ): void {
     // For circles, center the text and maintain circular constraints
     const radius = Math.min(transform.width, transform.height) / 2;
     const centerX = transform.x + radius;
     const centerY = transform.y + radius;
 
-    const textPatch = {
+    const textPatch: ShapeTextPatch = {
       textX: centerX,
       textY: centerY,
       textWidth: radius * 1.6, // 80% of diameter for padding
       textHeight: radius * 1.6,
-      textAlign: 'center',
-      verticalAlign: 'middle'
+      textAlign: "center",
+      verticalAlign: "middle",
     };
 
     this.updateElementText(elementId, textPatch);
@@ -139,18 +161,21 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
 
   private syncRectangleText(
     elementId: string,
-    _element: any,
-    transform: { x: number; y: number; width: number; height: number; rotation: number }
+    element: TextBearingElement,
+    transform: ShapeTransform
   ): void {
     // For rectangles, use the full bounds with padding
     const padding = 8;
-    const textPatch = {
+    const textAlign: TextAlignment = element?.textAlign ?? "left";
+    const verticalAlign: VerticalAlignment = element?.verticalAlign ?? "top";
+
+    const textPatch: ShapeTextPatch = {
       textX: transform.x + padding,
       textY: transform.y + padding,
       textWidth: Math.max(0, transform.width - 2 * padding),
       textHeight: Math.max(0, transform.height - 2 * padding),
-      textAlign: _element?.textAlign || 'left',
-      verticalAlign: _element?.verticalAlign || 'top'
+      textAlign,
+      verticalAlign,
     };
 
     this.updateElementText(elementId, textPatch);
@@ -158,16 +183,16 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
 
   private syncTextElement(
     elementId: string,
-    _element: any,
-    transform: { x: number; y: number; width: number; height: number; rotation: number }
+    _element: TextBearingElement,
+    transform: ShapeTransform
   ): void {
     // For text elements, update position and dimensions directly
-    const textPatch = {
+    const textPatch: ShapeTextPatch = {
       x: transform.x,
       y: transform.y,
       width: transform.width,
       height: transform.height,
-      rotation: transform.rotation
+      rotation: transform.rotation,
     };
 
     this.updateElementText(elementId, textPatch);
@@ -175,23 +200,26 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
 
   private syncGenericText(
     elementId: string,
-    _element: any,
-    transform: { x: number; y: number; width: number; height: number; rotation: number }
+    _element: TextBearingElement,
+    transform: ShapeTransform
   ): void {
     // Generic text sync with center alignment
-    const textPatch = {
+    const centerAlign: TextAlignment = "center";
+    const middleAlign: VerticalAlignment = "middle";
+
+    const textPatch: ShapeTextPatch = {
       textX: transform.x,
       textY: transform.y,
       textWidth: transform.width,
       textHeight: transform.height,
-      textAlign: 'center',
-      verticalAlign: 'middle'
+      textAlign: centerAlign,
+      verticalAlign: middleAlign,
     };
 
     this.updateElementText(elementId, textPatch);
   }
 
-  private updateElementText(elementId: string, textPatch: any): void {
+  private updateElementText(elementId: string, textPatch: ShapeTextPatch): void {
     const store = useUnifiedCanvasStore.getState();
     
     if (store.updateElement) {

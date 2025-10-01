@@ -2,7 +2,29 @@
 // Extracted from SelectionModule.ts lines 1163-1195, 1196-1205, 1555-1561, 1708-1722, 1776-1786
 // Handles mindmap-specific selection operations
 
+import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import type {
+  MindmapEdgeElement,
+  MindmapNodeElement,
+} from "../../../../types/mindmap";
+import type { CanvasElement } from "../../../../../../../types";
+import type { MindmapRenderer } from "../../MindmapRenderer";
+
+export interface MindmapRendererLike {
+  rerouteNodes?: (nodeIds: string[]) => void;
+  getAllDescendants?: (nodeId: string) => Set<string> | undefined;
+  getNodeGroup?: (nodeId: string) => Konva.Group | undefined;
+  updateEdgeVisuals?: (nodeId: string, delta: { dx: number; dy: number }) => void;
+}
+
+type MindmapNodeRelations = MindmapNodeElement & {
+  parentId?: string | null;
+};
+
+const isMindmapEdgeElement = (
+  element: CanvasElement | undefined,
+): element is MindmapEdgeElement => element?.type === "mindmap-edge";
 
 export interface MindmapSelectionManager {
   scheduleReroute(nodeIds: Set<string>): void;
@@ -14,13 +36,13 @@ export interface MindmapSelectionManager {
     initialPositions: Map<string, { x: number; y: number }>
   ): void;
   setLiveRoutingEnabled(enabled: boolean): void;
-  getRenderer(): any | null;
+  getRenderer(): MindmapRendererLike | null;
 }
 
 export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
   private rerouteScheduled = false;
   private liveRoutingEnabled = true;
-  private mindmapRenderer: any = null;
+  private mindmapRenderer: MindmapRendererLike | null = null;
 
   constructor() {
     // Bind methods to preserve context
@@ -117,6 +139,8 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
     const renderer = this.getRenderer();
     if (!renderer) return;
 
+    const layersToRedraw = new Set<Konva.Layer>();
+
     // For each mindmap node being dragged, move its descendants
     nodeIds.forEach(nodeId => {
       const store = useUnifiedCanvasStore.getState();
@@ -130,7 +154,7 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
 
       // Move each descendant by the same delta, relative to initial position
       descendants.forEach((descendantId: string) => {
-        const descendantGroup = renderer.nodeGroups?.get(descendantId);
+        const descendantGroup = renderer.getNodeGroup?.(descendantId);
         const initialPos = initialPositions.get(descendantId);
         
         if (descendantGroup && initialPos) {
@@ -139,6 +163,11 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
             x: initialPos.x + delta.dx,
             y: initialPos.y + delta.dy,
           });
+
+          const layer = descendantGroup.getLayer?.();
+          if (layer) {
+            layersToRedraw.add(layer);
+          }
         }
 
         // Update edges for this descendant
@@ -147,9 +176,7 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
     });
 
     // Batch draw to update the canvas
-    if (renderer.layers?.main) {
-      renderer.layers.main.batchDraw();
-    }
+    layersToRedraw.forEach((layer) => layer.batchDraw());
   }
 
   // Extracted from SelectionModule.ts lines 1708-1722
@@ -162,10 +189,12 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
   }
 
   // Extracted from SelectionModule.ts lines 1776-1786
-  getRenderer(): any | null {
-    if (!this.mindmapRenderer) {
+  getRenderer(): MindmapRendererLike | null {
+    if (!this.mindmapRenderer && typeof window !== "undefined") {
       // Get mindmap renderer from global registry
-      this.mindmapRenderer = (window as any).mindmapRenderer;
+      this.mindmapRenderer =
+        (window as Window & { mindmapRenderer?: MindmapRendererLike })
+          .mindmapRenderer ?? null;
     }
     return this.mindmapRenderer;
   }
@@ -181,27 +210,37 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
     const element = elements.get(nodeId);
     if (!element || element.type !== 'mindmap-node') return;
 
-    const mindmapElement = element as any;
+    const mindmapElement = element as MindmapNodeRelations;
     
     // Add parent node
     if (mindmapElement.parentId && !resultSet.has(mindmapElement.parentId)) {
       const parentElement = elements.get(mindmapElement.parentId);
-      if (parentElement?.type === 'mindmap-node') {
+      if (parentElement?.type === "mindmap-node") {
         resultSet.add(mindmapElement.parentId);
       }
     }
 
-    // Add child nodes
-    if (mindmapElement.children) {
-      mindmapElement.children.forEach((childId: string) => {
-        if (!resultSet.has(childId)) {
-          const childElement = elements.get(childId);
-          if (childElement?.type === 'mindmap-node') {
-            resultSet.add(childId);
-          }
+    // Include nodes connected via mindmap edges
+    elements.forEach((candidate) => {
+      if (!candidate || typeof candidate !== "object") {
+        return;
+      }
+
+      if (isMindmapEdgeElement(candidate as CanvasElement | undefined)) {
+        const { fromId, toId } = candidate as MindmapEdgeElement;
+        if (fromId === nodeId || toId === nodeId) {
+          const connectedIds = [fromId, toId].filter((id) => id && id !== nodeId);
+          connectedIds.forEach((connectedId) => {
+            if (!resultSet.has(connectedId)) {
+              const connectedElement = elements.get(connectedId);
+              if (connectedElement?.type === "mindmap-node") {
+                resultSet.add(connectedId);
+              }
+            }
+          });
         }
-      });
-    }
+      }
+    });
   }
 
   private updateMindmapEdgePosition(nodeId: string, delta: { dx: number; dy: number }): void {
@@ -213,10 +252,20 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
   }
 }
 
+export const isMindmapRenderer = (
+  renderer: MindmapRendererLike | null,
+): renderer is MindmapRenderer => {
+  if (!renderer) return false;
+  const candidate = renderer as Partial<MindmapRenderer>;
+  return typeof candidate.renderEdge === "function";
+};
+
 // Export singleton instance and register globally
 export const mindmapSelectionManager = new MindmapSelectionManagerImpl();
 
 // Register globally for cross-module access
 if (typeof window !== "undefined") {
-  (window as any).mindmapSelectionManager = mindmapSelectionManager;
+  (window as Window & {
+    mindmapSelectionManager?: MindmapSelectionManager;
+  }).mindmapSelectionManager = mindmapSelectionManager;
 }

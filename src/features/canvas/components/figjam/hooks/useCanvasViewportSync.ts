@@ -1,9 +1,9 @@
-import { MutableRefObject, useEffect, useMemo } from "react";
-import type { CSSProperties } from "react";
-import Konva from "konva";
+import { useEffect, useMemo } from "react";
+import type { CSSProperties, MutableRefObject } from "react";
+import type Konva from "konva";
 
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
-import GridRenderer from "../../GridRenderer";
+import type GridRenderer from "../../GridRenderer";
 import { useShallow } from "zustand/react/shallow";
 
 type ViewportSyncArgs = {

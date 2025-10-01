@@ -1,17 +1,19 @@
-import React, { MutableRefObject, useEffect, useMemo } from "react";
-import Konva from "konva";
+import { useEffect, useMemo } from "react";
+import type { MutableRefObject, ReactNode } from "react";
+import type Konva from "konva";
 
 import { TableContextMenuManager } from "../../table/TableContextMenuManager";
 import { MindmapContextMenuManager } from "../../menus/MindmapContextMenuManager";
 import { CanvasContextMenuManager } from "../../CanvasContextMenuManager";
+import type { CanvasElement, ElementId } from "@types";
 
 type UseCanvasServicesArgs = {
   stageRef: MutableRefObject<Konva.Stage | null>;
-  elements: Map<string, unknown>;
+  elements: Map<ElementId, CanvasElement>;
 };
 
 type UseCanvasServicesResult = {
-  serviceNodes: React.ReactNode;
+  serviceNodes: ReactNode;
 };
 
 export const useCanvasServices = ({

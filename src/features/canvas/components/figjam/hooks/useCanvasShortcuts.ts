@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import useKeyboardShortcuts from "../../../hooks/useKeyboardShortcuts";
 import { clipboard } from "../../../utils/clipboard";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import type { CanvasElement, ElementId } from "@types";
 
 interface MindmapOperations {
   createChildNode: (nodeId: string) => void;
@@ -14,18 +15,20 @@ interface MindmapOperations {
   ) => void;
 }
 
+interface ViewportControls {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  reset: () => void;
+  fitToContent: () => void;
+}
+
 interface UseCanvasShortcutsArgs {
-  selectedElementIds: Set<string>;
-  elements: Map<string, unknown>;
-  viewport: {
-    zoomIn: () => void;
-    zoomOut: () => void;
-    reset: () => void;
-    fitToContent: () => void;
-  };
+  selectedElementIds: Set<ElementId>;
+  elements: Map<ElementId, CanvasElement>;
+  viewport: ViewportControls;
   withUndo?: (description: string, fn: () => void) => void;
   deleteSelected?: () => void;
-  setSelection?: (ids: string[]) => void;
+  setSelection?: (ids: ElementId[]) => void;
   undo?: () => void;
   redo?: () => void;
   setSelectedTool: (tool: string) => void;
@@ -132,7 +135,7 @@ export const useCanvasShortcuts = ({
                 ? store.element.getById(id)
                 : store.elements?.get(id);
             })
-            .filter((el) => el !== undefined);
+            .filter((el): el is CanvasElement => el !== undefined);
           if (elementsToCopy.length > 0) {
             clipboard.copy(elementsToCopy);
           }
@@ -146,40 +149,46 @@ export const useCanvasShortcuts = ({
         const addElement = store.addElement;
         const selectionSetter = store.selection?.set || store.setSelection;
 
-        if (withUndo && addElement) {
-          withUndo("Paste elements", () => {
-            const newIds: string[] = [];
-            const elementsToCreate = clipboard.paste();
-            elementsToCreate.forEach((element: any, index: number) => {
-              const clone = { ...element } as any;
-              const newId =
-                crypto?.randomUUID?.() ??
-                `${element.id}-paste-${Date.now()}-${index}`;
-              clone.id = newId;
+        if (!addElement) {
+          return;
+        }
 
-              const offset = 20 + index * 5;
-              if (typeof clone.x === "number") clone.x += offset;
-              if (typeof clone.y === "number") clone.y += offset;
+        const pasteElements = () => {
+          const newIds: ElementId[] = [];
+          const elementsToCreate = clipboard.paste();
 
-              if (Array.isArray(clone.points) && clone.points.length >= 2) {
-                const shifted: number[] = [];
-                for (let i = 0; i < clone.points.length; i += 2) {
-                  shifted.push(
-                    clone.points[i] + offset,
-                    clone.points[i + 1] + offset,
-                  );
-                }
-                clone.points = shifted;
-              }
+          elementsToCreate.forEach((element, index) => {
+            const generatedId =
+              typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                ? crypto.randomUUID()
+                : `${element.id}-paste-${Date.now()}-${index}`;
+            const newId = generatedId as ElementId;
 
-              addElement(clone, { select: true });
-              newIds.push(newId);
-            });
+            const offset = 20 + index * 5;
 
-            if (selectionSetter && newIds.length > 0) {
-              selectionSetter(newIds);
-            }
+            const clone: CanvasElement = {
+              ...element,
+              id: newId,
+              x: typeof element.x === "number" ? element.x + offset : element.x,
+              y: typeof element.y === "number" ? element.y + offset : element.y,
+              points: Array.isArray(element.points)
+                ? element.points.map((coordinate) => coordinate + offset)
+                : element.points,
+            };
+
+            addElement(clone, { select: true });
+            newIds.push(newId);
           });
+
+          if (selectionSetter && newIds.length > 0) {
+            selectionSetter(newIds);
+          }
+        };
+
+        if (withUndo) {
+          withUndo("Paste elements", pasteElements);
+        } else {
+          pasteElements();
         }
       },
       onUndo: () => {

@@ -1,4 +1,5 @@
-import { MutableRefObject, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { MutableRefObject, RefObject } from "react";
 import Konva from "konva";
 
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";

@@ -4,11 +4,15 @@
 import type Konva from "konva";
 import type { TableElement } from "../../../types/table";
 import { DEFAULT_TABLE_CONFIG } from "../../../types/table";
-import { openCellEditorWithTracking } from "../../../utils/editors/openCellEditorWithTracking";
+import {
+  openCellEditorWithTracking,
+} from "../../../utils/editors/openCellEditorWithTracking";
+import type { TableCellSizeChangePayload } from "../../../utils/editors/openCellEditorWithTracking";
+import type { TableStoreHook } from "./tableTypes";
 
 export interface TableEditorCallbacks {
   getTableFromStore: (elementId: string) => TableElement | undefined;
-  getStoreHook: () => any;
+  getStoreHook: () => TableStoreHook | undefined;
 }
 
 export interface OpenEditorOptions {
@@ -41,16 +45,18 @@ export class TableEditorManager {
       stage,
       elementId,
       element,
-      getElement: () =>
-        this.callbacks
-          .getStoreHook()
-          ?.getState()
-          .element.getById(elementId) as TableElement,
+      getElement: () => {
+        const store = this.callbacks.getStoreHook();
+        if (!store) return element;
+        const latest = store.getState().element.getById(elementId);
+        return (latest && latest.type === "table" ? latest : element) as TableElement;
+      },
       row,
       col,
       onCommit: (value: string, tableId: string, commitRow: number, commitCol: number) =>
         this.commitCellText(tableId, commitRow, commitCol, value),
-      onSizeChange: (payload: any) => this.handleCellAutoResize(payload),
+      onSizeChange: (payload: TableCellSizeChangePayload) =>
+        this.handleCellAutoResize(payload),
     });
   }
 
@@ -104,13 +110,7 @@ export class TableEditorManager {
   /**
    * Handle automatic cell resize when content requires more space
    */
-  handleCellAutoResize(payload: {
-    elementId: string;
-    row: number;
-    col: number;
-    requiredWidth: number;
-    requiredHeight: number;
-  }): void {
+  handleCellAutoResize(payload: TableCellSizeChangePayload): void {
     const storeHook = this.callbacks.getStoreHook();
     if (!storeHook) return;
 

@@ -4,21 +4,23 @@
 import type Konva from "konva";
 import { debug, error as logError } from "../../../../../utils/debug";
 import { getTextConfig } from "../../../constants/TextConstants";
+import type { UnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
+import type { CanvasElement, ElementId } from "../../../../../../types";
 
-interface StoreWithHistory {
-  history?: {
-    withUndo: (description: string, fn: () => void) => void;
+type StoreContext = {
+  store: {
+    getState: () => UnifiedCanvasStore;
   };
-  withUndo?: (description: string, fn: () => void) => void;
-  element?: {
-    update: (id: string, updates: Record<string, unknown>) => void;
-  };
-  updateElement?: (id: string, updates: Record<string, unknown>) => void;
-  elements?: Map<string, any>;
-}
+};
+
+type StoreUpdateFn = (id: ElementId, updates: Partial<CanvasElement>) => void;
+type UndoHandler = (description: string, fn: () => void) => void;
+type StoreWithLegacyUndo = UnifiedCanvasStore & {
+  withUndo?: UndoHandler;
+};
 
 export interface StickyTextEditorOptions {
-  getStoreContext: () => { store: { getState: () => any } } | undefined;
+  getStoreContext: () => StoreContext | undefined;
   getNodes: () => Map<string, Konva.Group>;
 }
 
@@ -28,8 +30,8 @@ export interface StickyTextEditorOptions {
  */
 export class StickyTextEditor {
   private activeEditor: HTMLTextAreaElement | null = null;
-  private editorElementId: string | null = null;
-  private readonly pendingImmediateEdits = new Set<string>();
+  private editorElementId: ElementId | null = null;
+  private readonly pendingImmediateEdits = new Set<ElementId>();
   private readonly options: StickyTextEditorOptions;
 
   constructor(options: StickyTextEditorOptions) {
@@ -39,21 +41,21 @@ export class StickyTextEditor {
   /**
    * Get active editor element ID
    */
-  getEditorElementId(): string | null {
+  getEditorElementId(): ElementId | null {
     return this.editorElementId;
   }
 
   /**
    * Check if currently editing a specific element
    */
-  isEditing(elementId: string): boolean {
+  isEditing(elementId: ElementId): boolean {
     return this.editorElementId === elementId;
   }
 
   /**
    * Start text editing for a sticky note group
    */
-  startTextEditing(group: Konva.Group, elementId: string): void {
+  startTextEditing(group: Konva.Group, elementId: ElementId): void {
     debug("Starting text editing", {
       category: "StickyNoteModule",
       data: elementId,
@@ -121,8 +123,8 @@ export class StickyTextEditor {
     width: number,
     height: number,
     bgColor: string,
-    elementId: string,
-    storeCtx: { store: { getState: () => any } },
+    elementId: ElementId,
+    storeCtx: StoreContext,
   ): HTMLTextAreaElement {
     const editor = document.createElement("textarea");
     editor.setAttribute("data-sticky-editor", elementId);
@@ -131,7 +133,7 @@ export class StickyTextEditor {
     // Get current text from store
     const store = storeCtx.store.getState();
     const element =
-      store?.elements?.get?.(elementId) || store?.element?.getById?.(elementId);
+      store.elements.get(elementId) ?? store.element?.getById?.(elementId);
     const currentText =
       (typeof element?.text === "string" ? element.text : "") ||
       (typeof element?.data?.text === "string" ? element.data.text : "") ||
@@ -207,12 +209,11 @@ export class StickyTextEditor {
       });
 
       const store = storeCtx.store.getState();
-      const storeWithHistory = store as StoreWithHistory;
-      const updateElement =
-        storeWithHistory.element?.update || storeWithHistory.updateElement;
-      const withUndo =
-        storeWithHistory.history?.withUndo?.bind(storeWithHistory.history) ||
-        storeWithHistory.withUndo;
+      const storeWithLegacyUndo = store as StoreWithLegacyUndo;
+      const updateElement: StoreUpdateFn | undefined =
+        store.element?.update ?? store.updateElement;
+      const withUndo: UndoHandler | undefined =
+        store.history?.withUndo ?? storeWithLegacyUndo.withUndo;
 
       if (updateElement) {
         const updateFn = () => {
@@ -273,8 +274,8 @@ export class StickyTextEditor {
     const rect = container.getBoundingClientRect();
     const textAbsPos = textNode.absolutePosition();
 
-    this.activeEditor.style.left = `${rect.left + textAbsPos.x}px`;
-    this.activeEditor.style.top = `${rect.top + textAbsPos.y}px`;
+  this.activeEditor.style.left = `${rect.left + textAbsPos.x}px`;
+  this.activeEditor.style.top = `${rect.top + textAbsPos.y}px`;
     this.activeEditor.style.width = `${textNode.width()}px`;
     this.activeEditor.style.height = `${textNode.height()}px`;
   }
@@ -318,7 +319,7 @@ export class StickyTextEditor {
   /**
    * Trigger immediate text edit after creation
    */
-  triggerImmediateTextEdit(elementId: string): void {
+  triggerImmediateTextEdit(elementId: ElementId): void {
     debug("triggerImmediateTextEdit called", {
       category: "StickyNoteModule",
       data: elementId,
@@ -330,7 +331,7 @@ export class StickyTextEditor {
   /**
    * Check and start pending edit when group is ready
    */
-  maybeStartPendingEdit(elementId: string, group?: Konva.Group): void {
+  maybeStartPendingEdit(elementId: ElementId, group?: Konva.Group): void {
     if (!this.pendingImmediateEdits.has(elementId)) {
       return;
     }

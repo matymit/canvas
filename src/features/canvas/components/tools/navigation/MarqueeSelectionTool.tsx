@@ -3,7 +3,7 @@
 // Refactored to use custom hooks for selection and drag logic
 
 import type React from "react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { debug } from "../../../../../utils/debug";
@@ -87,7 +87,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
   const { marqueeRef } = useMarqueeState();
 
   // Helper functions for hooks
-  const getWorldPointerPosition = () => {
+  const getWorldPointerPosition = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return null;
     const pointer = stage.getPointerPosition();
@@ -95,23 +95,24 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     const transform = stage.getAbsoluteTransform().copy();
     transform.invert();
     return transform.point(pointer);
-  };
+  }, [stageRef]);
 
-  const getOverlayLayer = (): Konva.Layer => {
+  const getOverlayLayer = useCallback((): Konva.Layer => {
     const stage = stageRef.current;
     if (!stage) throw new Error("Stage not available");
     const layers = stage.getLayers();
     return layers[layers.length - 1] as Konva.Layer;
-  };
+  }, [stageRef]);
 
-  const resolveElementTarget = (
+  const resolveElementTarget = useCallback(
+    (
     stage: Konva.Stage,
     target: Konva.Node,
   ): {
     elementId: string | null;
     resolvedNode: Konva.Node | null;
     traversal: Array<{ nodeName: string; elementId?: string; id?: string }>;
-  } => {
+    } => {
     if (!stage) {
       return { elementId: null, resolvedNode: null, traversal: [] };
     }
@@ -156,7 +157,7 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     }
 
     return { elementId, resolvedNode, traversal };
-  };
+  }, [elements]);
 
   // Initialize selection hook
   const { handleStageClick, handleSelectionMove, handleSelectionComplete } =
@@ -377,6 +378,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
     handleElementClick,
     handleDragMove,
     handleDragComplete,
+      getOverlayLayer,
+      getWorldPointerPosition,
+      resolveElementTarget,
   ]);
 
   return null;

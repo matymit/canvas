@@ -3,6 +3,7 @@
 
 import type React from "react";
 import type Konva from "konva";
+import type { StoreApi, UseBoundStore } from "zustand";
 import type { MarqueeState } from "./useMarqueeState";
 import type { CanvasElement } from "../../../../../../../types";
 import type {
@@ -10,11 +11,23 @@ import type {
   ConnectorEndpoint,
   ConnectorEndpointPoint,
 } from "../../../../types/connector";
+import type { UnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import type { ConnectorSelectionManager } from "../../../../renderer/modules/selection/managers/ConnectorSelectionManager";
+import type { MindmapSelectionManager } from "../../../../renderer/modules/selection/managers/MindmapSelectionManager";
 import { cloneEndpoint, connectorHasFreeEndpoint } from "./useMarqueeState";
 
 const isPointEndpoint = (
   endpoint?: ConnectorEndpoint | null,
 ): endpoint is ConnectorEndpointPoint => endpoint?.kind === "point";
+
+const isConnectorElement = (
+  element: CanvasElement,
+): element is ConnectorElement =>
+  element.type === "connector" && "from" in element && "to" in element;
+
+interface MindmapRendererLike {
+  getAllDescendants?: (nodeId: string) => Set<string> | undefined;
+}
 
 export interface MarqueeDragOptions {
   marqueeRef: React.MutableRefObject<MarqueeState>;
@@ -24,7 +37,7 @@ export interface MarqueeDragOptions {
   beginTransform?: () => void;
   endTransform?: () => void;
   getWorldPointerPosition: () => { x: number; y: number } | null;
-  useUnifiedCanvasStore: any; // Store hook
+  useUnifiedCanvasStore: UseBoundStore<StoreApi<UnifiedCanvasStore>>;
 }
 
 /**
@@ -189,8 +202,8 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
 
       const node = findNodeForElement(elementId);
 
-      if ((element as any).type === "connector") {
-        const connectorElement = element as unknown as ConnectorElement;
+      if (isConnectorElement(element)) {
+        const connectorElement = element;
         const connectorIsMovable = connectorHasFreeEndpoint(connectorElement);
 
         if (!connectorIsMovable) {
@@ -279,12 +292,7 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       let nodePos = node.position();
 
       if (nodePos.x === 0 && nodePos.y === 0) {
-        if (
-          typeof (element as any).x === "number" &&
-          typeof (element as any).y === "number"
-        ) {
-          nodePos = { x: (element as any).x, y: (element as any).y };
-        }
+        nodePos = { x: element.x, y: element.y };
       }
 
       marqueeRef.current.basePositions.set(elementId, nodePos);
@@ -301,7 +309,7 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
 
     // Capture base positions for mindmap descendants
     const mindmapRenderer =
-      typeof window !== "undefined" ? (window as any).mindmapRenderer : null;
+      typeof window !== "undefined" ? window.mindmapRenderer ?? null : null;
     if (mindmapRenderer) {
       movableNodes.forEach((node) => {
         const elementId = node.getAttr("elementId") || node.id();
@@ -458,7 +466,7 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     if (marqueeRef.current.activeMindmapNodeIds.length > 0) {
       const manager =
         typeof window !== "undefined"
-          ? (window as any).mindmapSelectionManager
+          ? window.mindmapSelectionManager ?? null
           : null;
       if (manager?.moveMindmapDescendants) {
         manager.moveMindmapDescendants(
@@ -530,7 +538,7 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
 
             const mindmapRenderer =
               typeof window !== "undefined"
-                ? (window as any).mindmapRenderer
+                ? window.mindmapRenderer ?? null
                 : null;
             if (mindmapRenderer) {
               const descendants =
@@ -575,7 +583,10 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
 
     // Commit connectors via ConnectorSelectionManager
     if (connectorIds.size > 0) {
-      const manager = (window as any).connectorSelectionManager;
+      const manager =
+        typeof window !== "undefined"
+          ? window.connectorSelectionManager
+          : undefined;
       if (manager && typeof manager.moveSelectedConnectors === "function") {
         manager.moveSelectedConnectors(
           connectorIds,
@@ -588,7 +599,7 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     if (marqueeRef.current.activeMindmapNodeIds.length > 0) {
       const mindmapManager =
         typeof window !== "undefined"
-          ? (window as any).mindmapSelectionManager
+          ? window.mindmapSelectionManager ?? null
           : null;
       mindmapManager?.scheduleReroute?.(
         new Set(marqueeRef.current.activeMindmapNodeIds),
@@ -627,3 +638,11 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     handleDragComplete,
   };
 };
+
+declare global {
+  interface Window {
+    connectorSelectionManager?: ConnectorSelectionManager;
+    mindmapSelectionManager?: MindmapSelectionManager;
+    mindmapRenderer?: MindmapRendererLike;
+  }
+}

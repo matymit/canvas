@@ -52,21 +52,21 @@ export class StickyRenderingEngine {
     const layer = this.options.layer;
     if (!layer) return;
 
-    const seen = new Set<Id>();
-    const stage = layer.getStage();
-    const viewRect = stage ? getWorldViewportBounds(stage) : null;
+  const seen = new Set<Id>();
+  const stage = layer.getStage();
+  const viewBounds = stage ? getWorldViewportBounds(stage) : null;
 
     // Add/update existing sticky notes
     for (const [id, sticky] of stickyNotes) {
       seen.add(id);
 
       // Check if sticky is in viewport (with padding)
-      const inViewport = viewRect
+      const inViewport = viewBounds
         ? !(
-            sticky.x + sticky.width < (viewRect as any).x - 500 ||
-            sticky.x > (viewRect as any).x + (viewRect as any).width + 500 ||
-            sticky.y + sticky.height < (viewRect as any).y - 500 ||
-            sticky.y > (viewRect as any).y + (viewRect as any).height + 500
+            sticky.x + sticky.width < viewBounds.minX - 500 ||
+            sticky.x > viewBounds.maxX + 500 ||
+            sticky.y + sticky.height < viewBounds.minY - 500 ||
+            sticky.y > viewBounds.maxY + 500
           )
         : true;
 

@@ -5,6 +5,7 @@
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
 import type { ConnectorElement, ConnectorEndpoint } from "../../../../types/connector";
+import type { ConnectorService } from "../../../../services/ConnectorService";
 
 export interface ConnectorSelectionManager {
   scheduleRefresh(elementIds: Set<string>): void;
@@ -15,7 +16,7 @@ export interface ConnectorSelectionManager {
   commitTranslation(delta: { dx: number; dy: number }): void;
   getAbsolutePoints(id: string): number[] | null;
   setLiveRoutingEnabled(enabled: boolean): void;
-  updateElement(id: string, changes: any): void;
+  updateElement(id: string, changes: Partial<ConnectorElement>): void;
   handleEndpointDrag(connectorId: string, endpoint: "from" | "to", position: {x: number; y: number}): void;
   // New method for handling direct connector movements
   moveSelectedConnectors(
@@ -32,7 +33,7 @@ export interface ConnectorSelectionManager {
 export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager {
   private refreshScheduled = false;
   private liveRoutingEnabled = true;
-  private connectorService: any = null;
+  private connectorService: ConnectorService | null = null;
   private moveSelectedConnectorsWasCalled = false; // Track if moveSelectedConnectors was called
 
   constructor() {
@@ -280,7 +281,7 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
   }
 
   // Extracted from SelectionModule.ts lines 1731-1775
-  updateElement(id: string, changes: any): void {
+  updateElement(id: string, changes: Partial<ConnectorElement>): void {
     const store = useUnifiedCanvasStore.getState();
     
     console.log("[ConnectorSelectionManager] Updating connector element", { id, changes });
@@ -335,10 +336,15 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     // Try connector service first
     const connectorService = this.getConnectorService();
     try {
-      if (connectorService?.updateRouting) {
-        connectorService.updateRouting(connectorId);
+      const legacyService = connectorService as ConnectorService & {
+        updateRouting?: (id: string) => void;
+      } | null;
+
+      if (legacyService?.updateRouting) {
+        legacyService.updateRouting(connectorId);
         return;
       }
+
       if (connectorService?.forceRerouteElement) {
         connectorService.forceRerouteElement(connectorId);
         return;
@@ -350,17 +356,17 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     // Fallback: force a no-op update to trigger re-render
     const store = useUnifiedCanvasStore.getState();
     try {
-      store.updateElement?.(connectorId, (existing: any) => ({ ...existing }), { pushHistory: false });
+      store.updateElement?.(connectorId, {}, { pushHistory: false });
     } catch {
       // ignore
     }
   }
 
   // Extracted from SelectionModule.ts lines 1723-1730
-  private getConnectorService(): any {
-    if (!this.connectorService) {
+  private getConnectorService(): ConnectorService | null {
+    if (!this.connectorService && typeof window !== "undefined") {
       // Initialize connector service on demand
-      this.connectorService = (window as any).connectorService;
+      this.connectorService = window.connectorService ?? null;
     }
     return this.connectorService;
   }
@@ -461,5 +467,12 @@ export const connectorSelectionManager = new ConnectorSelectionManagerImpl();
 
 // Register globally for cross-module access
 if (typeof window !== "undefined") {
-  (window as any).connectorSelectionManager = connectorSelectionManager;
+  window.connectorSelectionManager = connectorSelectionManager;
+}
+
+declare global {
+  interface Window {
+    connectorSelectionManager?: ConnectorSelectionManager;
+    connectorService?: ConnectorService;
+  }
 }

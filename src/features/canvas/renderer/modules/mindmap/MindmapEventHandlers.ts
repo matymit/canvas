@@ -1,13 +1,18 @@
 // MindmapEventHandlers - Event binding for mindmap nodes
 // Extracted from MindmapRenderer.ts as part of modularization
 
-import Konva from "konva";
+import type Konva from "konva";
 import type { RendererLayers } from "../../layers";
 import type { CanvasElement } from "../../../../../../types";
-import type { MindmapNodeElement, MindmapEdgeElement } from "@/features/canvas/types/mindmap";
+import type {
+  MindmapNodeElement,
+  MindmapEdgeElement,
+  BranchStyle,
+} from "@/features/canvas/types/mindmap";
 import type { useUnifiedCanvasStore } from "@/features/canvas/stores/unifiedCanvasStore";
 import { openMindmapNodeEditor } from "@/features/canvas/utils/editors/openMindmapNodeEditor";
 import type { MindmapDragLogic } from "./MindmapDragLogic";
+import { normalizeBranchStyle } from "./branchStyle";
 
 // Store state interfaces
 interface StoreState {
@@ -50,8 +55,8 @@ export class MindmapEventHandlers {
     side: "left" | "right",
   ) => { x: number; y: number } | null;
   private readonly mergeBranchStyleCallback: (
-    style?: Record<string, unknown>,
-  ) => Record<string, unknown>;
+    style?: Partial<BranchStyle>,
+  ) => BranchStyle;
 
   private static readonly HANDLER_FLAG = "__mindmapHandlers";
 
@@ -75,8 +80,8 @@ export class MindmapEventHandlers {
       side: "left" | "right",
     ) => { x: number; y: number } | null,
     mergeBranchStyleCallback: (
-      style?: Record<string, unknown>,
-    ) => Record<string, unknown>,
+      style?: Partial<BranchStyle>,
+    ) => BranchStyle,
   ) {
     this.layers = layers;
     this.store = store;
@@ -118,8 +123,8 @@ export class MindmapEventHandlers {
             fromId: mindmapElement.fromId ?? edgeData?.fromId ?? "",
             toId: mindmapElement.toId ?? edgeData?.toId ?? "",
             style: this.mergeBranchStyleCallback(
-              mindmapElement.style ?? edgeData?.style,
-            ) as any,
+              normalizeBranchStyle(mindmapElement.style ?? edgeData?.style),
+            ),
           };
           edges.push(edge);
         }

@@ -5,6 +5,7 @@ import Konva from "konva";
 import type { TableElement } from "../../../types/table";
 import type { TableCellResolver } from "./TableCellResolver";
 import type { TableEditorManager } from "./TableEditorManager";
+import type { TableStoreHook } from "./tableTypes";
 
 // Extended window interface for type safety
 interface TableContextMenuBridge {
@@ -30,7 +31,7 @@ interface ExtendedWindow extends Window {
 
 export interface TableEventCallbacks {
   getTableFromStore: (elementId: string) => TableElement | undefined;
-  getStoreHook: () => any;
+  getStoreHook: () => TableStoreHook | undefined;
 }
 
 /**

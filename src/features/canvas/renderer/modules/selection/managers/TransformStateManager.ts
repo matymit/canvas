@@ -5,6 +5,34 @@
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
 import type { CanvasElement } from "../../../../../../../types/index";
+import type { ConnectorElement, ConnectorEndpoint } from "../../../../types/connector";
+
+type ConnectorLike = CanvasElement &
+  Pick<ConnectorElement, "from" | "to">;
+
+interface MindmapNodeLike extends CanvasElement {
+  children?: string[];
+}
+
+const isConnectorLike = (element: CanvasElement): element is ConnectorLike =>
+  element.type === "connector" && "from" in element && "to" in element;
+
+const isMindmapNodeLike = (
+  element: CanvasElement,
+): element is MindmapNodeLike => element.type === "mindmap-node";
+
+const cloneConnectorEndpoint = (
+  endpoint: ConnectorEndpoint,
+): ConnectorEndpoint => {
+  if (endpoint.kind === "point") {
+    return { ...endpoint };
+  }
+
+  return {
+    ...endpoint,
+    offset: endpoint.offset ? { ...endpoint.offset } : undefined,
+  };
+};
 
 export interface TransformSnapshot {
   initialNodes: Konva.Node[];
@@ -140,7 +168,10 @@ export class TransformStateManagerImpl implements TransformStateManager {
       }
 
       // Rectangle/ellipse elements with explicit aspect ratio lock
-      if ((element.type === "rectangle" || element.type === "ellipse") && (element as any).lockAspectRatio) {
+      if (
+        (element.type === "rectangle" || element.type === "ellipse") &&
+        Boolean(element.lockAspectRatio)
+      ) {
         hasAspectRatioElements = true;
         continue;
       }
@@ -180,19 +211,19 @@ export class TransformStateManagerImpl implements TransformStateManager {
       const element = elements.get(elementId);
       
       if (element) {
-        // Deep clone the element
-        const clonedElement: CanvasElement = {
-          ...element,
-          // Handle special properties that need deep cloning
-          ...(element.type === 'connector' && (element as any).from && (element as any).to ? {
-            from: { ...(element as any).from },
-            to: { ...(element as any).to }
-          } : {}),
-          ...(element.type === 'mindmap-node' && (element as any).children ? {
-            children: [...((element as any).children || [])]
-          } : {})
-        };
-        
+        const clonedElement: CanvasElement = { ...element };
+
+        if (isConnectorLike(element)) {
+          const connectorClone = clonedElement as ConnectorLike;
+          connectorClone.from = cloneConnectorEndpoint(element.from);
+          connectorClone.to = cloneConnectorEndpoint(element.to);
+        }
+
+        if (isMindmapNodeLike(element) && element.children) {
+          const mindmapClone = clonedElement as MindmapNodeLike;
+          mindmapClone.children = [...element.children];
+        }
+
         initialStoreState.set(elementId, clonedElement);
       }
     });

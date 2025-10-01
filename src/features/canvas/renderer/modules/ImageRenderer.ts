@@ -29,24 +29,24 @@ export class ImageRenderer {
     console.log(`[ImageRenderer] ensureBitmap called for ${el.id}`, { 
       hasSrc: !!el.src, 
       srcLength: el.src?.length || 0,
-      hasIdbKey: !!(el as any).idbKey,
-      idbKey: (el as any).idbKey 
+      hasIdbKey: !!el.idbKey,
+      idbKey: el.idbKey ?? null 
     });
     
     // If src is missing but we have idbKey, load from IndexedDB
     let src = el.src;
-    if ((!src || src === '') && (el as any).idbKey) {
-      console.log(`[ImageRenderer] Loading image from IndexedDB: ${(el as any).idbKey}`);
-      const loadedSrc = await loadImageFromIndexedDB((el as any).idbKey);
+    if ((!src || src === '') && el.idbKey) {
+      console.log(`[ImageRenderer] Loading image from IndexedDB: ${el.idbKey}`);
+      const loadedSrc = await loadImageFromIndexedDB(el.idbKey);
       if (loadedSrc) {
         src = loadedSrc;
         // Update the element in the store with the loaded src
         const store = useUnifiedCanvasStore.getState();
         if (store.updateElement) {
-          store.updateElement(el.id, { src: loadedSrc } as any, { pushHistory: false });
+          store.updateElement(el.id, { src: loadedSrc }, { pushHistory: false });
         }
       } else {
-        console.error(`[ImageRenderer] Failed to load image from IndexedDB: ${(el as any).idbKey}`);
+        console.error(`[ImageRenderer] Failed to load image from IndexedDB: ${el.idbKey}`);
         return;
       }
     }
@@ -106,7 +106,7 @@ export class ImageRenderer {
     console.log(`[ImageRenderer] render() called for ${el.id}`, {
       hasSrc: !!el.src,
       srcLength: el.src?.length || 0,
-      hasIdbKey: !!(el as any).idbKey,
+      hasIdbKey: !!el.idbKey,
       x: el.x,
       y: el.y
     });

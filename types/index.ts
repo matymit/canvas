@@ -41,6 +41,8 @@ export interface CanvasElement {
   fill?: string; // Direct fill property for some elements
   text?: string; // Direct text property for text elements
   imageUrl?: string; // Direct image URL for image elements
+  src?: string; // Image source for raster elements
+  idbKey?: string; // IndexedDB storage key for large assets
   path?: string; // Direct path for path elements
   points?: number[]; // Direct points for line/path elements
   textColor?: string; // Direct text color for text elements
@@ -63,6 +65,7 @@ export interface CanvasElement {
     lineJoin?: string;
     globalCompositeOperation?: string;
   };
+  lockAspectRatio?: boolean; // Optional aspect ratio lock flag for transforms
 }
 
 export interface Point {

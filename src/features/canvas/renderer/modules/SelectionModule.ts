@@ -16,6 +16,7 @@ import {
   elementSynchronizer,
   connectorSelectionManager,
   mindmapSelectionManager,
+  isMindmapRenderer,
 } from "./selection/managers";
 import { TransformLifecycleCoordinator } from "./selection/controllers/TransformLifecycleCoordinator";
 import { MarqueeSelectionController } from "./selection/controllers/MarqueeSelectionController";
@@ -32,7 +33,7 @@ export class SelectionModule implements RendererModule {
   private readonly selectionDebouncer = new SelectionDebouncer();
   private transformLifecycle?: TransformLifecycleCoordinator;
   private connectorTransformFinalizer?: ConnectorTransformFinalizer;
-  private mindmapDescendantInitialPositions = new Map<string, { x: number; y: number }>();
+  private readonly mindmapDescendantInitialPositions = new Map<string, { x: number; y: number }>();
 
   mount(ctx: ModuleRendererCtx): () => void {
     this.storeCtx = ctx;
@@ -104,7 +105,7 @@ export class SelectionModule implements RendererModule {
       rerouteAllConnectors: () => {
         const connectorService =
           typeof window !== "undefined"
-            ? ((window as any).connectorService ?? null)
+            ? window.connectorService ?? null
             : null;
         try {
           connectorService?.forceRerouteAll();
@@ -114,7 +115,7 @@ export class SelectionModule implements RendererModule {
       },
       rerouteMindmapNodes: (ids) => {
         const renderer = mindmapSelectionManager.getRenderer();
-        if (!renderer) return;
+        if (!isMindmapRenderer(renderer)) return;
         try {
           this.debugLog("Triggering mindmap reroute after transform", {
             category: "selection/transform",
@@ -156,8 +157,7 @@ export class SelectionModule implements RendererModule {
     });
 
     if (typeof window !== "undefined") {
-      (window as any).marqueeSelectionController =
-        this.marqueeSelectionController;
+      window.marqueeSelectionController = this.marqueeSelectionController;
     }
 
     this.transformLifecycle = new TransformLifecycleCoordinator(
@@ -234,7 +234,7 @@ export class SelectionModule implements RendererModule {
     this.transformController = undefined;
     this.marqueeSelectionController = undefined;
     if (typeof window !== "undefined") {
-      delete (window as any).marqueeSelectionController;
+      delete window.marqueeSelectionController;
     }
   }
   private updateSelection(selectedIds: Set<string>) {
@@ -383,7 +383,7 @@ export class SelectionModule implements RendererModule {
             const descendants = renderer.getAllDescendants?.(id);
             if (descendants) {
               descendants.forEach((descendantId: string) => {
-                const descendantGroup = renderer.nodeGroups?.get(descendantId);
+                const descendantGroup = renderer.getNodeGroup?.(descendantId);
                 if (descendantGroup) {
                   this.mindmapDescendantInitialPositions.set(descendantId, {
                     x: descendantGroup.x(),
@@ -484,7 +484,7 @@ export class SelectionModule implements RendererModule {
               const descendants = renderer.getAllDescendants?.(node.id());
               if (descendants) {
                 descendants.forEach((descendantId: string) => {
-                  const descendantGroup = renderer.nodeGroups?.get(descendantId);
+                  const descendantGroup = renderer.getNodeGroup?.(descendantId);
                   if (descendantGroup) {
                     allNodesToUpdate.add(descendantGroup);
                   }
@@ -778,5 +778,11 @@ export class SelectionModule implements RendererModule {
       this.transformLifecycle?.detach();
       this.transformLifecycle?.setKeepRatio(false);
     }
+  }
+}
+
+declare global {
+  interface Window {
+    marqueeSelectionController?: MarqueeSelectionController;
   }
 }

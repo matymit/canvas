@@ -10,6 +10,7 @@ import { TableCellResolver } from "./table/TableCellResolver";
 import { TableEditorManager } from "./table/TableEditorManager";
 import { TableEventHandlers } from "./table/TableEventHandlers";
 import { TableRenderingEngine } from "./table/TableRenderingEngine";
+import type { TableStoreHook } from "./table/tableTypes";
 
 // Re-use existing RendererLayers interface from the codebase
 export interface RendererLayers {
@@ -135,7 +136,7 @@ export class TableRenderer {
   /**
    * Get store hook for accessing Zustand state
    */
-  private getStoreHook() {
+  private getStoreHook(): TableStoreHook | undefined {
     return this.storeCtx?.store;
   }
 
