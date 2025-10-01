@@ -32,141 +32,63 @@ Lines 801-902: Cleanup and utilities - 101 lines
 
 ## 🎯 Refactoring Strategy
 
-### Extract Four Custom Hooks
+### 🛡️ Safeguards & Constraints
+- Preserve the four-layer pipeline (background → main → preview → overlay) exactly as today, including `listening` flags and z-order.
+- Document stage/event/render contracts (refs, callback signatures, state selectors) and assert them during the shadow period.
+- Maintain requestAnimationFrame batching for renderer updates; reuse a shared scheduler so render throughput stays at 60fps.
+- Introduce feature flag to run legacy and refactored flows side-by-side, logging mismatched stage dimensions, events, or render queues.
+- On unmount, ensure every listener and RAF ticket is cancelled to align with Konva memory/performance guidance.
 
-1. **useCanvasStage** (`hooks/useCanvasStage.ts`) - ~220 lines
-2. **useCanvasEvents** (`hooks/useCanvasEvents.ts`) - ~220 lines
-3. **useCanvasRenderers** (`hooks/useCanvasRenderers.ts`) - ~220 lines
-4. **FigJamCanvas** (refactored) - ~150 lines
+### 🧭 Phased Plan
+1. **Phase 0 – Baseline snapshots**
+   - Capture DOM/stage metrics (dimensions, DPR, layer ordering) and Playwright runs for pan/zoom, selection, and multi-touch gestures.
+   - Export undo/redo traces tied to canvas events for regression comparison.
+2. **Phase 1 – `useCanvasStage` extraction**
+   - Move stage/layer initialization, resize handling, and viewport setup to dedicated hook; inject dependencies via config object.
+   - Unit-test resize listener management and DPR scaling.
+3. **Phase 2 – `useCanvasEvents` extraction**
+   - Consolidate pointer/keyboard handlers; accept stage refs + store actions explicitly.
+   - Add integration tests simulating pointer/touch/wheel events to ensure propagation order and shortcut scoping remain intact.
+4. **Phase 3 – `useCanvasRenderers` extraction**
+   - Relocate render scheduling, ensure batching + diff logic stays intact; verify Konva `batchDraw` cadence with instrumentation.
+   - Provide hooks for undo/redo convergence (render on history apply).
+5. **Phase 4 – Component composition & cleanup**
+   - Compose hooks inside a lean component; memoize heavy selectors (`useShallow`) to prevent re-render storms.
+   - Run in shadow mode comparing legacy outputs for at least one sprint before switching flag.
+6. **Phase 5 – Hardening & docs**
+   - Remove legacy path, finalize documentation, and add developer tooling (optional stage debug overlay) behind a dev flag.
 
----
+### 🧪 Validation Strategy
+- **Unit tests**: stage sizing + resize math, event handler scoping, render scheduler queue.
+- **Integration tests**: pan/zoom (mouse + trackpad), selection, drag, multi-touch gestures, keyboard shortcuts, undo/redo.
+- **Performance profiling**: confirm ≥60fps with heavy boards (1000 elements) and stable memory usage.
+- **Manual QA**: zoom extremes, rapid resize, window resize, switching tabs, stage recreation.
+- **Telemetry**: temporary logging for layer batchDraw counts and event throughput during rollout.
 
-## ✅ Executable Tasks
-
-```json
-{
-  "executable_tasks": [
-    {
-      "task_id": "figjam-1-extract-stage",
-      "description": "Extract stage setup to useCanvasStage hook",
-      "target_files": [{"path": "src/app/FigJamCanvas.tsx", "line_range": "51-200"}],
-      "code_changes": [
-        {
-          "operation": "create",
-          "file": "src/app/hooks/useCanvasStage.ts",
-          "content": "Extract stage hook:\n- initializeStage()\n- createLayers() [4 layers: background, main, preview, overlay]\n- setupViewport()\n- handleResize()\n- cleanupStage()\n- Return: { stageRef, containerRef, layers }"
-        }
-      ],
-      "validation_steps": ["npm run type-check", "npm test -- useCanvasStage.test.ts", "Verify stage initializes"],
-      "success_criteria": "Stage setup works identically, 4-layer pipeline preserved",
-      "dependencies": [],
-      "rollback_procedure": "git checkout src/app/FigJamCanvas.tsx && rm src/app/hooks/useCanvasStage.ts"
-    },
-    {
-      "task_id": "figjam-2-extract-events",
-      "description": "Extract event handlers to useCanvasEvents hook",
-      "target_files": [{"path": "src/app/FigJamCanvas.tsx", "line_range": "201-400"}],
-      "code_changes": [
-        {
-          "operation": "create",
-          "file": "src/app/hooks/useCanvasEvents.ts",
-          "content": "Extract events hook:\n- handleMouseDown()\n- handleMouseMove()\n- handleMouseUp()\n- handleWheel()\n- handleKeyDown()\n- handleKeyUp()\n- Return: { eventHandlers }"
-        }
-      ],
-      "validation_steps": ["npm run type-check", "npm test -- useCanvasEvents.test.ts", "Verify all interactions"],
-      "success_criteria": "All event handlers work identically, no handler loss",
-      "dependencies": [],
-      "rollback_procedure": "git checkout src/app/FigJamCanvas.tsx && rm src/app/hooks/useCanvasEvents.ts"
-    },
-    {
-      "task_id": "figjam-3-extract-renderers",
-      "description": "Extract rendering coordination to useCanvasRenderers hook",
-      "target_files": [{"path": "src/app/FigJamCanvas.tsx", "line_range": "401-600"}],
-      "code_changes": [
-        {
-          "operation": "create",
-          "file": "src/app/hooks/useCanvasRenderers.ts",
-          "content": "Extract renderers hook:\n- renderElements()\n- renderConnectors()\n- renderSelection()\n- renderGrid()\n- coordinateRendering() [RAF batching]\n- Return: { render, requestRender }"
-        }
-      ],
-      "validation_steps": ["npm run type-check", "npm test -- useCanvasRenderers.test.ts", "Verify rendering works"],
-      "success_criteria": "Rendering works identically, RAF batching preserved, 60fps maintained",
-      "dependencies": [],
-      "rollback_procedure": "git checkout src/app/FigJamCanvas.tsx && rm src/app/hooks/useCanvasRenderers.ts"
-    },
-    {
-      "task_id": "figjam-4-refactor-component",
-      "description": "Refactor FigJamCanvas to compose hooks",
-      "target_files": [{"path": "src/app/FigJamCanvas.tsx", "line_range": "1-902"}],
-      "code_changes": [
-        {
-          "operation": "replace",
-          "find_pattern": "All hook logic (lines 51-902)",
-          "replace_with": "Compose hooks:\n- const { stageRef, containerRef, layers } = useCanvasStage()\n- const { eventHandlers } = useCanvasEvents(stageRef)\n- const { render, requestRender } = useCanvasRenderers(layers)\n- Wire up hooks\n- Render JSX"
-        }
-      ],
-      "validation_steps": ["npm run type-check", "npm test -- FigJamCanvas.test.tsx", "npm run build"],
-      "success_criteria": "Component coordinates hooks, all features work, 60fps maintained",
-      "dependencies": ["figjam-1-extract-stage", "figjam-2-extract-events", "figjam-3-extract-renderers"],
-      "rollback_procedure": "git checkout src/app/FigJamCanvas.tsx && git checkout src/app/hooks/"
-    },
-    {
-      "task_id": "figjam-5-add-tests",
-      "description": "Create test suites for hooks",
-      "target_files": [
-        {"path": "src/app/hooks/__tests__/useCanvasStage.test.ts", "status": "create"},
-        {"path": "src/app/hooks/__tests__/useCanvasEvents.test.ts", "status": "create"},
-        {"path": "src/app/hooks/__tests__/useCanvasRenderers.test.ts", "status": "create"}
-      ],
-      "code_changes": [
-        {"operation": "create", "file": "src/app/hooks/__tests__/useCanvasStage.test.ts", "content": "Test stage setup"},
-        {"operation": "create", "file": "src/app/hooks/__tests__/useCanvasEvents.test.ts", "content": "Test event handlers"},
-        {"operation": "create", "file": "src/app/hooks/__tests__/useCanvasRenderers.test.ts", "content": "Test rendering"}
-      ],
-      "validation_steps": ["npm test", "Check coverage >80%"],
-      "success_criteria": "All tests pass, >80% coverage",
-      "dependencies": ["figjam-1-extract-stage", "figjam-2-extract-events", "figjam-3-extract-renderers"],
-      "rollback_procedure": "rm src/app/hooks/__tests__/*.test.ts"
-    },
-    {
-      "task_id": "figjam-6-performance-validation",
-      "description": "Validate canvas performance",
-      "target_files": [{"path": "src/app/FigJamCanvas.tsx", "validation": "performance"}],
-      "code_changes": [
-        {"operation": "validate", "metrics": ["60fps during all operations", "RAF batching active", "No memory leaks"]}
-      ],
-      "validation_steps": ["Performance profiling", "Test with 1000+ elements"],
-      "success_criteria": "60fps maintained, RAF batching works",
-      "dependencies": ["figjam-4-refactor-component"],
-      "rollback_procedure": "N/A"
-    }
-  ],
-  "execution_order": ["figjam-1-extract-stage", "figjam-2-extract-events", "figjam-3-extract-renderers", "figjam-4-refactor-component", "figjam-5-add-tests", "figjam-6-performance-validation"],
-  "critical_warnings": ["⚠️ Four-layer pipeline: background/main/preview/overlay must be preserved", "⚠️ RAF batching critical for 60fps", "⚠️ Event handler ordering important", "⚠️ Stage cleanup must happen correctly"]
-}
-```
-
----
+### ✅ Exit Criteria
+- Feature-flag shadow comparison shows no divergences across all captured scenarios.
+- Type, lint, Vitest, and Playwright suites pass with ≥80% coverage on new hooks.
+- Rendering profiler confirms one `batchDraw` per frame and no frame >16 ms under load.
+- Undo/redo traces match baseline.
 
 ## 📋 Validation Checklist
 
-- [ ] Stage initializes correctly
-- [ ] 4-layer pipeline preserved
-- [ ] All event handlers work
-- [ ] Rendering works (all element types)
-- [ ] 60fps maintained
-- [ ] RAF batching active
-- [ ] Pan/zoom works
-- [ ] Undo/redo works
-
----
+- [ ] Stage initializes with correct size, DPR, and layers
+- [ ] 4-layer pipeline preserved (ordering + listening flags)
+- [ ] Pointer, wheel, keyboard events fire with correct ordering and scoping
+- [ ] Pan/zoom gestures (mouse, trackpad, touch) behave identically
+- [ ] Rendering covers all element types + overlays
+- [ ] Undo/redo applies without visual drift
+- [ ] ≥60fps during heavy interactions (profiling evidence)
+- [ ] Memory steady after 30 minutes of canvas interaction
+- [ ] `npm run type-check`
+- [ ] `npm run lint`
+- [ ] Vitest suites (stage, events, renderers)
+- [ ] Playwright canvas scenarios
+- [ ] Documentation + debug tooling updated
 
 ## 🎯 Success Metrics
 
-**Before**: 902 lines, monolithic component  
-**After**: ~150 line component + 4 hooks (~660 total)  
-**Impact**: 83% component reduction, reusable hooks
-
----
-
-**Establishes pattern for main canvas component refactoring.**
+- Component trimmed to ~150 lines with reusable hooks managing stage, events, and render pipeline.
+- Render + event throughput equal to baseline; no regression in frame times or memory use.
+- Refactor establishes modular hook architecture for other canvas surfaces.

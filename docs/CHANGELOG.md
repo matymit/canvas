@@ -1,5 +1,11 @@
 # Changelog
 
+### Refactoring Plan Safeguard Refresh (October 1, 2025)
+- **Documentation Updated**: Rewrote the marquee selection, FigJam canvas, table module, mindmap renderer, and sticky note refactoring plans with phased milestones, risk mitigations, and validation gates.
+- **Safeguards Added**: Each plan now outlines rollback paths, undo/redo checkpoints, feature flag strategies, and cross-module QA checklists to prevent regressions during incremental rollouts.
+- **Validation Guidance**: Embedded smoke test matrices and instrumentation hooks to verify Konva frame pacing, Zustand history integrity, and connector redraw behavior before promoting to production.
+- **Files Modified**: `refactoring-plans/MARQUEE_SELECTION_TOOL_REFACTORING.md`, `refactoring-plans/FIGJAM_CANVAS_REFACTORING.md`, `refactoring-plans/TABLE_MODULE_REFACTORING.md`, `refactoring-plans/MINDMAP_RENDERER_REFACTORING.md`, `refactoring-plans/STICKY_NOTE_MODULE_REFACTORING.md`.
+
 ### Image Position Persistence Fix (September 30, 2025)
 - **Critical Bug Fixed**: Images jumping back to original position after drag → click canvas to deselect
   - Root cause: Image Groups were draggable but lacked `dragend` event handler to persist position changes to store
