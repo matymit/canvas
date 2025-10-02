@@ -6,6 +6,9 @@
 import imageCompression from 'browser-image-compression';
 import { get, set, del } from 'idb-keyval';
 import { markImageAsSaved, isImageSaved } from './imageSaveCache';
+import { debug, error } from './debug';
+
+const LOG_CATEGORY = 'storage/image';
 
 // Configuration for image compression
 const COMPRESSION_OPTIONS = {
@@ -22,10 +25,19 @@ const COMPRESSION_OPTIONS = {
 export async function compressImageFile(file: File): Promise<File> {
   try {
     const compressedFile = await imageCompression(file, COMPRESSION_OPTIONS);
-    console.log(`[ImageStorage] Compressed: ${(file.size / 1024).toFixed(2)}KB → ${(compressedFile.size / 1024).toFixed(2)}KB`);
+    debug('ImageStorage: file compressed', {
+      category: LOG_CATEGORY,
+      data: {
+        originalKB: (file.size / 1024).toFixed(2),
+        compressedKB: (compressedFile.size / 1024).toFixed(2),
+      },
+    });
     return compressedFile;
-  } catch (error) {
-    console.error('[ImageStorage] Compression failed, using original:', error);
+  } catch (caughtError) {
+    error('ImageStorage: compression failed, using original file', {
+      category: LOG_CATEGORY,
+      data: { error: caughtError },
+    });
     return file;
   }
 }
@@ -69,7 +81,13 @@ export async function compressBase64(
       const originalSize = (base64.length * 0.75) / 1024; // Approximate KB
       const compressedSize = (compressedBase64.length * 0.75) / 1024;
       
-      console.log(`[ImageStorage] Base64 compressed: ${originalSize.toFixed(2)}KB → ${compressedSize.toFixed(2)}KB`);
+      debug('ImageStorage: base64 compressed', {
+        category: LOG_CATEGORY,
+        data: {
+          originalKB: originalSize.toFixed(2),
+          compressedKB: compressedSize.toFixed(2),
+        },
+      });
       
       resolve(compressedBase64);
     };
@@ -92,7 +110,10 @@ export async function saveImageToIndexedDB(base64: string, key?: string): Promis
     
     // Check if already saved
     if (isImageSaved(idbKey)) {
-      console.log(`[ImageStorage] Already saved, skipping: ${idbKey}`);
+      debug('ImageStorage: already saved, skipping write', {
+        category: LOG_CATEGORY,
+        data: { idbKey },
+      });
       return idbKey;
     }
     
@@ -105,11 +126,17 @@ export async function saveImageToIndexedDB(base64: string, key?: string): Promis
     // Mark as saved to prevent duplicates
     markImageAsSaved(idbKey);
     
-    console.log(`[ImageStorage] Saved to IndexedDB: ${idbKey}`);
+    debug('ImageStorage: saved to IndexedDB', {
+      category: LOG_CATEGORY,
+      data: { idbKey },
+    });
     return idbKey;
-  } catch (error) {
-    console.error('[ImageStorage] Failed to save to IndexedDB:', error);
-    throw error;
+  } catch (caughtError) {
+    error('ImageStorage: failed to save to IndexedDB', {
+      category: LOG_CATEGORY,
+      data: { error: caughtError, key },
+    });
+    throw caughtError;
   }
 }
 
@@ -120,11 +147,17 @@ export async function loadImageFromIndexedDB(key: string): Promise<string | null
   try {
     const base64 = await get<string>(key);
     if (base64) {
-      console.log(`[ImageStorage] Loaded from IndexedDB: ${key}`);
+      debug('ImageStorage: loaded from IndexedDB', {
+        category: LOG_CATEGORY,
+        data: { idbKey: key },
+      });
     }
     return base64 || null;
-  } catch (error) {
-    console.error(`[ImageStorage] Failed to load from IndexedDB: ${key}`, error);
+  } catch (caughtError) {
+    error('ImageStorage: failed to load from IndexedDB', {
+      category: LOG_CATEGORY,
+      data: { idbKey: key, error: caughtError },
+    });
     return null;
   }
 }
@@ -135,9 +168,15 @@ export async function loadImageFromIndexedDB(key: string): Promise<string | null
 export async function deleteImageFromIndexedDB(key: string): Promise<void> {
   try {
     await del(key);
-    console.log(`[ImageStorage] Deleted from IndexedDB: ${key}`);
-  } catch (error) {
-    console.error(`[ImageStorage] Failed to delete from IndexedDB: ${key}`, error);
+    debug('ImageStorage: deleted from IndexedDB', {
+      category: LOG_CATEGORY,
+      data: { idbKey: key },
+    });
+  } catch (caughtError) {
+    error('ImageStorage: failed to delete from IndexedDB', {
+      category: LOG_CATEGORY,
+      data: { idbKey: key, error: caughtError },
+    });
   }
 }
 

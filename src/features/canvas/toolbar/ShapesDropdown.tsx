@@ -16,13 +16,15 @@ const items: Array<{ id: string; label: string; title: string }> = [
 const menuStyle: React.CSSProperties = {
   position: 'fixed',
   zIndex: 50,
-  minWidth: 160,
-  background: 'var(--panel, #111827)',
-  color: 'var(--text, #e5e7eb)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 8,
-  boxShadow: '0 6px 22px rgba(0,0,0,0.35)',
-  padding: 6,
+  minWidth: 180,
+  background: 'var(--bg-panel, rgba(255,255,255,0.98))',
+  color: 'var(--text-primary, #1f2544)',
+  border: '1px solid var(--border-subtle, rgba(82,88,126,0.16))',
+  borderRadius: 14,
+  boxShadow: '0 18px 36px rgba(24,25,32,0.18)',
+  padding: 8,
+  backdropFilter: 'blur(12px) saturate(1.05)',
+  WebkitBackdropFilter: 'blur(12px) saturate(1.05)',
 };
 
 const itemStyle: React.CSSProperties = {
@@ -30,9 +32,13 @@ const itemStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   width: '100%',
-  padding: '6px 8px',
-  borderRadius: 6,
+  padding: '8px 12px',
+  borderRadius: 10,
   cursor: 'pointer',
+  border: 'none',
+  background: 'transparent',
+  color: 'inherit',
+  transition: 'background 0.2s ease, color 0.2s ease, transform 0.2s ease',
 };
 
 const ShapesDropdown: React.FC<Props> = ({ open, anchorRect, onClose, onSelectShape }) => {
@@ -80,6 +86,22 @@ const ShapesDropdown: React.FC<Props> = ({ open, anchorRect, onClose, onSelectSh
           aria-label={it.title}
           style={itemStyle}
           onClick={() => onSelectShape(it.id)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(93, 90, 255, 0.12)';
+            e.currentTarget.style.transform = 'translateX(2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.transform = 'translateX(0)';
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.background = 'rgba(93, 90, 255, 0.12)';
+            e.currentTarget.style.transform = 'translateX(2px)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.transform = 'translateX(0)';
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') onSelectShape(it.id);
           }}

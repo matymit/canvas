@@ -14,6 +14,7 @@ import {
   measureMindmapLabel,
   DEFAULT_BRANCH_STYLE,
   MINDMAP_CONFIG,
+  MINDMAP_THEME,
 } from "../../types/mindmap";
 import { useUnifiedCanvasStore } from "../../stores/unifiedCanvasStore";
 
@@ -115,6 +116,9 @@ export function createMindmapOperations(): MindmapOperationsAPI {
     const childId = crypto?.randomUUID?.() ?? nanoid();
     const level = (parent.level ?? 0) + 1;
 
+    const paletteIndex = level % MINDMAP_THEME.nodeColors.length;
+    const branchPalette = MINDMAP_THEME.branchColors ?? [];
+
     const baseChild = createMindmapNode(
       position.x,
       position.y,
@@ -122,9 +126,6 @@ export function createMindmapOperations(): MindmapOperationsAPI {
       {
         parentId,
         level,
-        style: {
-          fill: "#E5E7EB", // Neutral gray for child nodes
-        },
       } as MindmapNodeOptions,
     );
 
@@ -148,11 +149,14 @@ export function createMindmapOperations(): MindmapOperationsAPI {
 
     // Create edge from parent to child
     const edgeId = crypto?.randomUUID?.() ?? nanoid();
+    const defaultBranchColor =
+      branchPalette.length > 0
+        ? branchPalette[paletteIndex % branchPalette.length]
+        : DEFAULT_BRANCH_STYLE.color;
     const edge: MindmapEdgeElement = {
       id: edgeId,
       ...createMindmapEdge(parentId, childId, {
-        ...DEFAULT_BRANCH_STYLE,
-        color: "#6B7280",
+        color: defaultBranchColor,
       }),
     };
 

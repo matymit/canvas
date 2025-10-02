@@ -2,17 +2,19 @@
 
 ## 🎯 Executive Summary
 
-> **Architectural Compliance Note:** While this project is designed to follow the principles in this document (vanilla Konva, four-layer pipeline, store-driven rendering), the current implementation has significant architectural violations as documented in the `technical-audit-report.md`. These include direct canvas manipulation bypassing the state store and viewport race conditions. Active work is underway to refactor the code and bring it into full compliance.
+> **Architectural Compliance Update (2025-10-02):** The historical findings in the [technical audit report](../../archive/old-docs/technical-audit-report.md) have been addressed through Workstreams 1–9 (see [Canvas Hardening Plan](../canvas-hardening-plan.md)). The canvas now routes mutations through the unified store, honors the four-layer rendering contract, and ships with scoped Tauri capabilities. Remaining refinements are captured in `refactoring-plans/` and tracked as follow-up initiatives.
 
 A FigJam-style collaborative canvas application built with **React 19**, **TypeScript**, **vanilla Konva.js** (not react-konva), **Zustand**, and **Tauri 2.x** for secure desktop runtime. The system is designed with a strict four-layer Konva pipeline, RAF-batched updates, and performance-oriented architecture.
 
 ### Current Status vs Goals
 
-**✅ Implemented**: Core architecture, basic drawing tools, shape creation, text editing, table functionality
-**🚧 In Progress**: Tool integration, advanced features, performance optimization
-**⏳ Planned**: Production deployment, advanced collaboration features
+**✅ Release-Qualified**: Four-layer pipeline, selection/marquee integrations, marquee drag reroute, store-driven rendering, security automation, Tauri AppImage/DEB/RPM bundles
 
-> **Note**: This is an active development project. Many architectural features are designed but may be in various stages of implementation.
+**⚠️ Known Gaps**: Connector live reroute polish, TextTool re-edit UX, regression harness `test.fixme` items, bundle identifier rename for macOS notarization
+
+**🛠️ Next Initiatives**: Accessibility (WCAG 2.1 AA), collaboration and presence features, contextual inspector UI, advanced performance instrumentation
+
+> **Note**: Architecture remains under active evolution; see `docs/hardening/final-production-sweep.md` for release readiness evidence and `docs/security/` for ongoing monitoring.
 
 ## 🏗️ Architecture Overview
 

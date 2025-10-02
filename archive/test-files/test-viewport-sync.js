@@ -71,7 +71,10 @@ const puppeteer = require("puppeteer");
         (state) => state.viewport,
         (viewport) => {
           updateCount++;
-          console.log(`Subscription update #${updateCount}:`, viewport);
+          console.log("Subscription update", {
+            updateCount,
+            viewport,
+          });
 
           if (updateCount === 1) {
             lastViewport = viewport;

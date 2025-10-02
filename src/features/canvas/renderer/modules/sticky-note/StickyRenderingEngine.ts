@@ -133,13 +133,15 @@ export class StickyRenderingEngine {
       y: 0,
       width: sticky.width,
       height: sticky.height,
-      fill: sticky.fill || "#FEF08A",
-      cornerRadius: 8,
-      shadowColor: "#000000",
-      shadowBlur: 8,
-      shadowOpacity: 0.2,
+      fill: sticky.fill || "#FFD262",
+      cornerRadius: 12,
+      stroke: "rgba(31, 37, 68, 0.12)",
+      strokeWidth: 1,
+      shadowColor: "rgba(31, 37, 68, 0.32)",
+      shadowBlur: 18,
+      shadowOpacity: 0.18,
       shadowOffsetX: 0,
-      shadowOffsetY: 2,
+      shadowOffsetY: 6,
     });
 
     // Text
@@ -155,7 +157,7 @@ export class StickyRenderingEngine {
       fontFamily: textConfig.fontFamily,
       fontWeight: textConfig.fontWeight,
       lineHeight: textConfig.lineHeight,
-      fill: "#374151",
+      fill: "#1F2544",
       wrap: "word",
       verticalAlign: "top",
     });
@@ -187,7 +189,8 @@ export class StickyRenderingEngine {
       rect.setAttrs({
         width: sticky.width,
         height: sticky.height,
-        fill: sticky.fill || "#FEF08A",
+        fill: sticky.fill || "#FFD262",
+        stroke: "rgba(31, 37, 68, 0.12)",
       });
     }
 

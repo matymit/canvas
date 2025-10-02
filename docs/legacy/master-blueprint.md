@@ -1,5 +1,7 @@
 # LibreOllama Canvas System: Comprehensive Technical Blueprint & Master Reference
 
+> **Legacy Notice (2025-10-02):** This document is retained for historical reference only. The active documentation hub lives under `docs/`, with archived planning notes collected in `docs/legacy/`. Start there for up-to-date guidance before consulting this blueprint.
+
 ## Executive Summary & Architectural Foundation
 
 This comprehensive technical blueprint combines proven architectural principles with battle-tested implementation strategies for building high-performance desktop applications using the Konva.js 2D canvas library within the Tauri framework. The document serves as a master reference for creating modular, type-safe, and performant graphical applications that leverage the best of both web technologies and native performance.

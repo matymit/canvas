@@ -37,11 +37,19 @@ export function createRendererLayers(
   } = opts;
 
   const background = new Konva.Layer({ listening: listeningBackground });
+  background.name('background-layer');
+
   const main = new Konva.Layer({ listening: listeningMain });
+  main.name('main-layer');
+
   const highlighter = new Konva.Group({ listening: false });
+  highlighter.name('main-highlighter');
   main.add(highlighter);
   const preview = new Konva.Layer({ listening: listeningPreview });
+  preview.name('preview-layer');
+
   const overlay = new Konva.Layer({ listening: listeningOverlay });
+  overlay.name('overlay-layer');
 
   stage.add(background);
   stage.add(main);

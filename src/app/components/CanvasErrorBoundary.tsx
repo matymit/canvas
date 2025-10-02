@@ -1,4 +1,5 @@
 import React from "react";
+import { error } from "../../utils/debug";
 
 type Props = { children: React.ReactNode };
 type State = { hasError: boolean; message?: string };
@@ -6,13 +7,19 @@ type State = { hasError: boolean; message?: string };
 export default class CanvasErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
 
-  static getDerivedStateFromError(error: unknown): State {
-    return { hasError: true, message: (error as Error)?.message };
+  static getDerivedStateFromError(caughtError: unknown): State {
+    return { hasError: true, message: (caughtError as Error)?.message };
   }
 
-  componentDidCatch(error: unknown, errorInfo: unknown) {
-    // eslint-disable-next-line no-console
-    console.error("[CanvasErrorBoundary] Crash captured", error, errorInfo);
+  componentDidCatch(caughtError: unknown, errorInfo: unknown) {
+    error("CanvasErrorBoundary: crash captured", {
+      category: "app/error-boundary",
+      data: {
+        error: caughtError,
+        errorInfo,
+      },
+      force: true,
+    });
   }
 
   render() {

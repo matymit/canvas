@@ -8,11 +8,24 @@
 const fs = require('fs');
 const path = require('path');
 
+const SAFE_PACKAGE_PATTERN = /^[a-zA-Z0-9@/_-]+$/;
+
+function assertSafePackageName(name) {
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error('Forbidden package list contains an invalid entry');
+  }
+  if (!SAFE_PACKAGE_PATTERN.test(name) || name.includes('..') || name.includes(path.sep)) {
+    throw new Error(`Unsafe package name detected in forbidden list: ${name}`);
+  }
+}
+
 const FORBIDDEN_PACKAGES = [
   'react-konva',
   '@konva/react',
   'react-canvas-konva'
 ];
+
+FORBIDDEN_PACKAGES.forEach(assertSafePackageName);
 
 const REASON = `
 ❌ FORBIDDEN PACKAGE DETECTED!
@@ -40,7 +53,7 @@ function checkPackageJson() {
       ...packageJson.optionalDependencies
     };
     
-    const foundForbidden = FORBIDDEN_PACKAGES.filter(pkg => allDeps[pkg]);
+  const foundForbidden = FORBIDDEN_PACKAGES.filter(pkg => allDeps && Object.prototype.hasOwnProperty.call(allDeps, pkg));
     
     if (foundForbidden.length > 0) {
       console.error(REASON);
@@ -62,8 +75,15 @@ function checkNodeModules() {
     return; // No node_modules yet, that's fine
   }
   
+  const nodeModulesRoot = path.resolve(nodeModulesPath);
+
   const foundForbidden = FORBIDDEN_PACKAGES.filter(pkg => {
-    return fs.existsSync(path.join(nodeModulesPath, pkg));
+    const resolvedPath = path.resolve(nodeModulesRoot, pkg);
+    if (!resolvedPath.startsWith(nodeModulesRoot + path.sep) && resolvedPath !== nodeModulesRoot) {
+      console.warn(`Skipping suspicious forbidden package path: ${resolvedPath}`);
+      return false;
+    }
+    return fs.existsSync(resolvedPath);
   });
   
   if (foundForbidden.length > 0) {

@@ -4,7 +4,10 @@
 
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import { debug, error, warn } from "../../../../../../utils/debug";
 import type { CanvasElement } from "../../../../../../../types";
+
+const LOG_CATEGORY = "selection/shape-text";
 
 export interface ShapeTextSynchronizer {
   syncTextDuringTransform(nodes: Konva.Node[]): void;
@@ -54,15 +57,18 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
       return;
     }
 
-    console.log("[ShapeTextSynchronizer] Syncing shape text during transform", {
-      nodeCount: nodes.length
+    debug("ShapeTextSynchronizer: syncing shape text during transform", {
+      category: LOG_CATEGORY,
+      data: { nodeCount: nodes.length },
     });
 
     const store = useUnifiedCanvasStore.getState();
     const elements = store.elements;
 
     if (!elements) {
-      console.warn("[ShapeTextSynchronizer] No elements available for text sync");
+      warn("ShapeTextSynchronizer: no elements available for text sync", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
@@ -86,7 +92,10 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
 
         const textElement = element;
 
-        console.log(`[ShapeTextSynchronizer] Syncing text for element ${index}: ${elementId}`);
+        debug("ShapeTextSynchronizer: syncing text for element", {
+          category: LOG_CATEGORY,
+          data: { index, elementId, elementType: textElement.type },
+        });
 
         // Get current node properties for text positioning
         const position = node.position();
@@ -124,12 +133,18 @@ export class ShapeTextSynchronizerImpl implements ShapeTextSynchronizer {
             break;
         }
 
-      } catch (error) {
-        console.error(`[ShapeTextSynchronizer] Error syncing text for node ${index}:`, error);
+      } catch (caughtError) {
+        error("ShapeTextSynchronizer: error syncing text for node", {
+          category: LOG_CATEGORY,
+          data: { nodeIndex: index, error: caughtError },
+        });
       }
     });
 
-    console.log("[ShapeTextSynchronizer] Shape text synchronization completed");
+    debug("ShapeTextSynchronizer: synchronization completed", {
+      category: LOG_CATEGORY,
+      data: { processedNodes: nodes.length },
+    });
   }
 
   private hasTextContent(element: CanvasElement): element is TextBearingElement {

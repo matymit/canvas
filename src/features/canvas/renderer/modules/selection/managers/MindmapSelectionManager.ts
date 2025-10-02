@@ -4,12 +4,15 @@
 
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import { debug, warn } from "../../../../../../utils/debug";
 import type {
   MindmapEdgeElement,
   MindmapNodeElement,
 } from "../../../../types/mindmap";
 import type { CanvasElement } from "../../../../../../../types";
 import type { MindmapRenderer } from "../../MindmapRenderer";
+
+const LOG_CATEGORY = "selection/mindmap";
 
 export interface MindmapRendererLike {
   rerouteNodes?: (nodeIds: string[]) => void;
@@ -59,9 +62,12 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
       return;
     }
 
-    console.log("[MindmapSelectionManager] Scheduling mindmap reroute", {
-      nodeCount: nodeIds.size,
-      nodeIds: Array.from(nodeIds).slice(0, 5) // Show first 5 to avoid spam
+    debug("MindmapSelectionManager: scheduling mindmap reroute", {
+      category: LOG_CATEGORY,
+      data: {
+        nodeCount: nodeIds.size,
+        sampleNodeIds: Array.from(nodeIds).slice(0, 5),
+      },
     });
 
     this.rerouteScheduled = true;
@@ -82,12 +88,15 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
     const elements = store.elements;
     
     if (!elements) {
-      console.warn("[MindmapSelectionManager] No elements available for mindmap reroute");
+      warn("MindmapSelectionManager: no elements available for mindmap reroute", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
-    console.log("[MindmapSelectionManager] Performing mindmap reroute", {
-      nodeCount: nodeIds.size
+    debug("MindmapSelectionManager: performing mindmap reroute", {
+      category: LOG_CATEGORY,
+      data: { nodeCount: nodeIds.size },
     });
 
     const mindmapNodesToUpdate = new Set<string>();
@@ -103,7 +112,10 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
       }
     });
 
-    console.log(`[MindmapSelectionManager] Found ${mindmapNodesToUpdate.size} mindmap nodes to reroute`);
+    debug("MindmapSelectionManager: nodes to reroute identified", {
+      category: LOG_CATEGORY,
+      data: { nodeCount: mindmapNodesToUpdate.size },
+    });
 
     // Perform rerouting using mindmap renderer
     const renderer = this.getRenderer();
@@ -181,9 +193,12 @@ export class MindmapSelectionManagerImpl implements MindmapSelectionManager {
 
   // Extracted from SelectionModule.ts lines 1708-1722
   setLiveRoutingEnabled(enabled: boolean): void {
-    console.log("[MindmapSelectionManager] Setting mindmap live routing enabled:", {
-      prev: this.liveRoutingEnabled,
-      next: enabled
+    debug("MindmapSelectionManager: setting live routing enabled", {
+      category: LOG_CATEGORY,
+      data: {
+        previous: this.liveRoutingEnabled,
+        next: enabled,
+      },
     });
     this.liveRoutingEnabled = enabled;
   }

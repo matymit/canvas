@@ -110,32 +110,29 @@ export class MindmapNodeRenderer {
       nodeData?.color ??
       MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
 
+    const paletteIndex = level % MINDMAP_THEME.nodeColors.length;
+    const borderPalette = MINDMAP_THEME.nodeBorderColors ?? [];
+    const themeBorder = borderPalette[paletteIndex] ?? DEFAULT_NODE_STYLE.stroke;
+    const textConfig = getTextConfig(
+      level === 0 ? "MINDMAP_ROOT" : "MINDMAP_CHILD",
+    );
+
     const style = this.mergeNodeStyle(
       (mindmapElement.style as MindmapNodeStyle | undefined) ?? nodeData?.style,
     );
     const hydratedStyle: MindmapNodeStyle = {
       ...style,
       fill: style.fill ?? color,
-      textColor: style.textColor ?? DEFAULT_NODE_STYLE.textColor,
+      textColor: style.textColor ?? MINDMAP_THEME.textColor,
       fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
-      // Apply consistent text styling for mindmap nodes
-      fontSize:
-        style.fontSize ??
-        (() => {
-          const textConfig = getTextConfig(
-            level === 0 ? "MINDMAP_ROOT" : "MINDMAP_CHILD",
-          );
-          return textConfig.fontSize;
-        })(),
-      cornerRadius: style.cornerRadius ?? DEFAULT_NODE_STYLE.cornerRadius,
-      stroke:
-        style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
-      strokeWidth:
-        style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
-      shadowColor: style.shadowColor ?? DEFAULT_NODE_STYLE.shadowColor,
-      shadowBlur: style.shadowBlur ?? DEFAULT_NODE_STYLE.shadowBlur,
-      shadowOffsetX: style.shadowOffsetX ?? DEFAULT_NODE_STYLE.shadowOffsetX,
-      shadowOffsetY: style.shadowOffsetY ?? DEFAULT_NODE_STYLE.shadowOffsetY,
+      fontSize: style.fontSize ?? textConfig.fontSize,
+      cornerRadius: style.cornerRadius ?? MINDMAP_THEME.nodeRadius,
+      stroke: style.stroke ?? themeBorder,
+      strokeWidth: style.strokeWidth ?? (level === 0 ? 2 : 1.5),
+      shadowColor: style.shadowColor ?? MINDMAP_THEME.shadow.color,
+      shadowBlur: style.shadowBlur ?? MINDMAP_THEME.shadow.blur,
+      shadowOffsetX: style.shadowOffsetX ?? MINDMAP_THEME.shadow.offsetX,
+      shadowOffsetY: style.shadowOffsetY ?? MINDMAP_THEME.shadow.offsetY,
     };
     return {
       id: raw.id,

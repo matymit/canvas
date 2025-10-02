@@ -44,6 +44,9 @@ import {
   measureMindmapLabel,
 } from "@/features/canvas/types/mindmap";
 
+const ROOT_FONT_SIZE = 18;
+const CHILD_FONT_SIZE = 15;
+
 type Id = string;
 
 interface MindmapElements {
@@ -76,21 +79,22 @@ function toMindmapNode(element: CanvasElement): MindmapNodeElement | null {
   const style = mergeNodeStyle(
     (nodeStyle && 'fill' in nodeStyle) ? nodeStyle as MindmapNodeStyle : undefined,
   );
+  const paletteIndex = level % MINDMAP_THEME.nodeColors.length;
+  const borderPalette = MINDMAP_THEME.nodeBorderColors ?? [];
+  const themeBorder = borderPalette[paletteIndex] ?? DEFAULT_NODE_STYLE.stroke;
   const hydratedStyle: MindmapNodeStyle = {
     ...style,
     fill: style.fill ?? color,
-    textColor: style.textColor ?? DEFAULT_NODE_STYLE.textColor,
+    textColor: style.textColor ?? MINDMAP_THEME.textColor,
     fontStyle: style.fontStyle ?? (level === 0 ? "bold" : "normal"),
-    fontSize: style.fontSize ?? (level === 0 ? 16 : 14),
+  fontSize: style.fontSize ?? (level === 0 ? ROOT_FONT_SIZE : CHILD_FONT_SIZE),
     cornerRadius: style.cornerRadius ?? MINDMAP_THEME.nodeRadius,
-    stroke:
-      style.stroke ?? (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
-    strokeWidth:
-      style.strokeWidth ?? (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
-    shadowColor: style.shadowColor ?? DEFAULT_NODE_STYLE.shadowColor,
-    shadowBlur: style.shadowBlur ?? DEFAULT_NODE_STYLE.shadowBlur,
-    shadowOffsetX: style.shadowOffsetX ?? DEFAULT_NODE_STYLE.shadowOffsetX,
-    shadowOffsetY: style.shadowOffsetY ?? DEFAULT_NODE_STYLE.shadowOffsetY,
+    stroke: style.stroke ?? themeBorder,
+    strokeWidth: style.strokeWidth ?? (level === 0 ? 2 : 1.5),
+    shadowColor: style.shadowColor ?? MINDMAP_THEME.shadow.color,
+    shadowBlur: style.shadowBlur ?? MINDMAP_THEME.shadow.blur,
+    shadowOffsetX: style.shadowOffsetX ?? MINDMAP_THEME.shadow.offsetX,
+    shadowOffsetY: style.shadowOffsetY ?? MINDMAP_THEME.shadow.offsetY,
   };
 
   // CRITICAL: Check if we already have stored textWidth/textHeight from editor

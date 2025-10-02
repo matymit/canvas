@@ -1,6 +1,8 @@
 # Canvas Testing Overview
 
-This document summarizes our layered testing strategy, current coverage, tooling harnesses, and how to run everything locally and in CI. It also lists next steps and troubleshooting notes.
+_Last updated: 2025-10-02_
+
+This document summarizes our layered testing strategy, current coverage, tooling harnesses, and how to run everything locally and in CI. It also lists next steps and troubleshooting notes. For a task-focused walkthrough, see [MVP Testing Quickstart](./mvp-test-guide.md).
 
 ## Goals
 
@@ -101,6 +103,16 @@ Notes:
 
 Result: Full SmartGuides suite passing (26/26).
 
+6) Canvas stage events hook
+- Background clicks clear selection through `StoreActions.clearSelection` guard
+- Node clicks respect current tool (Select) and toggle/set selection based on Ctrl/Meta modifiers
+- Ensures Konva event wiring stays aligned with store Map-based selections
+
+7) Canvas tool manager hook
+- Cursor styles swap based on tool selection (pan → grab, drawing tools → crosshair)
+- Text tool activates ToolManager entry without detaching; other tools detach current active canvas tool
+- Guards ToolManager integration so cursor UX and activation wiring stay consistent
+
 ### Renderer
 
 - ShapeTextRenderer (unit)
@@ -109,17 +121,24 @@ Result: Full SmartGuides suite passing (26/26).
     - Update in place; remove on empty text
     - Wrap non-group roots into Group and move node under it
     - Ensure batchDraw on Main layer
+- Layer helper utilities (unit)
+  - Exercises `ensureOverlayOnTop` against real Konva layers to confirm overlay ordering and stage redraw behavior.
+  - Verifies `setLayersPixelRatio` updates each layer's canvas DPR hook so HiDPI adjustments remain stable.
 
 Note: We can later remove the vi.mock and run against real Konva (browser build) under jsdom as the harness stabilizes.
 
-### Integration (skeletons; skipped for now)
+### Integration
 
-- Tool flows: preview → commit → auto-select → tool auto-switch back to Select
-- Shape text overlay: auto-open centered, caret behavior, fixed inner box (circles 70 % inscribed square) with manual resize + locked circle aspect
-- Renderer registry subscriptions: mount, reconcile, batchDraw policies
-- Transformer lifecycle: transformstart begins batch; transformend normalizes geometry (scales→1), ends batch
-- Drag with snapping: grid-first, SmartGuides alignment, overlay guides
-- Persistence via IPC: Maps/Sets rehydration, order preserved, UI sanity
+- Renderer registry (active): mounts all renderer modules, verifies Konva layer wiring, reconciles store-driven updates, ensures disposer detaches subscriptions, and asserts Konva selectors return nullish values post-cleanup.
+- CanvasRenderer selection lifecycle (active): instantiates the high-level renderer, attaches real nodes to the transformer via `setSelection`, and confirms detach/hide behavior when selections clear or resolve to empty.
+- Transformer controller lifecycle (active): verifies transformstart/transform/transformend callbacks fire and overlay redraws while the controller manages attach/detach state.
+- FigJam canvas stage lifecycle (active): renders the full FigJamCanvas component, checks stage/layer creation, overlay transform defaults, and ensures teardown removes Konva globals plus DOM overlay.
+- Upcoming additions:
+  - Tool flows: preview → commit → auto-select → tool auto-switch back to Select
+  - Shape text overlay: auto-open centered, caret behavior, fixed inner box (circles 70 % inscribed square) with manual resize + locked circle aspect
+  - Transformer lifecycle: transformstart begins batch; transformend normalizes geometry (scales→1), ends batch
+  - Drag with snapping: grid-first, SmartGuides alignment, overlay guides
+  - Persistence via IPC: Maps/Sets rehydration, order preserved, UI sanity
 
 ### Playwright visual baselines
 
@@ -146,17 +165,22 @@ To create/update named snapshots:
 ## How to run
 
 Quick start (current)
-- Unit (with coverage):
-  - npm run test:ci
-- Unit (all, verbose for a file):
-  - npm run test -- src/features/canvas/__tests__/unit/state-slices.test.ts --reporter=verbose
-- Visual baselines (create snapshots once):
-  - npx playwright test --update-snapshots src/features/canvas/__tests__/e2e/post-transform-and-guides.test.ts
-  - npx playwright test --update-snapshots src/features/canvas/__tests__/e2e/desktop-parity.test.ts
-- Visual baselines (run all after snapshots exist):
-  - npm run test:e2e
-- Desktop E2E (requires tauri-driver hub and msedgedriver on PATH):
-  - npm run test:desktop
+- MVP unit sweep (jsdom + Konva):
+  - `npm run test:mvp`
+- MVP integration sweep (Konva layers + hooks):
+  - `npm run test:mvp:integration`
+- Combined MVP gate (unit + integration):
+  - `npm run test:mvp:all`
+- Full Vitest run with coverage reporter:
+  - `npm run test:ci`
+- Target a specific suite (verbose):
+  - `npm test -- src/features/canvas/__tests__/unit/state-slices.test.ts --reporter=verbose`
+- Visual baselines (create/update Playwright snapshots):
+  - `npm run test:e2e:update -- src/features/canvas/__tests__/e2e/post-transform-and-guides.test.ts`
+- Visual baselines (run after snapshots exist):
+  - `npm run test:e2e`
+- Desktop smoke (requires tauri-driver hub + msedgedriver):
+  - `npm run test:desktop`
 
 ### Unit (Vitest)
 
@@ -196,34 +220,19 @@ Quick start (current)
 
 ## Status snapshot
 
-Current status (as of 2025-09-17)
+Current status (2025-10-02)
 - Harness
-  - Vitest (jsdom + vitest-canvas-mock) set up and stable
-  - Konva real browser build validated in unit tests (ShapeTextRenderer) under jsdom
+  - Vitest (jsdom + vitest-canvas-mock) runs against the Konva browser build with no custom layer mocks.
 - Unit tests
-  - Majority green; latest local run: 24 files, 277 tests total, 5 failing tests
-  - Failing tests (pending minor test harness adjustments):
-    - persistence-history.test.ts (4)
-      - History System: should track element updates with history (undo revert assertions too strict for lightweight harness)
-      - History System: should track element deletion with history (undo restore assertion)
-      - History System: should track z-order changes with history (order assertions)
-      - Element Operations with History: should duplicate elements with history tracking (undo size assertion)
-    - state-slices.test.ts (1)
-      - Element CRUD Operations: should delete element from Map and order (Immer proxy read in assertion; needs fresh state read)
+  - `npm run test:mvp` ✅ — 104 tests covering geometry helpers, history flows, viewport math, keyboard shortcuts, canvas stage events (selection + RAF batching instrumentation), canvas tool manager behavior, and architecture compliance.
 - Integration tests
-  - renderer-registry.test.ts temporarily skipped to avoid cross-file Konva mock/unmock interference while real-Konva tests are enabled elsewhere
+  - `npm run test:mvp:integration` ✅ — four suites covering renderer registry, CanvasRenderer selection lifecycle, transformer controller events, and FigJam canvas stage lifecycle.
+- Combined gate
+  - `npm run test:mvp:all` ✅ — sequential unit + integration sweep (~3.4s locally, ~3.7s on GitHub-hosted runners) used as the primary CI signal.
 - Visual baselines (Playwright)
-  - New scenes added: post-transform-geometry.png, guides-during-drag.png
-  - Snapshots need to be created once with the update flag (see How to run)
+  - Baseline suites remain opt-in; snapshots must be regenerated before re-enabling them in CI. Commands documented in [How to run](#how-to-run).
 - Desktop E2E (tauri-driver)
-  - Smoke script present; msedgedriver pinning recommended; not executed in this pass
-
-- Harness: Vitest (jsdom + vitest-canvas-mock) ✅
-- Unit suites: computeShapeInnerBox, openShapeTextEditor, history-batching, geometry-helpers (incl. keepAspectRatio), SmartGuides math ✅
-- Renderer: ShapeTextRenderer with in-test Konva vi.mock; also validated against real Konva browser build under jsdom ✅
-- Integration skeletons: added (skipped) ✅
-- Playwright baselines: canonical, post-transform geometry, and guides-during-drag scenes added ✅
-- Desktop E2E: tauri-driver smoke script added ✅
+  - Smoke script available (`npm run test:desktop`); still manual due to OS/driver prerequisites. No CI wiring yet.
 
 ---
 
@@ -240,15 +249,9 @@ Current status (as of 2025-09-17)
 
 ## Known issues / troubleshooting (current)
 
-- Unit tests
-  - Some persistence-history tests assume full-field revert semantics on undo; the lightweight history harness records ops but may not reflect exact geometry reversion in tests. Prefer asserting presence and op navigation (canUndo/canRedo) or relax field-level expectations.
-  - One state-slices deletion test reads stale Immer draft. Always re-read store via useUnifiedCanvasStore.getState() after mutations before asserting.
-- Integration
-  - renderer-registry.test.ts is skipped while ShapeTextRenderer runs with real Konva to avoid global mock/unmock bleed. Either isolate modules or revert to mock in that file.
-- Playwright
-  - If snapshots don’t exist, the first run will write actuals and fail; re-run with --update-snapshots to establish baselines.
-- Konva selector
-  - Container.findOne returns undefined on no match in 9.x; use nullish/falsy assertions (node == null, toBeFalsy, toBeUndefined).
+- Playwright baselines: the first run fails if snapshots are missing; seed them with `npm run test:e2e:update` before relying on pass/fail status.
+- Konva selectors: `findOne()` returns `undefined` when no node matches. Use nullish/falsy assertions (`expect(node).toBeFalsy()`) in Vitest.
+- Desktop smoke: `npm run test:desktop` requires `tauri-driver` running and EdgeDriver version alignment on Windows; keep these prerequisites handy when testing persistence flows.
 
 ## Troubleshooting
 

@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import Konva from "konva";
 import KonvaNodePool, {
   PoolFactory,
 } from "../../../features/canvas/utils/KonvaNodePool";
+import {
+  createRendererLayers,
+  ensureOverlayOnTop,
+  setLayersPixelRatio,
+} from "../../../features/canvas/renderer/layers";
 
 describe("NodeFactory Pooling", () => {
   let pool: KonvaNodePool;
@@ -130,6 +136,85 @@ describe("Text Layout and Measurement", () => {
 
     expect(alignments.center).toBe(50);
     expect(alignments.right).toBe(100);
+  });
+});
+
+describe("Layer helpers", () => {
+  it("should move overlay layer to top and batch draw stage", () => {
+    const container = document.createElement("div");
+    container.style.width = "600px";
+    container.style.height = "400px";
+    document.body.appendChild(container);
+
+    const stage = new Konva.Stage({
+      container,
+      width: 600,
+      height: 400,
+    });
+
+    const layers = createRendererLayers(stage, {
+      listeningPreview: false,
+      listeningMain: true,
+      listeningOverlay: true,
+    });
+
+  const moveSpy = vi.spyOn(layers.overlay, "moveToTop");
+  const stageSpy = vi.spyOn(stage, "batchDraw");
+
+    // Move another layer to top first to ensure helper reorders properly
+    layers.main.moveToTop();
+    expect(stage.getChildren()[stage.getChildren().length - 1]).toBe(layers.main);
+
+  const beforeCalls = stageSpy.mock.calls.length;
+  ensureOverlayOnTop(layers);
+
+    expect(moveSpy).toHaveBeenCalledTimes(1);
+  expect(stageSpy.mock.calls.length).toBeGreaterThan(beforeCalls);
+    expect(stage.getChildren()[stage.getChildren().length - 1]).toBe(
+      layers.overlay,
+    );
+
+    stage.destroy();
+    container.remove();
+  });
+
+  it("should update canvas pixel ratio for each layer", () => {
+    const container = document.createElement("div");
+    container.style.width = "300px";
+    container.style.height = "200px";
+    document.body.appendChild(container);
+
+    const stage = new Konva.Stage({
+      container,
+      width: 300,
+      height: 200,
+    });
+
+    const layers = createRendererLayers(stage, {
+      listeningPreview: false,
+      listeningMain: true,
+      listeningOverlay: true,
+    });
+
+    const backgroundCanvas = layers.background.getCanvas();
+    const mainCanvas = layers.main.getCanvas();
+    const previewCanvas = layers.preview.getCanvas();
+    const overlayCanvas = layers.overlay.getCanvas();
+
+    const backgroundSpy = vi.spyOn(backgroundCanvas, "setPixelRatio");
+    const mainSpy = vi.spyOn(mainCanvas, "setPixelRatio");
+    const previewSpy = vi.spyOn(previewCanvas, "setPixelRatio");
+    const overlaySpy = vi.spyOn(overlayCanvas, "setPixelRatio");
+
+    setLayersPixelRatio(layers, 2);
+
+    expect(backgroundSpy).toHaveBeenCalledWith(2);
+    expect(mainSpy).toHaveBeenCalledWith(2);
+    expect(previewSpy).toHaveBeenCalledWith(2);
+    expect(overlaySpy).toHaveBeenCalledWith(2);
+
+    stage.destroy();
+    container.remove();
   });
 });
 

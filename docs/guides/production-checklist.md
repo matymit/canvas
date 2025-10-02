@@ -52,7 +52,7 @@ npm run lighthouse:prod
 ## 🏗️ Tauri Configuration
 
 ### Bundle Settings (`tauri.conf.json` / `Cargo.toml`)
-- [ ] Set unique reverse-DNS identifier: `com.canvas.app`
+- [ ] Set unique reverse-DNS identifier: `app.canvas.desktop`
 - [ ] Configure product name, version, and description
 - [ ] Define target platforms (Windows: NSIS/MSI, macOS: app/dmg, Linux: deb/rpm/appimage)
 - [ ] Set appropriate icons for all platforms
@@ -75,7 +75,7 @@ npm run lighthouse:prod
     "csp": "default-src 'self'; connect-src 'self' https://api.canvas.app; script-src 'self'; style-src 'self' 'unsafe-inline';"
   },
   "bundle": {
-    "identifier": "com.canvas.app",
+  "identifier": "app.canvas.desktop",
     "targets": ["nsis", "msi", "app", "dmg", "deb", "rpm", "appimage"]
   }
 }

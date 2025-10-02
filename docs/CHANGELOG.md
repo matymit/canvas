@@ -1,5 +1,12 @@
 # Changelog
 
+### Final Production Sweep (October 2, 2025)
+- **Release readiness**: Ran `npm run build` and `npm run tauri:build:production`, producing clean Vite bundles and Linux desktop packages (AppImage/DEB/RPM).
+- **Icon remediation**: Added an explicit Tauri icon manifest, including a new `512x512.png`, to unblock AppImage packaging.
+- **Identifier cleanup**: Renamed the Tauri bundle identifier to `app.canvas.desktop`, removing the `.app` suffix warning ahead of macOS signing.
+- **Documentation refresh**: Updated the root `README.md`, hardening plan, and release report (`docs/hardening/final-production-sweep.md`) to summarize Workstream 8 security posture and Workstream 9 validation.
+- **Outstanding warning**: Tauri CLI still flags the missing `__TAURI_BUNDLE_TYPE` marker; tracked as follow-up with no runtime impact.
+
 ### Marquee Drag Live Sync (October 1, 2025)
 - **Critical UX Fix**: Marquee-dragged connectors and mindmap branches now move in real time instead of lagging until pointer-up.
   - Root cause: drag logic only captured parent node positions and deferred connector reroutes to drag completion, so Konva nodes for connectors and descendant mindmap nodes never received live deltas.

@@ -7,6 +7,9 @@ import type { ModuleRendererCtx } from "../../../types";
 import type { TransformController } from "./TransformController";
 import type { ConnectorElement } from "../../../../types/connector";
 import { connectorSelectionManager } from "../managers";
+import { debug } from "../../../../../../utils/debug";
+
+const LOG_CATEGORY = "selection/connector-transform";
 
 export class ConnectorTransformFinalizer {
   constructor(
@@ -23,25 +26,25 @@ export class ConnectorTransformFinalizer {
     const connectorNodes = this.detectConnectorNodes();
 
     if (connectorNodes.length > 0) {
-      console.log(
-        "[ConnectorTransformFinalizer] Found directly selected connectors for commit:",
-        {
+      debug("ConnectorTransformFinalizer: connectors selected for commit", {
+        category: LOG_CATEGORY,
+        data: {
           connectorCount: connectorNodes.length,
           standardNodes: nodes.length,
         },
-      );
+      });
 
       const connectorIds = this.filterMovableConnectors(connectorNodes);
 
       if (connectorIds.size > 0) {
         const delta = this.computeConnectorDelta();
-        console.log(
-          "[ConnectorTransformFinalizer] Moving directly selected connectors:",
-          {
+        debug("ConnectorTransformFinalizer: moving directly selected connectors", {
+          category: LOG_CATEGORY,
+          data: {
             connectorIds: Array.from(connectorIds),
             delta,
           },
-        );
+        });
 
         this.moveConnectors(connectorIds, delta);
       }
@@ -112,10 +115,10 @@ export class ConnectorTransformFinalizer {
       ) {
         connectorIds.add(elementId);
       } else {
-        console.log(
-          "[ConnectorTransformFinalizer] Skipping anchored connector during transform commit",
-          { elementId },
-        );
+        debug("ConnectorTransformFinalizer: skipping anchored connector during commit", {
+          category: LOG_CATEGORY,
+          data: { elementId },
+        });
       }
     });
 

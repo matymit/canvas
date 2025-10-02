@@ -30,27 +30,32 @@ export interface UnifiedColorPickerProps {
 
 // Default FigJam-like sticky note palette
 export const DEFAULT_PALETTE: string[] = [
-  '#FDE68A', // Yellow
-  '#FCA5A5', // Red
-  '#86EFAC', // Green
-  '#93C5FD', // Blue
-  '#C4B5FD', // Purple
-  '#FBCFE8', // Pink
-  '#FCD34D', // Amber
-  '#FDBA74', // Orange
-  '#A7F3D0', // Teal
-  '#BAE6FD', // Sky
-  '#DDD6FE', // Violet
-  '#F5D0FE', // Fuchsia
+  '#FFD262', // Sun yellow
+  '#FF9B71', // Tangerine
+  '#FF6AD5', // Berry pink
+  '#CBA9FF', // Lavender
+  '#8FA7FF', // Cornflower
+  '#66C6FF', // Sky blue
+  '#66E0B8', // Mint
+  '#A7F3D0', // Pastel teal
+  '#FFEAD7', // Peach haze
+  '#F8F0FF', // Soft lilac
+  '#5D5AFF', // Indigo accent
+  '#2F2A4A', // Deep slate
+  '#FFFFFF', // White
+  '#1F2937', // Charcoal (high contrast)
 ];
 
 // FigJam-style horizontal palette tailored for sticky note toolbar
 export const FIGMA_HORIZONTAL_PALETTE: string[] = [
-  '#FEF08A', // Bright Yellow
-  '#FCA5A5', // Light Red
-  '#DDA0DD', // Plum
-  '#C4B5FD', // Light Purple
-  '#93C5FD', // Light Blue
+  '#FFD262', // Sun yellow
+  '#FF9B71', // Tangerine
+  '#FF6AD5', // Berry pink
+  '#8B7CF7', // Iris
+  '#5D5AFF', // Indigo
+  '#66C6FF', // Sky blue
+  '#66E0B8', // Mint
+  '#1F2544', // Deep slate
 ];
 
 // Additional extended palette

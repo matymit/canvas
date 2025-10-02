@@ -1,7 +1,7 @@
 // features/canvas/__tests__/unit/simple-persistence.test.ts
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
+import { useUnifiedCanvasStore } from '../../features/canvas/stores/unifiedCanvasStore';
 
 describe('Simple Persistence Test', () => {
   beforeEach(() => {
@@ -16,7 +16,6 @@ describe('Simple Persistence Test', () => {
   it('should access store methods', () => {
     const store = useUnifiedCanvasStore.getState();
 
-    // Check what methods are available
     console.log('Store keys:', Object.keys(store));
     console.log('Has element:', 'element' in store);
     console.log('Has addElement:', 'addElement' in store);
@@ -35,7 +34,7 @@ describe('Simple Persistence Test', () => {
     if (typeof store.addElement === 'function') {
       store.addElement({
         id: 'test-1',
-        type: 'rect',
+  type: 'rectangle',
         x: 100,
         y: 100,
         width: 200,
@@ -48,7 +47,7 @@ describe('Simple Persistence Test', () => {
     } else if (store.element && typeof store.element.upsert === 'function') {
       const id = store.element.upsert({
         id: 'test-1',
-        type: 'rect',
+  type: 'rectangle',
         x: 100,
         y: 100,
         width: 200,

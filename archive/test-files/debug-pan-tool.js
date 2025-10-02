@@ -97,7 +97,7 @@ function debugPanTool() {
     panToolButton.getAttribute("aria-pressed") === "true" ||
     panToolButton.hasAttribute("data-active");
 
-  console.log(`📍 Pan tool is ${isActive ? "active" : "inactive"}`);
+  console.log("📍 Pan tool status", isActive ? "active" : "inactive");
 
   // Try to activate pan tool
   if (!isActive) {
@@ -127,7 +127,7 @@ function debugPanTool() {
 
     if (canvasContainer) {
       const cursor = window.getComputedStyle(canvasContainer).cursor;
-      console.log(`🎯 Canvas container cursor: ${cursor}`);
+  console.log("🎯 Canvas container cursor", cursor);
 
       if (cursor === "grab" || cursor === "grabbing") {
         console.log("✅ Cursor correctly set for pan tool");
@@ -146,7 +146,9 @@ function debugPanTool() {
   debugEvents.forEach((eventName) => {
     const handler = (e) => {
       interactionCount++;
-      console.log(`🖱️  ${eventName} #${interactionCount}:`, {
+      console.log("🖱️  Pointer event", {
+        eventName,
+        interactionCount,
         x: e.clientX,
         y: e.clientY,
         target: e.target.tagName,
@@ -156,7 +158,7 @@ function debugPanTool() {
     };
 
     document.addEventListener(eventName, handler, true);
-    console.log(`🔍 Added debug listener for ${eventName}`);
+  console.log("🔍 Added debug listener", eventName);
   });
 
   // Monitor console errors
@@ -261,7 +263,7 @@ function simulatePan() {
   events.forEach((event, index) => {
     setTimeout(() => {
       canvas.dispatchEvent(event);
-      console.log(`🎭 Dispatched ${event.type} event`);
+  console.log("🎭 Dispatched event", event.type);
     }, index * 100);
   });
 }

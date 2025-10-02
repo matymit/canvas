@@ -3,6 +3,17 @@
 
 import type { CanvasElement } from "../../../../types";
 
+const ROOT_FONT_SIZE = 18;
+const CHILD_FONT_SIZE = 15;
+const BASE_TEXT_COLOR = "#0F172A";
+const DEFAULT_PADDING_X = 18;
+const DEFAULT_PADDING_Y = 14;
+const DEFAULT_CORNER_RADIUS = 18;
+const DEFAULT_SHADOW_COLOR = "rgba(15, 23, 42, 0.14)";
+const DEFAULT_SHADOW_BLUR = 24;
+const DEFAULT_SHADOW_OFFSET_X = 0;
+const DEFAULT_SHADOW_OFFSET_Y = 8;
+
 export type ElementId = string;
 
 export interface MindmapNodeStyle {
@@ -54,27 +65,27 @@ export type MindmapEdgeElement = CanvasElement & {
 
 // Default styles for consistent mindmap appearance
 export const DEFAULT_NODE_STYLE: MindmapNodeStyle = {
-  fill: "#E5E7EB",
-  stroke: "#9CA3AF",
-  strokeWidth: 1,
-  cornerRadius: 14,
+  fill: "#EEF2FF",
+  stroke: "#4F46E5",
+  strokeWidth: 1.5,
+  cornerRadius: DEFAULT_CORNER_RADIUS,
   fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 16,
+  fontSize: ROOT_FONT_SIZE,
   fontStyle: "bold",
-  textColor: "#111827",
-  paddingX: 14,
-  paddingY: 10,
-  shadowColor: "rgba(17, 24, 39, 0.08)",
-  shadowBlur: 8,
-  shadowOffsetX: 0,
-  shadowOffsetY: 2,
+  textColor: BASE_TEXT_COLOR,
+  paddingX: DEFAULT_PADDING_X,
+  paddingY: DEFAULT_PADDING_Y,
+  shadowColor: DEFAULT_SHADOW_COLOR,
+  shadowBlur: DEFAULT_SHADOW_BLUR,
+  shadowOffsetX: DEFAULT_SHADOW_OFFSET_X,
+  shadowOffsetY: DEFAULT_SHADOW_OFFSET_Y,
 };
 
 export const DEFAULT_BRANCH_STYLE: BranchStyle = {
-  color: "#6B7280",
-  widthStart: 5,
-  widthEnd: 2,
-  curvature: 0.35,
+  color: "#4338CA",
+  widthStart: 6,
+  widthEnd: 2.4,
+  curvature: 0.42,
 };
 
 // Configuration constants
@@ -87,14 +98,21 @@ export const MINDMAP_CONFIG = {
   childOffsetY: 56,
   defaultText: "Topic",
   childText: "Idea",
-  lineHeight: 1.25,
+  lineHeight: 1.35,
 } as const;
 
 export const MINDMAP_THEME = {
-  nodeColors: ["#E5E7EB", "#DBEAFE", "#DCFCE7", "#FEF3C7", "#FDE2E7"],
-  branchColors: ["#6B7280", "#3B82F6", "#10B981", "#F59E0B", "#EF4444"],
-  textColor: "#111827",
-  nodeRadius: 14,
+  nodeColors: ["#EEF2FF", "#E0F2FE", "#ECFDF5", "#FEF3C7", "#FCE7F3"],
+  nodeBorderColors: ["#4F46E5", "#0284C7", "#059669", "#D97706", "#DB2777"],
+  branchColors: ["#4338CA", "#0369A1", "#047857", "#B45309", "#BE185D"],
+  textColor: BASE_TEXT_COLOR,
+  nodeRadius: DEFAULT_CORNER_RADIUS,
+  shadow: {
+    color: DEFAULT_SHADOW_COLOR,
+    blur: DEFAULT_SHADOW_BLUR,
+    offsetX: DEFAULT_SHADOW_OFFSET_X,
+    offsetY: DEFAULT_SHADOW_OFFSET_Y,
+  },
 } as const;
 
 export interface MindmapNodeOptions {
@@ -120,20 +138,28 @@ export function createMindmapNode(
 
   const themeColor =
     color ?? MINDMAP_THEME.nodeColors[level % MINDMAP_THEME.nodeColors.length];
+  const paletteIndex = level % MINDMAP_THEME.nodeColors.length;
+  const borderPalette = MINDMAP_THEME.nodeBorderColors ?? [];
+  const themeBorder = borderPalette[paletteIndex] ?? DEFAULT_NODE_STYLE.stroke;
+
   const style: MindmapNodeStyle = {
     ...DEFAULT_NODE_STYLE,
     ...styleOverrides,
     fill: styleOverrides?.fill ?? themeColor,
-    textColor: styleOverrides?.textColor ?? DEFAULT_NODE_STYLE.textColor,
+    textColor: styleOverrides?.textColor ?? MINDMAP_THEME.textColor,
     fontStyle: styleOverrides?.fontStyle ?? (level === 0 ? "bold" : "normal"),
-    fontSize: styleOverrides?.fontSize ?? (level === 0 ? 16 : 14),
-    stroke:
-      styleOverrides?.stroke ??
-      (level === 0 ? "#374151" : DEFAULT_NODE_STYLE.stroke),
+    fontSize:
+      styleOverrides?.fontSize ?? (level === 0 ? ROOT_FONT_SIZE : CHILD_FONT_SIZE),
+    stroke: styleOverrides?.stroke ?? themeBorder,
     strokeWidth:
-      styleOverrides?.strokeWidth ??
-      (level === 0 ? 2 : DEFAULT_NODE_STYLE.strokeWidth),
+      styleOverrides?.strokeWidth ?? (level === 0 ? 2 : 1.5),
     cornerRadius: styleOverrides?.cornerRadius ?? MINDMAP_THEME.nodeRadius,
+    shadowColor: styleOverrides?.shadowColor ?? MINDMAP_THEME.shadow.color,
+    shadowBlur: styleOverrides?.shadowBlur ?? MINDMAP_THEME.shadow.blur,
+    shadowOffsetX:
+      styleOverrides?.shadowOffsetX ?? MINDMAP_THEME.shadow.offsetX,
+    shadowOffsetY:
+      styleOverrides?.shadowOffsetY ?? MINDMAP_THEME.shadow.offsetY,
   };
 
   return {

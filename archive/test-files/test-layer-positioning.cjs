@@ -23,7 +23,8 @@ const puppeteer = require("puppeteer");
       const layers = stage.getChildren();
       console.log("All layers:");
       layers.forEach((layer, index) => {
-        console.log(`Layer ${index}:`, {
+        console.log("Layer detail", {
+          index,
           className: layer.getClassName ? layer.getClassName() : "unknown",
           name: layer.name(),
           position: layer.position(),
@@ -44,7 +45,8 @@ const puppeteer = require("puppeteer");
         const layersAfter = stage.getChildren();
         console.log("Layer positions immediately after:");
         layersAfter.forEach((layer, index) => {
-          console.log(`Layer ${index}:`, {
+          console.log("Layer detail", {
+            index,
             className: layer.getClassName ? layer.getClassName() : "unknown",
             position: layer.position(),
           });
@@ -58,7 +60,8 @@ const puppeteer = require("puppeteer");
           const layersFinal = stage.getChildren();
           console.log("Layer positions after React effect:");
           layersFinal.forEach((layer, index) => {
-            console.log(`Layer ${index}:`, {
+            console.log("Layer detail", {
+              index,
               className: layer.getClassName ? layer.getClassName() : "unknown",
               position: layer.position(),
             });

@@ -66,8 +66,8 @@ describe("Renderer Registry - mounts modules and reconciles nodes", () => {
     // Delete the element, node should be removed
     store.element.delete("t1");
     await nextTick();
-    const n2 = layers.main.findOne(`#t1`);
-    expect(n2).toBeNull();
+  const n2 = layers.main.findOne(`#t1`);
+  expect(n2).toBeFalsy();
 
     // Dispose registry; further store changes should not render new nodes
     dispose();
@@ -77,6 +77,6 @@ describe("Renderer Registry - mounts modules and reconciles nodes", () => {
     await nextTick();
 
     const n3 = layers.main.findOne(`#t2`);
-    expect(n3).toBeNull();
+    expect(n3).toBeFalsy();
   });
 });

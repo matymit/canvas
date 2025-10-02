@@ -14,10 +14,10 @@ export interface GridOptions {
 }
 
 const DEFAULTS: Required<Omit<GridOptions, 'dpr'>> = {
-  spacing: 20,
-  dotRadius: 0.75,
-  color: '#E5E5E5',
-  opacity: 1,
+  spacing: 22,
+  dotRadius: 0.65,
+  color: '#D0D3F0',
+  opacity: 0.85,
   cacheLayer: true,
   recacheOnZoom: true,
   hugeRectSize: 100000,

@@ -3,6 +3,7 @@
 
 import type React from "react";
 import Konva from "konva";
+import { debug } from "../../../../../../utils/debug";
 import type { MarqueeState } from "./useMarqueeState";
 import type { CanvasElement } from "../../../../../../../types";
 
@@ -44,7 +45,9 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     _stage: Konva.Stage,
     pos: { x: number; y: number },
   ) => {
-    console.log("[MarqueeSelection] starting marquee selection");
+    debug("MarqueeSelection: starting marquee selection", {
+      category: "marquee/selection",
+    });
 
     // Clear any persistent selection from previous operations
     const hadSelection = marqueeRef.current.persistentSelection.length > 0;
@@ -55,9 +58,9 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
       const selectionModule =
         typeof window !== "undefined" ? window.selectionModule : undefined;
       if (selectionModule?.clearSelection) {
-        console.log(
-          "[MarqueeSelection] Clearing selection via SelectionModule",
-        );
+        debug("MarqueeSelection: clearing selection via SelectionModule", {
+          category: "marquee/selection",
+        });
         selectionModule.clearSelection();
       }
     }
@@ -155,9 +158,12 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
 
     // Only perform selection if the marquee has meaningful size
     if (selectionBounds.width > 5 && selectionBounds.height > 5) {
-      console.log("[MarqueeSelection] performing selection in bounds", {
-        bounds: selectionBounds,
-        area: selectionBounds.width * selectionBounds.height,
+      debug("MarqueeSelection: performing selection in bounds", {
+        category: "marquee/selection",
+        data: {
+          bounds: selectionBounds,
+          area: selectionBounds.width * selectionBounds.height,
+        },
       });
 
       const selectedIds = selectElementsInBounds(selectionBounds);
@@ -174,7 +180,9 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
 
       return selectedIds;
     } else {
-      console.log("[MarqueeSelection] marquee too small, not selecting");
+      debug("MarqueeSelection: marquee too small, not selecting", {
+        category: "marquee/selection",
+      });
       return null;
     }
   };
@@ -186,20 +194,26 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     const stage = stageRef.current;
     if (!stage) return [];
 
-    console.log("[MarqueeSelection] selectElementsInBounds", bounds);
+    debug("MarqueeSelection: selectElementsInBounds", {
+      category: "marquee/selection",
+      data: bounds,
+    });
 
     // Use the modular SelectionModule approach
     const selectionModule =
       typeof window !== "undefined" ? window.selectionModule : undefined;
     if (selectionModule?.selectElementsInBounds) {
-      console.log(
-        "[MarqueeSelection] using SelectionModule for marquee selection",
-      );
+      debug("MarqueeSelection: using SelectionModule for marquee selection", {
+        category: "marquee/selection",
+      });
       const selectedIds = selectionModule.selectElementsInBounds(stage, bounds);
-      console.log("[MarqueeSelection] SelectionModule returned", {
-        selectedIds,
-        length: selectedIds.length,
-        elementIds: selectedIds.slice(0, 5),
+      debug("MarqueeSelection: SelectionModule returned", {
+        category: "marquee/selection",
+        data: {
+          selectedIds,
+          length: selectedIds.length,
+          elementIds: selectedIds.slice(0, 5),
+        },
       });
 
       if (selectedIds.length > 0) {
@@ -218,10 +232,13 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
         marqueeRef.current.selectedNodes = nodes;
         marqueeRef.current.basePositions = basePositions;
 
-        console.log("[MarqueeSelection] prepared for drag", {
-          totalSelected: selectedIds.length,
-          nodeCount: nodes.length,
-          basePositions: Array.from(basePositions.entries()),
+        debug("MarqueeSelection: prepared for drag", {
+          category: "marquee/selection",
+          data: {
+            totalSelected: selectedIds.length,
+            nodeCount: nodes.length,
+            basePositions: Array.from(basePositions.entries()),
+          },
         });
 
         return selectedIds;
@@ -230,7 +247,9 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     }
 
     // Fallback to direct implementation
-    console.log("[MarqueeSelection] using fallback implementation");
+    debug("MarqueeSelection: using fallback implementation", {
+      category: "marquee/selection",
+    });
     return fallbackSelectElementsInBounds(stage, bounds);
   };
 
@@ -250,10 +269,10 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
       return Boolean(elementId) && elements.has(elementId);
     });
 
-    console.log(
-      "[MarqueeSelection] candidateNodes found:",
-      candidateNodes.length,
-    );
+    debug("MarqueeSelection: candidate nodes found", {
+      category: "marquee/selection",
+      data: { count: candidateNodes.length },
+    });
 
     for (const node of candidateNodes) {
       const elementId = node.getAttr("elementId") || node.id();
@@ -278,7 +297,10 @@ export const useMarqueeSelection = (options: MarqueeSelectionOptions) => {
     }
 
     const selectedIds = Array.from(selectedIdSet);
-    console.log("[MarqueeSelection] selected elements:", selectedIds);
+    debug("MarqueeSelection: selected elements", {
+      category: "marquee/selection",
+      data: selectedIds,
+    });
 
     if (selectedIds.length > 0) {
       setTimeout(() => {

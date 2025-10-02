@@ -6,6 +6,7 @@ import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { setupRenderer } from "../../../renderer";
 import GridRenderer from "../../GridRenderer";
 import { RafBatcher } from "../../../utils/performance/RafBatcher";
+import type { RafBatcherFlushStats } from "../../../utils/performance/RafBatcher";
 import ToolManager from "../../../managers/ToolManager";
 import { debug } from "../../../../../utils/debug";
 import { TextCanvasTool } from "../../tools/content/TextTool";
@@ -69,6 +70,63 @@ export const useCanvasStageLifecycle = (): StageLifecycleResult => {
   const toolManagerRef = useRef<ToolManager | null>(null);
   const gridRendererRef = useRef<GridRenderer | null>(null);
   const rafBatcherRef = useRef(new RafBatcher());
+
+  useEffect(() => {
+    if (!isDev) {
+      return;
+    }
+
+    const batcher = rafBatcherRef.current;
+    if (!batcher) {
+      return;
+    }
+
+    type InstrumentedWindow = typeof window & {
+      canvasRafBatcherStats?: {
+        cycles: number;
+        totals: RafBatcherFlushStats;
+        last: RafBatcherFlushStats;
+      };
+    };
+
+    const totals: RafBatcherFlushStats = {
+      readCount: 0,
+      writeCount: 0,
+      drawCount: 0,
+    };
+
+    let cycles = 0;
+
+    const updateStats = (stats: RafBatcherFlushStats) => {
+      totals.readCount += stats.readCount;
+      totals.writeCount += stats.writeCount;
+      totals.drawCount += stats.drawCount;
+
+      cycles += 1;
+      const instrumentedWindow = window as InstrumentedWindow;
+
+      instrumentedWindow.canvasRafBatcherStats = {
+        cycles,
+        totals: { ...totals },
+        last: { ...stats },
+      };
+    };
+
+    batcher.setOnFlush(updateStats);
+
+    const instrumentedWindow = window as InstrumentedWindow;
+    instrumentedWindow.canvasRafBatcherStats = {
+      cycles: 0,
+      totals: { ...totals },
+      last: { ...totals },
+    };
+
+    return () => {
+      batcher.setOnFlush(undefined);
+      const instrumentedWindow = window as InstrumentedWindow;
+      delete instrumentedWindow.canvasRafBatcherStats;
+    };
+  }, []);
 
   const updateOverlayTransform = useCallback(() => {
     const overlay = overlayRef.current;

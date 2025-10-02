@@ -79,7 +79,8 @@ function diagnosePanIssues() {
       const layers = stage.getChildren();
       console.log("   Layers count:", layers.length);
       layers.forEach((layer, index) => {
-        console.log(`   Layer ${index}:`, {
+        console.log("   Layer detail", {
+          index,
           name: layer.name(),
           visible: layer.visible(),
           position: { x: layer.x(), y: layer.y() },
@@ -220,7 +221,9 @@ function setupEventMonitoring() {
   events.forEach((eventName) => {
     const handler = (e) => {
       eventCount++;
-      console.log(`🖱️  ${eventName.toUpperCase()} #${eventCount}:`, {
+      console.log("🖱️  Pointer event", {
+        eventName: eventName.toUpperCase(),
+        eventCount,
         x: e.clientX,
         y: e.clientY,
         target: e.target.tagName,
@@ -250,9 +253,10 @@ function checkForErrors() {
   if (errorElements.length > 0) {
     console.log("   Found error/warning elements:", errorElements.length);
     errorElements.forEach((el, index) => {
-      console.log(`   Error element ${index + 1}:`, {
+      console.log("   Error element", {
+        index: index + 1,
         text: el.textContent,
-        class: el.className,
+        className: el.className,
         visible: el.offsetParent !== null,
       });
     });
@@ -286,7 +290,7 @@ function checkCurrentState() {
     // Check layers
     const layers = stage.getChildren();
     layers.forEach((layer, index) => {
-      console.log(`Layer ${index} position:`, { x: layer.x(), y: layer.y() });
+  console.log("Layer position", { index, x: layer.x(), y: layer.y() });
     });
   }
 
@@ -332,9 +336,11 @@ function simulatePanInteraction() {
   events.forEach((event, index) => {
     setTimeout(() => {
       canvas.dispatchEvent(event);
-      console.log(
-        `🎭 Dispatched ${event.type} at (${event.clientX}, ${event.clientY})`,
-      );
+      console.log("🎭 Dispatched event", {
+        type: event.type,
+        x: event.clientX,
+        y: event.clientY,
+      });
     }, index * 200);
   });
 }

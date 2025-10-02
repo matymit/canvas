@@ -37,7 +37,7 @@ const FigJamCanvas: React.FC = () => {
     updateOverlayTransform,
     viewportRefs,
   });
-  useCanvasEvents({ stageRef, gridRendererRef });
+  useCanvasEvents({ stageRef, gridRendererRef, rafBatcherRef });
   const selectedTool =
     useUnifiedCanvasStore((state) => state.ui?.selectedTool) ?? "select";
   const { activeToolNode } = useCanvasTools({

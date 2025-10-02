@@ -4,8 +4,11 @@
 
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import { debug, error, warn } from "../../../../../../utils/debug";
 import type { CanvasElement } from "../../../../../../../types/index";
 import type { ConnectorElement, ConnectorEndpoint } from "../../../../types/connector";
+
+const LOG_CATEGORY = "selection/transform";
 
 type ConnectorLike = CanvasElement &
   Pick<ConnectorElement, "from" | "to">;
@@ -67,7 +70,9 @@ export class TransformStateManagerImpl implements TransformStateManager {
   // Extracted from SelectionModule.ts lines 485-508
   beginTransform(nodes: Konva.Node[], _source: "drag" | "transform"): void {
     if (this.transformInProgress) {
-      console.warn("[TransformStateManager] Transform already in progress");
+      warn("TransformStateManager: transform already in progress", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
@@ -80,7 +85,9 @@ export class TransformStateManagerImpl implements TransformStateManager {
     // Capture initial state
     this.currentSnapshot = this.captureSnapshot(nodes);
     if (!this.currentSnapshot) {
-      console.error("[TransformStateManager] Failed to capture snapshot");
+      error("TransformStateManager: failed to capture snapshot", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
@@ -110,7 +117,9 @@ export class TransformStateManagerImpl implements TransformStateManager {
   // Extracted from SelectionModule.ts lines 530-574
   endTransform(_nodes: Konva.Node[], _source: "drag" | "transform"): void {
     if (!this.transformInProgress) {
-      console.warn("[TransformStateManager] No transform in progress");
+      warn("TransformStateManager: no transform in progress", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
@@ -130,9 +139,14 @@ export class TransformStateManagerImpl implements TransformStateManager {
 
       // Transform completed - state managed locally
 
-      console.log("[TransformStateManager] Transform completed successfully");
-    } catch (error) {
-      console.error("[TransformStateManager] Error ending transform:", error);
+      debug("TransformStateManager: transform completed successfully", {
+        category: LOG_CATEGORY,
+      });
+    } catch (caughtError) {
+      error("TransformStateManager: error ending transform", {
+        category: LOG_CATEGORY,
+        data: { error: caughtError },
+      });
       // Reset state on error
       this.transformInProgress = false;
       this.currentSnapshot = null;
@@ -194,7 +208,9 @@ export class TransformStateManagerImpl implements TransformStateManager {
     const elements = store.elements;
     
     if (!elements || !initialNodes || initialNodes.length === 0) {
-      console.warn("[TransformStateManager] Cannot capture snapshot - missing data");
+      warn("TransformStateManager: cannot capture snapshot - missing data", {
+        category: LOG_CATEGORY,
+      });
       return null;
     }
 
@@ -239,13 +255,18 @@ export class TransformStateManagerImpl implements TransformStateManager {
   // Extracted from SelectionModule.ts lines 1467-1483
   finalizeTransform(): void {
     if (!this.currentSnapshot) {
-      console.warn("[TransformStateManager] No snapshot to finalize");
+      warn("TransformStateManager: no snapshot to finalize", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
-    console.log("[TransformStateManager] Finalizing transform", {
-      duration: Date.now() - this.currentSnapshot.transformStartTime,
-      nodeCount: this.currentSnapshot.initialNodes.length
+    debug("TransformStateManager: finalizing transform", {
+      category: LOG_CATEGORY,
+      data: {
+        duration: Date.now() - this.currentSnapshot.transformStartTime,
+        nodeCount: this.currentSnapshot.initialNodes.length,
+      },
     });
 
     // The actual finalization logic would be handled by the calling SelectionModule

@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useLayoutEffect,
 } from "react";
+import { createPortal } from "react-dom";
 import Konva from "konva";
 import type { CanvasElement, ElementId } from "../../../../types";
 import { useUnifiedCanvasStore } from "../stores/unifiedCanvasStore";
@@ -288,14 +289,30 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     (toolId: string) => {
       handleToolSelect(toolId);
       setShapesOpen(false);
+      setConnectorsOpen(false);
+      setStickyNoteColorsOpen(false);
     },
     [handleToolSelect],
   );
 
   const handleStickyClick = useCallback(() => {
     handleToolSelect("sticky-note");
-    setStickyNoteColorsOpen(true);
+    setShapesOpen(false);
+    setConnectorsOpen(false);
+    setStickyNoteColorsOpen((prev) => !prev);
   }, [handleToolSelect]);
+
+  const toggleShapesDropdown = useCallback(() => {
+    setStickyNoteColorsOpen(false);
+    setConnectorsOpen(false);
+    setShapesOpen((prev) => !prev);
+  }, []);
+
+  const toggleConnectorDropdown = useCallback(() => {
+    setStickyNoteColorsOpen(false);
+    setShapesOpen(false);
+    setConnectorsOpen((prev) => !prev);
+  }, []);
 
   const applyStickyColorToSelection = useCallback((color: string) => {
     const state = useUnifiedCanvasStore.getState();
@@ -415,16 +432,37 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
     </button>
   );
 
-  const itemBtnStyle: React.CSSProperties = {
-    display: "block",
+  const connectorMenuStyle: React.CSSProperties = {
+    position: "absolute" as const,
+    bottom: "48px",
+    left: 0,
+    minWidth: 180,
+    background: "var(--bg-panel, rgba(255,255,255,0.98))",
+    color: "var(--text-primary, #1f2544)",
+    border: "1px solid var(--border-subtle, rgba(82,88,126,0.16))",
+    borderRadius: 14,
+    padding: 8,
+    boxShadow: "0 18px 36px rgba(24,25,32,0.18)",
+    backdropFilter: "blur(12px) saturate(1.05)",
+    WebkitBackdropFilter: "blur(12px) saturate(1.05)",
+    zIndex: 60,
+  };
+
+  const connectorItemStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
     width: "100%",
-    textAlign: "left",
-    padding: "6px 8px",
+    padding: "10px 12px",
+    borderRadius: 10,
     border: "none",
     background: "transparent",
-    color: "#e5e7eb",
-    borderRadius: 6,
+    color: "inherit",
+    fontSize: 14,
+    fontWeight: 500,
     cursor: "pointer",
+    transition: "background 0.2s ease, color 0.2s ease, transform 0.2s ease",
+    outline: "none",
   };
 
   return (
@@ -477,7 +515,7 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
           aria-haspopup="menu"
           aria-label="Shapes"
           title="Shapes"
-          onClick={() => setShapesOpen((v) => !v)}
+          onClick={toggleShapesDropdown}
         >
           {getIcon("shapes")}
         </button>
@@ -495,44 +533,66 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
             aria-haspopup="menu"
             aria-label="Connector"
             title="Connector"
-            onClick={() => setConnectorsOpen((v) => !v)}
+            onClick={toggleConnectorDropdown}
           >
             {getIcon("mindmap")}
           </button>
           {connectorsOpen && (
             <div
               role="menu"
-              style={{
-                position: "absolute" as const,
-                bottom: "48px",
-                left: 0,
-                background: "#111827",
-                color: "#e5e7eb",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 8,
-                padding: 6,
-                boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
-              }}
+              style={connectorMenuStyle}
             >
               <button
                 type="button"
-                style={itemBtnStyle}
+                style={connectorItemStyle}
                 onClick={() => {
                   handleToolSelect("connector-line");
                   setConnectorsOpen(false);
                 }}
                 title="Connector (Line)"
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = "rgba(93, 90, 255, 0.12)";
+                  event.currentTarget.style.transform = "translateX(2px)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                  event.currentTarget.style.transform = "translateX(0)";
+                }}
+                onFocus={(event) => {
+                  event.currentTarget.style.background = "rgba(93, 90, 255, 0.12)";
+                  event.currentTarget.style.transform = "translateX(2px)";
+                }}
+                onBlur={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                  event.currentTarget.style.transform = "translateX(0)";
+                }}
               >
                 Line
               </button>
               <button
                 type="button"
-                style={itemBtnStyle}
+                style={connectorItemStyle}
                 onClick={() => {
                   handleToolSelect("connector-arrow");
                   setConnectorsOpen(false);
                 }}
                 title="Connector (Arrow)"
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = "rgba(93, 90, 255, 0.12)";
+                  event.currentTarget.style.transform = "translateX(2px)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                  event.currentTarget.style.transform = "translateX(0)";
+                }}
+                onFocus={(event) => {
+                  event.currentTarget.style.background = "rgba(93, 90, 255, 0.12)";
+                  event.currentTarget.style.transform = "translateX(2px)";
+                }}
+                onBlur={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                  event.currentTarget.style.transform = "translateX(0)";
+                }}
               >
                 Arrow
               </button>
@@ -625,66 +685,71 @@ const CanvasToolbar: React.FC<ToolbarProps> = ({
         onChange={handleSelectStickyColor}
         color={store.ui?.stickyNoteColor || store.colors?.stickyNote || "#FDE68A"}
       />
-      {confirmingClear ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: "#111827",
-              color: "#e5e7eb",
-              padding: "24px",
-              borderRadius: "12px",
-              minWidth: "320px",
-              boxShadow: "0 20px 45px rgba(0,0,0,0.45)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 12px", fontSize: "18px" }}>Clear canvas?</h3>
-            <p style={{ margin: "0 0 20px", lineHeight: 1.5 }}>
-              This removes every element from the canvas. You can undo afterwards if you change your mind.
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button
-                type="button"
-                onClick={cancelClearCanvas}
+      {confirmingClear && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(22, 24, 35, 0.45)",
+                display: "grid",
+                placeItems: "center",
+                padding: "32px",
+                zIndex: 1000,
+              }}
+            >
+              <div
                 style={{
-                  padding: "6px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(229, 231, 235, 0.2)",
-                  background: "transparent",
-                  color: "#e5e7eb",
-                  cursor: "pointer",
+                  background: "var(--bg-panel, #ffffff)",
+                  color: "var(--text-primary, #1f2544)",
+                  padding: "24px",
+                  borderRadius: "16px",
+                  minWidth: "320px",
+                  boxShadow: "0 26px 54px rgba(24,25,32,0.22)",
+                  border: "1px solid var(--border-subtle, rgba(82,88,126,0.16))",
                 }}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmClearCanvas}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: "#ef4444",
-                  color: "#0f172a",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                <h3 style={{ margin: "0 0 12px", fontSize: "18px" }}>Clear canvas?</h3>
+                <p style={{ margin: "0 0 20px", lineHeight: 1.5 }}>
+                  This removes every element from the canvas. You can undo afterwards if you change your mind.
+                </p>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={cancelClearCanvas}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--border-subtle, rgba(82,88,126,0.16))",
+                      background: "transparent",
+                      color: "var(--text-secondary, #4c5570)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmClearCanvas}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "10px",
+                      border: "none",
+                      background: "linear-gradient(135deg, #ef4444, #f97316)",
+                      color: "#ffffff",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      boxShadow: "0 12px 28px rgba(239, 68, 68, 0.25)",
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 };

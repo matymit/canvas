@@ -24,10 +24,11 @@ const puppeteer = require("puppeteer");
     const layers = stage.getChildren();
     console.log("Layer count:", layers.length);
     layers.forEach((layer, index) => {
-      console.log(
-        `Layer ${index} (${layer.name || "unnamed"}):`,
-        layer.position(),
-      );
+      console.log("Layer detail", {
+        index,
+        name: layer.name || "unnamed",
+        position: layer.position(),
+      });
     });
 
     // Call setPan
@@ -46,10 +47,11 @@ const puppeteer = require("puppeteer");
         const layersAfter = stage.getChildren();
         console.log("Layer positions after:");
         layersAfter.forEach((layer, index) => {
-          console.log(
-            `Layer ${index} (${layer.className()}):`,
-            layer.position(),
-          );
+          console.log("Layer detail", {
+            index,
+            className: layer.className(),
+            position: layer.position(),
+          });
         });
 
         // Check if layersRef has the correct layers

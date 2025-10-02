@@ -5,6 +5,7 @@ import type { StateStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
 import { saveImageToIndexedDB, loadImageFromIndexedDB } from "../../../utils/imageStorage";
+import { debug, error, warn } from "../../../utils/debug";
 
 // Module creators
 import { createCoreModule } from "./modules/coreModule";
@@ -32,6 +33,10 @@ interface PersistedState {
     maxScale: number;
   };
 }
+
+const LOG_CATEGORY_PERSIST = "store/persist";
+const LOG_CATEGORY_HYDRATION = "store/hydration";
+const LOG_CATEGORY_SAFE_STORAGE = "store/safe-storage";
 
 export interface ViewportState {
   x: number;
@@ -176,8 +181,11 @@ function partializeForPersist(state: UnifiedCanvasStore) {
           .then(() => {
             // Already logged in saveImageToIndexedDB
           })
-          .catch(err => {
-            console.error(`[Persist] Failed to save image ${id} to IndexedDB:`, err);
+          .catch((err) => {
+            error("Persist: failed to save image to IndexedDB", {
+              category: LOG_CATEGORY_PERSIST,
+              data: { elementId: id, idbKey, error: err },
+            });
           });
         
         // Return element WITHOUT src to save localStorage space
@@ -228,12 +236,18 @@ function mergeAfterHydration(
                 const currentElement = restored.elements.get(id);
                 if (currentElement) {
                   restored.elements.set(id, { ...currentElement, src: base64 });
-                  console.log(`[Hydration] Loaded image ${id} from IndexedDB`);
+                  debug("Hydration: loaded image from IndexedDB", {
+                    category: LOG_CATEGORY_HYDRATION,
+                    data: { elementId: id, idbKey: imageEl.idbKey },
+                  });
                 }
               }
             })
-            .catch(err => {
-              console.error(`[Hydration] Failed to load image ${id}:`, err);
+            .catch((err) => {
+              error("Hydration: failed to load image", {
+                category: LOG_CATEGORY_HYDRATION,
+                data: { elementId: id, idbKey: imageEl.idbKey, error: err },
+              });
             });
         }
       }
@@ -273,19 +287,27 @@ const createSafeStorage = (): StateStorage => {
     getItem: (name: string) => {
       try {
         return localStorage.getItem(name);
-      } catch (error) {
-        console.error('[SafeStorage] Error reading from localStorage:', error);
+      } catch (readError) {
+        error("SafeStorage: error reading from localStorage", {
+          category: LOG_CATEGORY_SAFE_STORAGE,
+          data: { key: name, error: readError },
+        });
         return null;
       }
     },
     setItem: (name: string, value: string) => {
       try {
         localStorage.setItem(name, value);
-      } catch (error) {
-        if (error instanceof Error && error.name === 'QuotaExceededError') {
+      } catch (caughtError) {
+        if (caughtError instanceof Error && caughtError.name === 'QuotaExceededError') {
           const sizeKB = (value.length / 1024).toFixed(2);
-          console.warn(`[SafeStorage] localStorage quota exceeded. Attempted to save ${sizeKB} KB.`);
-          console.warn('[SafeStorage] Clearing all canvas data and retrying...');
+          warn("SafeStorage: localStorage quota exceeded", {
+            category: LOG_CATEGORY_SAFE_STORAGE,
+            data: { key: name, sizeKB },
+          });
+          warn("SafeStorage: clearing cached canvas data and retrying", {
+            category: LOG_CATEGORY_SAFE_STORAGE,
+          });
           
           // Try to clear ALL canvas-related data and retry once
           try {
@@ -307,23 +329,39 @@ const createSafeStorage = (): StateStorage => {
             
             // Retry the save
             localStorage.setItem(name, value);
-            console.log(`[SafeStorage] ✅ Successfully saved ${sizeKB} KB after clearing old data`);
+            debug("SafeStorage: save succeeded after cleanup", {
+              category: LOG_CATEGORY_SAFE_STORAGE,
+              data: { key: name, sizeKB },
+            });
           } catch (retryError) {
-            console.error(`[SafeStorage] ❌ Failed to save ${sizeKB} KB even after clearing all data`);
-            console.error('[SafeStorage] This likely means the data itself is too large for localStorage.');
-            console.error('[SafeStorage] Consider using IndexedDB for large data storage.');
+            error("SafeStorage: failed to save after cleanup", {
+              category: LOG_CATEGORY_SAFE_STORAGE,
+              data: { key: name, sizeKB, error: retryError },
+            });
+            warn("SafeStorage: data may exceed localStorage limits", {
+              category: LOG_CATEGORY_SAFE_STORAGE,
+            });
+            warn("SafeStorage: consider using IndexedDB for large payloads", {
+              category: LOG_CATEGORY_SAFE_STORAGE,
+            });
             // Silently fail - don't block the app
           }
         } else {
-          console.error('[SafeStorage] Error writing to localStorage:', error);
+          error("SafeStorage: error writing to localStorage", {
+            category: LOG_CATEGORY_SAFE_STORAGE,
+            data: { key: name, error: caughtError },
+          });
         }
       }
     },
     removeItem: (name: string) => {
       try {
         localStorage.removeItem(name);
-      } catch (error) {
-        console.error('[SafeStorage] Error removing from localStorage:', error);
+      } catch (removeError) {
+        error("SafeStorage: error removing from localStorage", {
+          category: LOG_CATEGORY_SAFE_STORAGE,
+          data: { key: name, error: removeError },
+        });
       }
     },
   };

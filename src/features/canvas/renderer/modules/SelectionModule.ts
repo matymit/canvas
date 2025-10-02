@@ -21,6 +21,9 @@ import {
 import { TransformLifecycleCoordinator } from "./selection/controllers/TransformLifecycleCoordinator";
 import { MarqueeSelectionController } from "./selection/controllers/MarqueeSelectionController";
 import { SelectionDebouncer } from "./selection/utils/SelectionDebouncer";
+import { debug } from "../../../../utils/debug";
+
+const LOG_CATEGORY = "selection/module";
 
 export class SelectionModule implements RendererModule {
   private transformerManager?: TransformerManager;
@@ -328,12 +331,15 @@ export class SelectionModule implements RendererModule {
   }
 
   private debugLog(message: string, data?: unknown) {
-    if (typeof window === "undefined") return;
-    const flag = (window as Window & { __selectionDebug?: boolean })
-      .__selectionDebug;
-    if (!flag) return;
-    // eslint-disable-next-line no-console
-    console.log("[SelectionModule]", message, data ?? "");
+    const forceLogging =
+      typeof window !== "undefined" &&
+      Boolean((window as Window & { __selectionDebug?: boolean }).__selectionDebug);
+
+    debug(`SelectionModule: ${message}`, {
+      category: LOG_CATEGORY,
+      data,
+      force: forceLogging,
+    });
   }
 
   private getStage(): Konva.Stage | null {
@@ -360,7 +366,14 @@ export class SelectionModule implements RendererModule {
     nodes: Konva.Node[],
     source: "drag" | "transform",
   ) {
-    console.log("[SelectionModule] beginSelectionTransform", { source, nodeCount: nodes.length, nodeIds: nodes.map(n => n.id()) });
+    debug("SelectionModule: beginSelectionTransform", {
+      category: LOG_CATEGORY,
+      data: {
+        source,
+        nodeCount: nodes.length,
+        nodeIds: nodes.map((node) => node.id()),
+      },
+    });
     
     // Delegate to TransformStateManager
     transformStateManager.beginTransform(nodes, source);
@@ -402,7 +415,13 @@ export class SelectionModule implements RendererModule {
     nodes: Konva.Node[],
     source: "drag" | "transform",
   ) {
-    console.log("[SelectionModule] progressSelectionTransform", { source, nodeCount: nodes.length });
+    debug("SelectionModule: progressSelectionTransform", {
+      category: LOG_CATEGORY,
+      data: {
+        source,
+        nodeCount: nodes.length,
+      },
+    });
     
     // Delegate to TransformStateManager
     transformStateManager.progressTransform(nodes, source);

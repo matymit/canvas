@@ -30,26 +30,30 @@ import {
 const PANEL_BASE: React.CSSProperties = {
   position: 'fixed',
   zIndex: 1100,
-  background: 'var(--panel, #111827)',
-  color: 'var(--text, #e5e7eb)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 10,
-  boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
-  padding: 10,
+  background: 'rgba(255,255,255,0.98)',
+  color: '#1f2544',
+  border: '1px solid rgba(82,88,126,0.18)',
+  borderRadius: 16,
+  boxShadow: '0 18px 46px rgba(24,25,32,0.16)',
+  padding: 12,
   minWidth: 220,
+  backdropFilter: 'blur(14px) saturate(1.05)',
+  WebkitBackdropFilter: 'blur(14px) saturate(1.05)',
 };
 
 // Figma horizontal panel style - compact and light to match toolbar
 const FIGMA_HORIZONTAL_PANEL: React.CSSProperties = {
   position: 'fixed',
   zIndex: 1100,
-  background: '#ffffff', // Match toolbar background
-  color: '#1a1a1a', // Dark text on light background
-  border: '1px solid #e0e0e0',
-  borderRadius: 8,
-  boxShadow: '0 10px 20px rgba(0, 0, 0, 0.15)',
-  padding: 6, // Reduced padding for compact design
-  minWidth: 'auto', // Allow natural width
+  background: 'rgba(255,255,255,0.95)',
+  color: '#1f2544',
+  border: '1px solid rgba(82,88,126,0.16)',
+  borderRadius: 14,
+  boxShadow: '0 18px 36px rgba(24,25,32,0.18)',
+  padding: 8,
+  minWidth: 'auto',
+  backdropFilter: 'blur(12px) saturate(1.05)',
+  WebkitBackdropFilter: 'blur(12px) saturate(1.05)',
 };
 
 const HEADER_STYLE: React.CSSProperties = {
@@ -75,18 +79,18 @@ const FIGMA_HORIZONTAL_GRID_STYLE: React.CSSProperties = {
 };
 
 const SWATCH_STYLE: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 6,
-  border: '1px solid rgba(0,0,0,0.25)',
+  width: 30,
+  height: 30,
+  borderRadius: 999,
+  border: '2px solid transparent',
   cursor: 'pointer',
   outline: 'none',
-  transition: 'transform 0.15s ease',
+  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
 };
 
 const FIGMA_SWATCH_STYLE: React.CSSProperties = {
-  width: 28, // Slightly smaller for compact design
-  height: 28,
+  width: 30,
+  height: 30,
   borderRadius: '50%',
   border: '2px solid transparent',
   cursor: 'pointer',
@@ -125,11 +129,11 @@ const HEX_INPUT_STYLE: React.CSSProperties = {
   fontFamily: 'monospace',
 };
 
-const FOCUS_OUTLINE = '0 0 0 2px rgba(59, 130, 246, 0.5)';
-const SELECTED_OUTLINE = '0 0 0 2px rgba(255, 255, 255, 0.8)';
-const FIGMA_SELECTED_BORDER = '2px solid rgba(75, 91, 255, 0.9)';
-const FIGMA_FOCUS_BORDER = '2px solid rgba(59, 130, 246, 0.6)';
-const FIGMA_DEFAULT_BORDER = '2px solid rgba(0, 0, 0, 0.15)'; // Subtle border for contrast on light background
+const FOCUS_OUTLINE = '0 0 0 3px rgba(93, 90, 255, 0.32)';
+const SELECTED_OUTLINE = '0 0 0 3px rgba(93, 90, 255, 0.22)';
+const FIGMA_SELECTED_BORDER = '2px solid rgba(93, 90, 255, 0.85)';
+const FIGMA_FOCUS_BORDER = '2px solid rgba(93, 90, 255, 0.55)';
+const FIGMA_DEFAULT_BORDER = '2px solid rgba(82, 88, 126, 0.2)';
 
 export default function UnifiedColorPicker({
   open,
@@ -149,7 +153,7 @@ export default function UnifiedColorPicker({
   onSelect,
 }: UnifiedColorPickerProps) {
   // Handle backward compatibility
-  const color = propColor ?? selected ?? '#FDE68A';
+  const color = propColor ?? selected ?? '#FFD262';
   const onChange = useCallback(
     (color: string) => {
       if (propOnChange) {

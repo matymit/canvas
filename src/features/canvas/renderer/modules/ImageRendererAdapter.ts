@@ -4,6 +4,9 @@ import type { ModuleRendererCtx, RendererModule } from "../index";
 import { ImageRenderer, type RendererLayers } from "./ImageRenderer";
 import { getWorldViewportBounds } from "../../utils/viewBounds";
 import type ImageElement from "../../types/image";
+import { debug } from "../../../../utils/debug";
+
+const LOG_CATEGORY = "renderer/image-adapter";
 
 type Id = string;
 
@@ -80,19 +83,26 @@ export class ImageRendererAdapter implements RendererModule {
           (image.x ?? 0) > bounds.maxX ||
           (image.y ?? 0) > bounds.maxY;
 
-        console.log(`[ImageRendererAdapter] Checking bounds for ${id}:`, {
-          imageX: image.x,
-          imageY: image.y,
-          imageW: image.width,
-          imageH: image.height,
-          right,
-          bottom,
-          bounds,
-          isOffscreen
+        debug("ImageRendererAdapter: checking bounds", {
+          category: LOG_CATEGORY,
+          data: {
+            id,
+            imageX: image.x,
+            imageY: image.y,
+            imageW: image.width,
+            imageH: image.height,
+            right,
+            bottom,
+            bounds,
+            isOffscreen,
+          },
         });
 
         if (isOffscreen) {
-          console.log(`[ImageRendererAdapter] Image ${id} is offscreen, hiding`);
+          debug("ImageRendererAdapter: image hidden due to offscreen", {
+            category: LOG_CATEGORY,
+            data: { id },
+          });
           this.renderer.setVisibility(id, false);
           continue;
         }

@@ -426,7 +426,7 @@ export function openShapeTextEditor(
 
     // FIXED: Force visual refresh after text input to ensure text appears immediately
     requestAnimationFrame(() => {
-      editor.offsetHeight; // Force reflow to ensure text is rendered
+      void editor.offsetHeight; // Force reflow to ensure text is rendered
     });
   };
 
@@ -485,11 +485,11 @@ export function openShapeTextEditor(
     }
 
     // FIXED: Force visual refresh without display toggling
-    editor.offsetHeight; // Force reflow
+  void editor.offsetHeight; // Force reflow
   };
 
   // FIXED: Simplified focus strategy without complex blur/refocus cycles
-  editor.offsetHeight; // Force layout
+  void editor.offsetHeight; // Force layout
 
   // Simple, reliable focus sequence
   requestAnimationFrame(() => {

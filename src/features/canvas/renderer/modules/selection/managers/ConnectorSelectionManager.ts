@@ -4,8 +4,11 @@
 
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import { debug, error, warn } from "../../../../../../utils/debug";
 import type { ConnectorElement, ConnectorEndpoint } from "../../../../types/connector";
 import type { ConnectorService } from "../../../../services/ConnectorService";
+
+const LOG_CATEGORY = "selection/connector";
 
 export interface ConnectorSelectionManager {
   scheduleRefresh(elementIds: Set<string>): void;
@@ -73,9 +76,12 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       return;
     }
 
-    console.log("[ConnectorSelectionManager] Scheduling connector refresh", {
-      elementCount: elementIds.size,
-      elementIds: Array.from(elementIds).slice(0, 5) // Show first 5 to avoid spam
+    debug("ConnectorSelectionManager: scheduling connector refresh", {
+      category: LOG_CATEGORY,
+      data: {
+        elementCount: elementIds.size,
+        sampleElementIds: Array.from(elementIds).slice(0, 5),
+      },
     });
 
     this.refreshScheduled = true;
@@ -96,12 +102,15 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     const elements = store.elements;
     
     if (!elements) {
-      console.warn("[ConnectorSelectionManager] No elements available for connector refresh");
+      warn("ConnectorSelectionManager: no elements available for connector refresh", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
-    console.log("[ConnectorSelectionManager] Refreshing connected connectors", {
-      elementCount: elementIds.size
+    debug("ConnectorSelectionManager: refreshing connected connectors", {
+      category: LOG_CATEGORY,
+      data: { elementCount: elementIds.size },
     });
 
     const connectorsToUpdate = new Set<string>();
@@ -121,14 +130,20 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       }
     });
 
-    console.log(`[ConnectorSelectionManager] Found ${connectorsToUpdate.size} connectors to update`);
+    debug("ConnectorSelectionManager: connectors to update identified", {
+      category: LOG_CATEGORY,
+      data: { connectorCount: connectorsToUpdate.size },
+    });
 
     // Update each connector
     connectorsToUpdate.forEach(connectorId => {
       try {
         this.updateConnectorRouting(connectorId);
-      } catch (error) {
-        console.error(`[ConnectorSelectionManager] Error updating connector ${connectorId}:`, error);
+      } catch (caughtError) {
+        error("ConnectorSelectionManager: error updating connector", {
+          category: LOG_CATEGORY,
+          data: { connectorId, error: caughtError },
+        });
       }
     });
   }
@@ -174,11 +189,17 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     const element = store.elements?.get(id);
     
     if (!element || element.type !== 'connector') {
-      console.warn(`[ConnectorSelectionManager] Cannot apply endpoint override to non-connector ${id}`);
+      warn("ConnectorSelectionManager: cannot apply endpoint override to non-connector", {
+        category: LOG_CATEGORY,
+        data: { id },
+      });
       return;
     }
 
-    console.log("[ConnectorSelectionManager] Applying endpoint override", { id, from, to });
+    debug("ConnectorSelectionManager: applying endpoint override", {
+      category: LOG_CATEGORY,
+      data: { id, from, to },
+    });
 
     const patch: Partial<ConnectorElement> = {};
     if (from) patch.from = from;
@@ -198,9 +219,12 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       return;
     }
 
-    console.log("[ConnectorSelectionManager] Updating connector shape geometry", {
-      connectorId,
-      nodeType: node.constructor.name
+    debug("ConnectorSelectionManager: updating connector shape geometry", {
+      category: LOG_CATEGORY,
+      data: {
+        connectorId,
+        nodeType: node.constructor.name,
+      },
     });
 
     const position = node.position();
@@ -231,14 +255,19 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
 
   // Extracted from SelectionModule.ts lines 1562-1565
   commitTranslation(delta: { dx: number; dy: number }): void {
-    console.log("[ConnectorSelectionManager] Committing connector translation", { 
-      delta, 
-      moveSelectedConnectorsWasCalled: this.moveSelectedConnectorsWasCalled 
+    debug("ConnectorSelectionManager: committing connector translation", {
+      category: LOG_CATEGORY,
+      data: {
+        delta,
+        moveSelectedConnectorsWasCalled: this.moveSelectedConnectorsWasCalled,
+      },
     });
     
     // Skip if moveSelectedConnectors was already called - prevents double processing
     if (this.moveSelectedConnectorsWasCalled) {
-      console.log("[ConnectorSelectionManager] Skipping commitTranslation - connectors already moved by moveSelectedConnectors");
+      debug("ConnectorSelectionManager: skipping commitTranslation (already processed)", {
+        category: LOG_CATEGORY,
+      });
       this.moveSelectedConnectorsWasCalled = false; // Reset flag
       return;
     }
@@ -276,7 +305,10 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
 
   // Extracted from SelectionModule.ts lines 1693-1707
   setLiveRoutingEnabled(enabled: boolean): void {
-    console.log("[ConnectorSelectionManager] Setting live routing enabled:", enabled);
+    debug("ConnectorSelectionManager: setting live routing enabled", {
+      category: LOG_CATEGORY,
+      data: { enabled },
+    });
     this.liveRoutingEnabled = enabled;
   }
 
@@ -284,7 +316,10 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
   updateElement(id: string, changes: Partial<ConnectorElement>): void {
     const store = useUnifiedCanvasStore.getState();
     
-    console.log("[ConnectorSelectionManager] Updating connector element", { id, changes });
+    debug("ConnectorSelectionManager: updating connector element", {
+      category: LOG_CATEGORY,
+      data: { id, changes },
+    });
 
     if (store.updateElement) {
       store.updateElement(id, changes, { pushHistory: false });
@@ -305,10 +340,13 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       return;
     }
 
-    console.log("[ConnectorSelectionManager] Handling endpoint drag", {
-      connectorId,
-      endpoint,
-      position
+    debug("ConnectorSelectionManager: handling endpoint drag", {
+      category: LOG_CATEGORY,
+      data: {
+        connectorId,
+        endpoint,
+        position,
+      },
     });
 
     const connectorElement = connector as ConnectorElement;
@@ -377,10 +415,13 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     delta: { dx: number; dy: number },
     baselines?: Map<string, { position: { x: number; y: number }; from?: ConnectorEndpoint; to?: ConnectorEndpoint }>,
   ): void {
-    console.log("[ConnectorSelectionManager] Moving selected connectors", {
-      connectorCount: connectorIds.size,
-      delta,
-      connectorIds: Array.from(connectorIds).slice(0, 5)
+    debug("ConnectorSelectionManager: moving selected connectors", {
+      category: LOG_CATEGORY,
+      data: {
+        connectorCount: connectorIds.size,
+        delta,
+        sampleConnectorIds: Array.from(connectorIds).slice(0, 5),
+      },
     });
 
     // Set flag to prevent double processing in commitTranslation
@@ -390,7 +431,9 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     const elements = store.elements;
     
     if (!elements || !store.updateElement) {
-      console.warn("[ConnectorSelectionManager] Store not available for connector movement");
+      warn("ConnectorSelectionManager: store not available for connector movement", {
+        category: LOG_CATEGORY,
+      });
       return;
     }
 
@@ -398,7 +441,10 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
     connectorIds.forEach(connectorId => {
       const element = elements.get(connectorId);
       if (!element || element.type !== 'connector') {
-        console.warn(`[ConnectorSelectionManager] Element ${connectorId} is not a connector`);
+        warn("ConnectorSelectionManager: element is not a connector", {
+          category: LOG_CATEGORY,
+          data: { connectorId },
+        });
         return;
       }
 
@@ -415,7 +461,10 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       const toIsPoint = baselineTo?.kind === "point";
 
       if (!fromIsPoint && !toIsPoint) {
-        console.log(`[ConnectorSelectionManager] Skipping anchored connector ${connectorId} — no movable endpoints`);
+        debug("ConnectorSelectionManager: skipping anchored connector (no movable endpoints)", {
+          category: LOG_CATEGORY,
+          data: { connectorId },
+        });
         return;
       }
 
@@ -443,11 +492,17 @@ export class ConnectorSelectionManagerImpl implements ConnectorSelectionManager 
       }
 
       if (Object.keys(connectorPatch).length === 0) {
-        console.log(`[ConnectorSelectionManager] Skipping connector ${connectorId} — no changes computed`);
+        debug("ConnectorSelectionManager: skipping connector (no changes computed)", {
+          category: LOG_CATEGORY,
+          data: { connectorId },
+        });
         return;
       }
 
-      console.log(`[ConnectorSelectionManager] Updating connector ${connectorId}`, connectorPatch);
+      debug("ConnectorSelectionManager: updating connector", {
+        category: LOG_CATEGORY,
+        data: { connectorId, changes: connectorPatch },
+      });
       
       // CRITICAL FIX: Don't push history during drag completion to prevent visual jumping
       // Store updates with history trigger re-renders that reset visual positions

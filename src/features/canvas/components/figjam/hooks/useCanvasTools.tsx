@@ -120,8 +120,10 @@ export const useCanvasTools = ({
           return <MindmapTool key="mindmap-tool" {...toolProps} />;
         case "circle":
         case "ellipse":
-        case "draw-circle":
-          return <CircleTool key="circle-tool" {...toolProps} toolId={selectedTool!} />;
+        case "draw-circle": {
+          const circleToolId = selectedTool ?? toolKey;
+          return <CircleTool key="circle-tool" {...toolProps} toolId={circleToolId} />;
+        }
         case "rectangle":
         case "draw-rectangle":
         case "triangle":

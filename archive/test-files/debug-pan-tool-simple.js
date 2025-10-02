@@ -30,16 +30,20 @@ function checkStoreAccess() {
       const originalX = store.viewport.x;
       const originalY = store.viewport.y;
 
-      console.log(`Original viewport position: (${originalX}, ${originalY})`);
+      console.log("Original viewport position", {
+        x: originalX,
+        y: originalY,
+      });
 
       try {
         store.viewport.setPan(originalX + 10, originalY + 10);
 
         setTimeout(() => {
           const newState = window.useUnifiedCanvasStore.getState();
-          console.log(
-            `After setPan: (${newState.viewport.x}, ${newState.viewport.y})`,
-          );
+          console.log("After setPan", {
+            x: newState.viewport.x,
+            y: newState.viewport.y,
+          });
 
           if (
             newState.viewport.x === originalX + 10 &&
@@ -113,7 +117,10 @@ function checkPanToolEvents() {
     (listener) => listener.name && listener.name.includes("pantool"),
   );
 
-  console.log(`Found ${panEvents.length} pan tool event listeners:`, panEvents);
+  console.log("Found pan tool event listeners", {
+    count: panEvents.length,
+    listeners: panEvents,
+  });
 
   if (panEvents.length === 0) {
     console.log("❌ No pan tool event listeners found");

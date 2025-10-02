@@ -350,7 +350,18 @@ export const createCoreModule: StoreSlice<CoreModuleSlice> = (set, get) => {
       toggle: (id) => get().toggleSelection(id),
       clear: () => get().clearSelection(),
       selectAll: () => get().setSelection(get().elementOrder.slice()),
-      deleteSelected: () => { const state = get(); const ids = Array.from(state.selectedElementIds); if (!ids.length) return; const performDelete = () => state.removeElements(ids, { pushHistory: true, deselect: true }); state.withUndo ? state.withUndo("Delete elements", performDelete) : performDelete(); },
+      deleteSelected: () => {
+        const state = get();
+        const ids = Array.from(state.selectedElementIds);
+        if (!ids.length) return;
+
+        const performDelete = () => state.removeElements(ids, { pushHistory: true, deselect: true });
+        if (state.withUndo) {
+          state.withUndo("Delete elements", performDelete);
+        } else {
+          performDelete();
+        }
+      },
       moveSelectedBy: (dx, dy) => { const ids = Array.from(get().selectedElementIds); ids.forEach((id) => get().updateElement(id, (el) => ({ ...el, x: (el.x ?? 0) + dx, y: (el.y ?? 0) + dy }))); },
       getSelected: () => get().getElements(Array.from(get().selectedElementIds)),
       beginTransform: () => get().beginTransform(),

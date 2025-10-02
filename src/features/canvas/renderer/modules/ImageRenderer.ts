@@ -4,6 +4,9 @@ import type ImageElement from '../../types/image';
 import { useUnifiedCanvasStore } from '../../stores/unifiedCanvasStore';
 import { loadImageFromIndexedDB } from '../../../../utils/imageStorage';
 import { transformStateManager } from './selection/managers';
+import { debug, error, warn } from '../../../../utils/debug';
+
+const LOG_CATEGORY = 'renderer/image';
 
 export interface RendererLayers {
   background: Konva.Layer;
@@ -26,17 +29,24 @@ export class ImageRenderer {
    * Ensures the bitmap is loaded and cached on the Konva.Image node
    */
   private async ensureBitmap(el: ImageElement, node: Konva.Image): Promise<void> {
-    console.log(`[ImageRenderer] ensureBitmap called for ${el.id}`, { 
-      hasSrc: !!el.src, 
-      srcLength: el.src?.length || 0,
-      hasIdbKey: !!el.idbKey,
-      idbKey: el.idbKey ?? null 
+    debug('ImageRenderer: ensureBitmap invoked', {
+      category: LOG_CATEGORY,
+      data: {
+        elementId: el.id,
+        hasSrc: Boolean(el.src),
+        srcLength: el.src?.length ?? 0,
+        hasIdbKey: Boolean(el.idbKey),
+        idbKey: el.idbKey ?? null,
+      },
     });
     
     // If src is missing but we have idbKey, load from IndexedDB
     let src = el.src;
     if ((!src || src === '') && el.idbKey) {
-      console.log(`[ImageRenderer] Loading image from IndexedDB: ${el.idbKey}`);
+      debug('ImageRenderer: loading image from IndexedDB', {
+        category: LOG_CATEGORY,
+        data: { elementId: el.id, idbKey: el.idbKey },
+      });
       const loadedSrc = await loadImageFromIndexedDB(el.idbKey);
       if (loadedSrc) {
         src = loadedSrc;
@@ -46,22 +56,34 @@ export class ImageRenderer {
           store.updateElement(el.id, { src: loadedSrc }, { pushHistory: false });
         }
       } else {
-        console.error(`[ImageRenderer] Failed to load image from IndexedDB: ${el.idbKey}`);
+        error('ImageRenderer: failed to load image from IndexedDB', {
+          category: LOG_CATEGORY,
+          data: { elementId: el.id, idbKey: el.idbKey },
+        });
         return;
       }
     }
     
     if (!src) {
-      console.error('[ImageRenderer] No src available for image:', el.id);
+      error('ImageRenderer: no src available for image', {
+        category: LOG_CATEGORY,
+        data: { elementId: el.id },
+      });
       return;
     }
     
     if (node.getAttr('src') === src && node.image()) {
-      console.log(`[ImageRenderer] Image already loaded, skipping: ${el.id}`);
+      debug('ImageRenderer: image already loaded, skipping', {
+        category: LOG_CATEGORY,
+        data: { elementId: el.id },
+      });
       return;
     }
 
-    console.log(`[ImageRenderer] Loading new image for ${el.id}, srcLength: ${src.length}`);
+    debug('ImageRenderer: loading new image', {
+      category: LOG_CATEGORY,
+      data: { elementId: el.id, srcLength: src.length },
+    });
     try {
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
         const tag = new Image();
@@ -72,9 +94,15 @@ export class ImageRenderer {
 
       node.setAttr('src', src);
       node.image(img);
-      console.log(`[ImageRenderer] Successfully loaded image for ${el.id}`);
-    } catch (error) {
-      console.error('[ImageRenderer] Failed to load image:', error);
+      debug('ImageRenderer: successfully loaded image', {
+        category: LOG_CATEGORY,
+        data: { elementId: el.id },
+      });
+    } catch (caughtError) {
+      error('ImageRenderer: failed to load image from src', {
+        category: LOG_CATEGORY,
+        data: { elementId: el.id, error: caughtError },
+      });
       // Set a placeholder or handle error gracefully
     }
   }
@@ -103,12 +131,16 @@ export class ImageRenderer {
    * Render or update an image element on the main layer
    */
   async render(el: ImageElement): Promise<void> {
-    console.log(`[ImageRenderer] render() called for ${el.id}`, {
-      hasSrc: !!el.src,
-      srcLength: el.src?.length || 0,
-      hasIdbKey: !!el.idbKey,
-      x: el.x,
-      y: el.y
+    debug('ImageRenderer: render invoked', {
+      category: LOG_CATEGORY,
+      data: {
+        elementId: el.id,
+        hasSrc: Boolean(el.src),
+        srcLength: el.src?.length ?? 0,
+        hasIdbKey: Boolean(el.idbKey),
+        x: el.x,
+        y: el.y,
+      },
     });
     
     let g = this.groupById.get(el.id);
@@ -162,17 +194,25 @@ export class ImageRenderer {
       const isSignificantDiff = positionDiff > 5;
       
       if (isSignificantDiff) {
-        console.log(`[ImageRenderer] Position sync needed for ${el.id}`, {
-          currentPos,
-          storePos: { x: el.x, y: el.y },
-          diff: positionDiff
+        debug('ImageRenderer: syncing position from store', {
+          category: LOG_CATEGORY,
+          data: {
+            elementId: el.id,
+            currentPos,
+            storePos: { x: el.x, y: el.y },
+            diff: positionDiff,
+          },
         });
         g.position({ x: el.x, y: el.y });
       }
     } else {
-      console.log(`[ImageRenderer] Skipping position sync - user interacting (${el.id})`, {
-        isDragging: g.isDragging(),
-        isTransforming: transformStateManager.isTransformInProgress
+      debug('ImageRenderer: skipping position sync during interaction', {
+        category: LOG_CATEGORY,
+        data: {
+          elementId: el.id,
+          isDragging: g.isDragging(),
+          isTransforming: transformStateManager.isTransformInProgress,
+        },
       });
     }
     g.rotation(el.rotation ?? 0);
@@ -248,14 +288,27 @@ export class ImageRenderer {
   }
 
   setVisibility(id: string, visible: boolean): void {
-    console.log(`[ImageRenderer] setVisibility(${id}, ${visible})`);
+    debug('ImageRenderer: setVisibility invoked', {
+      category: LOG_CATEGORY,
+      data: { id, visible },
+    });
     const group = this.groupById.get(id);
     if (!group) {
-      console.log(`[ImageRenderer] setVisibility: group not found for ${id}`);
+      warn('ImageRenderer: group not found during visibility update', {
+        category: LOG_CATEGORY,
+        data: { id },
+      });
       return;
     }
     if (group.visible() !== visible) {
-      console.log(`[ImageRenderer] Changing visibility for ${id}: ${group.visible()} → ${visible}`);
+      debug('ImageRenderer: updating visibility state', {
+        category: LOG_CATEGORY,
+        data: {
+          id,
+          previous: group.visible(),
+          next: visible,
+        },
+      });
       group.visible(visible);
       const bitmap = this.imageNodeById.get(id);
       bitmap?.visible(visible);

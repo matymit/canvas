@@ -153,7 +153,7 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
   grid: {
     visible: true,
     density: 20,
-    color: '#E5E5E5',
+    color: '#D8DAF3',
   },
 
   contextualToolbar: {
@@ -163,9 +163,9 @@ export const createInteractionModule: StoreSlice<InteractionModuleSlice> = (set,
   },
 
   colors: {
-    stroke: '#1F2937', // slate-800
-    fill: '#3B82F6',   // blue-500
-    stickyNote: '#FFF59D', // light yellow (default sticky note color)
+    stroke: '#1F2544', // deep slate
+    fill: '#5D5AFF',   // indigo accent
+    stickyNote: '#FFD262', // sunny yellow (default sticky note color)
   },
 
   colorPicker: {

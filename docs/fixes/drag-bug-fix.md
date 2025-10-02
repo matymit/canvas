@@ -1,9 +1,7 @@
-# DRAG FUNCTIONALITY BUG - ROOT CAUSE AND FIX
+# Drag Functionality Bug — Root Cause and Fix
 
-## Date: October 1, 2025
-## Status: ✅ FIXED
-
----
+**Date:** October 1, 2025  
+**Status:** ✅ FIXED
 
 ## 🐛 Bug Description
 

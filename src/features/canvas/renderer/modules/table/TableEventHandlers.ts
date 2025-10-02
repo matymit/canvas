@@ -210,8 +210,11 @@ export class TableEventHandlers {
       if (selectionModule) {
         const isAdditive = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
         if (isAdditive) {
-          selectionModule.toggleSelection?.(elementId) ??
-            selectionModule.selectElement?.(elementId);
+          if (selectionModule.toggleSelection) {
+            selectionModule.toggleSelection(elementId);
+          } else if (selectionModule.selectElement) {
+            selectionModule.selectElement(elementId);
+          }
         } else {
           selectionModule.selectElement?.(elementId);
         }

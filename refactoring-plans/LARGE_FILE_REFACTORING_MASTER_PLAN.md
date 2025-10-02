@@ -317,7 +317,7 @@ This master plan coordinates the systematic refactoring of 13 large files (600-1
 ## 📚 References
 
 ### Documentation
-- [Canvas Master Blueprint](./CANVAS_MASTER_BLUEPRINT.md)
+- [Canvas Master Blueprint](./docs/legacy/master-blueprint.md)
 - [Selection Module Plan](./SELECTION_MODULE_IMPLEMENTATION_PLAN.md)
 - [Architecture Docs](./docs/architecture/README.md)
 

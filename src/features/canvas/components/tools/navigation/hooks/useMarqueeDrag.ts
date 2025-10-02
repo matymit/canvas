@@ -3,6 +3,7 @@
 
 import type React from "react";
 import type Konva from "konva";
+import { debug, warn } from "../../../../../../utils/debug";
 import type { StoreApi, UseBoundStore } from "zustand";
 import type { MarqueeState } from "./useMarqueeState";
 import type { CanvasElement } from "../../../../../../../types";
@@ -69,10 +70,13 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     let currentNode: Konva.Node | null = target;
     let resolvedNode: Konva.Node | null = targetElementId ? target : null;
 
-    console.log("[MarqueeDrag] Click on element - resolving elementId", {
-      targetType: target.constructor.name,
-      initialElementId: targetElementId,
-      persistentSelectionCount: marqueeRef.current.persistentSelection.length,
+    debug("MarqueeDrag: resolving elementId", {
+      category: "marquee/drag",
+      data: {
+        targetType: target.constructor.name,
+        initialElementId: targetElementId,
+        persistentSelectionCount: marqueeRef.current.persistentSelection.length,
+      },
     });
 
     // Traverse up to find elementId if not found
@@ -115,20 +119,25 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       resolvedNode = candidate;
     }
 
-    console.log("[MarqueeDrag] Element ID resolved", {
-      targetElementId,
-      traversalSteps,
-      resolvedNodeType: resolvedNode?.constructor.name,
-      nodeTypeAttr: resolvedNode?.getAttr?.("nodeType"),
-      hasPersistentSelection:
-        marqueeRef.current.persistentSelection.length > 0,
+    debug("MarqueeDrag: element resolved", {
+      category: "marquee/drag",
+      data: {
+        targetElementId,
+        traversalSteps,
+        resolvedNodeType: resolvedNode?.constructor.name,
+        nodeTypeAttr: resolvedNode?.getAttr?.("nodeType"),
+        hasPersistentSelection:
+          marqueeRef.current.persistentSelection.length > 0,
+      },
     });
 
     // CRITICAL: Mindmap nodes use native Konva dragging, not MarqueeDrag
     // Check if this is a mindmap node and skip MarqueeDrag handling
     const nodeType = resolvedNode?.getAttr?.("nodeType");
     if (nodeType === "mindmap-node") {
-      console.log("[MarqueeDrag] Skipping mindmap node - uses native Konva drag");
+      debug("MarqueeDrag: skipping mindmap node for native Konva drag", {
+        category: "marquee/drag",
+      });
       // Let Konva's native drag system handle this
       // Don't initiate MarqueeDrag, don't change selection
       return false;
@@ -140,13 +149,16 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       marqueeRef.current.persistentSelection.length > 0 &&
       marqueeRef.current.persistentSelection.includes(targetElementId)
     ) {
-      console.log("[MarqueeDrag] starting drag on selected element");
+      debug("MarqueeDrag: starting drag on selected element", {
+        category: "marquee/drag",
+      });
       initiateDrag(stage, pos);
       return true;
     } else if (targetElementId) {
       // Clicked on non-selected element - select it
-      console.log("[MarqueeDrag] selecting clicked element", {
-        clickedElementId: targetElementId,
+      debug("MarqueeDrag: selecting clicked element", {
+        category: "marquee/drag",
+        data: { clickedElementId: targetElementId },
       });
 
       setSelection([targetElementId]);
@@ -155,7 +167,9 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
     }
 
     // No elementId found - clear selection
-    console.log("[MarqueeDrag] No elementId found, clearing selection");
+    debug("MarqueeDrag: no elementId found, clearing selection", {
+      category: "marquee/drag",
+    });
     marqueeRef.current.persistentSelection = [];
     return false;
   };
@@ -164,18 +178,24 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
    * Initiate drag operation for selected elements
    */
   const initiateDrag = (stage: Konva.Stage, pos: { x: number; y: number }) => {
-    console.log("[MarqueeDrag] *** INITIATING DRAG ***", {
-      currentIsDragging: marqueeRef.current.isDragging,
-      persistentSelection: marqueeRef.current.persistentSelection,
-      startPos: pos
+    debug("MarqueeDrag: initiating drag", {
+      category: "marquee/drag",
+      data: {
+        currentIsDragging: marqueeRef.current.isDragging,
+        persistentSelection: marqueeRef.current.persistentSelection,
+        startPos: pos,
+      },
     });
     
     marqueeRef.current.isDragging = true;
     marqueeRef.current.transformInitiated = false;
     marqueeRef.current.startPoint = { x: pos.x, y: pos.y };
 
-    console.log("[MarqueeDrag] Finding nodes for drag", {
-      persistentSelectionCount: marqueeRef.current.persistentSelection.length,
+    debug("MarqueeDrag: finding nodes for drag", {
+      category: "marquee/drag",
+      data: {
+        persistentSelectionCount: marqueeRef.current.persistentSelection.length,
+      },
     });
 
     const originalDraggableStates = new Map<string, boolean>();
@@ -279,10 +299,10 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       }
 
       if (!node) {
-        console.warn(
-          "[MarqueeDrag] Unable to resolve Konva node for element",
-          elementId,
-        );
+        warn("MarqueeDrag: unable to resolve Konva node for element", {
+          category: "marquee/drag",
+          data: { elementId },
+        });
         return;
       }
 
@@ -339,10 +359,10 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
 
     marqueeRef.current.originalDraggableStates = originalDraggableStates;
 
-    console.log(
-      "[MarqueeDrag] captured base positions:",
-      Array.from(marqueeRef.current.basePositions.entries()),
-    );
+    debug("MarqueeDrag: captured base positions", {
+      category: "marquee/drag",
+      data: Array.from(marqueeRef.current.basePositions.entries()),
+    });
   };
 
   /**
@@ -355,11 +375,14 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       (marqueeRef.current.selectedNodes.length === 0 &&
         marqueeRef.current.selectedConnectorIds.size === 0)
     ) {
-      console.log("[MarqueeDrag] handleDragMove blocked:", {
-        isDragging: marqueeRef.current.isDragging,
-        selectedNodesLength: marqueeRef.current.selectedNodes.length,
-        connectorCount: marqueeRef.current.selectedConnectorIds.size,
-        hasStartPoint: !!marqueeRef.current.startPoint,
+      debug("MarqueeDrag: handleDragMove blocked", {
+        category: "marquee/drag",
+        data: {
+          isDragging: marqueeRef.current.isDragging,
+          selectedNodesLength: marqueeRef.current.selectedNodes.length,
+          connectorCount: marqueeRef.current.selectedConnectorIds.size,
+          hasStartPoint: !!marqueeRef.current.startPoint,
+        },
       });
       return;
     }
@@ -378,7 +401,9 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       !marqueeRef.current.transformInitiated &&
       (Math.abs(dragDelta.dx) > 1 || Math.abs(dragDelta.dy) > 1)
     ) {
-      console.log("[MarqueeDrag] initiating transform on first movement");
+      debug("MarqueeDrag: initiating transform on first movement", {
+        category: "marquee/drag",
+      });
       beginTransform?.();
       marqueeRef.current.transformInitiated = true;
     }
@@ -394,11 +419,14 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
         };
         // Check if node is still in scene graph
         const isAttached = node.getParent() !== null;
-        console.log("[MarqueeDrag] Updating node position:", {
-          elementId,
-          isAttached,
-          parentExists: !!node.getParent(),
-          newPos
+        debug("MarqueeDrag: updating node position", {
+          category: "marquee/drag",
+          data: {
+            elementId,
+            isAttached,
+            parentExists: !!node.getParent(),
+            newPos,
+          },
         });
         node.position(newPos);
       }
@@ -502,9 +530,9 @@ export const useMarqueeDrag = (options: MarqueeDragOptions) => {
       return;
     }
 
-    console.log(
-      "[MarqueeDrag] *** EXECUTING DRAG COMMIT LOGIC IN onPointerUp ***",
-    );
+    debug("MarqueeDrag: committing drag operation", {
+      category: "marquee/drag",
+    });
 
     const startPoint = marqueeRef.current.startPoint;
     const store = useUnifiedCanvasStore.getState();

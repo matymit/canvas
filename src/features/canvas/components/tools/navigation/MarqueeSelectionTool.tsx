@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { debug } from "../../../../../utils/debug";
+const LOG_CATEGORY = "marquee/tool";
 import { useMarqueeState } from "./hooks/useMarqueeState";
 import { useMarqueeSelection } from "./hooks/useMarqueeSelection";
 import { useMarqueeDrag } from "./hooks/useMarqueeDrag";
@@ -223,24 +224,27 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       })();
 
       if (overlayBehavior === "block") {
-        console.log(
-          "[MarqueeSelectionTool] overlay target is interactive - deferring",
-          {
+        debug("MarqueeSelectionTool: overlay target is interactive - deferring", {
+          category: LOG_CATEGORY,
+          data: {
             targetName,
             parentName,
           },
-        );
+        });
         return;
       }
 
       const resolved = resolveElementTarget(stageTarget, e.target);
 
-      console.log("[MarqueeSelectionTool] onPointerDown", {
-        target: e.target.constructor.name,
-        targetId: e.target.id(),
-        selectionCount: selectionRef.current.length,
-        pos,
-        resolvedElementId: resolved.elementId,
+      debug("MarqueeSelectionTool: pointer down", {
+        category: LOG_CATEGORY,
+        data: {
+          target: e.target.constructor.name,
+          targetId: e.target.id(),
+          selectionCount: selectionRef.current.length,
+          pos,
+          resolvedElementId: resolved.elementId,
+        },
       });
 
       const isStageClick =
@@ -252,9 +256,12 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
       if (isStageClick) {
         // If there's a current selection, clear it on first click
         if (selectionRef.current.length > 0) {
-          console.log(
-            "[MarqueeSelectionTool] clearing selection on stage click",
-          );
+          debug("MarqueeSelectionTool: clearing selection on stage click", {
+            category: LOG_CATEGORY,
+            data: {
+              previousSelectionCount: selectionRef.current.length,
+            },
+          });
           setSelection([]);
           marqueeRef.current.persistentSelection = [];
           selectionRef.current = [];
@@ -279,7 +286,9 @@ export const MarqueeSelectionTool: React.FC<MarqueeSelectionToolProps> = ({
 
       // Handle element dragging
       if (marqueeRef.current.isDragging) {
-        console.log("[MarqueeSelectionTool] onPointerMove calling handleDragMove");
+        debug("MarqueeSelectionTool: pointer move delegating to handleDragMove", {
+          category: LOG_CATEGORY,
+        });
         handleDragMove(stage);
       }
     };

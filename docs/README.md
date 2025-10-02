@@ -1,51 +1,57 @@
-# Canvas Documentation
+# Canvas Documentation Hub
 
-Welcome to the Canvas application documentation. This directory contains comprehensive documentation organized by topic.
+Welcome! This directory contains the canonical documentation for the Canvas project, grouped by task so you can quickly find the right reference.
 
-## Documentation Structure
+## 🚀 Start Here
+- [Getting Started](./getting-started.md) – local setup and project tour
+- [Known Issues](./known-issues.md) – current production & MVP gaps
+- [Canvas Hardening Plan](./canvas-hardening-plan.md) – active stabilization roadmap
+- [Performance Audit Playbook](./performance/canvas.md) – scenarios, metrics, and follow-up tasks
 
-### 📐 Architecture
-- [**Architecture Overview**](architecture/README.md) - Complete system architecture and technical blueprint
-- [**Component Audit**](architecture/canvas-component-audit.md) - Component conflict analysis and resolution
-- [**Implementation Progress**](architecture/canvas-implementation-progress.md) - Development progress tracking
-- [**Phase 5 Completion**](architecture/phase-5-completion.md) - Store persistence and history implementation
+## 🏗️ Architecture
+- [Architecture Overview](./architecture/README.md) – system blueprint and guiding principles
+- [Implementation Progress](./architecture/canvas-implementation-progress.md) – snapshot of refactor milestones
+- [Refactoring Plans Index](../refactoring-plans/README.md) – module-by-module roadmap directory
 
-### 📖 Guides
-- [**Agents Guide**](guides/agents.md) - AI agent configuration and usage
-- [**Fixes Summary**](guides/fixes-summary.md) - Summary of major bug fixes and improvements
-- [**Production Checklist**](guides/production-checklist.md) - Comprehensive production deployment checklist
-- [**Production Implementation**](guides/production-implementation-summary.md) - Production setup summary
-- [**Security CSP Hardening**](guides/security-csp-hardening.md) - Content Security Policy implementation
-- [**Security Fix Report**](guides/security-fix-report.md) - Security vulnerability fixes
-- [**Dependency Graph**](guides/dependency-graph.md) - Generate diagrams and hotspot metrics
-  - Includes scripts/Makefile usage, DOT→SVG pipeline (@hpcc-js/wasm), and focused graphs
+## 🎨 Design & UX
+- [UX Playbook](./design/ux-playbook.md) – tokens, component standards, and accessibility guidelines
 
-### 🔧 API Reference
-*Coming soon - API documentation for Canvas components and services*
+## 🛠️ Development Guides
+- [Contributing Guide](./development/contributing.md) – standards, workflow, and review expectations
+- [API Reference (WIP)](./development/api-reference.md) – module entry points and utilities
+- [Troubleshooting](./development/troubleshooting.md) – common issues and recovery steps
+- [Canvas × Tauri Integration](./development/canvas-tauri-integration.md) – desktop embedding, IPC, and packaging guidance
+- [Mindmap Implementation Summary](./development/MINDMAP_IMPLEMENTATION_SUMMARY.md) – domain-specific design notes
 
-### 🛠️ Troubleshooting
-*Coming soon - Common issues and solutions*
+## ✅ Testing & Quality
+- [Testing Overview](./testing/TESTING_OVERVIEW.md) – test strategy and coverage map
+- [MVP Test Guide](./testing/mvp-test-guide.md) – commands and CI gates
+- [Test Inventory](./testing/test-inventory.md) – spec-by-spec status
+- [Test Plan](./testing/TEST_PLAN.md) – long-form validation objectives
 
-### 📊 Legacy Documentation
-- [Advanced Features.md](Advanced%20Features.md) - Advanced canvas features documentation
-- [Canvas Refactor.md](canvas%20refactor.md) - Detailed refactoring process documentation
-- [Technical Blueprint.md](Technical%20Blueprint.md) - Original technical specifications
-- [Phase 1/](Phase1/) - Historical Phase 1 development docs
-- [Phase 2/](Phase%202/) - Historical Phase 2 development docs
-- [Phase 3/](Phase%203/) - Historical Phase 3 development docs
-- [Phase 4/](Phase%204/) - Historical Phase 4 development docs
-- [Testing/](testing/) - Test documentation and strategies
+## 🔐 Operations & Guides
+- [Agents Guide](./guides/agents.md) – assistant configuration & responsibilities
+- [Production Checklist](./guides/production-checklist.md) – release hardening steps
+- [Security CSP Hardening](./guides/security-csp-hardening.md) – desktop/WebView protections
+- [Dependency Graph Playbook](./guides/dependency-graph.md) – generating architecture diagrams
 
-## Quick Start
+## 🛡️ Hardening
+- [Hardening Playbooks](./hardening/README.md) – synchronization logs and stabilization playbooks
+- [Security Review](./security/canvas-security-review.md) – latest audit results and follow-up actions
 
-1. **For Developers**: Start with [Architecture Overview](architecture/README.md)
-2. **For Deployment**: Check [Production Checklist](guides/production-checklist.md)
-3. **For Issues**: See [Fixes Summary](guides/fixes-summary.md) for known problems and [Known Issues](../docs/known-issues.md) for current status
+## 🩹 Fix Logs & Postmortems
+- [Drag Functionality Bug](./fixes/drag-bug-fix.md)
+- [Marquee Live Drag Sync](./fixes/marquee-live-drag-sync.md)
+- [Mindmap Drag Fix](./fixes/mindmap-drag-fix.md)
 
-## Change Log
+## 🧾 Change History
+- [Changelog](./CHANGELOG.md) – version-by-version updates
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history and updates.
+## 🗃️ Legacy & Historical References
+- [Legacy Docs Index](./legacy/README.md)
+- [Technical Audit Report (archive)](../archive/old-docs/technical-audit-report.md)
+- Additional historical plans live under `../archive/`
 
 ---
 
-*This documentation structure was created as part of the Canvas codebase reorganization to improve maintainability and developer experience.*
+Need something that isn’t listed? Start with the sections above; if you can’t find it, check the `archive/` directory or open an issue so we can fold the content into the main docs.

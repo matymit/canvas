@@ -18,6 +18,7 @@ module.exports = {
     'playwright.config.ts',
     'vitest.config.ts',
     'e2e/**/*',
+    'test-results/**/*',
   ],
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -35,7 +36,13 @@ module.exports = {
     'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
     'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
     'no-unused-vars': 'off', // Handled by TypeScript
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^(?:_|error|e)',
+        caughtErrorsIgnorePattern: '^(?:_|error|e)',
+      },
+    ],
     
     // React rules
     'react-refresh/only-export-components': [
@@ -92,6 +99,15 @@ module.exports = {
     },
   },
   overrides: [
+    {
+      files: ['scripts/**/*.cjs', 'scripts/**/*.js', '*.cjs'],
+      parserOptions: {
+        project: null,
+      },
+      env: {
+        node: true,
+      },
+    },
     {
       files: ['*.test.ts', '*.test.tsx', '*.spec.ts', '*.spec.tsx'],
       rules: {

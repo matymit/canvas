@@ -4,7 +4,7 @@ A modern, high-performance canvas application built with React, TypeScript, Konv
 
 ## 🎯 Project Overview
 
-> **Architectural Compliance Note:** While this project is designed to follow the principles in the master blueprint (vanilla Konva, four-layer pipeline, store-driven rendering), the current implementation has significant architectural violations as documented in the `technical-audit-report.md`. These include direct canvas manipulation bypassing the state store and viewport race conditions. Active work is underway to refactor the code and bring it into full compliance.
+> **Architectural Compliance Update (2025-10-02):** The remediation roadmap from the historical [technical audit report](./archive/old-docs/technical-audit-report.md) has been executed through Workstreams 1–9. The canvas now honors the store-driven architecture, hardened tooling, and scoped Tauri capabilities documented in the [Canvas Hardening Plan](./docs/canvas-hardening-plan.md). Remaining architectural gaps are cataloged in the refactoring plans and tracked as follow-up work.
 
 Canvas provides a FigJam-inspired drawing experience with a focus on performance, modularity, and desktop-first design. Built on a strict four-layer rendering architecture, the application delivers smooth 60fps interactions while maintaining clean, maintainable code.
 
@@ -118,7 +118,10 @@ npm run type-check            # TypeScript validation
 npm run lint                  # ESLint checking
 npm run lint:fix              # Auto-fix linting issues
 npm run format                # Prettier formatting
-npm test                      # Run test suite
+npm run test:mvp              # MVP unit tests (Vitest)
+npm run test:mvp:integration  # MVP integration tests (Vitest)
+npm run test:mvp:all          # Unit + integration sweep
+npm test                      # Full test suite (all Vitest specs)
 ```
 
 ### Performance & Analysis
@@ -130,26 +133,23 @@ npm run audit:security        # Security audit
 
 ## 🎯 Current Status
 
-> **Note:** While the foundational architecture is in place, the project is in a **critical operational state** following recent feature integrations. An 87.5% MVP feature failure rate was identified, with significant architectural violations. A remediation plan is in progress to address these issues. For a detailed analysis, please see the [**Technical Audit Report**](./docs/technical-audit-report.md).
+> **Release Readiness Update (2025-10-02):** The Workstream program concluded with a clean web build, Tauri desktop bundles (AppImage/DEB/RPM), and audited security baselines. See the [Final Production Sweep](./docs/hardening/final-production-sweep.md) for release notes and validation logs.
 
-### ✅ Implemented
-- **Core Architecture**: Four-layer pipeline, store modules
-- **Basic Tools**: Drawing (pen, marker, highlighter), shapes, text
-- **Table System**: Grid creation with cell editing
-- **State Management**: Undo/redo, selection, viewport controls
-- **Desktop Framework**: Tauri integration and build system
+### ✅ Release-Qualified
+- Four-layer pipeline, state modules, and marquee/selection flows stabilized through extensive unit and integration coverage (`src/test/mvp/**`).
+- Security automation lands in `npm run security:baseline` and `npm run security:semgrep`, backed by the runbook in `docs/security/`.
+- Desktop packaging verified via `npm run tauri:build:production`, with icon manifest fixes powering Linux bundles.
 
-### 🚧 In Development
-- **Advanced Tools**: Connector tools with live routing (stabilized selection: endpoint-only; consistent rect policy; hover-port suppression)
-- **Mindmap System**: Node creation and hierarchical branching
-- **Image Handling**: Upload and manipulation features
-- **Performance**: Optimization and monitoring systems
+### ⚠️ Known Gaps
+- Connector live-reroute polish and TextTool re-edit support remain TODOs (`ConnectorSelectionManager`, `TextTool.tsx`).
+- Archived integration skeletons and regression Playwright specs (`src/test/**/regression-tests.test.ts`) are documented but still gated behind `test.fixme` markers.
+- Bundle identifier now set to `app.canvas.desktop`, resolving the Tauri warning about `.app` suffix collisions.
 
-### ⏳ Planned
-- **Accessibility**: WCAG 2.1 AA compliance
-- **Collaboration**: Real-time multi-user editing
-- **Advanced UI**: Contextual toolbars and panels
-- **Production**: Security hardening and deployment optimization
+### 🛠️ Upcoming Focus
+- Accessibility hardening toward WCAG 2.1 AA.
+- Real-time collaboration & presence features.
+- Advanced UI polish (contextual toolbars, inspector panes).
+- Connector tooling refinements and TextTool editing backlog.
 
 ## 🤝 Contributing
 

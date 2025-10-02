@@ -44,10 +44,10 @@ export const FONT_SIZES = {
   CIRCLE: 16,
 
   /** Mindmap root nodes (emphasis for hierarchy) */
-  MINDMAP_ROOT: 16,
+  MINDMAP_ROOT: 18,
 
   /** Mindmap child nodes */
-  MINDMAP_CHILD: 16
+  MINDMAP_CHILD: 15
 } as const;
 
 /**

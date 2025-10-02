@@ -4,6 +4,7 @@
 
 import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../../stores/unifiedCanvasStore";
+import { debug, error, warn } from "../../../../../../utils/debug";
 import type { CanvasElement } from "../../../../../../../types/index";
 import type {
   ConnectorElement,
@@ -112,21 +113,32 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
     source: "drag" | "transform",
     options: ElementSynchronizationOptions = {}
   ): void {
+    const category = "selection/element-sync";
     const store = useUnifiedCanvasStore.getState();
     const elements = store.elements;
     
     if (!elements || nodes.length === 0) {
-      console.warn("[ElementSynchronizer] Cannot sync - missing elements or nodes");
+      warn("ElementSynchronizer: cannot sync - missing elements or nodes", {
+        category,
+        data: {
+          hasElements: Boolean(elements),
+          nodeCount: nodes.length,
+          source,
+        },
+      });
       return;
     }
 
-    console.log("[ElementSynchronizer] Syncing elements from nodes", {
-      nodeCount: nodes.length,
-      source,
-      options
+    debug("ElementSynchronizer: syncing elements from nodes", {
+      category,
+      data: {
+        nodeCount: nodes.length,
+        source,
+        options,
+      },
     });
 
-  const elementUpdates: ElementUpdate[] = [];
+    const elementUpdates: ElementUpdate[] = [];
     const connectorIds = new Set<string>();
     const mindmapNodeIds = new Set<string>();
 
@@ -137,12 +149,18 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
         const element = elements.get(elementId);
         
         if (!element) {
-          console.warn(`[ElementSynchronizer] Element ${elementId} not found in store`);
+          warn("ElementSynchronizer: element not found in store", {
+            category,
+            data: { elementId },
+          });
           return;
         }
 
         const nodeType = (node.getAttr("nodeType") as string | undefined) || element.type;
-        console.log(`[ElementSynchronizer] Processing node ${index}: ${elementId} (${nodeType})`);
+        debug("ElementSynchronizer: processing node", {
+          category,
+          data: { index, elementId, nodeType },
+        });
 
         // Get current node properties
         const position = node.position();
@@ -159,19 +177,22 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
         if (isImageElement(element)) {
           // If Group size is zero (shouldn't happen after our fix, but safety check)
           if (size.width === 0 || size.height === 0) {
-            console.log(`[ElementSynchronizer] Image node has zero size, using element dimensions as fallback`, {
-              nodeSize: size,
-              elementWidth: element.width,
-              elementHeight: element.height
+            debug("ElementSynchronizer: image node zero size fallback", {
+              category,
+              data: {
+                nodeSize: size,
+                elementWidth: element.width,
+                elementHeight: element.height,
+              },
             });
             size = {
               width: isFiniteNumber(element.width) ? element.width : 0,
               height: isFiniteNumber(element.height) ? element.height : 0,
             };
           } else {
-            console.log(`[ElementSynchronizer] Image node using Group size`, {
-              nodeSize: size,
-              scale
+            debug("ElementSynchronizer: image node using group size", {
+              category,
+              data: { nodeSize: size, scale },
             });
           }
         }
@@ -285,14 +306,20 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
 
         elementUpdates.push({ id: elementId, patch });
 
-      } catch (error) {
-        console.error(`[ElementSynchronizer] Error processing node ${index}:`, error);
+      } catch (caughtError) {
+        error("ElementSynchronizer: error processing node", {
+          category,
+          data: { nodeIndex: index, error: caughtError },
+        });
       }
     });
 
     // Apply updates to store
     if (elementUpdates.length > 0) {
-      console.log(`[ElementSynchronizer] Applying ${elementUpdates.length} element updates`);
+      debug("ElementSynchronizer: applying element updates", {
+        category,
+        data: { updateCount: elementUpdates.length, batch: options.batchUpdates },
+      });
       
       if (options.batchUpdates && store.updateElements) {
         // Batch update for better performance
@@ -311,20 +338,29 @@ export class ElementSynchronizerImpl implements ElementSynchronizer {
 
     // Schedule connector refreshes if needed
     if (!options.skipConnectorScheduling && connectorIds.size > 0) {
-      console.log(`[ElementSynchronizer] Scheduling connector refresh for ${connectorIds.size} connectors`);
+      debug("ElementSynchronizer: scheduling connector refresh", {
+        category,
+        data: { connectorCount: connectorIds.size },
+      });
       this.scheduleConnectorRefresh(connectorIds);
     }
 
     // Schedule mindmap rerouting if needed
     if (mindmapNodeIds.size > 0) {
-      console.log(`[ElementSynchronizer] Scheduling mindmap reroute for ${mindmapNodeIds.size} nodes`);
+      debug("ElementSynchronizer: scheduling mindmap reroute", {
+        category,
+        data: { nodeCount: mindmapNodeIds.size },
+      });
       this.scheduleMindmapReroute(mindmapNodeIds);
     }
 
-    console.log("[ElementSynchronizer] Element synchronization completed", {
-      updatedElements: elementUpdates.length,
-      connectorRefreshes: connectorIds.size,
-      mindmapReroutes: mindmapNodeIds.size
+    debug("ElementSynchronizer: synchronization completed", {
+      category,
+      data: {
+        updatedElements: elementUpdates.length,
+        connectorRefreshes: connectorIds.size,
+        mindmapReroutes: mindmapNodeIds.size,
+      },
     });
   }
 

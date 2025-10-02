@@ -306,7 +306,7 @@ export class TextRenderer implements RendererModule {
       this.textNodes.delete(text.id);
       try {
         node.destroy();
-      } catch (destroyError) {
+      } catch (_destroyError) {
         // Warning: [TextRenderer] Error destroying corrupted node: ${destroyError}
       }
     }

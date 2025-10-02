@@ -5,12 +5,14 @@ import type Konva from "konva";
 import { useUnifiedCanvasStore } from "../../../stores/unifiedCanvasStore";
 import { StoreActions } from "../../../stores/facade";
 import type GridRenderer from "../../GridRenderer";
+import type { RafBatcher } from "../../../utils/performance/RafBatcher";
 import { debug } from "../../../../../utils/debug";
 import type { CanvasElement, ElementId } from "@types";
 
 type UseCanvasEventsArgs = {
   stageRef: MutableRefObject<Konva.Stage | null>;
   gridRendererRef: MutableRefObject<GridRenderer | null>;
+  rafBatcherRef: MutableRefObject<RafBatcher | null>;
 };
 
 type UseCanvasEventsResult = void;
@@ -20,12 +22,34 @@ const getSelectedTool = () => useUnifiedCanvasStore.getState().ui?.selectedTool 
 export const useCanvasEvents = ({
   stageRef,
   gridRendererRef,
+  rafBatcherRef,
 }: UseCanvasEventsArgs): UseCanvasEventsResult => {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
 
     debug("Setting up stage event handlers", { category: "FigJamCanvas" });
+
+    let gridDprUpdateScheduled = false;
+    const scheduleGridDprUpdate = () => {
+      const rafBatcher = rafBatcherRef.current;
+      const gridRenderer = gridRendererRef.current;
+      if (!rafBatcher || !gridRenderer) {
+        return;
+      }
+
+      if (gridDprUpdateScheduled) {
+        return;
+      }
+
+      gridDprUpdateScheduled = true;
+      rafBatcher.enqueueWrite(() => {
+        gridDprUpdateScheduled = false;
+        const currentGridRenderer = gridRendererRef.current;
+        if (!currentGridRenderer) return;
+        currentGridRenderer.updateOptions({ dpr: window.devicePixelRatio });
+      });
+    };
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
       const tool = getSelectedTool();
@@ -80,9 +104,7 @@ export const useCanvasEvents = ({
       const viewport = useUnifiedCanvasStore.getState().viewport;
       viewport?.zoomAt?.(pointer.x, pointer.y, deltaScale);
 
-      if (gridRendererRef.current) {
-        gridRendererRef.current.updateOptions({ dpr: window.devicePixelRatio });
-      }
+      scheduleGridDprUpdate();
     };
 
     const handleStageContextMenu = (_e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -99,7 +121,7 @@ export const useCanvasEvents = ({
       stage.off("wheel", handleWheel);
       stage.off("contextmenu", handleStageContextMenu);
     };
-  }, [stageRef, gridRendererRef]);
+  }, [stageRef, gridRendererRef, rafBatcherRef]);
 };
 
 export default useCanvasEvents;
